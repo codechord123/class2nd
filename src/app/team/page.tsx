@@ -23,6 +23,7 @@ import {
 import { useBestGroups } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
 import SubTabs from "@/components/ui/SubTabs";
+import { useFeedback } from "@/components/ui/Feedback";
 import { useState } from "react";
 import type { DailyScoreRow } from "@/types";
 
@@ -81,9 +82,9 @@ export default function TeamPage() {
   const [tab, setTab] = useState<"eval" | "mvp" | "stats">("eval");
   const [complimentTo, setComplimentTo] = useState<number | null>(null);
   const [complimentText, setComplimentText] = useState("");
-  const [complimentMsg, setComplimentMsg] = useState("");
   const [toTeacherText, setToTeacherText] = useState("");
-  const [toTeacherMsg, setToTeacherMsg] = useState("");
+  const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
+  const { toast } = useFeedback();
 
   if (role === "teacher") {
     return (
@@ -287,23 +288,33 @@ export default function TeamPage() {
           <button
             onClick={() =>
               void (async () => {
-                setComplimentMsg("");
+                if (!complimentTo) {
+                  toast("칭찬할 친구를 골라주세요.", "warn");
+                  return;
+                }
+                if (!complimentText.trim()) {
+                  toast("칭찬 내용을 적어주세요.", "warn");
+                  return;
+                }
+                if (sending) return;
+                setSending(true);
                 try {
-                  if (!complimentTo) throw new Error("칭찬할 친구를 골라주세요.");
                   await saveCompliment(complimentTo, complimentText);
-                  setComplimentMsg("✅ 칭찬이 전달됐어요!");
+                  toast("칭찬이 전달됐어요!", "success");
                   setComplimentText("");
                 } catch (e) {
-                  setComplimentMsg(`⚠️ ${e instanceof Error ? e.message : "실패"}`);
+                  toast(e instanceof Error ? e.message : "칭찬 보내기에 실패했어요.", "error");
+                } finally {
+                  setSending(false);
                 }
               })()
             }
-            className="rounded-lg bg-pink-500 px-4 py-2 text-sm font-bold text-white"
+            disabled={sending}
+            className="rounded-lg bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             보내기
           </button>
         </div>
-        {complimentMsg && <p className="mt-2 text-sm">{complimentMsg}</p>}
       </section>
 
       {/* 선생님에게 바라는 점 */}
@@ -338,22 +349,29 @@ export default function TeamPage() {
           <button
             onClick={() =>
               void (async () => {
-                setToTeacherMsg("");
+                if (!toTeacherText.trim()) {
+                  toast("내용을 적어주세요.", "warn");
+                  return;
+                }
+                if (sending) return;
+                setSending(true);
                 try {
                   await saveToTeacher(toTeacherText);
-                  setToTeacherMsg("✅ 전달됐어요!");
+                  toast("전달됐어요!", "success");
                   setToTeacherText("");
                 } catch (e) {
-                  setToTeacherMsg(`⚠️ ${e instanceof Error ? e.message : "실패"}`);
+                  toast(e instanceof Error ? e.message : "전달에 실패했어요.", "error");
+                } finally {
+                  setSending(false);
                 }
               })()
             }
-            className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white"
+            disabled={sending}
+            className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             보내기
           </button>
         </div>
-        {toTeacherMsg && <p className="mt-2 text-sm">{toTeacherMsg}</p>}
       </section>
 
       </>)}

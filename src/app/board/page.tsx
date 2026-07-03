@@ -5,6 +5,8 @@
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
+import Linkify from "@/components/ui/Linkify";
+import { useFeedback } from "@/components/ui/Feedback";
 import {
   useSuggestions,
   useAnnouncements,
@@ -32,22 +34,31 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const deleteComment = useDeleteComment();
   const toggleAnnouncement = useToggleAnnouncement();
   const removeSuggestion = useDeleteSuggestion();
+  const { toast, confirm } = useFeedback();
 
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
-  const [msg, setMsg] = useState("");
 
   const comments = sug.comments ?? [];
   const parents = comments.filter((c) => c.replyTo == null);
 
   async function submitComment() {
-    setMsg("");
     try {
       await addComment(sug.id, text, replyTo ?? undefined);
       setText("");
       setReplyTo(null);
     } catch (e) {
-      setMsg(`⚠️ ${e instanceof Error ? e.message : "실패"}`);
+      toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+    }
+  }
+
+  // 확인 다이얼로그 → 삭제 실행 → 실패 시 토스트 (3곳 공통)
+  async function confirmDelete(title: string, run: () => Promise<void>) {
+    if (!(await confirm({ title, danger: true }))) return;
+    try {
+      await run();
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
     }
   }
 
@@ -79,11 +90,12 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 {sug.isAnnouncement ? "공지 내리기" : "공지 올리기"}
               </button>
               <button
-                onClick={() => {
-                  if (confirm("이 글과 댓글을 모두 삭제할까요?")) {
-                    void removeSuggestion(sug.id).then(onBack);
-                  }
-                }}
+                onClick={() =>
+                  void confirmDelete("이 글과 댓글을 모두 삭제할까요?", async () => {
+                    await removeSuggestion(sug.id);
+                    onBack();
+                  })
+                }
                 className="text-rose-400 hover:text-rose-600"
               >
                 삭제
@@ -94,7 +106,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       </div>
 
       <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-        {sug.content}
+        <Linkify text={sug.content} />
       </p>
 
       {/* 댓글 스레드 */}
@@ -110,7 +122,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 <div className="flex items-baseline justify-between gap-2">
                   <span>
                     <b className="text-xs text-slate-500">{authorName(c.studentId)}</b>{" "}
-                    <span className="text-slate-700">{c.text}</span>
+                    <span className="text-slate-700">
+                      <Linkify text={c.text} />
+                    </span>
                   </span>
                   <span className="flex shrink-0 gap-1.5 text-[10px]">
                     <button
@@ -121,7 +135,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     </button>
                     {canDelete && (
                       <button
-                        onClick={() => confirm("댓글을 삭제할까요?") && void deleteComment(sug, c.id)}
+                        onClick={() =>
+                          void confirmDelete("댓글을 삭제할까요?", () => deleteComment(sug, c.id))
+                        }
                         className="text-rose-300 hover:text-rose-500"
                       >
                         삭제
@@ -134,11 +150,15 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     <span>
                       <span className="text-slate-300">↳</span>{" "}
                       <b className="text-xs text-slate-500">{authorName(r.studentId)}</b>{" "}
-                      <span className="text-slate-600">{r.text}</span>
+                      <span className="text-slate-600">
+                        <Linkify text={r.text} />
+                      </span>
                     </span>
                     {(role === "teacher" || (role === "student" && r.studentId === studentId)) && (
                       <button
-                        onClick={() => confirm("답글을 삭제할까요?") && void deleteComment(sug, r.id)}
+                        onClick={() =>
+                          void confirmDelete("답글을 삭제할까요?", () => deleteComment(sug, r.id))
+                        }
                         className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
                       >
                         삭제
@@ -172,7 +192,6 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             등록
           </button>
         </div>
-        {msg && <p className="mt-1 text-xs">{msg}</p>}
       </div>
     </section>
   );
@@ -185,6 +204,7 @@ export default function BoardPage() {
   const { data: posts } = useSuggestions(pages);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(studentId);
+  const { toast } = useFeedback();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
@@ -192,7 +212,6 @@ export default function BoardPage() {
   const [content, setContent] = useState("");
   const [anon, setAnon] = useState(false);
   const [search, setSearch] = useState("");
-  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
   const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
@@ -200,15 +219,14 @@ export default function BoardPage() {
 
   async function submit() {
     setBusy(true);
-    setMsg("");
     try {
       await post(title, content, anon);
       setTitle("");
       setContent("");
       setWriting(false);
-      setMsg("✅ 등록되었어요!");
+      toast("✅ 등록되었어요!");
     } catch (e) {
-      setMsg(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`);
+      toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
     } finally {
       setBusy(false);
     }
@@ -301,7 +319,6 @@ export default function BoardPage() {
               >
                 등록
               </button>
-              {msg && <span className="text-sm">{msg}</span>}
             </div>
           </div>
         )}

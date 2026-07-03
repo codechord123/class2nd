@@ -50,7 +50,13 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
 
   const confirm = useCallback(
     (opts: { title: string; body?: string; confirmLabel?: string; danger?: boolean }) =>
-      new Promise<boolean>((resolve) => setConfirmState({ ...opts, resolve })),
+      new Promise<boolean>((resolve) =>
+        setConfirmState((prev) => {
+          // 재진입 방지: 이미 열린 확인창이 있으면 이전 요청을 취소로 정리(promise 유실 방지)
+          prev?.resolve(false);
+          return { ...opts, resolve };
+        })
+      ),
     []
   );
 

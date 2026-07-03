@@ -24,6 +24,8 @@ import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
 import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
+import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
+import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -297,6 +299,8 @@ export default function TeacherPage() {
       </section>
 
       <PasswordResetPanel />
+      <ReadingAdjustPanel />
+      <CsvExportPanel />
       <LinksEditor />
       <TeacherMemoWidget />
       </>)}

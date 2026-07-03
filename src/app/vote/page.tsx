@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
+import Linkify from "@/components/ui/Linkify";
+import { useFeedback } from "@/components/ui/Feedback";
 import {
   usePolls,
   useCreatePoll,
@@ -19,8 +21,8 @@ function PollCard({ poll }: { poll: Poll }) {
   const vote = useVote(studentId);
   const closePoll = useClosePoll();
   const removePoll = useDeletePoll();
+  const { toast, confirm } = useFeedback();
   const [showVoters, setShowVoters] = useState(false);
-  const [msg, setMsg] = useState("");
 
   const closed = isPollClosed(poll);
   const allVoterIds = Object.keys(poll.votes ?? {}).filter((sid) => votesOf(poll, sid).length);
@@ -57,7 +59,11 @@ function PollCard({ poll }: { poll: Poll }) {
               </span>
             )}
           </h4>
-          {poll.desc && <p className="mt-0.5 text-sm text-slate-500">{poll.desc}</p>}
+          {poll.desc && (
+            <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-500">
+              <Linkify text={poll.desc} />
+            </p>
+          )}
         </div>
         <span className="shrink-0 text-right text-xs text-slate-400">
           {poll.createdBy === "teacher"
@@ -88,7 +94,7 @@ function PollCard({ poll }: { poll: Poll }) {
               <button
                 onClick={() =>
                   role === "student" &&
-                  void vote(poll, i).catch((e: Error) => setMsg(`⚠️ ${e.message}`))
+                  void vote(poll, i).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
                 }
                 disabled={role !== "student" || closed}
                 className={`relative w-full overflow-hidden rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
@@ -135,13 +141,24 @@ function PollCard({ poll }: { poll: Poll }) {
         {role === "teacher" && (
           <span className="flex gap-2">
             <button
-              onClick={() => void closePoll(poll)}
+              onClick={async () => {
+                if (
+                  await confirm({
+                    title: poll.closed ? "투표를 다시 진행할까요?" : "투표를 마감할까요?",
+                    confirmLabel: poll.closed ? "재개" : "마감",
+                  })
+                )
+                  void closePoll(poll).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
+              }}
               className="text-amber-500 hover:text-amber-700"
             >
               {poll.closed ? "재개" : "마감하기"}
             </button>
             <button
-              onClick={() => void removePoll(poll.id)}
+              onClick={async () => {
+                if (await confirm({ title: "이 투표를 삭제할까요?", danger: true }))
+                  void removePoll(poll.id).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
+              }}
               className="text-rose-400 hover:text-rose-600"
             >
               삭제
@@ -164,7 +181,6 @@ function PollCard({ poll }: { poll: Poll }) {
           })}
         </div>
       )}
-      {msg && <p className="mt-1 text-xs">{msg}</p>}
     </section>
   );
 }
@@ -178,10 +194,9 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
   const [multi, setMulti] = useState(false);
   const [anonymous, setAnonymous] = useState(false);
   const [deadline, setDeadline] = useState("");
-  const [msg, setMsg] = useState("");
+  const { toast } = useFeedback();
 
   async function submit() {
-    setMsg("");
     try {
       await createPoll({
         title,
@@ -191,9 +206,10 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
         anonymous,
         deadline: deadline ? new Date(deadline + "T23:59:59+09:00").getTime() : undefined,
       });
+      toast("✅ 투표가 만들어졌어요!");
       onDone();
     } catch (e) {
-      setMsg(`⚠️ ${e instanceof Error ? e.message : "생성 실패"}`);
+      toast(`⚠️ ${e instanceof Error ? e.message : "생성 실패"}`, "error");
     }
   }
 
@@ -266,7 +282,6 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       >
         투표 만들기
       </button>
-      {msg && <p className="text-sm">{msg}</p>}
     </div>
   );
 }

@@ -27,9 +27,12 @@ import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import S1Archive from "@/components/reading/S1Archive";
 import SubTabs from "@/components/ui/SubTabs";
+import Linkify from "@/components/ui/Linkify";
+import { useFeedback } from "@/components/ui/Feedback";
 
 const EMPTY_FORM: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "", tags: [],
+  isPrivate: false,
 };
 
 type Tab = "write" | "list" | "rank" | "s1";
@@ -45,10 +48,10 @@ function ReportBody({
   onDelete?: () => void;
 }) {
   const { role, studentId } = useSession();
+  const { toast, confirm } = useFeedback();
   const addComment = useAddReportComment(role === "teacher" ? "teacher" : studentId);
   const deleteComment = useDeleteReportComment();
   const [text, setText] = useState("");
-  const [msg, setMsg] = useState("");
 
   const name = (id: number | "teacher") =>
     id === "teacher" ? "선생님" : (studentById.get(id)?.name ?? "?");
@@ -61,13 +64,23 @@ function ReportBody({
           {r.publisher && ` · ${r.publisher}`}
         </p>
       )}
-      {r.summary && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</p>}
-      {r.scene && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">🎬 {r.scene}</p>}
+      {r.summary && (
+        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+          <Linkify text={r.summary} />
+        </p>
+      )}
+      {r.scene && (
+        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+          🎬 <Linkify text={r.scene} />
+        </p>
+      )}
       {r.quote && (
         <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">“{r.quote}”</p>
       )}
       {r.thoughts && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">💭 {r.thoughts}</p>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+          💭 <Linkify text={r.thoughts} />
+        </p>
       )}
       {(onEdit || onDelete) && (
         <div className="mt-2 flex gap-2 text-xs">
@@ -94,7 +107,11 @@ function ReportBody({
             </span>
             {(role === "teacher" || c.studentId === studentId) && (
               <button
-                onClick={() => confirm("댓글을 삭제할까요?") && void deleteComment(r, c.id)}
+                onClick={() =>
+                  void confirm({ title: "댓글을 삭제할까요?", confirmLabel: "삭제", danger: true }).then(
+                    (ok) => ok && void deleteComment(r, c.id)
+                  )
+                }
                 className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
               >
                 삭제
@@ -108,7 +125,7 @@ function ReportBody({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing && text.trim()) {
-                void addComment(r.id, text).then(() => setText(""), (err: Error) => setMsg(`⚠️ ${err.message}`));
+                void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
               }
             }}
             placeholder="💬 응원 댓글 달기…"
@@ -116,14 +133,13 @@ function ReportBody({
           />
           <button
             onClick={() =>
-              void addComment(r.id, text).then(() => setText(""), (err: Error) => setMsg(`⚠️ ${err.message}`))
+              void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"))
             }
             className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
           >
             등록
           </button>
         </div>
-        {msg && <p className="mt-1 text-xs">{msg}</p>}
       </div>
     </>
   );
@@ -131,6 +147,7 @@ function ReportBody({
 
 export default function ReadingPage() {
   const { role, studentId } = useSession();
+  const { toast, confirm } = useFeedback();
   const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
 
   const { data: stats } = useReadingStats();
@@ -150,7 +167,6 @@ export default function ReadingPage() {
   const [draftId, setDraftId] = useState<string | undefined>();
   const [reportId, setReportId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
 
   const charLimit = settings?.readingCharLimit ?? 700;
   const bodyLen = reportBodyLength(form);
@@ -160,7 +176,7 @@ export default function ReadingPage() {
     return {
       title: r.title, author: r.author ?? "", publisher: r.publisher ?? "",
       summary: r.summary ?? "", scene: r.scene ?? "", quote: r.quote ?? "",
-      thoughts: r.thoughts ?? "", tags: r.tags ?? [],
+      thoughts: r.thoughts ?? "", tags: r.tags ?? [], isPrivate: r.isPrivate ?? false,
     };
   }
   function resetForm() {
@@ -183,7 +199,6 @@ export default function ReadingPage() {
 
   async function submit(draft: boolean) {
     setBusy(true);
-    setMsg("");
     try {
       if (!draft && bodyLen < charLimit)
         throw new Error(`본문은 ${charLimit}자 이상이어야 정식 등록할 수 있어요. (현재 ${bodyLen}자) 🐢`);
@@ -191,25 +206,33 @@ export default function ReadingPage() {
       if (draft) {
         setDraftId(id);
         setReportId(undefined);
-        setMsg("💾 임시저장 완료! 나중에 이어서 쓸 수 있어요.");
+        toast("💾 임시저장 완료! 나중에 이어서 쓸 수 있어요.");
       } else {
         const wasEdit = editing === "report";
         resetForm();
-        setMsg(wasEdit ? "✅ 감상문이 수정되었어요!" : "✅ 감상문이 정식 등록되었어요! +1권");
+        toast(wasEdit ? "✅ 감상문이 수정되었어요!" : "✅ 감상문이 정식 등록되었어요! +1권");
       }
     } catch (e) {
-      setMsg(`⚠️ ${e instanceof Error ? e.message : "저장에 실패했어요."}`);
+      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
       setBusy(false);
     }
   }
 
+  // 🔒 비공개 글: 작성자 본인·교사만 내용 열람 가능
+  const isLocked = (r: ReadingReport2) =>
+    !!r.isPrivate && role !== "teacher" && r.studentId !== studentId;
+
   const visible = (reports ?? [])
-    .filter((r) => (tagFilter ? (r.tags ?? []).includes(tagFilter) : true))
+    // 잠긴 글은 태그 필터 결과에서 제외 — 장르 메타데이터도 새지 않게
+    .filter((r) => (tagFilter ? !isLocked(r) && (r.tags ?? []).includes(tagFilter) : true))
     .filter((r) => {
       const kw = search.trim().toLowerCase();
       if (!kw) return true;
-      const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
+      // 잠긴 글은 내용이 검색으로 새어나가지 않게 이름만 대상
+      const hay = isLocked(r)
+        ? (studentById.get(r.studentId)?.name ?? "").toLowerCase()
+        : `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
       return hay.includes(kw);
     });
 
@@ -323,6 +346,15 @@ export default function ReadingPage() {
                 </button>
               ))}
             </div>
+            <label className="flex w-fit cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+              <input
+                type="checkbox"
+                checked={form.isPrivate ?? false}
+                onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
+                className="h-3.5 w-3.5 accent-slate-700"
+              />
+              🔒 선생님만 보기 (친구들에게는 내용이 보이지 않아요)
+            </label>
             {/* 글자수: 3단계 색 진행 (레드팀 반영 — 처음부터 빨간 경고 X) */}
             {(() => {
               const pct = Math.min((bodyLen / charLimit) * 100, 100);
@@ -363,7 +395,6 @@ export default function ReadingPage() {
                 </button>
               )}
             </div>
-            {msg && <p className="text-sm">{msg}</p>}
           </div>
 
           {/* 내 임시저장 */}
@@ -379,8 +410,14 @@ export default function ReadingPage() {
                         이어쓰기
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm("이 임시저장을 삭제할까요?")) void deleteDraft(r.id);
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "이 임시저장을 삭제할까요?",
+                            body: r.title || "(제목 없음)",
+                            confirmLabel: "삭제",
+                            danger: true,
+                          });
+                          if (ok) void deleteDraft(r.id).catch((e: Error) => toast(e.message, "error"));
                         }}
                         className="text-xs text-rose-300 underline"
                       >
@@ -438,45 +475,62 @@ export default function ReadingPage() {
             </p>
           )}
           <ul className="divide-y divide-slate-100">
-            {visible.map((r) => (
-              <li key={r.id}>
-                <button
-                  onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                  className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-50"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <b className="truncate text-sm">{r.title}</b>
-                    <Tags r={r} />
-                    {(r.comments?.length ?? 0) > 0 && (
-                      <span className="shrink-0 text-xs font-bold text-indigo-400">
-                        💬{r.comments!.length}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-400">
-                    {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
-                    {expandedId === r.id ? "▲" : "▼"}
-                  </span>
-                </button>
-                {expandedId === r.id && (
-                  <div className="bg-slate-50 px-4 py-3">
-                    <ReportBody
-                      r={r}
-                      onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
-                      onDelete={
-                        role === "teacher" || r.studentId === studentId
-                          ? () => {
-                              if (confirm("이 감상문을 삭제할까요? 권수 1권도 함께 줄어들어요.")) {
-                                void deleteReport(r).catch((e: Error) => setMsg(`⚠️ ${e.message}`));
-                              }
-                            }
-                          : undefined
-                      }
-                    />
+            {visible.map((r) =>
+              isLocked(r) ? (
+                // 🔒 잠긴 행 — 제목·내용 비노출, 클릭해도 펼쳐지지 않음
+                <li key={r.id}>
+                  <div className="flex w-full items-center justify-between gap-2 px-4 py-2.5">
+                    <span className="text-sm font-bold text-slate-400">🔒 비공개 글</span>
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {studentById.get(r.studentId)?.name} · {r.week}주차
+                    </span>
                   </div>
-                )}
-              </li>
-            ))}
+                </li>
+              ) : (
+                <li key={r.id}>
+                  <button
+                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-50"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
+                      <b className="truncate text-sm">{r.title}</b>
+                      <Tags r={r} />
+                      {(r.comments?.length ?? 0) > 0 && (
+                        <span className="shrink-0 text-xs font-bold text-indigo-400">
+                          💬{r.comments!.length}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
+                      {expandedId === r.id ? "▲" : "▼"}
+                    </span>
+                  </button>
+                  {expandedId === r.id && (
+                    <div className="bg-slate-50 px-4 py-3">
+                      <ReportBody
+                        r={r}
+                        onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
+                        onDelete={
+                          role === "teacher" || r.studentId === studentId
+                            ? async () => {
+                                const ok = await confirm({
+                                  title: "이 감상문을 삭제할까요?",
+                                  body: "권수 1권도 함께 줄어들어요.",
+                                  confirmLabel: "삭제",
+                                  danger: true,
+                                });
+                                if (ok) void deleteReport(r).catch((e: Error) => toast(e.message, "error"));
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  )}
+                </li>
+              )
+            )}
           </ul>
           {reports && reports.length >= pages * 10 && (
             <button

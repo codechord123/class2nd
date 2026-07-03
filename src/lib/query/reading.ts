@@ -31,6 +31,7 @@ export interface ReadingReport2 {
   quote: string; // 인용
   thoughts: string; // 느낀 점
   isDraft: boolean;
+  isPrivate?: boolean; // 🔒 선생님만 보기 (작성자 본인·교사에게만 내용 공개)
   tags?: string[]; // 책 종류 태그 (장르 분류)
   comments?: ReportComment[]; // 친구 댓글 (문서 내 배열 — 추가 읽기 0)
   week: number;
@@ -52,7 +53,7 @@ export const BOOK_TAGS = [
 export type ReportForm = Pick<
   ReadingReport2,
   "title" | "author" | "publisher" | "summary" | "scene" | "quote" | "thoughts"
-> & { tags: string[] };
+> & { tags: string[]; isPrivate?: boolean };
 
 /** 정식 등록 최소 글자수 검사 대상 (1학기와 동일: 장면+인용+줄거리+느낀점) */
 export function reportBodyLength(f: ReportForm): number {
@@ -196,7 +197,8 @@ export function useSaveReport(myId: number | null, week: number) {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
-    const base = { ...form, title: form.title.trim() };
+    // Firestore는 undefined 값을 거부하므로 isPrivate는 항상 boolean으로 정규화
+    const base = { ...form, title: form.title.trim(), isPrivate: form.isPrivate ?? false };
 
     // ── 임시저장 ──
     if (opts.draft) {
