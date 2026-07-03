@@ -58,6 +58,10 @@ export interface ClassSettings {
   weeklyReadingQuota: number;
   /** 자리 변경 비용 (실버, 기본 1) */
   seatChangeCost: number;
+  /** 거북이 마라톤 학급 목표 권수 */
+  readingGoal: number;
+  /** 감상문 정식 등록 최소 글자수 (장면+인용+줄거리+느낀점 합산) */
+  readingCharLimit: number;
   /** 학기 시작일 (주차 자동 계산 기준) */
   semesterStart: string; // "2026-08-17"
   semesterEnd: string; // "2027-01-08"
@@ -69,6 +73,8 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   rankPoints: [5, 4, 3, 2, 1],
   weeklyReadingQuota: 3,
   seatChangeCost: 1,
+  readingGoal: 1250,
+  readingCharLimit: 700,
   semesterStart: "2026-08-17",
   semesterEnd: "2027-01-08",
 };

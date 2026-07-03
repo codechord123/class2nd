@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { students } from "@/lib/roster";
 import ReadingAlert from "@/components/reading/ReadingAlert";
+import TurtleMarathon from "@/components/reading/TurtleMarathon";
+import CustomLinks from "@/components/CustomLinks";
 
 export default function HomePage() {
   return (
@@ -15,6 +17,12 @@ export default function HomePage() {
 
       {/* 이번 주 독서 미달 경고 (개학 후 자동 활성화) */}
       <ReadingAlert />
+
+      {/* 거북이 마라톤 현황 */}
+      <TurtleMarathon />
+
+      {/* 바로가기 링크 */}
+      <CustomLinks />
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Link href="/team" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow">

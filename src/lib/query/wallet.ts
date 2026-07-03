@@ -62,7 +62,7 @@ export function useMyRequests(kind: WalletKind, myId: number | null) {
 
 export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
   const qc = useQueryClient();
-  return async (amount: number, item: string) => {
+  return async (amount: number, item: string, type: "spend" | "gold" = "spend") => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!item.trim()) throw new Error("사고 싶은 것을 적어주세요.");
     if (!Number.isInteger(amount) || amount <= 0) throw new Error("개수를 확인해주세요.");
@@ -70,7 +70,7 @@ export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
       studentId: myId,
       amount,
       item: item.trim(),
-      type: "spend",
+      type,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -104,12 +104,21 @@ export function useDecideRequest(kind: WalletKind) {
       decidedAt: Date.now(),
     });
     if (approve) {
-      const delta = kind === "s2" ? -req.amount : req.amount; // s1은 "사용량"이라 +
-      await setDoc(
-        doc(d, COLL[kind], "0_balances"),
-        { [req.studentId]: increment(delta) },
-        { merge: true }
-      );
+      if (req.type === "gold") {
+        // 학급 골드토큰(공용) 사용 — classGoldUsed에 가산
+        await setDoc(
+          doc(d, COLL[kind], "0_balances"),
+          { classGoldUsed: increment(req.amount) },
+          { merge: true }
+        );
+      } else {
+        const delta = kind === "s2" ? -req.amount : req.amount; // s1은 "사용량"이라 +
+        await setDoc(
+          doc(d, COLL[kind], "0_balances"),
+          { [req.studentId]: increment(delta) },
+          { merge: true }
+        );
+      }
     }
     void qc.invalidateQueries({ queryKey: ["pendingRequests", kind] });
     void qc.invalidateQueries({ queryKey: ["balances", kind] });

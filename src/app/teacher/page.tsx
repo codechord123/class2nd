@@ -20,6 +20,9 @@ import {
   findOccupant,
 } from "@/lib/query/seatChange";
 import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
+import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
+import LinksEditor from "@/components/teacher/LinksEditor";
+import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import { openDailyPrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
@@ -392,6 +395,12 @@ export default function TeacherPage() {
           </button>
         </div>
       </section>
+
+      <BiweeklySettlePanel />
+      <BonusPanel />
+      <ShopMenuEditor />
+      <LinksEditor />
+      <TeacherMemoWidget />
 
       {msg && <p className="text-sm">{msg}</p>}
     </div>

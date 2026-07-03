@@ -3,7 +3,18 @@
 // 교사만 1회 읽고, 결과는 dailyScores/{date} 문서 하나로 저장한다.
 // 학생들은 이 결과 문서만 읽으므로 읽기 폭증이 구조적으로 불가능하다.
 // 재집계해도 누적이 어긋나지 않도록 이전 집계분을 빼고 더한다(멱등).
-import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  documentId,
+  getDoc,
+  getDocs,
+  increment,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -142,4 +153,129 @@ export async function aggregateDate(
     voterCount: voteSnap.size,
     groupRanks: ranks,
   };
+}
+
+// ── 격주 MVP 정산 (인수인계 §5.7: 2주 누적 상위 5명, 동점 포함, 실버 1개) ──
+export interface BiweeklyResult {
+  period: number;
+  range: [string, string];
+  sums: Record<number, number>;
+  mvps: number[];
+  alreadySettled: boolean;
+}
+
+/** 주차 → 격주 기간 번호 (1~11) */
+export function periodOfWeek(week: number): number {
+  return Math.floor((week - 1) / 2) + 1;
+}
+
+function dateRangeOfPeriod(period: number): [string, string] {
+  const first = scheduleOfWeek(period * 2 - 1).weekStart;
+  const lastWeek = Math.min(period * 2, TOTAL_WEEKS);
+  const end = new Date(scheduleOfWeek(lastWeek).weekStart + "T00:00:00Z");
+  end.setUTCDate(end.getUTCDate() + 6);
+  return [first, end.toISOString().slice(0, 10)];
+}
+
+/**
+ * 격주 정산: 기간 내 일일 집계 문서(최대 14개)를 합산해 MVP 선정 + 실버 1개 지급.
+ * 같은 기간을 두 번 정산하면 alreadySettled=true로 반환하고 지급하지 않는다.
+ */
+export async function settleBiweekly(period: number): Promise<BiweeklyResult> {
+  const d = db();
+  const [start, end] = dateRangeOfPeriod(period);
+
+  const existing = await getDoc(doc(d, "biweeklyScores", String(period)));
+  if (existing.exists() && existing.data().awardedAt) {
+    const data = existing.data();
+    return {
+      period,
+      range: [start, end],
+      sums: data.sums ?? {},
+      mvps: data.mvps ?? [],
+      alreadySettled: true,
+    };
+  }
+
+  // 기간 내 일일 집계 문서 범위 조회 (_cumulative는 "_"라 범위 밖)
+  const snap = await getDocs(
+    query(
+      collection(d, "dailyScores"),
+      where(documentId(), ">=", start),
+      where(documentId(), "<=", end)
+    )
+  );
+  const sums: Record<number, number> = {};
+  snap.forEach((day) => {
+    for (const s of students) {
+      const row = day.data()[String(s.id)] as DailyScoreRow | undefined;
+      if (row) sums[s.id] = (sums[s.id] ?? 0) + row.total;
+    }
+  });
+
+  // 상위 5명 (동점자 모두 포함)
+  const sorted = Object.entries(sums).sort((a, b) => b[1] - a[1]);
+  const cutoff = sorted[4]?.[1];
+  const mvps =
+    cutoff === undefined
+      ? sorted.map(([sid]) => Number(sid))
+      : sorted.filter(([, v]) => v >= cutoff).map(([sid]) => Number(sid));
+
+  // 지급: 실버 1개씩 (원장 + 잔액)
+  for (const sid of mvps) {
+    await addDoc(collection(d, "coinTxns"), {
+      studentId: sid,
+      amount: 1,
+      item: `격주 MVP (${period}기간)`,
+      type: "mvp",
+      status: "approved",
+      createdAt: Date.now(),
+    });
+  }
+  if (mvps.length) {
+    await setDoc(
+      doc(d, "coinTxns", "0_balances"),
+      Object.fromEntries(mvps.map((sid) => [sid, increment(1)])),
+      { merge: true }
+    );
+  }
+  await setDoc(doc(d, "biweeklyScores", String(period)), {
+    sums,
+    mvps,
+    range: [start, end],
+    awardedAt: Date.now(),
+  });
+
+  return { period, range: [start, end], sums, mvps, alreadySettled: false };
+}
+
+// ── 교사 보너스 점수 (일일 집계 행 보정 + 누적 동기화) ───────────
+export async function setBonus(date: string, studentId: number, bonus: number): Promise<void> {
+  const d = db();
+  const [daySnap, cumSnap] = await Promise.all([
+    getDoc(doc(d, "dailyScores", date)),
+    getDoc(doc(d, "dailyScores", "_cumulative")),
+  ]);
+  const day = daySnap.exists() ? daySnap.data() : {};
+  const prevRow = (day[String(studentId)] as DailyScoreRow | undefined) ?? {
+    peer: 0,
+    groupRank: 0,
+    bonus: 0,
+    total: 0,
+  };
+  const newRow: DailyScoreRow = {
+    ...prevRow,
+    bonus,
+    total: prevRow.peer + prevRow.groupRank + bonus,
+  };
+  const cum = cumSnap.exists() ? cumSnap.data() : {};
+  const prevCum = typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;
+  await Promise.all([
+    setDoc(doc(d, "dailyScores", date), { [String(studentId)]: newRow }, { merge: true }),
+    setDoc(
+      doc(d, "dailyScores", "_cumulative"),
+      { [String(studentId)]: prevCum - prevRow.total + newRow.total },
+      { merge: true }
+    ),
+  ]);
 }

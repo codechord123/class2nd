@@ -72,18 +72,20 @@ service cloud.firestore {
     }
 
     // 2학기 거북이 독서: 감상문 + 권수 통계
+    // update 허용: 임시저장 이어쓰기·정식 등록 승격 (학생)
     match /readingReports/{reportId} {
-      allow read, create: if isAuthed();
-      allow update, delete: if isTeacher();
+      allow read, create, update: if isAuthed();
+      allow delete: if isTeacher();
     }
     match /readingStats/{docId} {
       allow read, write: if isAuthed();
     }
 
     // 게시판/투표 (Phase 5에서 세분화 예정)
+    // update 허용: 댓글·답글 달기 (학생)
     match /suggestions/{postId} {
-      allow read, create: if isAuthed();
-      allow update, delete: if isTeacher();
+      allow read, create, update: if isAuthed();
+      allow delete: if isTeacher();
     }
     match /polls/{pollId} {
       allow read, create: if isAuthed();

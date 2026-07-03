@@ -11,6 +11,7 @@ import {
   useCreateSpendRequest,
   type WalletKind,
 } from "@/lib/query/wallet";
+import { useShopMenu } from "@/lib/query/classMeta";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
 
@@ -26,8 +27,10 @@ export default function ShopPage() {
   const [busy, setBusy] = useState(false);
 
   const createRequest = useCreateSpendRequest(wallet, studentId);
+  const createGoldRequest = useCreateSpendRequest("s1", studentId);
   const { data: myS2 } = useMyRequests("s2", studentId);
   const { data: myS1 } = useMyRequests("s1", studentId);
+  const { data: menu } = useShopMenu();
 
   const myS2Balance = studentId ? (s2Bal?.[String(studentId)] ?? 0) : 0;
   const myS1Remaining = studentId
@@ -76,10 +79,68 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 사용 신청 */}
+      {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
+      {role === "student" && studentId && (menu?.length ?? 0) > 0 && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="font-bold">📋 우리 반 메뉴판</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            학급 회의로 정한 메뉴예요. 골라서 바로 신청하세요!
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {menu!.map((m) => (
+              <div
+                key={m.id}
+                className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
+                  m.wallet === "gold" ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className="text-sm">
+                  <b>{m.name}</b>
+                  <span className="ml-1.5 text-xs text-slate-500">
+                    {m.price}
+                    {m.wallet === "gold" ? "골드 (학급 공용)" : "실버"}
+                  </span>
+                  {m.note && <p className="text-xs text-slate-400">{m.note}</p>}
+                </div>
+                <button
+                  onClick={() =>
+                    void (async () => {
+                      setMsg("");
+                      try {
+                        if (m.wallet === "gold") {
+                          if (m.price > classGoldLeft) throw new Error("학급 골드토큰이 부족해요.");
+                          await createGoldRequest(m.price, m.name, "gold");
+                        } else {
+                          const max = wallet === "s2" ? myS2Balance : myS1Remaining;
+                          if (m.price > max) throw new Error("가진 실버보다 비싸요. 지갑을 바꾸거나 더 모아요!");
+                          await createRequest(m.price, m.name);
+                        }
+                        setMsg(`✅ "${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`);
+                      } catch (e) {
+                        setMsg(`⚠️ ${e instanceof Error ? e.message : "신청 실패"}`);
+                      }
+                    })()
+                  }
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white ${
+                    m.wallet === "gold" ? "bg-amber-500" : "bg-slate-800"
+                  }`}
+                >
+                  신청
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            실버 메뉴는 아래에서 고른 지갑(
+            {wallet === "s2" ? "2학기 실버" : "1학기 이월 실버"})에서 나가요.
+          </p>
+        </section>
+      )}
+
+      {/* 직접 입력 신청 */}
       {role === "student" && studentId && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="font-bold">🛒 실버 사용 신청</h3>
+          <h3 className="font-bold">🛒 실버 사용 신청 (직접 입력)</h3>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
               value={wallet}
