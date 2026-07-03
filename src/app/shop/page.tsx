@@ -12,6 +12,7 @@ import {
   type WalletKind,
 } from "@/lib/query/wallet";
 import { useShopMenu } from "@/lib/query/classMeta";
+import SubTabs from "@/components/ui/SubTabs";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
 
@@ -20,6 +21,7 @@ export default function ShopPage() {
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
 
+  const [tab, setTab] = useState<"shop" | "carry">("shop");
   const [wallet, setWallet] = useState<WalletKind>("s2");
   const [amount, setAmount] = useState("1");
   const [item, setItem] = useState("");
@@ -79,8 +81,35 @@ export default function ShopPage() {
         </section>
       )}
 
+      <SubTabs
+        tabs={[
+          { key: "shop" as const, label: "🛒 상점" },
+          { key: "carry" as const, label: "🎒 이월 지갑" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {/* 실버 결제 지갑 선택 — 메뉴 신청이 어느 지갑에서 나가는지 명시 (레드팀 반영) */}
+      {tab === "shop" && role === "student" && studentId && (
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm">
+          <span className="text-xs text-slate-400">실버 결제 지갑:</span>
+          {(["s2", "s1"] as const).map((w) => (
+            <button
+              key={w}
+              onClick={() => setWallet(w)}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                wallet === w ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {w === "s2" ? `2학기 실버 (${myS2Balance})` : `이월 실버 (${myS1Remaining})`}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
-      {role === "student" && studentId && (menu?.length ?? 0) > 0 && (
+      {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-bold">📋 우리 반 메뉴판</h3>
           <p className="mt-1 text-xs text-slate-500">
@@ -130,26 +159,18 @@ export default function ShopPage() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            실버 메뉴는 아래에서 고른 지갑(
-            {wallet === "s2" ? "2학기 실버" : "1학기 이월 실버"})에서 나가요.
-          </p>
+
         </section>
       )}
 
       {/* 직접 입력 신청 */}
-      {role === "student" && studentId && (
+      {tab === "shop" && role === "student" && studentId && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-bold">🛒 실버 사용 신청 (직접 입력)</h3>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <select
-              value={wallet}
-              onChange={(e) => setWallet(e.target.value as WalletKind)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="s2">2학기 실버</option>
-              <option value="s1">1학기 이월 실버</option>
-            </select>
+            <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">
+              {wallet === "s2" ? "2학기 실버" : "이월 실버"}에서
+            </span>
             <input
               type="number"
               min={1}
@@ -192,6 +213,7 @@ export default function ShopPage() {
       )}
 
       {/* 반 전체 이월 지갑 현황 (표시 전용) */}
+      {tab === "carry" && (
       <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold">🎒 1학기 이월 지갑</h2>
@@ -232,6 +254,7 @@ export default function ShopPage() {
           </table>
         </div>
       </section>
+      )}
     </div>
   );
 }

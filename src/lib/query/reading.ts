@@ -32,7 +32,15 @@ export interface ReadingReport2 {
   thoughts: string; // 느낀 점
   isDraft: boolean;
   tags?: string[]; // 책 종류 태그 (장르 분류)
+  comments?: ReportComment[]; // 친구 댓글 (문서 내 배열 — 추가 읽기 0)
   week: number;
+  createdAt: number;
+}
+
+export interface ReportComment {
+  id: number;
+  studentId: number | "teacher";
+  text: string;
   createdAt: number;
 }
 
@@ -104,6 +112,40 @@ export function useMyDrafts(myId: number | null) {
     },
     staleTime: 5 * 60 * 1000,
   });
+}
+
+/** 감상문 댓글 — board와 동일한 arrayUnion 패턴 (추가 읽기 0) */
+export function useAddReportComment(author: number | "teacher" | null) {
+  const qc = useQueryClient();
+  return async (reportId: string, text: string) => {
+    if (author == null) throw new Error("로그인이 필요해요.");
+    if (!text.trim()) throw new Error("내용을 입력해주세요.");
+    const comment: ReportComment = {
+      id: Date.now(),
+      studentId: author,
+      text: text.trim(),
+      createdAt: Date.now(),
+    };
+    const { arrayUnion, updateDoc } = await import("firebase/firestore");
+    await updateDoc(doc(db(), "readingReports", reportId), { comments: arrayUnion(comment) });
+    qc.setQueriesData({ queryKey: ["readingReports"] }, (prev: ReadingReport2[] | undefined) =>
+      prev?.map((r) =>
+        r.id === reportId ? { ...r, comments: [...(r.comments ?? []), comment] } : r
+      )
+    );
+  };
+}
+
+export function useDeleteReportComment() {
+  const qc = useQueryClient();
+  return async (report: ReadingReport2, commentId: number) => {
+    const next = (report.comments ?? []).filter((c) => c.id !== commentId);
+    const { updateDoc } = await import("firebase/firestore");
+    await updateDoc(doc(db(), "readingReports", report.id), { comments: next });
+    qc.setQueriesData({ queryKey: ["readingReports"] }, (prev: ReadingReport2[] | undefined) =>
+      prev?.map((r) => (r.id === report.id ? { ...r, comments: next } : r))
+    );
+  };
 }
 
 /** 정식 감상문 삭제 — 권수 1권 차감 (본인/교사) */

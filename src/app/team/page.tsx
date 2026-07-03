@@ -22,6 +22,7 @@ import {
 } from "@/lib/query/evaluation";
 import { useBestGroups } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
+import SubTabs from "@/components/ui/SubTabs";
 import { useState } from "react";
 import type { DailyScoreRow } from "@/types";
 
@@ -77,6 +78,7 @@ export default function TeamPage() {
   const { data: cumScores } = useCumulativeScores();
   const { data: bestGroups } = useBestGroups();
 
+  const [tab, setTab] = useState<"eval" | "mvp" | "stats">("eval");
   const [complimentTo, setComplimentTo] = useState<number | null>(null);
   const [complimentText, setComplimentText] = useState("");
   const [complimentMsg, setComplimentMsg] = useState("");
@@ -123,15 +125,36 @@ export default function TeamPage() {
           </h2>
           <span className="text-xs text-slate-400">{date}</span>
         </div>
-        <div className="mt-2 flex flex-wrap gap-4 text-sm">
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
           <span>
             오늘 점수: <b>{myRow ? myRow.total : "집계 전"}</b>
           </span>
+          {myRow && (
+            <span className="flex gap-1 text-xs">
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600">🏆 순위 +{myRow.groupRank}</span>
+              {myRow.bonus !== 0 && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
+              )}
+            </span>
+          )}
           <span>
             누적 점수: <b>{myCum ?? 0}</b>
           </span>
         </div>
       </section>
+
+      <SubTabs
+        tabs={[
+          { key: "eval" as const, label: "🫂 평가하기" },
+          { key: "mvp" as const, label: "⭐ MVP·칭찬" },
+          { key: "stats" as const, label: "📈 통계" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+
+      {tab === "eval" && (<>
 
       {/* 모둠 내 상호평가 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -189,6 +212,9 @@ export default function TeamPage() {
         </ul>
       </section>
 
+      </>)}
+
+      {tab === "mvp" && (<>
       {/* 오늘의 모둠 MVP 투표 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
@@ -330,7 +356,9 @@ export default function TeamPage() {
         {toTeacherMsg && <p className="mt-2 text-sm">{toTeacherMsg}</p>}
       </section>
 
-      <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+      </>)}
+
+      {tab === "stats" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
 
       <p className="text-xs text-slate-400">
         ※ 점수는 매일 선생님 집계 후 반영돼요. 모둠이 바뀌어도 내 점수는 계속 쌓여요.

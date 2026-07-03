@@ -29,6 +29,7 @@ export interface BoardComment {
 export interface Suggestion {
   id: string;
   studentId: number;
+  title?: string; // 커뮤니티 게시판형 제목 (구버전 글은 없음)
   content: string;
   isAnonymous: boolean;
   isAnnouncement?: boolean; // 공지 고정 (교사)
@@ -74,11 +75,13 @@ export function useAnnouncements() {
 
 export function usePostSuggestion(myId: number | null) {
   const qc = useQueryClient();
-  return async (content: string, isAnonymous: boolean) => {
+  return async (title: string, content: string, isAnonymous: boolean) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
+    if (!title.trim()) throw new Error("제목을 입력해주세요.");
     if (!content.trim()) throw new Error("내용을 입력해주세요.");
     await addDoc(collection(db(), "suggestions"), {
       studentId: myId,
+      title: title.trim(),
       content: content.trim(),
       isAnonymous,
       comments: [],
@@ -86,6 +89,11 @@ export function usePostSuggestion(myId: number | null) {
     });
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
   };
+}
+
+/** 제목 표시용 — 구버전(제목 없는) 글은 본문 앞부분으로 대체 */
+export function titleOf(s: Suggestion): string {
+  return s.title?.trim() || s.content.slice(0, 30) + (s.content.length > 30 ? "…" : "");
 }
 
 export function useAddComment(author: number | "teacher" | null) {

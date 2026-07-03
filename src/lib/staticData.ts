@@ -11,6 +11,14 @@ export function getS1WalletOf(studentId: number): S1WalletStudent | undefined {
 
 export const s1ClassGoldRemaining = s1Wallet.classGold.remaining;
 
+/** 1학기 학급 전체 읽은 권수 (마라톤 목표는 1학기와 이어서 진행) */
+export const s1TotalBooks = s1Wallet.students.reduce((a, s) => a + s.booksReadS1, 0);
+
+/** 학생별 1학기 권수 (합산 순위 표시용) */
+export const s1BooksByStudent: Record<string, number> = Object.fromEntries(
+  s1Wallet.students.map((s) => [String(s.id), s.booksReadS1])
+);
+
 // 거북이 독서 백업(313KB)은 첫 페인트에 필요 없으므로 정적 import 대신
 // 동적 import로 코드 스플리팅 — 거북이 탭 진입 시에만 로드된다.
 export async function loadS1TurtleReading() {

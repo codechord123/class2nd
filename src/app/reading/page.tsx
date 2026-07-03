@@ -1,6 +1,7 @@
 "use client";
-// 거북이 독서 — 주 3권(설정값) 의무, 미달 경고, 순위 캐러셀, 감상문 작성.
-// 1학기 기록은 정적 JSON(합산 검증 완료), 2학기 기록은 Firestore.
+// 거북이 독서 — 하위탭 구조 리빌드:
+//   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
+//   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
@@ -13,6 +14,8 @@ import {
   useSaveReport,
   useDeleteReport,
   useDeleteDraft,
+  useAddReportComment,
+  useDeleteReportComment,
   reportBodyLength,
   BOOK_TAGS,
   type ReportForm,
@@ -23,10 +26,108 @@ import ReadingAlert from "@/components/reading/ReadingAlert";
 import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import S1Archive from "@/components/reading/S1Archive";
+import SubTabs from "@/components/ui/SubTabs";
 
 const EMPTY_FORM: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "", tags: [],
 };
+
+type Tab = "write" | "list" | "rank" | "s1";
+
+// ── 감상문 본문 + 댓글 ───────────────────────────────────────────
+function ReportBody({
+  r,
+  onEdit,
+  onDelete,
+}: {
+  r: ReadingReport2;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const { role, studentId } = useSession();
+  const addComment = useAddReportComment(role === "teacher" ? "teacher" : studentId);
+  const deleteComment = useDeleteReportComment();
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const name = (id: number | "teacher") =>
+    id === "teacher" ? "선생님" : (studentById.get(id)?.name ?? "?");
+
+  return (
+    <>
+      {(r.author || r.publisher) && (
+        <p className="text-xs text-slate-400">
+          {r.author}
+          {r.publisher && ` · ${r.publisher}`}
+        </p>
+      )}
+      {r.summary && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</p>}
+      {r.scene && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">🎬 {r.scene}</p>}
+      {r.quote && (
+        <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">“{r.quote}”</p>
+      )}
+      {r.thoughts && (
+        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">💭 {r.thoughts}</p>
+      )}
+      {(onEdit || onDelete) && (
+        <div className="mt-2 flex gap-2 text-xs">
+          {onEdit && (
+            <button onClick={onEdit} className="text-indigo-500 underline">
+              ✏️ 수정
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={onDelete} className="text-rose-400 underline">
+              🗑️ 삭제
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 친구 댓글 */}
+      <div className="mt-2 border-t border-slate-200 pt-2">
+        {(r.comments ?? []).map((c) => (
+          <div key={c.id} className="flex items-baseline justify-between gap-2 text-sm">
+            <span>
+              <b className="text-xs text-slate-500">{name(c.studentId)}</b>{" "}
+              <span className="text-slate-600">{c.text}</span>
+            </span>
+            {(role === "teacher" || c.studentId === studentId) && (
+              <button
+                onClick={() => confirm("댓글을 삭제할까요?") && void deleteComment(r, c.id)}
+                className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
+              >
+                삭제
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && text.trim()) {
+                void addComment(r.id, text).then(() => setText(""), (err: Error) => setMsg(`⚠️ ${err.message}`));
+              }
+            }}
+            placeholder="💬 응원 댓글 달기…"
+            className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs"
+          />
+          <button
+            onClick={() =>
+              void addComment(r.id, text).then(() => setText(""), (err: Error) => setMsg(`⚠️ ${err.message}`))
+            }
+            className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
+          >
+            등록
+          </button>
+        </div>
+        {msg && <p className="mt-1 text-xs">{msg}</p>}
+      </div>
+    </>
+  );
+}
 
 export default function ReadingPage() {
   const { role, studentId } = useSession();
@@ -41,12 +142,11 @@ export default function ReadingPage() {
   const deleteReport = useDeleteReport();
   const deleteDraft = useDeleteDraft(studentId);
 
+  const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState<ReportForm>(EMPTY_FORM);
-  // 편집 대상: 초안(draftId) 또는 정식본(reportId) 중 하나
   const [draftId, setDraftId] = useState<string | undefined>();
   const [reportId, setReportId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -63,25 +163,22 @@ export default function ReadingPage() {
       thoughts: r.thoughts ?? "", tags: r.tags ?? [],
     };
   }
-
   function resetForm() {
     setForm(EMPTY_FORM);
     setDraftId(undefined);
     setReportId(undefined);
   }
-
   function editDraft(r: ReadingReport2) {
     setForm(toForm(r));
     setDraftId(r.id);
     setReportId(undefined);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTab("write");
   }
-
   function editReport(r: ReadingReport2) {
     setForm(toForm(r));
     setReportId(r.id);
     setDraftId(undefined);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTab("write");
   }
 
   async function submit(draft: boolean) {
@@ -107,27 +204,48 @@ export default function ReadingPage() {
     }
   }
 
+  const visible = (reports ?? [])
+    .filter((r) => (tagFilter ? (r.tags ?? []).includes(tagFilter) : true))
+    .filter((r) => {
+      const kw = search.trim().toLowerCase();
+      if (!kw) return true;
+      const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
+      return hay.includes(kw);
+    });
+
+  const Tags = ({ r }: { r: ReadingReport2 }) =>
+    (r.tags?.length ?? 0) > 0 ? (
+      <span className="flex flex-wrap gap-1">
+        {r.tags!.map((t) => (
+          <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
+            {t}
+          </span>
+        ))}
+      </span>
+    ) : null;
+
   return (
     <div className="space-y-4">
-      {/* 짜파게티 배너 + 미달 경고 — 항상 상단 */}
-      <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-5 text-white shadow">
-        <p className="text-sm font-medium opacity-90">🐢 거북이 독서 최종 미션</p>
-        <p className="mt-1 text-2xl font-extrabold">🍜 짜파게티 파티까지 달린다!</p>
+      {/* 히어로: 목표 + 경고 + 마라톤 (항상 표시, 컴팩트) */}
+      <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-5 py-3 text-white shadow">
+        <p className="text-lg font-extrabold">🍜 짜파게티 파티까지 달린다!</p>
       </div>
       <ReadingAlert />
-
       <TurtleMarathon />
 
-      {/* 움직이는 순위 캐러셀 */}
-      <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-        <h3 className="text-sm font-bold text-amber-800">🏁 2학기 독서 순위</h3>
-        <div className="mt-2">
-          <RankCarousel totals={stats?.total ?? {}} />
-        </div>
-      </section>
+      <SubTabs<Tab>
+        tabs={[
+          { key: "write", label: "✍️ 쓰기" },
+          { key: "list", label: `📖 감상문` },
+          { key: "rank", label: "🏁 순위" },
+          { key: "s1", label: "📚 1학기" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
 
-      {/* 감상문 작성 */}
-      {studentId && (
+      {/* ✍️ 쓰기 */}
+      {tab === "write" && studentId && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-bold">
             ✍️ 감상문 쓰기 ({week}주차)
@@ -205,11 +323,25 @@ export default function ReadingPage() {
                 </button>
               ))}
             </div>
-            <p
-              className={`text-right text-xs font-bold ${bodyLen >= charLimit ? "text-emerald-600" : "text-red-500"}`}
-            >
-              본문 {bodyLen} / {charLimit}자 {bodyLen >= charLimit ? "— 정식 등록 가능! ✅" : "(줄거리+장면+인용+느낀점 합산)"}
-            </p>
+            {/* 글자수: 3단계 색 진행 (레드팀 반영 — 처음부터 빨간 경고 X) */}
+            {(() => {
+              const pct = Math.min((bodyLen / charLimit) * 100, 100);
+              const color =
+                pct >= 100 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-slate-400";
+              return (
+                <div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-slate-300"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className={`mt-0.5 text-right text-xs font-bold ${color}`}>
+                    {bodyLen} / {charLimit}자 {pct >= 100 && "— 정식 등록 가능! ✅"}
+                  </p>
+                </div>
+              );
+            })()}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => void submit(false)}
@@ -233,204 +365,142 @@ export default function ReadingPage() {
             </div>
             {msg && <p className="text-sm">{msg}</p>}
           </div>
+
+          {/* 내 임시저장 */}
+          {(myDrafts?.length ?? 0) > 0 && (
+            <div className="mt-4 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3">
+              <p className="text-xs font-bold text-amber-700">💾 내 임시저장 ({myDrafts!.length})</p>
+              <ul className="mt-1 space-y-1 text-sm">
+                {myDrafts!.map((r) => (
+                  <li key={r.id} className="flex justify-between gap-2">
+                    <span className="truncate">{r.title || "(제목 없음)"}</span>
+                    <span className="flex shrink-0 gap-2">
+                      <button onClick={() => editDraft(r)} className="text-xs text-amber-600 underline">
+                        이어쓰기
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("이 임시저장을 삭제할까요?")) void deleteDraft(r.id);
+                        }}
+                        className="text-xs text-rose-300 underline"
+                      >
+                        삭제
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
+      {tab === "write" && !studentId && (
+        <p className="text-sm text-slate-400">감상문 쓰기는 학생 로그인에서 가능해요.</p>
+      )}
 
-      {/* 최근 감상문 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold">📖 친구들의 감상문</h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode(viewMode === "list" ? "card" : "list")}
-              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
-            >
-              {viewMode === "list" ? "🗂️ 카드로 보기" : "📋 목록으로 보기"}
-            </button>
+      {/* 📖 감상문 목록 (커뮤니티 게시판형) */}
+      {tab === "list" && (
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4">
+            <h3 className="font-bold">📖 친구들의 감상문</h3>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 제목·내용·이름 검색"
-              className="w-40 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
             />
           </div>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setTagFilter(null)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-              tagFilter === null ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            전체
-          </button>
-          {BOOK_TAGS.map((t) => (
+          <div className="flex flex-wrap gap-1.5 border-b border-slate-100 p-3">
             <button
-              key={t}
-              onClick={() => setTagFilter(tagFilter === t ? null : t)}
+              onClick={() => setTagFilter(null)}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                tagFilter === t ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                tagFilter === null ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
               }`}
             >
-              {t}
+              전체
             </button>
-          ))}
-        </div>
-        {!reports?.length && (
-          <p className="mt-2 text-sm text-slate-400">아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!</p>
-        )}
-        {/* 내 임시저장 (본인 것만 별도 조회 — 최근 목록에 밀려도 항상 전부 표시) */}
-        {(myDrafts?.length ?? 0) > 0 && (
-          <div className="mt-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3">
-            <p className="text-xs font-bold text-amber-700">💾 내 임시저장 ({myDrafts!.length})</p>
-            <ul className="mt-1 space-y-1 text-sm">
-              {myDrafts!.map((r) => (
-                <li key={r.id} className="flex justify-between gap-2">
-                  <span className="truncate">{r.title || "(제목 없음)"}</span>
-                  <span className="flex shrink-0 gap-2">
-                    <button onClick={() => editDraft(r)} className="text-xs text-amber-600 underline">
-                      이어쓰기
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm("이 임시저장을 삭제할까요?")) void deleteDraft(r.id);
-                      }}
-                      className="text-xs text-rose-300 underline"
-                    >
-                      삭제
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {BOOK_TAGS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                  tagFilter === t ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
-        )}
-        {(() => {
-          const visible = (reports ?? [])
-            .filter((r) => (tagFilter ? (r.tags ?? []).includes(tagFilter) : true))
-            .filter((r) => {
-              const kw = search.trim().toLowerCase();
-              if (!kw) return true;
-              const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
-              return hay.includes(kw);
-            });
-          const canManage = (r: ReadingReport2) =>
-            role === "teacher" || r.studentId === studentId;
 
-          const Body = ({ r }: { r: ReadingReport2 }) => (
-            <>
-              {(r.author || r.publisher) && (
-                <p className="text-xs text-slate-400">
-                  {r.author}
-                  {r.publisher && ` · ${r.publisher}`}
-                </p>
-              )}
-              {r.summary && (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</p>
-              )}
-              {r.scene && (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">🎬 {r.scene}</p>
-              )}
-              {r.quote && (
-                <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">
-                  “{r.quote}”
-                </p>
-              )}
-              {r.thoughts && (
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">💭 {r.thoughts}</p>
-              )}
-              {canManage(r) && (
-                <div className="mt-2 flex gap-2 text-xs">
-                  {r.studentId === studentId && (
-                    <button onClick={() => editReport(r)} className="text-indigo-500 underline">
-                      ✏️ 수정
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      if (confirm("이 감상문을 삭제할까요? 권수 1권도 함께 줄어들어요.")) {
-                        void deleteReport(r).catch((e: Error) => setMsg(`⚠️ ${e.message}`));
-                      }
-                    }}
-                    className="text-rose-400 underline"
-                  >
-                    🗑️ 삭제
-                  </button>
-                </div>
-              )}
-            </>
-          );
-
-          const Tags = ({ r }: { r: ReadingReport2 }) =>
-            (r.tags?.length ?? 0) > 0 ? (
-              <span className="flex flex-wrap gap-1">
-                {r.tags!.map((t) => (
-                  <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
-                    {t}
-                  </span>
-                ))}
-              </span>
-            ) : null;
-
-          if (viewMode === "list") {
-            return (
-              <ul className="mt-3 divide-y divide-slate-100">
-                {visible.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                      className="flex w-full items-center justify-between gap-2 py-2 text-left hover:bg-slate-50"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <b className="truncate text-sm">{r.title}</b>
-                        <Tags r={r} />
+          {!visible.length && (
+            <p className="p-4 text-sm text-slate-400">
+              {search || tagFilter ? "조건에 맞는 감상문이 없어요." : "아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!"}
+            </p>
+          )}
+          <ul className="divide-y divide-slate-100">
+            {visible.map((r) => (
+              <li key={r.id}>
+                <button
+                  onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                  className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-50"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <b className="truncate text-sm">{r.title}</b>
+                    <Tags r={r} />
+                    {(r.comments?.length ?? 0) > 0 && (
+                      <span className="shrink-0 text-xs font-bold text-indigo-400">
+                        💬{r.comments!.length}
                       </span>
-                      <span className="shrink-0 text-xs text-slate-400">
-                        {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
-                        {expandedId === r.id ? "▲" : "▼"}
-                      </span>
-                    </button>
-                    {expandedId === r.id && (
-                      <div className="rounded-lg bg-slate-50 p-3">
-                        <Body r={r} />
-                      </div>
                     )}
-                  </li>
-                ))}
-              </ul>
-            );
-          }
-          return (
-            <ul className="mt-3 space-y-3">
-              {visible.map((r) => (
-                <li key={r.id} className="rounded-lg bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-1">
-                    <span className="flex items-center gap-2">
-                      <b className="text-sm">{r.title}</b>
-                      <Tags r={r} />
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {studentById.get(r.studentId)?.name} · {r.week}주차
-                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-400">
+                    {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
+                    {expandedId === r.id ? "▲" : "▼"}
+                  </span>
+                </button>
+                {expandedId === r.id && (
+                  <div className="bg-slate-50 px-4 py-3">
+                    <ReportBody
+                      r={r}
+                      onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
+                      onDelete={
+                        role === "teacher" || r.studentId === studentId
+                          ? () => {
+                              if (confirm("이 감상문을 삭제할까요? 권수 1권도 함께 줄어들어요.")) {
+                                void deleteReport(r).catch((e: Error) => setMsg(`⚠️ ${e.message}`));
+                              }
+                            }
+                          : undefined
+                      }
+                    />
                   </div>
-                  <Body r={r} />
-                </li>
-              ))}
-            </ul>
-          );
-        })()}
-        {reports && reports.length >= pages * 10 && (
-          <button
-            onClick={() => setPages((p) => p + 1)}
-            className="mt-3 w-full rounded-lg border border-slate-200 py-2 text-sm text-slate-500 hover:bg-slate-50"
-          >
-            더 보기
-          </button>
-        )}
-      </section>
+                )}
+              </li>
+            ))}
+          </ul>
+          {reports && reports.length >= pages * 10 && (
+            <button
+              onClick={() => setPages((p) => p + 1)}
+              className="w-full border-t border-slate-100 py-2.5 text-sm text-slate-500 hover:bg-slate-50"
+            >
+              더 보기
+            </button>
+          )}
+        </section>
+      )}
 
-      <S1Archive />
+      {/* 🏁 순위 */}
+      {tab === "rank" && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <h3 className="text-sm font-bold text-amber-800">🏁 독서 순위 (1·2학기 합산)</h3>
+          <div className="mt-2">
+            <RankCarousel totals={stats?.total ?? {}} />
+          </div>
+        </section>
+      )}
 
+      {/* 📚 1학기 */}
+      {tab === "s1" && <S1Archive />}
     </div>
   );
 }

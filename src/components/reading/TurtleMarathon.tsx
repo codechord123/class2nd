@@ -1,32 +1,39 @@
 "use client";
-// 🐢 거북이 독서 마라톤 현황 (1학기 명물 위젯 이식) — 학급 전체 권수가
-// 목표(짜파게티 파티)를 향해 달리는 트랙. readingStats 1문서로 렌더.
+// 🐢 거북이 독서 마라톤 — 1학기와 이어서 목표 진행:
+//   학급 누적 = 1학기(정적) + 2학기(readingStats). 바에 1학기 구간을 진하게 표시.
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
+import { s1TotalBooks } from "@/lib/staticData";
 
 export default function TurtleMarathon() {
   const { data: settings } = useSettings();
   const { data: stats } = useReadingStats();
 
   const goal = settings?.readingGoal ?? 1250;
-  const total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
+  const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
+  const total = s1TotalBooks + s2Total;
   const progress = Math.min((total / goal) * 100, 100);
+  const s1Progress = Math.min((s1TotalBooks / goal) * 100, 100);
 
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-1">
-        <h3 className="text-sm font-extrabold text-emerald-800">
-          🐢 거북이 독서 마라톤 현황
-        </h3>
+        <h3 className="text-sm font-extrabold text-emerald-800">🐢 거북이 독서 마라톤</h3>
         <p className="text-xs font-bold text-emerald-600">
-          학급 목표 {goal.toLocaleString()}권 중 <b>{total.toLocaleString()}권</b> 달성! (
+          목표 {goal.toLocaleString()}권 중 <b>{total.toLocaleString()}권</b> (
           {Math.floor(progress)}%)
         </p>
       </div>
       <div className="relative mt-2 h-8 w-full overflow-hidden rounded-full border-2 border-emerald-300 bg-emerald-100 shadow-inner">
+        {/* 2학기 진행분 (연한 색, 전체 길이) */}
         <div
-          className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-1000 ease-out"
+          className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-300 to-emerald-400 transition-all duration-1000 ease-out"
           style={{ width: `${progress}%` }}
+        />
+        {/* 1학기 구간 (진한 색) */}
+        <div
+          className="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-500 to-emerald-600"
+          style={{ width: `${s1Progress}%` }}
         />
         <div className="absolute right-2 top-1/2 z-10 -translate-y-1/2 text-base drop-shadow">
           🍜
@@ -38,6 +45,9 @@ export default function TurtleMarathon() {
           🐢
         </div>
       </div>
+      <p className="mt-1 text-right text-[10px] text-emerald-600">
+        1학기 {s1TotalBooks}권 + 2학기 {s2Total}권 — 이어서 달려요!
+      </p>
     </div>
   );
 }

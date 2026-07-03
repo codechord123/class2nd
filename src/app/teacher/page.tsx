@@ -24,6 +24,7 @@ import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
 import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
+import SubTabs from "@/components/ui/SubTabs";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
@@ -42,6 +43,7 @@ export default function TeacherPage() {
   const saveSettings = useSaveSettings();
   const qc = useQueryClient();
 
+  const [tTab, setTTab] = useState<"score" | "approve" | "shop" | "tools">("score");
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
@@ -117,6 +119,18 @@ export default function TeacherPage() {
 
   return (
     <div className="space-y-4">
+      <SubTabs
+        tabs={[
+          { key: "score" as const, label: "📊 점수·집계" },
+          { key: "approve" as const, label: "✅ 승인 대기" },
+          { key: "shop" as const, label: "🛍️ 상점·지급" },
+          { key: "tools" as const, label: "⚙️ 설정·도구" },
+        ]}
+        active={tTab}
+        onChange={setTTab}
+      />
+
+      {tTab === "score" && (<>
       {/* 일일 집계 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
@@ -223,6 +237,11 @@ export default function TeacherPage() {
         )}
       </section>
 
+      <BiweeklySettlePanel />
+      <BonusPanel />
+      </>)}
+
+      {tTab === "tools" && (<>
       {/* 평가 척도 설정 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold">⚙️ 평가 척도 설정</h2>
@@ -277,6 +296,12 @@ export default function TeacherPage() {
         </button>
       </section>
 
+      <PasswordResetPanel />
+      <LinksEditor />
+      <TeacherMemoWidget />
+      </>)}
+
+      {tTab === "approve" && (<>
       {/* 실버 사용 승인 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold">
@@ -373,6 +398,10 @@ export default function TeacherPage() {
         </ul>
       </section>
 
+      </>)}
+
+      {tTab === "shop" && (<>
+      <ShopMenuEditor />
       {/* 실버 지급 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-bold">🪙 실버 지급 (2학기)</h2>
@@ -419,12 +448,7 @@ export default function TeacherPage() {
         </div>
       </section>
 
-      <BiweeklySettlePanel />
-      <BonusPanel />
-      <PasswordResetPanel />
-      <ShopMenuEditor />
-      <LinksEditor />
-      <TeacherMemoWidget />
+      </>)}
 
       {msg && <p className="text-sm">{msg}</p>}
     </div>

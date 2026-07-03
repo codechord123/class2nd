@@ -1,5 +1,7 @@
 "use client";
-// 건의 게시판 — 공지 고정 + 댓글·답글 (1학기 이식, 전체 실시간 구독 없이 캐시 기반).
+// 건의 게시판 — 커뮤니티 게시판형 리빌드:
+//   목록(번호·제목·작성자·날짜·💬댓글수) → 클릭하면 상세 화면(본문+댓글 스레드).
+//   공지 상단 고정 · 검색 · 글쓰기 접기 · 더보기 페이지네이션.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
@@ -11,6 +13,7 @@ import {
   useAddComment,
   useDeleteComment,
   useToggleAnnouncement,
+  titleOf,
   type Suggestion,
 } from "@/lib/query/board";
 
@@ -18,13 +21,12 @@ function authorName(id: number | "teacher"): string {
   return id === "teacher" ? "선생님" : (studentById.get(id)?.name ?? "?");
 }
 
-function SuggestionCard({
-  sug,
-  pinned,
-}: {
-  sug: Suggestion;
-  pinned?: boolean;
-}) {
+function dateLabel(ms: number): string {
+  return new Date(ms).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+// ── 상세 화면 (본문 + 댓글 스레드) ────────────────────────────────
+function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const { role, studentId } = useSession();
   const addComment = useAddComment(role === "teacher" ? "teacher" : studentId);
   const deleteComment = useDeleteComment();
@@ -50,37 +52,55 @@ function SuggestionCard({
   }
 
   return (
-    <li
-      className={`rounded-lg p-3 ${pinned ? "border border-amber-300 bg-amber-50" : "bg-slate-50"}`}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs text-slate-400">
-          {pinned && <b className="mr-1 text-amber-600">📌 공지</b>}
-          {sug.isAnonymous ? "익명" : authorName(sug.studentId)} ·{" "}
-          {new Date(sug.createdAt).toLocaleDateString("ko-KR")}
-        </span>
-        {role === "teacher" && (
-          <span className="flex gap-2 text-xs">
-            <button
-              onClick={() => void toggleAnnouncement(sug)}
-              className="text-amber-500 hover:text-amber-700"
-            >
-              {sug.isAnnouncement ? "공지 내리기" : "공지 올리기"}
-            </button>
-            <button
-              onClick={() => void removeSuggestion(sug.id)}
-              className="text-rose-400 hover:text-rose-600"
-            >
-              삭제
-            </button>
-          </span>
-        )}
-      </div>
-      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{sug.content}</p>
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <button onClick={onBack} className="text-sm text-slate-400 hover:text-slate-600">
+        ← 목록으로
+      </button>
 
-      {/* 댓글 */}
-      {parents.length > 0 && (
-        <ul className="mt-2 space-y-1.5 border-t border-slate-200 pt-2">
+      <div className="mt-3 border-b border-slate-100 pb-3">
+        <h3 className="text-lg font-bold">
+          {sug.isAnnouncement && <span className="mr-1 text-amber-500">📌</span>}
+          {titleOf(sug)}
+        </h3>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            {sug.isAnonymous ? "익명" : authorName(sug.studentId)} ·{" "}
+            {new Date(sug.createdAt).toLocaleString("ko-KR", {
+              month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+            })}{" "}
+            · 💬 {comments.length}
+          </span>
+          {role === "teacher" && (
+            <span className="flex gap-2">
+              <button
+                onClick={() => void toggleAnnouncement(sug)}
+                className="text-amber-500 hover:text-amber-700"
+              >
+                {sug.isAnnouncement ? "공지 내리기" : "공지 올리기"}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("이 글과 댓글을 모두 삭제할까요?")) {
+                    void removeSuggestion(sug.id).then(onBack);
+                  }
+                }}
+                className="text-rose-400 hover:text-rose-600"
+              >
+                삭제
+              </button>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+        {sug.content}
+      </p>
+
+      {/* 댓글 스레드 */}
+      <div className="mt-4 rounded-lg bg-slate-50 p-3">
+        <p className="text-xs font-bold text-slate-500">💬 댓글 {comments.length}</p>
+        <ul className="mt-2 space-y-2">
           {parents.map((c) => {
             const replies = comments.filter((r) => r.replyTo === c.id);
             const canDelete =
@@ -101,7 +121,7 @@ function SuggestionCard({
                     </button>
                     {canDelete && (
                       <button
-                        onClick={() => void deleteComment(sug, c.id)}
+                        onClick={() => confirm("댓글을 삭제할까요?") && void deleteComment(sug, c.id)}
                         className="text-rose-300 hover:text-rose-500"
                       >
                         삭제
@@ -118,7 +138,7 @@ function SuggestionCard({
                     </span>
                     {(role === "teacher" || (role === "student" && r.studentId === studentId)) && (
                       <button
-                        onClick={() => void deleteComment(sug, r.id)}
+                        onClick={() => confirm("답글을 삭제할까요?") && void deleteComment(sug, r.id)}
                         className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
                       >
                         삭제
@@ -130,35 +150,35 @@ function SuggestionCard({
             );
           })}
         </ul>
-      )}
 
-      {/* 댓글 입력 */}
-      <div className="mt-2 flex items-center gap-1.5">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) void submitComment();
-          }}
-          placeholder={
-            replyTo != null
-              ? `↳ ${authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}님에게 답글…`
-              : "댓글 달기…"
-          }
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm"
-        />
-        <button
-          onClick={() => void submitComment()}
-          className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white"
-        >
-          등록
-        </button>
+        <div className="mt-3 flex items-center gap-1.5">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) void submitComment();
+            }}
+            placeholder={
+              replyTo != null
+                ? `↳ ${authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}님에게 답글…`
+                : "댓글 달기…"
+            }
+            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+          />
+          <button
+            onClick={() => void submitComment()}
+            className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white"
+          >
+            등록
+          </button>
+        </div>
+        {msg && <p className="mt-1 text-xs">{msg}</p>}
       </div>
-      {msg && <p className="mt-1 text-xs">{msg}</p>}
-    </li>
+    </section>
   );
 }
 
+// ── 목록 화면 ────────────────────────────────────────────────────
 export default function BoardPage() {
   const { role, studentId } = useSession();
   const [pages, setPages] = useState(1);
@@ -166,19 +186,27 @@ export default function BoardPage() {
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(studentId);
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [anon, setAnon] = useState(false);
   const [search, setSearch] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
+  const selected = all.find((p) => p.id === selectedId);
+
   async function submit() {
     setBusy(true);
     setMsg("");
     try {
-      await post(content, anon);
+      await post(title, content, anon);
+      setTitle("");
       setContent("");
-      setMsg("✅ 건의가 등록되었어요!");
+      setWriting(false);
+      setMsg("✅ 등록되었어요!");
     } catch (e) {
       setMsg(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`);
     } finally {
@@ -186,70 +214,122 @@ export default function BoardPage() {
     }
   }
 
+  // 상세 화면
+  if (selected) {
+    return <PostDetail sug={selected} onBack={() => setSelectedId(null)} />;
+  }
+
   const kw = search.trim().toLowerCase();
   const matches = (p: Suggestion) => {
     if (!kw) return true;
-    const author = p.isAnonymous ? "익명" : (studentById.get(p.studentId)?.name ?? "");
+    const author = p.isAnonymous ? "익명" : authorName(p.studentId);
     const commentText = (p.comments ?? []).map((c) => c.text).join(" ");
-    return `${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
+    return `${titleOf(p)} ${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
   };
-  const pinnedPosts = (announcements ?? []).filter(matches);
-  const normalPosts = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
+  const pinned = (announcements ?? []).filter(matches);
+  const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
+
+  const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => (
+    <button
+      onClick={() => setSelectedId(p.id)}
+      className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-slate-50 ${
+        pin ? "bg-amber-50/60" : ""
+      }`}
+    >
+      <span className="flex min-w-0 items-center gap-1.5">
+        {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
+        <span className="truncate text-sm font-medium text-slate-700">{titleOf(p)}</span>
+        {(p.comments?.length ?? 0) > 0 && (
+          <span className="shrink-0 text-xs font-bold text-indigo-400">
+            💬{p.comments!.length}
+          </span>
+        )}
+      </span>
+      <span className="shrink-0 text-xs text-slate-400">
+        {p.isAnonymous ? "익명" : authorName(p.studentId)} · {dateLabel(p.createdAt)}
+      </span>
+    </button>
+  );
 
   return (
     <div className="space-y-4">
-      {role === "student" && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="font-bold">📬 건의하기</h3>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="우리 반을 위한 의견을 남겨주세요"
-            rows={3}
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <div className="mt-2 flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-sm text-slate-500">
-              <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
-              익명으로
-            </label>
-            <button
-              onClick={() => void submit()}
-              disabled={busy}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              등록
-            </button>
-            {msg && <span className="text-sm">{msg}</span>}
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4">
+          <h3 className="font-bold">📬 건의 게시판</h3>
+          <div className="flex items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="🔍 검색"
+              className="w-32 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+            />
+            {role === "student" && (
+              <button
+                onClick={() => setWriting((v) => !v)}
+                className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-bold text-white"
+              >
+                {writing ? "닫기" : "✏️ 글쓰기"}
+              </button>
+            )}
           </div>
-        </section>
-      )}
-
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold">📋 건의 목록</h3>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 내용·이름·댓글 검색"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-          />
         </div>
-        {!pinnedPosts.length && !normalPosts.length && (
-          <p className="mt-2 text-sm text-slate-400">
-            {search ? "검색 결과가 없어요." : "아직 건의가 없어요."}
-          </p>
+
+        {writing && (
+          <div className="space-y-2 border-b border-slate-100 bg-slate-50/50 p-4">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="제목"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="우리 반을 위한 의견을 남겨주세요"
+              rows={4}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-sm text-slate-500">
+                <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
+                익명으로
+              </label>
+              <button
+                onClick={() => void submit()}
+                disabled={busy}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                등록
+              </button>
+              {msg && <span className="text-sm">{msg}</span>}
+            </div>
+          </div>
         )}
-        <ul className="mt-3 space-y-2">
-          {pinnedPosts.map((p) => <SuggestionCard key={p.id} sug={p} pinned />)}
-          {normalPosts.map((p) => (
-            <SuggestionCard key={p.id} sug={p} />
-          ))}
-        </ul>
+
+        {/* 목록 */}
+        {!pinned.length && !normal.length ? (
+          <p className="p-4 text-sm text-slate-400">
+            {search ? "검색 결과가 없어요." : "아직 글이 없어요. 첫 글을 남겨보세요!"}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {pinned.map((p) => (
+              <li key={p.id}>
+                <Row p={p} pin />
+              </li>
+            ))}
+            {normal.map((p) => (
+              <li key={p.id}>
+                <Row p={p} />
+              </li>
+            ))}
+          </ul>
+        )}
+
         {posts && posts.length >= pages * 10 && (
           <button
             onClick={() => setPages((p) => p + 1)}
-            className="mt-3 w-full rounded-lg border border-slate-200 py-2 text-sm text-slate-500 hover:bg-slate-50"
+            className="w-full border-t border-slate-100 py-2.5 text-sm text-slate-500 hover:bg-slate-50"
           >
             더 보기
           </button>
