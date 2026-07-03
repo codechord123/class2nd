@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useSession } from "@/stores/session";
 
 // 학생 화면 탭 구성 (요구사항 §2): 개요·Team·거북이 독서·건의·투표·자리·상점
 const TABS = [
@@ -15,10 +17,20 @@ const TABS = [
 
 export default function TabNav() {
   const pathname = usePathname();
+  const { role } = useSession();
+  // persist 하이드레이션 전 SSR 불일치 방지
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const tabs =
+    mounted && role === "teacher"
+      ? [...TABS, { href: "/teacher", label: "교사", emoji: "🧑‍🏫" } as const]
+      : TABS;
+
   return (
     <nav className="-mx-4 overflow-x-auto px-4">
       <ul className="flex gap-1 pb-2 text-sm whitespace-nowrap">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active =
             t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
           return (
