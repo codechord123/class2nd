@@ -1,15 +1,120 @@
+/* Pretendard — 토스 계열 한국어 타이포의 핵심 (동적 서브셋) */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 @import "tailwindcss";
 
-body {
-  font-family:
+/* ── 디자인 토큰 (Toss 기반 · 친근+성취감 톤) ─────────────────────
+   매직넘버 대신 토큰으로 관리. Tailwind v4 @theme → 유틸 자동 생성
+   (예: bg-brand, text-ink-500, rounded-card, shadow-pop). */
+@theme {
+  /* 뉴트럴 스케일 (토스 그레이) */
+  --color-ink-900: #191f28; /* 강조 텍스트·큰 숫자 */
+  --color-ink-800: #333d4b;
+  --color-ink-700: #4e5968; /* 본문 */
+  --color-ink-600: #6b7684;
+  --color-ink-500: #8b95a1; /* 메타·흐림 (AA 대비 확보) */
+  --color-ink-400: #b0b8c1;
+  --color-ink-300: #d1d6db;
+  --color-ink-200: #e5e8eb; /* 보더 */
+  --color-ink-100: #f2f4f6; /* 필드 배경 */
+  --color-ink-50: #f9fafb; /* 페이지 배경 */
+
+  /* 주 액션 (절제해서 결정적 순간에만) */
+  --color-brand: #3182f6;
+  --color-brand-strong: #2272eb;
+  --color-brand-weak: #e8f2fe;
+
+  /* 성취·상태 액센트 */
+  --color-success: #12b886;
+  --color-success-weak: #e6f7f1;
+  --color-warn: #ff9f1c;
+  --color-warn-weak: #fff4e0;
+  --color-danger: #f04452;
+  --color-danger-weak: #fdecee;
+
+  /* 반경·그림자 (아주 옅게) */
+  --radius-card: 20px;
+  --radius-btn: 14px;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.04), 0 1px 3px rgba(17, 24, 39, 0.03);
+  --shadow-pop: 0 6px 24px rgba(17, 24, 39, 0.1);
+
+  --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
-    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
-/* 순위 캐러셀: 2벌 이어붙인 목록을 -50%까지 이동 → 무한 루프 */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em; /* 토스 특유의 살짝 좁은 자간 */
+}
+
+/* 숫자 강조용 — 성취 숫자를 또렷하게 */
+.tnum {
+  font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
+}
+
+/* 눌리는 반응 (물리적 인터랙션) */
+.press {
+  transition:
+    transform 0.12s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* 부드러운 등장 */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.25s ease-out both;
+}
+
+/* 스켈레톤 로딩 */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-ink-100);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.6),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+/* 순위 캐러셀 */
 @keyframes marquee-x {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 .marquee {
   animation: marquee-x 30s linear infinite;

@@ -20,18 +20,20 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-800">
+      <body className="min-h-full flex flex-col bg-ink-50 text-ink-800">
         <Providers>
-          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200">
-            <div className="mx-auto max-w-5xl px-4">
+          <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/80 backdrop-blur-md">
+            <div className="mx-auto max-w-3xl px-4">
               <div className="flex items-center justify-between py-3">
-                <h1 className="text-lg font-bold">🏫 2학기 학급 자치</h1>
+                <h1 className="text-[15px] font-extrabold tracking-tight text-ink-900">
+                  🏫 2학기 학급 자치
+                </h1>
                 <UserChip />
               </div>
               <TabNav />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">
             <LoginGate>{children}</LoginGate>
           </main>
         </Providers>
