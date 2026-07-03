@@ -3,6 +3,7 @@
 // staleTime을 길게 잡아 같은 데이터 재조회를 자동 차단한다.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { FeedbackProvider } from "@/components/ui/Feedback";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -18,5 +19,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <FeedbackProvider>{children}</FeedbackProvider>
+    </QueryClientProvider>
+  );
 }
