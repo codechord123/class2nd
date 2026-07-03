@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude 에이전트 워크트리 (임시)
+.claude/worktrees/
