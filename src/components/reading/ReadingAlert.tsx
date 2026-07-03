@@ -22,13 +22,13 @@ export default function ReadingAlert() {
 
   if (shortfall <= 0) {
     return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+      <div className="rounded-card border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
         🎉 이번 주 거북이 독서 {settings.weeklyReadingQuota}권 달성! 최고예요!
       </div>
     );
   }
   return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+    <div className="rounded-card border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
       🐢 이번 주 거북이 독서가 <b>{shortfall}권</b> 부족해요! ({read}/
       {settings.weeklyReadingQuota}권) — 짜파게티 파티가 기다리고 있어요 🍜
     </div>

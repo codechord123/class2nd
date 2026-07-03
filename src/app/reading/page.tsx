@@ -27,6 +27,7 @@ import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import S1Archive from "@/components/reading/S1Archive";
 import SubTabs from "@/components/ui/SubTabs";
+import EmptyState from "@/components/ui/EmptyState";
 import Linkify from "@/components/ui/Linkify";
 import { useFeedback } from "@/components/ui/Feedback";
 
@@ -269,7 +270,7 @@ export default function ReadingPage() {
 
       {/* ✍️ 쓰기 */}
       {tab === "write" && studentId && (
-        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
           <h3 className="font-bold">
             ✍️ 감상문 쓰기 ({week}주차)
             {editing === "draft" ? " — 임시저장 이어쓰기" : editing === "report" ? " — 등록본 수정 중" : ""}
@@ -437,7 +438,7 @@ export default function ReadingPage() {
 
       {/* 📖 감상문 목록 (커뮤니티 게시판형) */}
       {tab === "list" && (
-        <section className="rounded-xl border border-ink-200 bg-white shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
             <h3 className="font-bold">📖 친구들의 감상문</h3>
             <input
@@ -469,11 +470,12 @@ export default function ReadingPage() {
             ))}
           </div>
 
-          {!visible.length && (
-            <p className="p-4 text-sm text-ink-400">
-              {search || tagFilter ? "조건에 맞는 감상문이 없어요." : "아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!"}
-            </p>
-          )}
+          {!visible.length &&
+            (search || tagFilter ? (
+              <EmptyState emoji="🔍" title="조건에 맞는 감상문이 없어요" />
+            ) : (
+              <EmptyState emoji="🐢" title="아직 감상문이 없어요" desc="첫 번째 주인공이 되어보세요!" />
+            ))}
           <ul className="divide-y divide-ink-100">
             {visible.map((r) =>
               isLocked(r) ? (
@@ -545,7 +547,7 @@ export default function ReadingPage() {
 
       {/* 🏁 순위 */}
       {tab === "rank" && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+        <section className="rounded-card border border-amber-200 bg-amber-50/60 p-4">
           <h3 className="text-sm font-bold text-amber-800">🏁 독서 순위 (1·2학기 합산)</h3>
           <div className="mt-2">
             <RankCarousel totals={stats?.total ?? {}} />

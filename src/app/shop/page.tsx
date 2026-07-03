@@ -13,6 +13,7 @@ import {
 } from "@/lib/query/wallet";
 import { useShopMenu } from "@/lib/query/classMeta";
 import SubTabs from "@/components/ui/SubTabs";
+import StatCard from "@/components/ui/StatCard";
 import { useFeedback } from "@/components/ui/Feedback";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
@@ -121,19 +122,10 @@ export default function ShopPage() {
     <div className="space-y-4">
       {/* 내 지갑 */}
       {role === "student" && studentId && (
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-ink-200 bg-white p-4 text-center shadow-card">
-            <p className="text-xs text-ink-400">2학기 실버</p>
-            <p className="mt-1 text-2xl font-extrabold text-ink-800">{myS2Balance}</p>
-          </div>
-          <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 text-center">
-            <p className="text-xs text-indigo-500">1학기 이월 실버</p>
-            <p className="mt-1 text-2xl font-extrabold text-indigo-700">{myS1Remaining}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-center">
-            <p className="text-xs text-amber-600">학급 골드토큰 (공용)</p>
-            <p className="mt-1 text-2xl font-extrabold text-amber-700">{classGoldLeft}</p>
-          </div>
+        <section className="grid grid-cols-3 gap-2">
+          <StatCard label="2학기 실버" value={myS2Balance} tone="neutral" />
+          <StatCard label="이월 실버" value={myS1Remaining} tone="brand" />
+          <StatCard label="골드토큰" value={classGoldLeft} sub="학급 공용" tone="warn" />
         </section>
       )}
 
@@ -148,7 +140,7 @@ export default function ShopPage() {
 
       {/* 실버 결제 지갑 선택 — 메뉴 신청이 어느 지갑에서 나가는지 명시 (레드팀 반영) */}
       {tab === "shop" && role === "student" && studentId && (
-        <div className="flex items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 py-2.5 text-sm shadow-card">
+        <div className="flex items-center gap-2 rounded-card border border-ink-200 bg-white px-4 py-2.5 text-sm shadow-card">
           <span className="text-xs text-ink-400">실버 결제 지갑:</span>
           {(["s2", "s1"] as const).map((w) => (
             <button
@@ -166,7 +158,7 @@ export default function ShopPage() {
 
       {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
       {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
-        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
           <h3 className="font-bold">📋 우리 반 메뉴판</h3>
           <p className="mt-1 text-xs text-ink-500">
             학급 회의로 정한 메뉴예요. 골라서 바로 신청하세요!
@@ -205,7 +197,7 @@ export default function ShopPage() {
 
       {/* 직접 입력 신청 */}
       {tab === "shop" && role === "student" && studentId && (
-        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
           <h3 className="font-bold">🛒 실버 사용 신청 (직접 입력)</h3>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="rounded-lg bg-ink-100 px-3 py-2 text-xs font-bold text-ink-500">
@@ -253,7 +245,7 @@ export default function ShopPage() {
 
       {/* 반 전체 이월 지갑 현황 (표시 전용) */}
       {tab === "carry" && (
-      <section className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-5">
+      <section className="rounded-card border border-indigo-200 bg-indigo-50/50 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold">🎒 1학기 이월 지갑</h2>
           <p className="text-sm text-ink-600">

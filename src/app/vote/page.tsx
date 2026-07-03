@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
+import Card from "@/components/ui/Card";
+import EmptyState from "@/components/ui/EmptyState";
 import { useFeedback } from "@/components/ui/Feedback";
 import {
   usePolls,
@@ -300,7 +302,7 @@ export default function VotePage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-bold">🗳️ 투표 게시판</h3>
           <div className="flex items-center gap-2">
@@ -322,9 +324,13 @@ export default function VotePage() {
       </section>
 
       {!filtered.length && (
-        <p className="text-sm text-ink-400">
-          {search ? "검색 결과가 없어요." : "아직 투표가 없어요. 첫 투표를 만들어보세요!"}
-        </p>
+        <Card>
+          {search ? (
+            <EmptyState emoji="🔍" title="검색 결과가 없어요" />
+          ) : (
+            <EmptyState emoji="🗳️" title="아직 투표가 없어요" desc="첫 투표를 만들어보세요!" />
+          )}
+        </Card>
       )}
       {filtered.map((p) => (
         <PollCard key={p.id} poll={p} />

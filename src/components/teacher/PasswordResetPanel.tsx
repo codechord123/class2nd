@@ -9,7 +9,7 @@ export default function PasswordResetPanel() {
   const [msg, setMsg] = useState("");
 
   return (
-    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">🔑 학생 비밀번호 초기화</h2>
       <p className="mt-1 text-xs text-ink-500">
         비밀번호를 잊은 학생을 초기화하면, 그 학생이 다음에 로그인할 때 입력한 비밀번호로

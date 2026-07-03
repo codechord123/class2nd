@@ -16,7 +16,7 @@ export default function TurtleMarathon() {
   const s1Progress = Math.min((s1TotalBooks / goal) * 100, 100);
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+    <div className="rounded-card border border-emerald-200 bg-emerald-50/70 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-1">
         <h3 className="text-sm font-extrabold text-emerald-800">🐢 거북이 독서 마라톤</h3>
         <p className="text-xs font-bold text-emerald-600">

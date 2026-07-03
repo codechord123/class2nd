@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
+import EmptyState from "@/components/ui/EmptyState";
 import { useFeedback } from "@/components/ui/Feedback";
 import {
   useSuggestions,
@@ -63,7 +64,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   }
 
   return (
-    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
       <button onClick={onBack} className="text-sm text-ink-400 hover:text-ink-600">
         ← 목록으로
       </button>
@@ -271,7 +272,7 @@ export default function BoardPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-ink-200 bg-white shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
           <h3 className="font-bold">📬 건의 게시판</h3>
           <div className="flex items-center gap-2">
@@ -325,9 +326,11 @@ export default function BoardPage() {
 
         {/* 목록 */}
         {!pinned.length && !normal.length ? (
-          <p className="p-4 text-sm text-ink-400">
-            {search ? "검색 결과가 없어요." : "아직 글이 없어요. 첫 글을 남겨보세요!"}
-          </p>
+          search ? (
+            <EmptyState emoji="🔍" title="검색 결과가 없어요" />
+          ) : (
+            <EmptyState emoji="📭" title="아직 글이 없어요" desc="첫 글을 남겨보세요!" />
+          )
         ) : (
           <ul className="divide-y divide-ink-100">
             {pinned.map((p) => (

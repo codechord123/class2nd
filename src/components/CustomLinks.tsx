@@ -11,7 +11,7 @@ export default function CustomLinks() {
   if (!visible.length) return null;
 
   return (
-    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="font-bold">🔗 바로가기</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((l) => (
