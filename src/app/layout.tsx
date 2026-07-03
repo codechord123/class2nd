@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import TabNav from "@/components/TabNav";
+import LoginGate from "@/components/LoginGate";
+import UserChip from "@/components/UserChip";
 
 export const metadata: Metadata = {
   title: "2학기 학급 자치 시스템",
@@ -24,12 +26,13 @@ export default function RootLayout({
             <div className="mx-auto max-w-5xl px-4">
               <div className="flex items-center justify-between py-3">
                 <h1 className="text-lg font-bold">🏫 2학기 학급 자치</h1>
+                <UserChip />
               </div>
               <TabNav />
             </div>
           </header>
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
-            {children}
+            <LoginGate>{children}</LoginGate>
           </main>
         </Providers>
       </body>

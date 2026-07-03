@@ -27,7 +27,7 @@ npm run dev
 
 ## 진행 상황
 - [x] Phase 0 — 설계·스캐폴딩·정적 데이터 연동 (홈/상점/거북이 1학기 조회 동작)
-- [ ] Phase 1 — 인증(교사/학생) + Firestore 규칙
+- [x] Phase 1 — 인증(교사/학생) + Firestore 규칙 (`firestore.rules` 콘솔 게시 필요)
 - [ ] Phase 2 — 21주 자리 사전계산(어닐링) + 자리표/캘린더
 - [ ] Phase 3 — Team 평가(모둠 내/간) + 서버 집계 Cron
 - [ ] Phase 4 — 거북이 독서(주 3권·경고·순위 캐러셀)

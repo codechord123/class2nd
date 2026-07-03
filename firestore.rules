@@ -1,0 +1,87 @@
+// Firestore 보안 규칙 — Firebase 콘솔(nd-cf543) → Firestore Database → 규칙 탭에 붙여넣고 게시.
+// 교사 판별: Auth 콘솔에 만든 교사 계정 이메일과 일치해야 함 (아래 이메일 확인!)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isTeacher() {
+      return request.auth != null && request.auth.token.email == 'led13@naver.com';
+    }
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // 교사 설정 (평가 척도 등) — 모두 읽기, 교사만 쓰기
+    match /classData/{docId} {
+      allow read: if isAuthed();
+      allow write: if isTeacher();
+    }
+
+    // 모둠 내 평가: evaluations/{date}/entries/{evaluatorId}
+    match /evaluations/{date}/entries/{evaluatorId} {
+      allow read: if isAuthed();
+      allow create, update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
+    // 모둠 간 평가: groupVotes/{date}/entries/{evaluatorId}
+    match /groupVotes/{date}/entries/{evaluatorId} {
+      allow read: if isAuthed();
+      allow create, update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
+    // 서버 사전집계 결과 (읽기 전용, 쓰기는 Cron=Admin SDK가 규칙 우회)
+    match /dailyScores/{date} {
+      allow read: if isAuthed();
+      allow write: if isTeacher();
+    }
+    match /biweeklyScores/{period} {
+      allow read: if isAuthed();
+      allow write: if isTeacher();
+    }
+
+    // 코인/실버 원장 (2학기)
+    match /coinTxns/{txnId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if isTeacher();
+    }
+
+    // 1학기 이월 지갑 차감 원장 (원본은 GitHub 정적 JSON — 불변)
+    match /s1Spends/{spendId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if isTeacher();
+    }
+
+    // 자리 변경 신청 (토큰 사용, 수요일 자정 마감·선착순)
+    match /seatChangeRequests/{reqId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed();
+      allow update, delete: if isTeacher();
+    }
+
+    // 학생 비밀번호 해시 (1학기 방식 계승)
+    match /studentAuth/{studentId} {
+      allow read: if isAuthed();
+      allow create, update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
+    // 게시판/투표 (Phase 5에서 세분화 예정)
+    match /suggestions/{postId} {
+      allow read, create: if isAuthed();
+      allow update, delete: if isTeacher();
+    }
+    match /polls/{pollId} {
+      allow read, create: if isAuthed();
+      allow update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
+    // 그 외 모든 경로는 차단
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
