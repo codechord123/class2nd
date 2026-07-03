@@ -68,6 +68,15 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 2학기 거북이 독서: 감상문 + 권수 통계
+    match /readingReports/{reportId} {
+      allow read, create: if isAuthed();
+      allow update, delete: if isTeacher();
+    }
+    match /readingStats/{docId} {
+      allow read, write: if isAuthed();
+    }
+
     // 게시판/투표 (Phase 5에서 세분화 예정)
     match /suggestions/{postId} {
       allow read, create: if isAuthed();

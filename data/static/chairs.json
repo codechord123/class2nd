@@ -1,0 +1,12 @@
+{
+  "note": "모둠 의장(소통 지킴이) 5명. ⚠️ 현재는 1학기 회장단 임시값 — 2학기 회장단 선출 후 이 파일을 수정하고 `node scripts/generate-schedules.mjs`로 자리표를 재생성할 것.",
+  "provisional": true,
+  "chairs": {
+    "1": "윤재익",
+    "2": "김하영",
+    "3": "가동민",
+    "4": "홍아영",
+    "5": "이다인"
+  },
+  "wildcardGroup": 5
+}

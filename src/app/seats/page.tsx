@@ -13,6 +13,7 @@ import {
   SEMESTER_START,
 } from "@/lib/schedule";
 import SeatGrid from "@/components/seats/SeatGrid";
+import { chairsProvisional } from "@/lib/roster";
 
 export default function SeatsPage() {
   const { studentId } = useSession();
@@ -37,6 +38,12 @@ export default function SeatsPage() {
         {myGroup && (
           <p className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
             {week}주차의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 지킴이</b>
+          </p>
+        )}
+        {chairsProvisional && (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            ⚠️ 지금 의장(소통 지킴이)은 1학기 회장단 기준 임시 배치예요. 2학기 회장단 선거
+            후 새 명단으로 자리표가 다시 만들어집니다.
           </p>
         )}
       </section>

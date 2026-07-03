@@ -9,9 +9,11 @@
 // 자리는 2주마다 교체(요구사항) → 21주 = 11 로테이션(마지막 1주).
 // 시드 고정 PRNG라 재실행해도 동일한 결과가 나온다.
 
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // ── 학급 구성 (src/lib/roster.ts와 동일해야 함) ──────────────────
 const genderMap = {
@@ -24,8 +26,14 @@ const genderMap = {
 const names = Object.keys(genderMap);
 const idOf = (name) => names.indexOf(name) + 1;
 
-// 의장 5명 (학기초 고정): 모둠 → 학생
-const chairs = { 1: "윤재익", 2: "김하영", 3: "가동민", 4: "홍아영", 5: "이다인" };
+// 의장 5명 — 단일 출처: data/static/chairs.json (2학기 선출 후 그 파일 수정 → 재실행)
+const chairsFile = JSON.parse(readFileSync(join(ROOT, "data", "static", "chairs.json"), "utf-8"));
+const chairs = Object.fromEntries(
+  Object.entries(chairsFile.chairs).map(([g, name]) => [Number(g), name])
+);
+if (chairsFile.provisional) {
+  console.warn("⚠️ chairs.json이 아직 1학기 회장단 임시값입니다. 2학기 선출 후 갱신하세요.");
+}
 const chairIds = new Set(Object.values(chairs).map(idOf));
 const members = names.filter((n) => !chairIds.has(idOf(n))); // 위원 20명
 

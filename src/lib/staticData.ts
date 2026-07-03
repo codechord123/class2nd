@@ -18,11 +18,13 @@ export async function loadS1TurtleReading() {
   return mod.default as unknown as import("@/types").S1TurtleReading;
 }
 
-/** 1학기 최종 읽은 권수 (mainState 우선, 누락분은 sharedRecords 보정) */
+/** 1학기 최종 읽은 권수 = mainState + sharedRecords 합산 (엑셀 자료와 일치 검증됨) */
 export function s1BooksReadOf(
   turtle: import("@/types").S1TurtleReading,
   studentId: number
 ): number {
   const key = String(studentId);
-  return turtle.booksRead.mainState[key] ?? turtle.booksRead.sharedRecords[key] ?? 0;
+  return (
+    (turtle.booksRead.mainState[key] ?? 0) + (turtle.booksRead.sharedRecords[key] ?? 0)
+  );
 }

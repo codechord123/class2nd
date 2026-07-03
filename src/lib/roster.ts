@@ -1,5 +1,8 @@
-// 학급 명단 25명 (1학기와 동일) + 의장 5명 (학기초 고정).
+// 학급 명단 25명 (1학기와 동일) + 의장 5명.
 // 거의 불변 데이터이므로 DB가 아닌 코드 상수로 두어 읽기 0회.
+// 의장은 data/static/chairs.json이 단일 출처 — 2학기 회장단 선출 후 그 파일만 수정하고
+// `node scripts/generate-schedules.mjs`로 자리표를 재생성한다.
+import chairsJson from "../../data/static/chairs.json";
 import type { Student } from "@/types";
 
 const genderMap: Record<string, "M" | "F"> = {
@@ -10,15 +13,15 @@ const genderMap: Record<string, "M" | "F"> = {
   조수아: "F", 조이환: "M", 최지완: "M", 한민종: "M", 홍아영: "F",
 };
 
-// 의장: 1모둠 윤재익(반장1), 2모둠 김하영(반장2), 3모둠 가동민(부반장1),
-//       4모둠 홍아영(부반장2), 5모둠 이다인(와일드카드)
-const chairs: Record<string, { group: number; isWildcard?: boolean }> = {
-  윤재익: { group: 1 },
-  김하영: { group: 2 },
-  가동민: { group: 3 },
-  홍아영: { group: 4 },
-  이다인: { group: 5, isWildcard: true },
-};
+export const chairsProvisional = chairsJson.provisional; // true면 아직 1학기 회장단 임시값
+
+const chairs: Record<string, { group: number; isWildcard?: boolean }> = {};
+for (const [group, name] of Object.entries(chairsJson.chairs)) {
+  chairs[name] = {
+    group: Number(group),
+    isWildcard: Number(group) === chairsJson.wildcardGroup,
+  };
+}
 
 export const students: Student[] = Object.keys(genderMap).map((name, i) => ({
   id: i + 1,

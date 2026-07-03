@@ -1,7 +1,7 @@
 // 개요(홈) — 거북이 경고 + 짜파게티 배너가 항상 최상단 (요구사항 §C).
-// 경고의 실제 부족 권수 계산은 Phase 4(거북이 독서)에서 연결한다.
 import Link from "next/link";
 import { students } from "@/lib/roster";
+import ReadingAlert from "@/components/reading/ReadingAlert";
 
 export default function HomePage() {
   return (
@@ -13,10 +13,8 @@ export default function HomePage() {
         <p className="mt-1 text-sm opacity-90">매주 3권씩 꾸준히 읽으면 우리 반 모두 파티!</p>
       </div>
 
-      {/* 미달성 경고 자리 — Phase 4에서 학생별 부족 권수 연결 */}
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        ⚠️ 이번 주 독서 미달 알림이 여기에 표시됩니다. (2학기 개학 후 활성화)
-      </div>
+      {/* 이번 주 독서 미달 경고 (개학 후 자동 활성화) */}
+      <ReadingAlert />
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Link href="/team" className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow">

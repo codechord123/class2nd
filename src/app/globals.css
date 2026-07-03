@@ -5,3 +5,15 @@ body {
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 }
+
+/* 순위 캐러셀: 2벌 이어붙인 목록을 -50%까지 이동 → 무한 루프 */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee {
+  animation: marquee-x 30s linear infinite;
+}
+.marquee:hover {
+  animation-play-state: paused;
+}
