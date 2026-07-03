@@ -4,7 +4,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isTeacher() {
-      return request.auth != null && request.auth.token.email == 'led13@naver.com';
+      return request.auth != null && request.auth.token.email == 'whata2mazing1@gmail.com';
     }
     function isAuthed() {
       return request.auth != null;
