@@ -1,0 +1,235 @@
+{
+  "meta": {
+    "note": "1학기 실버토큰 이월 데이터. silverRemaining만 2학기 상점에서 사용 가능(1회 이월). 나머지는 표시 전용, 2학기 연산과 격리.",
+    "source": "1학기 엑셀 점수 자료 (기준일 2026-07-03)",
+    "carryoverField": "silverRemaining",
+    "classGoldToken": "이 파일에 없음 — 별도 제공 필요"
+  },
+  "students": [
+    {
+      "id": 1,
+      "name": "가동민",
+      "silverRemaining": 16,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 419,
+      "booksReadS1": 5
+    },
+    {
+      "id": 2,
+      "name": "김선유",
+      "silverRemaining": 14,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 2,
+      "cumulativeScoreS1": 403,
+      "booksReadS1": 11
+    },
+    {
+      "id": 3,
+      "name": "김수형",
+      "silverRemaining": 7,
+      "silverEarnedS1": 8,
+      "silverUsedS1": 1,
+      "cumulativeScoreS1": 223,
+      "booksReadS1": 0
+    },
+    {
+      "id": 4,
+      "name": "김예원",
+      "silverRemaining": 19,
+      "silverEarnedS1": 19,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 475,
+      "booksReadS1": 3
+    },
+    {
+      "id": 5,
+      "name": "김용훈",
+      "silverRemaining": 5,
+      "silverEarnedS1": 9,
+      "silverUsedS1": 4,
+      "cumulativeScoreS1": 227,
+      "booksReadS1": 0
+    },
+    {
+      "id": 6,
+      "name": "김원준",
+      "silverRemaining": 4,
+      "silverEarnedS1": 11,
+      "silverUsedS1": 7,
+      "cumulativeScoreS1": 286,
+      "booksReadS1": 0
+    },
+    {
+      "id": 7,
+      "name": "김주아",
+      "silverRemaining": 14,
+      "silverEarnedS1": 14,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 363,
+      "booksReadS1": 1
+    },
+    {
+      "id": 8,
+      "name": "김찬우",
+      "silverRemaining": 10,
+      "silverEarnedS1": 17,
+      "silverUsedS1": 7,
+      "cumulativeScoreS1": 431,
+      "booksReadS1": 1
+    },
+    {
+      "id": 9,
+      "name": "김하영",
+      "silverRemaining": 14,
+      "silverEarnedS1": 14,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 365,
+      "booksReadS1": 0
+    },
+    {
+      "id": 10,
+      "name": "문서우",
+      "silverRemaining": 15,
+      "silverEarnedS1": 15,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 394,
+      "booksReadS1": 4
+    },
+    {
+      "id": 11,
+      "name": "박찬",
+      "silverRemaining": 15,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 1,
+      "cumulativeScoreS1": 400,
+      "booksReadS1": 1
+    },
+    {
+      "id": 12,
+      "name": "배한민",
+      "silverRemaining": 3,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 13,
+      "cumulativeScoreS1": 410,
+      "booksReadS1": 0
+    },
+    {
+      "id": 13,
+      "name": "유선재",
+      "silverRemaining": 17,
+      "silverEarnedS1": 17,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 440,
+      "booksReadS1": 9
+    },
+    {
+      "id": 14,
+      "name": "윤재익",
+      "silverRemaining": 15,
+      "silverEarnedS1": 15,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 391,
+      "booksReadS1": 0
+    },
+    {
+      "id": 15,
+      "name": "이다인",
+      "silverRemaining": 18,
+      "silverEarnedS1": 18,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 473,
+      "booksReadS1": 12
+    },
+    {
+      "id": 16,
+      "name": "이서이",
+      "silverRemaining": 15,
+      "silverEarnedS1": 15,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 377,
+      "booksReadS1": 0
+    },
+    {
+      "id": 17,
+      "name": "이서희",
+      "silverRemaining": 17,
+      "silverEarnedS1": 17,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 430,
+      "booksReadS1": 22
+    },
+    {
+      "id": 18,
+      "name": "이채연",
+      "silverRemaining": 16,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 411,
+      "booksReadS1": 1
+    },
+    {
+      "id": 19,
+      "name": "임유나",
+      "silverRemaining": 14,
+      "silverEarnedS1": 14,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 366,
+      "booksReadS1": 12
+    },
+    {
+      "id": 20,
+      "name": "정지수",
+      "silverRemaining": 16,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 405,
+      "booksReadS1": 1
+    },
+    {
+      "id": 21,
+      "name": "조수아",
+      "silverRemaining": 6,
+      "silverEarnedS1": 15,
+      "silverUsedS1": 9,
+      "cumulativeScoreS1": 388,
+      "booksReadS1": 1
+    },
+    {
+      "id": 22,
+      "name": "조이환",
+      "silverRemaining": 4,
+      "silverEarnedS1": 12,
+      "silverUsedS1": 8,
+      "cumulativeScoreS1": 306,
+      "booksReadS1": 0
+    },
+    {
+      "id": 23,
+      "name": "최지완",
+      "silverRemaining": 15,
+      "silverEarnedS1": 15,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 392,
+      "booksReadS1": 11
+    },
+    {
+      "id": 24,
+      "name": "한민종",
+      "silverRemaining": 16,
+      "silverEarnedS1": 16,
+      "silverUsedS1": 0,
+      "cumulativeScoreS1": 402,
+      "booksReadS1": 12
+    },
+    {
+      "id": 25,
+      "name": "홍아영",
+      "silverRemaining": 11,
+      "silverEarnedS1": 12,
+      "silverUsedS1": 1,
+      "cumulativeScoreS1": 313,
+      "booksReadS1": 14
+    }
+  ]
+}
