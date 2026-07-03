@@ -35,7 +35,7 @@ function PollCard({ poll }: { poll: Poll }) {
 
   return (
     <section
-      className={`rounded-xl border bg-white p-5 shadow-sm ${closed ? "border-slate-300 opacity-90" : "border-indigo-200"}`}
+      className={`rounded-xl border bg-white p-5 shadow-card ${closed ? "border-ink-300 opacity-90" : "border-indigo-200"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
@@ -43,7 +43,7 @@ function PollCard({ poll }: { poll: Poll }) {
             {poll.title}{" "}
             <span
               className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                closed ? "bg-slate-200 text-slate-500" : "bg-emerald-100 text-emerald-700"
+                closed ? "bg-ink-200 text-ink-500" : "bg-emerald-100 text-emerald-700"
               }`}
             >
               {closed ? "마감" : "진행 중"}
@@ -54,18 +54,18 @@ function PollCard({ poll }: { poll: Poll }) {
               </span>
             )}
             {poll.anonymous && (
-              <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+              <span className="ml-1 rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold text-ink-500">
                 익명
               </span>
             )}
           </h4>
           {poll.desc && (
-            <p className="mt-0.5 whitespace-pre-wrap text-sm text-slate-500">
+            <p className="mt-0.5 whitespace-pre-wrap text-sm text-ink-500">
               <Linkify text={poll.desc} />
             </p>
           )}
         </div>
-        <span className="shrink-0 text-right text-xs text-slate-400">
+        <span className="shrink-0 text-right text-xs text-ink-400">
           {poll.createdBy === "teacher"
             ? "선생님"
             : (studentById.get(poll.createdBy as number)?.name ?? "?")}
@@ -102,12 +102,12 @@ function PollCard({ poll }: { poll: Poll }) {
                     ? "border-indigo-400 font-bold"
                     : winner
                       ? "border-amber-400 font-bold"
-                      : "border-slate-200"
+                      : "border-ink-200"
                 } ${!closed && role === "student" ? "hover:border-indigo-300" : ""}`}
               >
                 <span
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ${
-                    winner ? "bg-amber-100" : chosen ? "bg-indigo-100" : "bg-slate-100"
+                    winner ? "bg-amber-100" : chosen ? "bg-indigo-100" : "bg-ink-100"
                   }`}
                   style={{ width: `${pct}%` }}
                 />
@@ -117,7 +117,7 @@ function PollCard({ poll }: { poll: Poll }) {
                     {chosen && "✓ "}
                     {opt}
                   </span>
-                  <span className="shrink-0 text-xs text-slate-400">
+                  <span className="shrink-0 text-xs text-ink-400">
                     {counts[i]}표 ({pct}%)
                   </span>
                 </span>
@@ -132,7 +132,7 @@ function PollCard({ poll }: { poll: Poll }) {
           {!poll.anonymous && allVoterIds.length > 0 && (
             <button
               onClick={() => setShowVoters((v) => !v)}
-              className="text-slate-400 underline hover:text-slate-600"
+              className="text-ink-400 underline hover:text-ink-600"
             >
               {showVoters ? "투표자 숨기기" : "누가 투표했는지 보기"}
             </button>
@@ -168,7 +168,7 @@ function PollCard({ poll }: { poll: Poll }) {
       </div>
 
       {showVoters && !poll.anonymous && (
-        <div className="mt-2 space-y-1 rounded-lg bg-slate-50 p-2 text-xs text-slate-500">
+        <div className="mt-2 space-y-1 rounded-lg bg-ink-50 p-2 text-xs text-ink-500">
           {poll.options.map((opt, i) => {
             const names = allVoterIds
               .filter((sid) => votesOf(poll, sid).includes(i))
@@ -219,13 +219,13 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="투표 제목 (예: 학급 파티 날 뭐 할까?)"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
       />
       <input
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
         placeholder="설명 (선택)"
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
       />
       {options.map((opt, i) => (
         <div key={i} className="flex items-center gap-1.5">
@@ -235,12 +235,12 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
               setOptions(options.map((o, j) => (j === i ? e.target.value : o)))
             }
             placeholder={`선택지 ${i + 1}`}
-            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
           />
           {options.length > 2 && (
             <button
               onClick={() => setOptions(options.filter((_, j) => j !== i))}
-              className="shrink-0 text-slate-300 hover:text-rose-400"
+              className="shrink-0 text-ink-300 hover:text-rose-400"
             >
               ✕
             </button>
@@ -249,11 +249,11 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       ))}
       <button
         onClick={() => setOptions([...options, ""])}
-        className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500 hover:border-slate-400"
+        className="rounded-lg border border-dashed border-ink-300 px-3 py-1.5 text-xs text-ink-500 hover:border-ink-400"
       >
         + 선택지 추가
       </button>
-      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+      <div className="flex flex-wrap items-center gap-4 text-sm text-ink-600">
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
           복수 선택 허용
@@ -272,7 +272,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
             type="date"
             value={deadline}
             onChange={(e) => setDeadline(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+            className="rounded-lg border border-ink-300 px-2 py-1 text-xs"
           />
         </label>
       </div>
@@ -300,7 +300,7 @@ export default function VotePage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-bold">🗳️ 투표 게시판</h3>
           <div className="flex items-center gap-2">
@@ -308,7 +308,7 @@ export default function VotePage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 검색"
-              className="w-32 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              className="w-32 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
             />
             <button
               onClick={() => setShowForm((v) => !v)}
@@ -322,7 +322,7 @@ export default function VotePage() {
       </section>
 
       {!filtered.length && (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           {search ? "검색 결과가 없어요." : "아직 투표가 없어요. 첫 투표를 만들어보세요!"}
         </p>
       )}
@@ -333,7 +333,7 @@ export default function VotePage() {
       {polls && polls.length >= pages * 10 && (
         <button
           onClick={() => setPages((p) => p + 1)}
-          className="w-full rounded-lg border border-slate-200 py-2 text-sm text-slate-500 hover:bg-slate-50"
+          className="w-full rounded-lg border border-ink-200 py-2 text-sm text-ink-500 hover:bg-ink-50"
         >
           더 보기
         </button>

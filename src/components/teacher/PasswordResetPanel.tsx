@@ -9,9 +9,9 @@ export default function PasswordResetPanel() {
   const [msg, setMsg] = useState("");
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">🔑 학생 비밀번호 초기화</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-500">
         비밀번호를 잊은 학생을 초기화하면, 그 학생이 다음에 로그인할 때 입력한 비밀번호로
         다시 등록됩니다.
       </p>
@@ -19,7 +19,7 @@ export default function PasswordResetPanel() {
         <select
           value={sid}
           onChange={(e) => setSid(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
         >
           {students.map((s) => (
             <option key={s.id} value={s.id}>

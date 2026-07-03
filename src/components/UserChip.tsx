@@ -17,13 +17,13 @@ export default function UserChip() {
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="font-medium text-slate-600">{label}</span>
+      <span className="font-medium text-ink-600">{label}</span>
       <button
         onClick={() => {
           void fbLogout();
           logout();
         }}
-        className="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100"
+        className="rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-500 hover:bg-ink-100"
       >
         로그아웃
       </button>

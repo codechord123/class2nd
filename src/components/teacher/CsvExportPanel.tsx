@@ -48,16 +48,16 @@ export default function CsvExportPanel() {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">📥 학급 현황 CSV 내보내기</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-500">
         번호·이름·누적점수·실버(2학기/이월)·독서 권수(1·2학기/합계)를 엑셀용 CSV로 저장해요.
         이미 불러온 자료만 사용해 추가 읽기가 없어요.
       </p>
       <button
         onClick={exportCsv}
         disabled={loading}
-        className="mt-3 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+        className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
       >
         {loading ? "자료 불러오는 중…" : "CSV 내려받기"}
       </button>

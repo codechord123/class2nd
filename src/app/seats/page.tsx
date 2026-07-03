@@ -74,10 +74,10 @@ export default function SeatsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">🪑 자리 배치 및 일정</h2>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ink-400">
             {beforeSemester ? `개학(${SEMESTER_START}) 전 — 미리보기` : `현재 ${nowWeek}주차`} ·
             2주마다 자동 교체
           </span>
@@ -104,10 +104,10 @@ export default function SeatsPage() {
               onClick={() => setWeek(w.week)}
               className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
                 w.week === week
-                  ? "bg-slate-800 text-white"
+                  ? "bg-brand text-white"
                   : w.week === nowWeek && !beforeSemester
                     ? "bg-amber-100 text-amber-800"
-                    : "bg-white text-slate-500 border border-slate-200"
+                    : "bg-white text-ink-500 border border-ink-200"
               }`}
             >
               {w.week}주
@@ -121,10 +121,10 @@ export default function SeatsPage() {
 
       {/* 실버 자리변경 신청 */}
       {role === "student" && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({week}주차)</h3>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-ink-400">
               비용 {settings?.seatChangeCost ?? 1}실버 · 마감{" "}
               {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일
               자정 · 선착순
@@ -132,12 +132,12 @@ export default function SeatsPage() {
           </div>
 
           {deadlinePassed ? (
-            <p className="mt-2 text-sm text-slate-400">이 주차는 신청 기한이 지났어요.</p>
+            <p className="mt-2 text-sm text-ink-400">이 주차는 신청 기한이 지났어요.</p>
           ) : (
             <>
               <button
                 onClick={() => setShowRequest((v) => !v)}
-                className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                className="mt-2 rounded-lg border border-ink-300 px-3 py-1.5 text-sm text-ink-600 hover:bg-ink-50"
               >
                 {showRequest ? "닫기" : "+ 자리 변경 신청"}
               </button>
@@ -146,7 +146,7 @@ export default function SeatsPage() {
                   <select
                     value={targetGroup}
                     onChange={(e) => setTargetGroup(Number(e.target.value))}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
                   >
                     {[1, 2, 3, 4, 5].map((g) => (
                       <option key={g} value={g}>
@@ -157,7 +157,7 @@ export default function SeatsPage() {
                   <select
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value as RoleKey)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
                   >
                     {ROLE_INFO.filter((r) => r.key !== "소통").map((r) => (
                       <option key={r.key} value={r.key}>
@@ -167,7 +167,7 @@ export default function SeatsPage() {
                   </select>
                   <button
                     onClick={() => void submitRequest()}
-                    className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+                    className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
                   >
                     신청하기
                   </button>
@@ -180,7 +180,7 @@ export default function SeatsPage() {
           {(weekRequests?.length ?? 0) > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {weekRequests!.map((r) => (
-                <li key={r.id} className="flex justify-between rounded bg-slate-50 px-3 py-1.5">
+                <li key={r.id} className="flex justify-between rounded bg-ink-50 px-3 py-1.5">
                   <span>
                     {studentById.get(r.studentId)?.name} → {r.targetGroup}모둠 {r.targetRole}
                   </span>

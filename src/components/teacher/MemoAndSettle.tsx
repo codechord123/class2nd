@@ -23,10 +23,10 @@ export function TeacherMemoWidget() {
   const fs = fontSize ?? memo?.fontSize ?? 14;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">📝 선생님 메모장</h2>
-        <div className="flex items-center gap-1 text-xs text-slate-400">
+        <div className="flex items-center gap-1 text-xs text-ink-400">
           글자
           <button onClick={() => setFontSize(Math.max(10, fs - 2))} className="rounded border px-1.5">−</button>
           {fs}px
@@ -39,7 +39,7 @@ export function TeacherMemoWidget() {
         rows={5}
         style={{ fontSize: fs }}
         placeholder="수업 준비, 전달 사항 등을 자유롭게…"
-        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2"
+        className="mt-2 w-full rounded-lg border border-ink-300 px-3 py-2"
       />
       <div className="mt-2 flex items-center gap-2">
         <button
@@ -49,7 +49,7 @@ export function TeacherMemoWidget() {
               (e) => setMsg(`⚠️ ${e.message}`)
             )
           }
-          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           메모 저장
         </button>
@@ -86,9 +86,9 @@ export function BiweeklySettlePanel() {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">🏆 격주 MVP 정산</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-500">
         2주 누적 점수 상위 5명(동점 포함)에게 실버 1개 자동 지급. 격주 금요일에 실행하세요.
         같은 기간을 다시 눌러도 이중 지급되지 않습니다.
       </p>
@@ -96,7 +96,7 @@ export function BiweeklySettlePanel() {
         <select
           value={period}
           onChange={(e) => setPeriod(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
         >
           {Array.from({ length: 11 }, (_, i) => i + 1).map((p) => (
             <option key={p} value={p}>
@@ -113,7 +113,7 @@ export function BiweeklySettlePanel() {
         </button>
       </div>
       {result && result.mvps.length > 0 && (
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-ink-600">
           🏅 MVP:{" "}
           {result.mvps
             .map((sid) => `${studentById.get(sid)?.name} (${result.sums[sid] ?? 0}점)`)
@@ -133,9 +133,9 @@ export function BonusPanel() {
   const [msg, setMsg] = useState("");
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">➕ 교사 보너스 점수</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-500">
         특정 날짜의 학생 점수에 보너스를 더하거나 뺍니다 (누적 자동 반영).
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -143,12 +143,12 @@ export function BonusPanel() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
         />
         <select
           value={sid}
           onChange={(e) => setSid(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
         >
           {students.map((s) => (
             <option key={s.id} value={s.id}>
@@ -160,7 +160,7 @@ export function BonusPanel() {
           type="number"
           value={bonus}
           onChange={(e) => setBonusVal(e.target.value)}
-          className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm"
         />
         <button
           onClick={() =>
@@ -173,7 +173,7 @@ export function BonusPanel() {
               (e: Error) => setMsg(`⚠️ ${e.message}`)
             )
           }
-          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           반영
         </button>

@@ -11,7 +11,7 @@ export default function CustomLinks() {
   if (!visible.length) return null;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="font-bold">🔗 바로가기</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((l) => (
@@ -20,15 +20,15 @@ export default function CustomLinks() {
             href={l.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+            className="flex items-start gap-2.5 rounded-lg border border-ink-200 bg-ink-50 p-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
           >
             <span className="text-xl">{l.emoji || "🔗"}</span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-bold text-slate-700">
+              <span className="block truncate text-sm font-bold text-ink-700">
                 {l.title}
                 {l.teacherOnly && <span className="ml-1 text-[10px] text-amber-500">교사</span>}
               </span>
-              {l.desc && <span className="block truncate text-xs text-slate-400">{l.desc}</span>}
+              {l.desc && <span className="block truncate text-xs text-ink-400">{l.desc}</span>}
             </span>
           </a>
         ))}

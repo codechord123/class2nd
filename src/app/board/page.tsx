@@ -63,17 +63,17 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <button onClick={onBack} className="text-sm text-slate-400 hover:text-slate-600">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+      <button onClick={onBack} className="text-sm text-ink-400 hover:text-ink-600">
         ← 목록으로
       </button>
 
-      <div className="mt-3 border-b border-slate-100 pb-3">
+      <div className="mt-3 border-b border-ink-100 pb-3">
         <h3 className="text-lg font-bold">
           {sug.isAnnouncement && <span className="mr-1 text-amber-500">📌</span>}
           {titleOf(sug)}
         </h3>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
           <span>
             {sug.isAnonymous ? "익명" : authorName(sug.studentId)} ·{" "}
             {new Date(sug.createdAt).toLocaleString("ko-KR", {
@@ -105,13 +105,13 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
         </div>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
         <Linkify text={sug.content} />
       </p>
 
       {/* 댓글 스레드 */}
-      <div className="mt-4 rounded-lg bg-slate-50 p-3">
-        <p className="text-xs font-bold text-slate-500">💬 댓글 {comments.length}</p>
+      <div className="mt-4 rounded-lg bg-ink-50 p-3">
+        <p className="text-xs font-bold text-ink-500">💬 댓글 {comments.length}</p>
         <ul className="mt-2 space-y-2">
           {parents.map((c) => {
             const replies = comments.filter((r) => r.replyTo === c.id);
@@ -121,8 +121,8 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               <li key={c.id} className="text-sm">
                 <div className="flex items-baseline justify-between gap-2">
                   <span>
-                    <b className="text-xs text-slate-500">{authorName(c.studentId)}</b>{" "}
-                    <span className="text-slate-700">
+                    <b className="text-xs text-ink-500">{authorName(c.studentId)}</b>{" "}
+                    <span className="text-ink-700">
                       <Linkify text={c.text} />
                     </span>
                   </span>
@@ -148,9 +148,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 {replies.map((r) => (
                   <div key={r.id} className="mt-1 flex items-baseline justify-between gap-2 pl-4">
                     <span>
-                      <span className="text-slate-300">↳</span>{" "}
-                      <b className="text-xs text-slate-500">{authorName(r.studentId)}</b>{" "}
-                      <span className="text-slate-600">
+                      <span className="text-ink-300">↳</span>{" "}
+                      <b className="text-xs text-ink-500">{authorName(r.studentId)}</b>{" "}
+                      <span className="text-ink-600">
                         <Linkify text={r.text} />
                       </span>
                     </span>
@@ -183,11 +183,11 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 ? `↳ ${authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}님에게 답글…`
                 : "댓글 달기…"
             }
-            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm"
           />
           <button
             onClick={() => void submitComment()}
-            className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white"
+            className="shrink-0 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white"
           >
             등록
           </button>
@@ -250,20 +250,20 @@ export default function BoardPage() {
   const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => (
     <button
       onClick={() => setSelectedId(p.id)}
-      className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-slate-50 ${
+      className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-ink-50 ${
         pin ? "bg-amber-50/60" : ""
       }`}
     >
       <span className="flex min-w-0 items-center gap-1.5">
         {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
-        <span className="truncate text-sm font-medium text-slate-700">{titleOf(p)}</span>
+        <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
         {(p.comments?.length ?? 0) > 0 && (
           <span className="shrink-0 text-xs font-bold text-indigo-400">
             💬{p.comments!.length}
           </span>
         )}
       </span>
-      <span className="shrink-0 text-xs text-slate-400">
+      <span className="shrink-0 text-xs text-ink-400">
         {p.isAnonymous ? "익명" : authorName(p.studentId)} · {dateLabel(p.createdAt)}
       </span>
     </button>
@@ -271,20 +271,20 @@ export default function BoardPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4">
+      <section className="rounded-xl border border-ink-200 bg-white shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
           <h3 className="font-bold">📬 건의 게시판</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 검색"
-              className="w-32 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              className="w-32 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
             />
             {role === "student" && (
               <button
                 onClick={() => setWriting((v) => !v)}
-                className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-bold text-white"
+                className="rounded-lg bg-brand px-3 py-1.5 text-sm font-bold text-white"
               >
                 {writing ? "닫기" : "✏️ 글쓰기"}
               </button>
@@ -293,29 +293,29 @@ export default function BoardPage() {
         </div>
 
         {writing && (
-          <div className="space-y-2 border-b border-slate-100 bg-slate-50/50 p-4">
+          <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="우리 반을 위한 의견을 남겨주세요"
               rows={4}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-sm text-slate-500">
+              <label className="flex items-center gap-1.5 text-sm text-ink-500">
                 <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
                 익명으로
               </label>
               <button
                 onClick={() => void submit()}
                 disabled={busy}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 등록
               </button>
@@ -325,11 +325,11 @@ export default function BoardPage() {
 
         {/* 목록 */}
         {!pinned.length && !normal.length ? (
-          <p className="p-4 text-sm text-slate-400">
+          <p className="p-4 text-sm text-ink-400">
             {search ? "검색 결과가 없어요." : "아직 글이 없어요. 첫 글을 남겨보세요!"}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-ink-100">
             {pinned.map((p) => (
               <li key={p.id}>
                 <Row p={p} pin />
@@ -346,7 +346,7 @@ export default function BoardPage() {
         {posts && posts.length >= pages * 10 && (
           <button
             onClick={() => setPages((p) => p + 1)}
-            className="w-full border-t border-slate-100 py-2.5 text-sm text-slate-500 hover:bg-slate-50"
+            className="w-full border-t border-ink-100 py-2.5 text-sm text-ink-500 hover:bg-ink-50"
           >
             더 보기
           </button>

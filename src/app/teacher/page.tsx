@@ -75,12 +75,12 @@ export default function TeacherPage() {
 
   if (role !== "teacher") {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm text-slate-500">🔒 선생님만 들어올 수 있는 곳이에요.</p>
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
+        <p className="text-sm text-ink-500">🔒 선생님만 들어올 수 있는 곳이에요.</p>
       </section>
     );
   }
-  if (!settings) return <p className="text-sm text-slate-400">불러오는 중…</p>;
+  if (!settings) return <p className="text-sm text-ink-400">불러오는 중…</p>;
 
   async function runAggregate() {
     setBusy(true);
@@ -133,9 +133,9 @@ export default function TeacherPage() {
 
       {tTab === "score" && (<>
       {/* 일일 집계 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-500">
           종회 후 하루 1번 실행하세요. 다시 실행해도 안전해요(누적 자동 보정).
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -143,18 +143,18 @@ export default function TeacherPage() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() => void runAggregate()}
             disabled={busy}
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             {busy ? "집계 중…" : "집계 실행"}
           </button>
         </div>
         {result && (
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-ink-600">
             모둠 순위:{" "}
             {Object.entries(result.groupRanks)
               .sort((a, b) => a[1] - b[1])
@@ -165,13 +165,13 @@ export default function TeacherPage() {
       </section>
 
       {/* 오늘의 모둠 선정 + 칭찬/건의 인쇄 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 & 칭찬 인쇄</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
             value={bestGroupId}
             onChange={(e) => setBestGroupId(Number(e.target.value))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
           >
             {[1, 2, 3, 4, 5].map((g) => (
               <option key={g} value={g}>
@@ -223,7 +223,7 @@ export default function TeacherPage() {
                     }
                   })()
                 }
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50"
               >
                 🖨️ {label}
               </button>
@@ -231,7 +231,7 @@ export default function TeacherPage() {
           </span>
         </div>
         {bestGroups?.[date] && (
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-ink-600">
             {date} 오늘의 모둠: <b>{bestGroups[date].groupId}모둠</b> (의장{" "}
             {studentById.get(bestGroups[date].chairId)?.name})
           </p>
@@ -296,15 +296,15 @@ export default function TeacherPage() {
 
       {tTab === "approve" && (<>
       {/* 실버 사용 승인 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <h2 className="text-lg font-bold">
           🛒 실버 사용 승인 대기{" "}
-          <span className="text-sm font-normal text-slate-400">
+          <span className="text-sm font-normal text-ink-400">
             ({(pendS2?.length ?? 0) + (pendS1?.length ?? 0)}건)
           </span>
         </h2>
         {!(pendS2?.length || pendS1?.length) && (
-          <p className="mt-2 text-sm text-slate-400">대기 중인 신청이 없어요.</p>
+          <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>
         )}
         <ul className="mt-3 space-y-2">
           {([
@@ -313,11 +313,11 @@ export default function TeacherPage() {
           ]).map(({ r, kind }) => (
             <li
               key={`${kind}-${r.id}`}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm"
             >
               <span>
                 <b>{studentById.get(r.studentId)?.name}</b> · {r.item}{" "}
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-ink-400">
                   ({kind === "s2" ? "2학기" : "이월"} 실버 {r.amount}개)
                 </span>
               </span>
@@ -341,19 +341,19 @@ export default function TeacherPage() {
       </section>
 
       {/* 자리 변경 승인 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <h2 className="text-lg font-bold">
           🎫 자리 변경 승인 대기{" "}
-          <span className="text-sm font-normal text-slate-400">({pendSeat?.length ?? 0}건)</span>
+          <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
         </h2>
         {!pendSeat?.length && (
-          <p className="mt-2 text-sm text-slate-400">대기 중인 신청이 없어요.</p>
+          <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>
         )}
         <ul className="mt-3 space-y-2">
           {pendSeat?.map((r) => (
             <li
               key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm"
             >
               <span>
                 <b>{studentById.get(r.studentId)?.name}</b> → {r.week}주차 {r.targetGroup}모둠{" "}
@@ -396,13 +396,13 @@ export default function TeacherPage() {
       {tTab === "shop" && (<>
       <ShopMenuEditor />
       {/* 실버 지급 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
         <h2 className="text-lg font-bold">🪙 실버 지급 (2학기)</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
             value={grantSid}
             onChange={(e) => setGrantSid(Number(e.target.value))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
           >
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -414,13 +414,13 @@ export default function TeacherPage() {
             type="number"
             value={grantAmt}
             onChange={(e) => setGrantAmt(e.target.value)}
-            className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm"
           />
           <input
             value={grantNote}
             onChange={(e) => setGrantNote(e.target.value)}
             placeholder="사유 (예: 격주 MVP)"
-            className="min-w-40 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-40 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() =>
@@ -434,7 +434,7 @@ export default function TeacherPage() {
                 }
               })()
             }
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
           >
             지급
           </button>

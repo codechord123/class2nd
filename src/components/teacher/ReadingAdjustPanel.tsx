@@ -59,16 +59,16 @@ export default function ReadingAdjustPanel() {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h2 className="text-lg font-bold">📚 독서 권수 보정</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-ink-500">
         종이 감상문 인정, count 꼬임 복구용. 오늘 기준 주차에 함께 반영돼요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
           value={sid}
           onChange={(e) => setSid(Number(e.target.value))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
         >
           {students.map((s) => (
             <option key={s.id} value={s.id}>
@@ -76,7 +76,7 @@ export default function ReadingAdjustPanel() {
             </option>
           ))}
         </select>
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-ink-600">
           현재 <b>{current}</b>권
         </span>
         <button

@@ -29,11 +29,11 @@ function TopList({
     .sort((a, b) => b.n - a.n)
     .slice(0, 5);
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-600">{title}</p>
-      <p className="text-[10px] text-slate-400">{desc}</p>
+    <div className="rounded-lg bg-ink-50 p-3">
+      <p className="text-xs font-bold text-ink-600">{title}</p>
+      <p className="text-[10px] text-ink-400">{desc}</p>
       {ranked.length === 0 ? (
-        <p className="mt-1 text-xs text-slate-400">아직 기록이 없어요</p>
+        <p className="mt-1 text-xs text-ink-400">아직 기록이 없어요</p>
       ) : (
         <ol className="mt-1 space-y-0.5 text-sm">
           {ranked.map((x, i) => (
@@ -81,7 +81,7 @@ export default function TeamStats({
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
       <h3 className="font-bold">📈 우리 반 통계</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <TopList

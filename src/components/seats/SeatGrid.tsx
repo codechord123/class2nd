@@ -23,7 +23,7 @@ export default function SeatGrid({
             className={`rounded-xl border p-4 ${
               mine
                 ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-200"
-                : "border-slate-200 bg-white"
+                : "border-ink-200 bg-white"
             }`}
           >
             <div className="flex items-baseline justify-between">
@@ -35,7 +35,7 @@ export default function SeatGrid({
               <li className="flex items-center gap-2">
                 <span>👑</span>
                 <b>{studentById.get(g.chair)?.name}</b>
-                <span className="text-xs text-slate-400">소통 지킴이 (의장)</span>
+                <span className="text-xs text-ink-400">소통 지킴이 (의장)</span>
               </li>
               {g.members.map((m) => (
                 <li key={m.studentId} className="flex items-center gap-2">
@@ -43,7 +43,7 @@ export default function SeatGrid({
                   <span className={m.studentId === myStudentId ? "font-bold text-indigo-700" : ""}>
                     {studentById.get(m.studentId)?.name}
                   </span>
-                  <span className="text-xs text-slate-400">{m.role} 지킴이</span>
+                  <span className="text-xs text-ink-400">{m.role} 지킴이</span>
                 </li>
               ))}
             </ul>

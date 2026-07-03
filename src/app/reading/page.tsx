@@ -59,26 +59,26 @@ function ReportBody({
   return (
     <>
       {(r.author || r.publisher) && (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-ink-400">
           {r.author}
           {r.publisher && ` · ${r.publisher}`}
         </p>
       )}
       {r.summary && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
           <Linkify text={r.summary} />
         </p>
       )}
       {r.scene && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
           🎬 <Linkify text={r.scene} />
         </p>
       )}
       {r.quote && (
-        <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">“{r.quote}”</p>
+        <p className="mt-1 whitespace-pre-wrap text-sm italic text-ink-500">“{r.quote}”</p>
       )}
       {r.thoughts && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
           💭 <Linkify text={r.thoughts} />
         </p>
       )}
@@ -98,12 +98,12 @@ function ReportBody({
       )}
 
       {/* 친구 댓글 */}
-      <div className="mt-2 border-t border-slate-200 pt-2">
+      <div className="mt-2 border-t border-ink-200 pt-2">
         {(r.comments ?? []).map((c) => (
           <div key={c.id} className="flex items-baseline justify-between gap-2 text-sm">
             <span>
-              <b className="text-xs text-slate-500">{name(c.studentId)}</b>{" "}
-              <span className="text-slate-600">{c.text}</span>
+              <b className="text-xs text-ink-500">{name(c.studentId)}</b>{" "}
+              <span className="text-ink-600">{c.text}</span>
             </span>
             {(role === "teacher" || c.studentId === studentId) && (
               <button
@@ -129,7 +129,7 @@ function ReportBody({
               }
             }}
             placeholder="💬 응원 댓글 달기…"
-            className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs"
+            className="min-w-0 flex-1 rounded-lg border border-ink-200 px-2.5 py-1 text-xs"
           />
           <button
             onClick={() =>
@@ -269,7 +269,7 @@ export default function ReadingPage() {
 
       {/* ✍️ 쓰기 */}
       {tab === "write" && studentId && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="rounded-xl border border-ink-200 bg-white p-5 shadow-card">
           <h3 className="font-bold">
             ✍️ 감상문 쓰기 ({week}주차)
             {editing === "draft" ? " — 임시저장 이어쓰기" : editing === "report" ? " — 등록본 수정 중" : ""}
@@ -280,19 +280,19 @@ export default function ReadingPage() {
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="책 제목 (필수)"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
               />
               <input
                 value={form.author}
                 onChange={(e) => setForm({ ...form, author: e.target.value })}
                 placeholder="지은이"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
               />
               <input
                 value={form.publisher}
                 onChange={(e) => setForm({ ...form, publisher: e.target.value })}
                 placeholder="출판사"
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
               />
             </div>
             <textarea
@@ -300,31 +300,31 @@ export default function ReadingPage() {
               onChange={(e) => setForm({ ...form, summary: e.target.value })}
               placeholder="📖 줄거리 — 어떤 이야기였나요?"
               rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={form.scene}
               onChange={(e) => setForm({ ...form, scene: e.target.value })}
               placeholder="🎬 인상 깊은 장면"
               rows={2}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={form.quote}
               onChange={(e) => setForm({ ...form, quote: e.target.value })}
               placeholder="💬 마음에 남는 문장 (인용)"
               rows={2}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={form.thoughts}
               onChange={(e) => setForm({ ...form, thoughts: e.target.value })}
               placeholder="💭 읽고 나서 든 생각과 느낌"
               rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
             />
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-slate-400">책 종류:</span>
+              <span className="text-xs text-ink-400">책 종류:</span>
               {BOOK_TAGS.map((t) => (
                 <button
                   key={t}
@@ -339,14 +339,14 @@ export default function ReadingPage() {
                   className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                     form.tags.includes(t)
                       ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-slate-200 text-slate-500 hover:border-emerald-300"
+                      : "border-ink-200 text-ink-500 hover:border-emerald-300"
                   }`}
                 >
                   {t}
                 </button>
               ))}
             </div>
-            <label className="flex w-fit cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+            <label className="flex w-fit cursor-pointer items-center gap-1.5 text-xs text-ink-500">
               <input
                 type="checkbox"
                 checked={form.isPrivate ?? false}
@@ -359,10 +359,10 @@ export default function ReadingPage() {
             {(() => {
               const pct = Math.min((bodyLen / charLimit) * 100, 100);
               const color =
-                pct >= 100 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-slate-400";
+                pct >= 100 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-ink-400";
               return (
                 <div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
                     <div
                       className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-slate-300"}`}
                       style={{ width: `${pct}%` }}
@@ -385,12 +385,12 @@ export default function ReadingPage() {
               <button
                 onClick={() => void submit(true)}
                 disabled={busy}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-ink-300 px-4 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50 disabled:opacity-50"
               >
                 💾 임시저장
               </button>
               {editing && (
-                <button onClick={resetForm} className="text-xs text-slate-400 underline">
+                <button onClick={resetForm} className="text-xs text-ink-400 underline">
                   새로 쓰기
                 </button>
               )}
@@ -432,26 +432,26 @@ export default function ReadingPage() {
         </section>
       )}
       {tab === "write" && !studentId && (
-        <p className="text-sm text-slate-400">감상문 쓰기는 학생 로그인에서 가능해요.</p>
+        <p className="text-sm text-ink-400">감상문 쓰기는 학생 로그인에서 가능해요.</p>
       )}
 
       {/* 📖 감상문 목록 (커뮤니티 게시판형) */}
       {tab === "list" && (
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4">
+        <section className="rounded-xl border border-ink-200 bg-white shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
             <h3 className="font-bold">📖 친구들의 감상문</h3>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 제목·내용·이름 검색"
-              className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+              className="w-44 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
             />
           </div>
-          <div className="flex flex-wrap gap-1.5 border-b border-slate-100 p-3">
+          <div className="flex flex-wrap gap-1.5 border-b border-ink-100 p-3">
             <button
               onClick={() => setTagFilter(null)}
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                tagFilter === null ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
+                tagFilter === null ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
               }`}
             >
               전체
@@ -461,7 +461,7 @@ export default function ReadingPage() {
                 key={t}
                 onClick={() => setTagFilter(tagFilter === t ? null : t)}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  tagFilter === t ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                  tagFilter === t ? "bg-emerald-600 text-white" : "bg-ink-100 text-ink-500"
                 }`}
               >
                 {t}
@@ -470,18 +470,18 @@ export default function ReadingPage() {
           </div>
 
           {!visible.length && (
-            <p className="p-4 text-sm text-slate-400">
+            <p className="p-4 text-sm text-ink-400">
               {search || tagFilter ? "조건에 맞는 감상문이 없어요." : "아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!"}
             </p>
           )}
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-ink-100">
             {visible.map((r) =>
               isLocked(r) ? (
                 // 🔒 잠긴 행 — 제목·내용 비노출, 클릭해도 펼쳐지지 않음
                 <li key={r.id}>
                   <div className="flex w-full items-center justify-between gap-2 px-4 py-2.5">
-                    <span className="text-sm font-bold text-slate-400">🔒 비공개 글</span>
-                    <span className="shrink-0 text-xs text-slate-400">
+                    <span className="text-sm font-bold text-ink-400">🔒 비공개 글</span>
+                    <span className="shrink-0 text-xs text-ink-400">
                       {studentById.get(r.studentId)?.name} · {r.week}주차
                     </span>
                   </div>
@@ -490,7 +490,7 @@ export default function ReadingPage() {
                 <li key={r.id}>
                   <button
                     onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-slate-50"
+                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-ink-50"
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
@@ -502,13 +502,13 @@ export default function ReadingPage() {
                         </span>
                       )}
                     </span>
-                    <span className="shrink-0 text-xs text-slate-400">
+                    <span className="shrink-0 text-xs text-ink-400">
                       {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
                       {expandedId === r.id ? "▲" : "▼"}
                     </span>
                   </button>
                   {expandedId === r.id && (
-                    <div className="bg-slate-50 px-4 py-3">
+                    <div className="bg-ink-50 px-4 py-3">
                       <ReportBody
                         r={r}
                         onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
@@ -535,7 +535,7 @@ export default function ReadingPage() {
           {reports && reports.length >= pages * 10 && (
             <button
               onClick={() => setPages((p) => p + 1)}
-              className="w-full border-t border-slate-100 py-2.5 text-sm text-slate-500 hover:bg-slate-50"
+              className="w-full border-t border-ink-100 py-2.5 text-sm text-ink-500 hover:bg-ink-50"
             >
               더 보기
             </button>

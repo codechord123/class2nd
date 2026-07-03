@@ -16,7 +16,7 @@ export default function RankCarousel({ totals }: { totals: Record<string, number
     .slice(0, 10);
 
   if (!ranked.length) {
-    return <p className="text-xs text-slate-400">아직 기록이 없어요 — 첫 주자가 되어보세요!</p>;
+    return <p className="text-xs text-ink-400">아직 기록이 없어요 — 첫 주자가 되어보세요!</p>;
   }
 
   const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}위`);
@@ -24,7 +24,7 @@ export default function RankCarousel({ totals }: { totals: Record<string, number
     <div
       aria-hidden={dup}
       className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
-        i < 3 ? "bg-amber-100 font-bold text-amber-800" : "bg-white/70 text-slate-600"
+        i < 3 ? "bg-amber-100 font-bold text-amber-800" : "bg-white/70 text-ink-600"
       }`}
     >
       <span>{medal(i)}</span>
@@ -47,7 +47,7 @@ export default function RankCarousel({ totals }: { totals: Record<string, number
           ))}
         </div>
       </div>
-      <p className="mt-1 text-[10px] text-slate-400">
+      <p className="mt-1 text-[10px] text-ink-400">
         1·2학기 합산 TOP 10 · (+n)은 2학기에 읽은 권수
       </p>
     </div>
