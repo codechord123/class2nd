@@ -64,16 +64,25 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
 
-    // 학생 비밀번호 해시 (1학기 방식 계승)
+    // 학생 비밀번호 해시 — 계정 선점/탈취 방지:
+    //  create는 uid를 본인 것으로 바인딩, update는 그 uid 소유자 또는 교사만.
+    //  (uid 없는 레거시 문서는 한 번 갱신되며 uid가 채워짐)
     match /studentAuth/{studentId} {
       allow read: if isAuthed();
-      allow create, update: if isAuthed();
+      allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthed() && (
+        !("uid" in resource.data) ||
+        resource.data.uid == request.auth.uid ||
+        isTeacher()
+      );
       allow delete: if isTeacher();
     }
 
-    // 2학기 거북이 독서: 감상문 + 권수 통계
-    // update: 임시저장 이어쓰기·수정 / delete: 본인 삭제(권수 차감은 앱이 처리)
+    // 2학기 거북이 독서: 정식 감상문 + 임시저장(초안) + 권수 통계
     match /readingReports/{reportId} {
+      allow read, create, update, delete: if isAuthed();
+    }
+    match /readingDrafts/{draftId} {
       allow read, create, update, delete: if isAuthed();
     }
     match /readingStats/{docId} {

@@ -9,8 +9,10 @@ import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
   useReadingStats,
   useRecentReports,
+  useMyDrafts,
   useSaveReport,
   useDeleteReport,
+  useDeleteDraft,
   reportBodyLength,
   BOOK_TAGS,
   type ReportForm,
@@ -34,39 +36,51 @@ export default function ReadingPage() {
   const { data: settings } = useSettings();
   const [pages, setPages] = useState(1);
   const { data: reports } = useRecentReports(pages);
+  const { data: myDrafts } = useMyDrafts(studentId);
   const saveReport = useSaveReport(studentId, week);
   const deleteReport = useDeleteReport();
+  const deleteDraft = useDeleteDraft(studentId);
 
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState<ReportForm>(EMPTY_FORM);
-  const [editId, setEditId] = useState<string | undefined>();
-  const [wasDraft, setWasDraft] = useState(false);
-  const [origWeek, setOrigWeek] = useState<number | undefined>();
+  // 편집 대상: 초안(draftId) 또는 정식본(reportId) 중 하나
+  const [draftId, setDraftId] = useState<string | undefined>();
+  const [reportId, setReportId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
   const charLimit = settings?.readingCharLimit ?? 700;
   const bodyLen = reportBodyLength(form);
+  const editing = draftId ? "draft" : reportId ? "report" : null;
 
-  function resetForm() {
-    setForm(EMPTY_FORM);
-    setEditId(undefined);
-    setWasDraft(false);
-    setOrigWeek(undefined);
-  }
-
-  function loadIntoForm(r: ReadingReport2) {
-    setForm({
+  function toForm(r: ReadingReport2): ReportForm {
+    return {
       title: r.title, author: r.author ?? "", publisher: r.publisher ?? "",
       summary: r.summary ?? "", scene: r.scene ?? "", quote: r.quote ?? "",
       thoughts: r.thoughts ?? "", tags: r.tags ?? [],
-    });
-    setEditId(r.id);
-    setWasDraft(r.isDraft);
-    setOrigWeek(r.week);
+    };
+  }
+
+  function resetForm() {
+    setForm(EMPTY_FORM);
+    setDraftId(undefined);
+    setReportId(undefined);
+  }
+
+  function editDraft(r: ReadingReport2) {
+    setForm(toForm(r));
+    setDraftId(r.id);
+    setReportId(undefined);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function editReport(r: ReadingReport2) {
+    setForm(toForm(r));
+    setReportId(r.id);
+    setDraftId(undefined);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -76,13 +90,13 @@ export default function ReadingPage() {
     try {
       if (!draft && bodyLen < charLimit)
         throw new Error(`본문은 ${charLimit}자 이상이어야 정식 등록할 수 있어요. (현재 ${bodyLen}자) 🐢`);
-      const id = await saveReport(form, { draft, editId, wasDraft, origWeek });
+      const id = await saveReport(form, { draft, draftId, reportId });
       if (draft) {
-        setEditId(id);
-        setWasDraft(true);
+        setDraftId(id);
+        setReportId(undefined);
         setMsg("💾 임시저장 완료! 나중에 이어서 쓸 수 있어요.");
       } else {
-        const wasEdit = editId && !wasDraft;
+        const wasEdit = editing === "report";
         resetForm();
         setMsg(wasEdit ? "✅ 감상문이 수정되었어요!" : "✅ 감상문이 정식 등록되었어요! +1권");
       }
@@ -117,7 +131,7 @@ export default function ReadingPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-bold">
             ✍️ 감상문 쓰기 ({week}주차)
-            {editId && (wasDraft ? " — 임시저장 이어쓰기" : " — 등록본 수정 중")}
+            {editing === "draft" ? " — 임시저장 이어쓰기" : editing === "report" ? " — 등록본 수정 중" : ""}
           </h3>
           <div className="mt-3 space-y-2">
             <div className="grid gap-2 sm:grid-cols-3">
@@ -202,7 +216,7 @@ export default function ReadingPage() {
                 disabled={busy}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
-                {busy ? "저장 중…" : editId && !wasDraft ? "수정 저장" : "정식 등록 (+1권)"}
+                {busy ? "저장 중…" : editing === "report" ? "수정 저장" : "정식 등록 (+1권)"}
               </button>
               <button
                 onClick={() => void submit(true)}
@@ -211,7 +225,7 @@ export default function ReadingPage() {
               >
                 💾 임시저장
               </button>
-              {editId && (
+              {editing && (
                 <button onClick={resetForm} className="text-xs text-slate-400 underline">
                   새로 쓰기
                 </button>
@@ -265,27 +279,34 @@ export default function ReadingPage() {
         {!reports?.length && (
           <p className="mt-2 text-sm text-slate-400">아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!</p>
         )}
-        {/* 내 임시저장 (본인에게만) */}
-        {(reports ?? []).some((r) => r.isDraft && r.studentId === studentId) && (
+        {/* 내 임시저장 (본인 것만 별도 조회 — 최근 목록에 밀려도 항상 전부 표시) */}
+        {(myDrafts?.length ?? 0) > 0 && (
           <div className="mt-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-3">
-            <p className="text-xs font-bold text-amber-700">💾 내 임시저장</p>
+            <p className="text-xs font-bold text-amber-700">💾 내 임시저장 ({myDrafts!.length})</p>
             <ul className="mt-1 space-y-1 text-sm">
-              {(reports ?? [])
-                .filter((r) => r.isDraft && r.studentId === studentId)
-                .map((r) => (
-                  <li key={r.id} className="flex justify-between">
-                    <span>{r.title}</span>
-                    <button onClick={() => loadIntoForm(r)} className="text-xs text-amber-600 underline">
+              {myDrafts!.map((r) => (
+                <li key={r.id} className="flex justify-between gap-2">
+                  <span className="truncate">{r.title || "(제목 없음)"}</span>
+                  <span className="flex shrink-0 gap-2">
+                    <button onClick={() => editDraft(r)} className="text-xs text-amber-600 underline">
                       이어쓰기
                     </button>
-                  </li>
-                ))}
+                    <button
+                      onClick={() => {
+                        if (confirm("이 임시저장을 삭제할까요?")) void deleteDraft(r.id);
+                      }}
+                      className="text-xs text-rose-300 underline"
+                    >
+                      삭제
+                    </button>
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         )}
         {(() => {
           const visible = (reports ?? [])
-            .filter((r) => !r.isDraft)
             .filter((r) => (tagFilter ? (r.tags ?? []).includes(tagFilter) : true))
             .filter((r) => {
               const kw = search.trim().toLowerCase();
@@ -321,7 +342,7 @@ export default function ReadingPage() {
               {canManage(r) && (
                 <div className="mt-2 flex gap-2 text-xs">
                   {r.studentId === studentId && (
-                    <button onClick={() => loadIntoForm(r)} className="text-indigo-500 underline">
+                    <button onClick={() => editReport(r)} className="text-indigo-500 underline">
                       ✏️ 수정
                     </button>
                   )}

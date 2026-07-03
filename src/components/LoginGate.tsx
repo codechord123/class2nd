@@ -133,7 +133,7 @@ function LoginScreen({
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submit(); }}
             placeholder="비밀번호 (처음이면 새로 정하는 비밀번호)"
             className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
           />
@@ -151,7 +151,7 @@ function LoginScreen({
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submit(); }}
             placeholder="비밀번호"
             className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
           />

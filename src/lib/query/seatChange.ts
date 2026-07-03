@@ -12,7 +12,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -155,12 +157,40 @@ export function usePendingSeatRequests(enabled: boolean) {
 
 export function useDecideSeatRequest() {
   const qc = useQueryClient();
-  return async (req: SeatChangeRequest, approve: boolean, occupantId?: number) => {
+  // cost: 승인 시 신청 학생에게서 자동 차감할 2학기 실버 (0이면 차감 없음)
+  return async (
+    req: SeatChangeRequest,
+    approve: boolean,
+    occupantId?: number,
+    cost = 0
+  ) => {
     const d = db();
-    await updateDoc(doc(d, "seatChangeRequests", req.id), {
-      status: approve ? "approved" : "rejected",
-      decidedAt: Date.now(),
-    });
+
+    // 승인 + 비용 있으면: 잔액 검증 후 차감을 원자 처리 (부족하면 승인 자체를 막음)
+    if (approve && cost > 0) {
+      const balRef = doc(d, "coinTxns", "0_balances");
+      await runTransaction(d, async (tx) => {
+        const balSnap = await tx.get(balRef);
+        const cur = (balSnap.exists() ? (balSnap.data()[String(req.studentId)] as number) : 0) ?? 0;
+        if (cur < cost) throw new Error(`실버 부족으로 승인할 수 없어요 (현재 ${cur}개, 필요 ${cost}개).`);
+        tx.set(balRef, { [req.studentId]: increment(-cost) }, { merge: true });
+        tx.update(doc(d, "seatChangeRequests", req.id), { status: "approved", decidedAt: Date.now() });
+      });
+      await addDoc(collection(d, "coinTxns"), {
+        studentId: req.studentId,
+        amount: cost,
+        item: `자리 변경 (${req.week}주차 ${req.targetGroup}모둠 ${req.targetRole})`,
+        type: "spend",
+        status: "approved",
+        createdAt: Date.now(),
+      });
+    } else {
+      await updateDoc(doc(d, "seatChangeRequests", req.id), {
+        status: approve ? "approved" : "rejected",
+        decidedAt: Date.now(),
+      });
+    }
+
     if (approve && occupantId != null && occupantId !== req.studentId) {
       await setDoc(
         doc(d, "classData", `seatSwaps-${req.week}`),
@@ -171,5 +201,6 @@ export function useDecideSeatRequest() {
     void qc.invalidateQueries({ queryKey: ["pendingSeatRequests"] });
     void qc.invalidateQueries({ queryKey: ["seatSwaps", req.week] });
     void qc.invalidateQueries({ queryKey: ["seatRequests", req.week] });
+    void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
   };
 }

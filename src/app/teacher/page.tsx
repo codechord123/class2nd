@@ -23,6 +23,7 @@ import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
 import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
 import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
+import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
@@ -344,11 +345,16 @@ export default function TeacherPage() {
                 <button
                   onClick={() =>
                     void (async () => {
-                      const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
-                      await decideSeat(r, true, occ ?? undefined);
-                      setMsg(
-                        `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환. 실버 차감은 상점 신청과 연동해 처리하세요.`
-                      );
+                      try {
+                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                        const cost = settings!.seatChangeCost;
+                        await decideSeat(r, true, occ ?? undefined, cost);
+                        setMsg(
+                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감 완료`
+                        );
+                      } catch (e) {
+                        setMsg(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`);
+                      }
                     })()
                   }
                   className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
@@ -415,6 +421,7 @@ export default function TeacherPage() {
 
       <BiweeklySettlePanel />
       <BonusPanel />
+      <PasswordResetPanel />
       <ShopMenuEditor />
       <LinksEditor />
       <TeacherMemoWidget />

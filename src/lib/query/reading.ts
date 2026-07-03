@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -75,6 +76,7 @@ export function useRecentReports(pages: number) {
   return useQuery({
     queryKey: ["readingReports", pages],
     queryFn: async (): Promise<ReadingReport2[]> => {
+      // 정식 등록본만 있는 컬렉션 — 초안은 readingDrafts에 따로 있어 노출되지 않음
       const q = query(
         collection(db(), "readingReports"),
         orderBy("createdAt", "desc"),
@@ -88,87 +90,125 @@ export function useRecentReports(pages: number) {
   });
 }
 
-/** 감상문 삭제 — 정식 등록본이면 권수도 차감 (1학기와 동일 규칙) */
+/** 내 임시저장 — 본인 것만 소량 조회(항상 전부 표시, 최근 N건 창에 밀리지 않음) */
+export function useMyDrafts(myId: number | null) {
+  return useQuery({
+    queryKey: ["readingDrafts", myId],
+    enabled: myId != null,
+    queryFn: async (): Promise<ReadingReport2[]> => {
+      const q = query(collection(db(), "readingDrafts"), where("studentId", "==", myId));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<ReadingReport2, "id">) }))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** 정식 감상문 삭제 — 권수 1권 차감 (본인/교사) */
 export function useDeleteReport() {
   const qc = useQueryClient();
   return async (report: ReadingReport2) => {
     const d = db();
     await deleteDoc(doc(d, "readingReports", report.id));
-    if (!report.isDraft) {
-      await setDoc(
-        doc(d, "readingStats", "main"),
-        {
-          total: { [report.studentId]: increment(-1) },
-          byWeek: { [report.week]: { [report.studentId]: increment(-1) } },
-        },
-        { merge: true }
-      );
-      void qc.invalidateQueries({ queryKey: STATS_KEY });
-    }
+    await setDoc(
+      doc(d, "readingStats", "main"),
+      {
+        total: { [report.studentId]: increment(-1) },
+        byWeek: { [report.week]: { [report.studentId]: increment(-1) } },
+      },
+      { merge: true }
+    );
+    void qc.invalidateQueries({ queryKey: STATS_KEY });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
   };
 }
 
+/** 임시저장 삭제 — 권수 변화 없음 */
+export function useDeleteDraft(myId: number | null) {
+  const qc = useQueryClient();
+  return async (draftId: string) => {
+    await deleteDoc(doc(db(), "readingDrafts", draftId));
+    void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
+  };
+}
+
 /**
- * 감상문 저장 (신규/이어쓰기/수정 겸용).
- * - draft=true: 임시저장 — 권수 미증가
- * - draft=false: 정식 등록 — (신규 또는 임시→정식 승격 시) 권수 +1
+ * 감상문 저장. 초안과 정식본을 컬렉션으로 분리:
+ *  - draft=true  → readingDrafts에 저장(권수 미변동). 반환 id는 초안 id.
+ *  - draft=false → readingReports에 정식 등록(신규/승격 시 +1). draftId가 있으면 그 초안 삭제.
+ *                  reportId가 있으면 기존 정식본 수정(+1 없음).
  */
 export function useSaveReport(myId: number | null, week: number) {
   const qc = useQueryClient();
   return async (
     form: ReportForm,
-    opts: { draft: boolean; editId?: string; wasDraft?: boolean; origWeek?: number }
+    opts: {
+      draft: boolean;
+      draftId?: string; // 이어쓰던 초안
+      reportId?: string; // 수정 중인 정식본
+      origWeek?: number; // 정식본 수정 시 원래 주차
+    }
   ): Promise<string> => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
-    const payload = {
+    const base = { ...form, title: form.title.trim() };
+
+    // ── 임시저장 ──
+    if (opts.draft) {
+      if (opts.draftId) {
+        await setDoc(doc(d, "readingDrafts", opts.draftId), base, { merge: true });
+        void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
+        return opts.draftId;
+      }
+      const ref = await addDoc(collection(d, "readingDrafts"), {
+        studentId: myId,
+        week,
+        isDraft: true,
+        createdAt: Date.now(),
+        ...base,
+      });
+      void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
+      return ref.id;
+    }
+
+    // ── 정식본 수정 (권수 변화 없음, 주차 유지) ──
+    if (opts.reportId) {
+      await setDoc(doc(d, "readingReports", opts.reportId), base, { merge: true });
+      void qc.invalidateQueries({ queryKey: ["readingReports"] });
+      return opts.reportId;
+    }
+
+    // ── 정식 등록 (신규 또는 초안 승격) → +1 ──
+    const ref = await addDoc(collection(d, "readingReports"), {
       studentId: myId,
       week,
-      isDraft: opts.draft,
-      ...form,
-      title: form.title.trim(),
-    };
+      isDraft: false,
+      createdAt: Date.now(),
+      ...base,
+    });
+    if (opts.draftId) await deleteDoc(doc(d, "readingDrafts", opts.draftId));
 
-    let id = opts.editId;
-    if (id) {
-      // 수정: 원래 주차/작성자 유지 (권수 귀속 주차가 바뀌면 안 됨)
-      const { week: _w, studentId: _s, ...editable } = payload;
-      await setDoc(doc(d, "readingReports", id), editable, { merge: true });
-    } else {
-      const ref = await addDoc(collection(d, "readingReports"), {
-        ...payload,
-        createdAt: Date.now(),
-      });
-      id = ref.id;
-    }
-
-    // 권수 +1: 신규 정식 등록 또는 임시→정식 승격일 때만 (승격은 원래 주차에 귀속)
-    const promoted = !opts.draft && (opts.editId == null || opts.wasDraft === true);
-    const statWeek = opts.editId ? (opts.origWeek ?? week) : week;
-    if (promoted) {
-      await setDoc(
-        doc(d, "readingStats", "main"),
-        { total: { [myId]: increment(1) }, byWeek: { [statWeek]: { [myId]: increment(1) } } },
-        { merge: true }
-      );
-      qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
-        const p = prev ?? {};
-        return {
-          ...p,
-          total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
-          byWeek: {
-            ...p.byWeek,
-            [statWeek]: {
-              ...p.byWeek?.[statWeek],
-              [myId]: (p.byWeek?.[statWeek]?.[myId] ?? 0) + 1,
-            },
-          },
-        };
-      });
-    }
+    await setDoc(
+      doc(d, "readingStats", "main"),
+      { total: { [myId]: increment(1) }, byWeek: { [week]: { [myId]: increment(1) } } },
+      { merge: true }
+    );
+    qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
+      const p = prev ?? {};
+      return {
+        ...p,
+        total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
+        byWeek: {
+          ...p.byWeek,
+          [week]: { ...p.byWeek?.[week], [myId]: (p.byWeek?.[week]?.[myId] ?? 0) + 1 },
+        },
+      };
+    });
+    void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
-    return id;
+    return ref.id;
   };
 }

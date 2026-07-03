@@ -36,7 +36,8 @@ export async function studentLogin(
   const hash = await sha256(password);
 
   if (!snap.exists()) {
-    await setDoc(ref, { hash, updatedAt: Date.now() });
+    // 계정 최초 등록: 이 익명 uid에 바인딩 → 규칙이 타인의 덮어쓰기를 차단
+    await setDoc(ref, { hash, updatedAt: Date.now(), uid: auth.currentUser?.uid ?? null });
     return { firstTime: true };
   }
   if (snap.data().hash !== hash) {
@@ -56,7 +57,17 @@ export async function changeStudentPassword(
   if (snap.exists() && snap.data().hash !== (await sha256(oldPassword))) {
     throw new Error("현재 비밀번호가 올바르지 않습니다.");
   }
-  await setDoc(ref, { hash: await sha256(newPassword), updatedAt: Date.now() });
+  await setDoc(
+    ref,
+    { hash: await sha256(newPassword), updatedAt: Date.now(), uid: firebaseAuth().currentUser?.uid ?? null },
+    { merge: true }
+  );
+}
+
+/** 교사: 학생 비밀번호 초기화 — 문서 삭제 후 다음 로그인 시 재등록되게 함 */
+export async function resetStudentPassword(studentId: number): Promise<void> {
+  const { deleteDoc } = await import("firebase/firestore");
+  await deleteDoc(doc(db(), "studentAuth", String(studentId)));
 }
 
 export async function logout(): Promise<void> {

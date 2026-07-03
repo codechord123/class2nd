@@ -12,9 +12,11 @@ import {
   getDoc,
   getDocs,
   increment,
+  limit,
+  orderBy,
   query,
+  runTransaction,
   setDoc,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -50,11 +52,15 @@ export function useMyRequests(kind: WalletKind, myId: number | null) {
     queryKey: ["spendRequests", kind, myId],
     enabled: myId != null,
     queryFn: async (): Promise<SpendRequest[]> => {
-      const q = query(collection(db(), COLL[kind]), where("studentId", "==", myId));
+      // 최근 15건만 (읽기 한도 보호 — 21주간 무한 성장 방지)
+      const q = query(
+        collection(db(), COLL[kind]),
+        where("studentId", "==", myId),
+        orderBy("createdAt", "desc"),
+        limit(15)
+      );
       const snap = await getDocs(q);
-      return snap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as Omit<SpendRequest, "id">) }))
-        .sort((a, b) => b.createdAt - a.createdAt);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SpendRequest, "id">) }));
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -94,32 +100,44 @@ export function usePendingRequests(kind: WalletKind, enabled: boolean) {
   });
 }
 
-/** 승인: 상태 갱신 + 잔액 문서 반영 (s2는 차감, s1은 사용량 가산) */
+/**
+ * 승인/반려 — runTransaction으로 원자 처리 (이중차감·음수잔액 방지):
+ *   ① 요청 문서를 다시 읽어 아직 pending일 때만 진행 (더블클릭·낡은 목록 재승인 차단)
+ *   ② 승인이면 잔액 문서를 읽어 부족하지 않을 때만 상태 갱신 + 잔액 반영
+ * s1 이월 지갑은 잔액 = 정적 silverRemaining − 사용량이라 여기서 상한 검증은 못 하므로
+ * (정적값을 모름) 학생 신청 단계 검증에 맡기고, 여기선 pending 가드만 적용.
+ */
 export function useDecideRequest(kind: WalletKind) {
   const qc = useQueryClient();
   return async (req: SpendRequest, approve: boolean) => {
     const d = db();
-    await updateDoc(doc(d, COLL[kind], req.id), {
-      status: approve ? "approved" : "rejected",
-      decidedAt: Date.now(),
-    });
-    if (approve) {
-      if (req.type === "gold") {
-        // 학급 골드토큰(공용) 사용 — classGoldUsed에 가산
-        await setDoc(
-          doc(d, COLL[kind], "0_balances"),
-          { classGoldUsed: increment(req.amount) },
-          { merge: true }
-        );
-      } else {
-        const delta = kind === "s2" ? -req.amount : req.amount; // s1은 "사용량"이라 +
-        await setDoc(
-          doc(d, COLL[kind], "0_balances"),
-          { [req.studentId]: increment(delta) },
-          { merge: true }
-        );
+    const reqRef = doc(d, COLL[kind], req.id);
+    const balRef = doc(d, COLL[kind], "0_balances");
+
+    await runTransaction(d, async (tx) => {
+      const reqSnap = await tx.get(reqRef);
+      if (!reqSnap.exists()) throw new Error("신청을 찾을 수 없어요.");
+      if (reqSnap.data().status !== "pending") throw new Error("이미 처리된 신청이에요.");
+
+      if (!approve) {
+        tx.update(reqRef, { status: "rejected", decidedAt: Date.now() });
+        return;
       }
-    }
+
+      if (req.type === "gold") {
+        tx.set(balRef, { classGoldUsed: increment(req.amount) }, { merge: true });
+      } else if (kind === "s2") {
+        const balSnap = await tx.get(balRef);
+        const cur = (balSnap.exists() ? (balSnap.data()[String(req.studentId)] as number) : 0) ?? 0;
+        if (cur < req.amount) throw new Error(`잔액 부족 (현재 ${cur}개).`);
+        tx.set(balRef, { [req.studentId]: increment(-req.amount) }, { merge: true });
+      } else {
+        // s1 이월: 사용량 가산
+        tx.set(balRef, { [req.studentId]: increment(req.amount) }, { merge: true });
+      }
+      tx.update(reqRef, { status: "approved", decidedAt: Date.now() });
+    });
+
     void qc.invalidateQueries({ queryKey: ["pendingRequests", kind] });
     void qc.invalidateQueries({ queryKey: ["balances", kind] });
   };
