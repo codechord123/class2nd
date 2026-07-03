@@ -13,6 +13,7 @@ const TABS = [
   { href: "/vote", label: "투표", emoji: "🗳️" },
   { href: "/seats", label: "자리 배치", emoji: "🪑" },
   { href: "/shop", label: "상점", emoji: "🛍️" },
+  { href: "/rules", label: "헌법", emoji: "📜" },
 ] as const;
 
 export default function TabNav() {

@@ -16,7 +16,12 @@ import {
   useSaveGroupVotes,
   useDailyScores,
   useCumulativeScores,
+  useSaveMvp,
+  useSaveCompliment,
 } from "@/lib/query/evaluation";
+import { useBestGroups } from "@/lib/query/classMeta";
+import TeamStats from "@/components/team/TeamStats";
+import { useState } from "react";
 import type { DailyScoreRow } from "@/types";
 
 const roleEmoji = Object.fromEntries(ROLE_INFO.map((r) => [r.key, r.emoji]));
@@ -64,17 +69,27 @@ export default function TeamPage() {
   const { data: myVotes } = useMyGroupVotes(date, studentId);
   const saveEval = useSaveEvaluation(date, studentId);
   const saveVotes = useSaveGroupVotes(date, studentId);
+  const saveMvp = useSaveMvp(date, studentId);
+  const saveCompliment = useSaveCompliment(date, studentId);
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
+  const { data: bestGroups } = useBestGroups();
+
+  const [complimentTo, setComplimentTo] = useState<number | null>(null);
+  const [complimentText, setComplimentText] = useState("");
+  const [complimentMsg, setComplimentMsg] = useState("");
 
   if (role === "teacher") {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold">🤝 Team</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          선생님은 <b>교사</b> 탭에서 평가 집계와 척도 설정을 관리할 수 있어요.
-        </p>
-      </section>
+      <div className="space-y-4">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold">🤝 Team</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            선생님은 <b>교사</b> 탭에서 집계·오늘의 모둠 선정·칭찬 인쇄를 관리할 수 있어요.
+          </p>
+        </section>
+        <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+      </div>
     );
   }
 
@@ -169,6 +184,99 @@ export default function TeamPage() {
           ))}
         </ul>
       </section>
+
+      {/* 오늘의 모둠 MVP 투표 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
+        <p className="mt-1 text-xs text-slate-500">오늘 가장 빛난 모둠 친구 1명을 뽑아주세요.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {targets.map((t) => {
+            const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
+            return (
+              <button
+                key={t.studentId}
+                onClick={() => void saveMvp(t.studentId)}
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+                  selected
+                    ? "border-amber-500 bg-amber-400 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-amber-300"
+                }`}
+              >
+                {selected && "⭐ "}
+                {studentById.get(t.studentId)?.name}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 오늘의 칭찬 (1인 1명) */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-bold">💌 오늘의 칭찬</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          모둠 친구 1명을 골라 칭찬 한마디! 친구들이 골고루 칭찬받도록 해주세요.
+        </p>
+        {(() => {
+          const saved = (myEval as Record<string, unknown> | undefined)?._compliment as
+            | { to: number; text: string }
+            | undefined;
+          return saved ? (
+            <p className="mt-3 rounded-lg bg-pink-50 px-3 py-2 text-sm text-pink-700">
+              💌 <b>{studentById.get(saved.to)?.name}</b>에게: {saved.text}
+              <button
+                onClick={() => {
+                  setComplimentTo(saved.to);
+                  setComplimentText(saved.text);
+                }}
+                className="ml-2 text-xs text-pink-400 underline"
+              >
+                고치기
+              </button>
+            </p>
+          ) : null;
+        })()}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={complimentTo ?? ""}
+            onChange={(e) => setComplimentTo(Number(e.target.value) || null)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">누구에게?</option>
+            {targets.map((t) => (
+              <option key={t.studentId} value={t.studentId}>
+                {studentById.get(t.studentId)?.name}
+              </option>
+            ))}
+          </select>
+          <input
+            value={complimentText}
+            onChange={(e) => setComplimentText(e.target.value)}
+            placeholder="칭찬 한마디"
+            className="min-w-40 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() =>
+              void (async () => {
+                setComplimentMsg("");
+                try {
+                  if (!complimentTo) throw new Error("칭찬할 친구를 골라주세요.");
+                  await saveCompliment(complimentTo, complimentText);
+                  setComplimentMsg("✅ 칭찬이 전달됐어요!");
+                  setComplimentText("");
+                } catch (e) {
+                  setComplimentMsg(`⚠️ ${e instanceof Error ? e.message : "실패"}`);
+                }
+              })()
+            }
+            className="rounded-lg bg-pink-500 px-4 py-2 text-sm font-bold text-white"
+          >
+            보내기
+          </button>
+        </div>
+        {complimentMsg && <p className="mt-2 text-sm">{complimentMsg}</p>}
+      </section>
+
+      <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
 
       <p className="text-xs text-slate-400">
         ※ 점수는 매일 선생님 집계 후 반영돼요. 모둠이 바뀌어도 내 점수는 계속 쌓여요.

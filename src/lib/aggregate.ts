@@ -47,12 +47,17 @@ export async function aggregateDate(
     getDoc(doc(d, "dailyScores", "_cumulative")),
   ]);
 
-  // 2) 모둠 내 점수: 받은 평가 합
+  // 2) 모둠 내 점수: 받은 평가 합 (+ MVP 득표 집계)
+  //    "_"로 시작하는 키는 점수가 아닌 부가 필드(_mvp, _compliment)
   const peer: Record<number, number> = {};
+  const mvpVotes: Record<number, number> = {};
   evalSnap.forEach((entry) => {
-    for (const [targetId, v] of Object.entries(entry.data())) {
+    const data = entry.data();
+    for (const [targetId, v] of Object.entries(data)) {
+      if (targetId.startsWith("_")) continue;
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
+    if (typeof data._mvp === "number") mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1;
   });
 
   // 3) 모둠 간: 모둠별 득점 합 → Dense Ranking → 순위 점수
@@ -90,8 +95,35 @@ export async function aggregateDate(
     rows[s.id] = { peer: p, groupRank: gr, bonus, total: p + gr + bonus };
   }
 
+  // 5-1) 모둠별 MVP: 각 모둠에서 최다 득표(1표 이상, 동점 모두)
+  const mvpWinners: number[] = [];
+  for (const g of schedule.groups) {
+    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    const max = Math.max(0, ...ids.map((id) => mvpVotes[id] ?? 0));
+    if (max > 0) mvpWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
+  }
+
   // 6) 저장: 그날 문서 1개 + 누적 문서 1개 (이전 집계분 빼고 더해 멱등)
-  const cum = (cumSnap.exists() ? cumSnap.data() : {}) as Record<string, number>;
+  type CumDoc = Record<string, number> & {
+    mvpWins?: Record<string, number>;
+    mvpVotesTotal?: Record<string, number>;
+  };
+  const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
+  const prevMeta =
+    (prevSnap.exists()
+      ? (prevSnap.data()._meta as
+          | { mvpVotes?: Record<string, number>; mvpWinners?: number[] }
+          | undefined)
+      : undefined) ?? {};
+  const mvpWins = { ...cum.mvpWins };
+  const mvpVotesTotal = { ...cum.mvpVotesTotal };
+  for (const w of prevMeta.mvpWinners ?? []) mvpWins[String(w)] = (mvpWins[String(w)] ?? 0) - 1;
+  for (const [sid, n] of Object.entries(prevMeta.mvpVotes ?? {}))
+    mvpVotesTotal[sid] = (mvpVotesTotal[sid] ?? 0) - n;
+  for (const w of mvpWinners) mvpWins[String(w)] = (mvpWins[String(w)] ?? 0) + 1;
+  for (const [sid, n] of Object.entries(mvpVotes))
+    mvpVotesTotal[String(sid)] = (mvpVotesTotal[String(sid)] ?? 0) + n;
+
   for (const s of students) {
     const prevTotal = (prevRows[String(s.id)] as DailyScoreRow | undefined)?.total ?? 0;
     cum[String(s.id)] = (cum[String(s.id)] ?? 0) - prevTotal + rows[s.id].total;
@@ -99,9 +131,9 @@ export async function aggregateDate(
   await Promise.all([
     setDoc(doc(d, "dailyScores", date), {
       ...rows,
-      _meta: { aggregatedAt: Date.now(), groupScore, ranks },
+      _meta: { aggregatedAt: Date.now(), groupScore, ranks, mvpVotes, mvpWinners },
     }),
-    setDoc(doc(d, "dailyScores", "_cumulative"), cum),
+    setDoc(doc(d, "dailyScores", "_cumulative"), { ...cum, mvpWins, mvpVotesTotal }),
   ]);
 
   return {

@@ -19,6 +19,10 @@ import {
   useDecideSeatRequest,
   findOccupant,
 } from "@/lib/query/seatChange";
+import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
+import { openDailyPrintDoc } from "@/lib/exportDoc";
+import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { weekOfDate } from "@/lib/date";
 import type { ClassSettings } from "@/types";
 
 function parseNums(text: string): number[] {
@@ -57,6 +61,10 @@ export default function TeacherPage() {
   const [grantSid, setGrantSid] = useState(1);
   const [grantAmt, setGrantAmt] = useState("1");
   const [grantNote, setGrantNote] = useState("");
+
+  const { data: bestGroups } = useBestGroups();
+  const setBestGroup = useSetBestGroup();
+  const [bestGroupId, setBestGroupId] = useState(1);
 
   if (role !== "teacher") {
     return (
@@ -133,6 +141,63 @@ export default function TeacherPage() {
               .sort((a, b) => a[1] - b[1])
               .map(([g, r]) => `${g}모둠 ${r}위`)
               .join(" · ")}
+          </p>
+        )}
+      </section>
+
+      {/* 오늘의 모둠 선정 + 칭찬/건의 인쇄 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold">👑 오늘의 모둠 & 칭찬 인쇄</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={bestGroupId}
+            onChange={(e) => setBestGroupId(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            {[1, 2, 3, 4, 5].map((g) => (
+              <option key={g} value={g}>
+                {g}모둠
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() =>
+              void (async () => {
+                try {
+                  const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+                  const chairId =
+                    scheduleOfWeek(week).groups.find((g) => g.groupId === bestGroupId)?.chair ?? 0;
+                  await setBestGroup(date, bestGroupId, chairId);
+                  setMsg(`✅ ${date} 오늘의 모둠: ${bestGroupId}모둠 (의장 ${studentById.get(chairId)?.name})`);
+                } catch (e) {
+                  setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+                }
+              })()
+            }
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-white"
+          >
+            오늘의 모둠으로 선정
+          </button>
+          <button
+            onClick={() =>
+              void (async () => {
+                try {
+                  const r = await openDailyPrintDoc(date);
+                  setMsg(`🖨️ 인쇄 창 열림 — 칭찬 ${r.compliments}건 · 건의 ${r.suggestions}건`);
+                } catch (e) {
+                  setMsg(`⚠️ ${e instanceof Error ? e.message : String(e)}`);
+                }
+              })()
+            }
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+          >
+            🖨️ 칭찬·건의 인쇄 (PDF)
+          </button>
+        </div>
+        {bestGroups?.[date] && (
+          <p className="mt-2 text-sm text-slate-600">
+            {date} 오늘의 모둠: <b>{bestGroups[date].groupId}모둠</b> (의장{" "}
+            {studentById.get(bestGroups[date].chairId)?.name})
           </p>
         )}
       </section>

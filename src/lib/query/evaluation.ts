@@ -34,6 +34,39 @@ export function useSaveEvaluation(date: string, myId: number | null) {
   };
 }
 
+// ── 오늘의 모둠 MVP 투표 + 칭찬 (같은 평가 문서의 "_" 필드에 저장 — 추가 읽기 0) ──
+export function useSaveMvp(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (mvpId: number) => {
+    if (myId == null) return;
+    await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), { _mvp: mvpId }, {
+      merge: true,
+    });
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
+      ...prev,
+      _mvp: mvpId,
+    }));
+  };
+}
+
+export function useSaveCompliment(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (to: number, text: string) => {
+    if (myId == null) return;
+    if (!text.trim()) throw new Error("칭찬 내용을 적어주세요.");
+    const compliment = { to, text: text.trim() };
+    await setDoc(
+      doc(db(), "evaluations", date, "entries", String(myId)),
+      { _compliment: compliment },
+      { merge: true }
+    );
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
+      ...prev,
+      _compliment: compliment,
+    }));
+  };
+}
+
 // ── 모둠 간 평가: groupVotes/{date}/entries/{evaluatorId} ───────
 export function useMyGroupVotes(date: string, myId: number | null) {
   return useQuery({
