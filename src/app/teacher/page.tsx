@@ -27,17 +27,14 @@ import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import SubTabs from "@/components/ui/SubTabs";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import NumberStepper from "@/components/ui/NumberStepper";
+import { ScaleEditor, RankPointsEditor } from "@/components/teacher/SettingsEditors";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
 import type { ClassSettings } from "@/types";
-
-function parseNums(text: string): number[] {
-  return text
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => !Number.isNaN(n));
-}
 
 export default function TeacherPage() {
   const { role } = useSession();
@@ -51,11 +48,13 @@ export default function TeacherPage() {
   const [result, setResult] = useState<AggregateResult | null>(null);
   const [msg, setMsg] = useState("");
 
-  const [peerScaleText, setPeerScaleText] = useState<string | null>(null);
-  const [groupScaleText, setGroupScaleText] = useState<string | null>(null);
-  const [rankPointsText, setRankPointsText] = useState<string | null>(null);
-  const [quotaText, setQuotaText] = useState<string | null>(null);
-  const [seatCostText, setSeatCostText] = useState<string | null>(null);
+  // 설정 드래프트 — null이면 서버값 사용, 편집 시 모듈형 컨트롤이 직접 값 조작
+  const [dPeer, setDPeer] = useState<number[] | null>(null);
+  const [dGroup, setDGroup] = useState<number[] | null>(null);
+  const [dRank, setDRank] = useState<number[] | null>(null);
+  const [dQuota, setDQuota] = useState<number | null>(null);
+  const [dSeat, setDSeat] = useState<number | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
   const { data: pendS2 } = usePendingRequests("s2", isTeacher);
@@ -103,16 +102,16 @@ export default function TeacherPage() {
   async function saveAll() {
     const next: ClassSettings = {
       ...settings!,
-      peerScale: peerScaleText != null ? parseNums(peerScaleText) : settings!.peerScale,
-      groupScale: groupScaleText != null ? parseNums(groupScaleText) : settings!.groupScale,
-      rankPoints: rankPointsText != null ? parseNums(rankPointsText) : settings!.rankPoints,
-      weeklyReadingQuota:
-        quotaText != null ? Number(quotaText) || settings!.weeklyReadingQuota : settings!.weeklyReadingQuota,
-      seatChangeCost:
-        seatCostText != null ? Number(seatCostText) || settings!.seatChangeCost : settings!.seatChangeCost,
+      peerScale: dPeer ?? settings!.peerScale,
+      groupScale: dGroup ?? settings!.groupScale,
+      rankPoints: dRank ?? settings!.rankPoints,
+      weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
+      seatChangeCost: dSeat ?? settings!.seatChangeCost,
     };
     try {
       await saveSettings(next);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1600);
       setMsg("✅ 설정이 저장되었습니다.");
     } catch (e) {
       setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -244,59 +243,49 @@ export default function TeacherPage() {
       </>)}
 
       {tTab === "tools" && (<>
-      {/* 평가 척도 설정 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold">⚙️ 평가 척도 설정</h2>
-        <p className="mt-1 text-xs text-slate-500">쉼표로 구분해 자유롭게 수정할 수 있어요.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">
-            모둠 내 평가 척도
-            <input
-              value={peerScaleText ?? settings.peerScale.join(", ")}
-              onChange={(e) => setPeerScaleText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            모둠 간 평가 척도
-            <input
-              value={groupScaleText ?? settings.groupScale.join(", ")}
-              onChange={(e) => setGroupScaleText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            모둠 순위 → 개인 점수 (1위부터)
-            <input
-              value={rankPointsText ?? settings.rankPoints.join(", ")}
-              onChange={(e) => setRankPointsText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            거북이 독서 주간 의무 권수
-            <input
-              value={quotaText ?? String(settings.weeklyReadingQuota)}
-              onChange={(e) => setQuotaText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="text-sm">
-            자리 변경 비용 (실버)
-            <input
-              value={seatCostText ?? String(settings.seatChangeCost)}
-              onChange={(e) => setSeatCostText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
+      {/* 평가 척도 설정 — 모듈형 */}
+      <Card title="⚙️ 평가 척도 설정" desc="버튼으로 조절하고, 학생 화면 미리보기로 바로 확인하세요.">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <ScaleEditor
+            label="모둠 내 평가 척도"
+            value={dPeer ?? settings.peerScale}
+            onChange={setDPeer}
+          />
+          <ScaleEditor
+            label="모둠 간 평가 척도"
+            value={dGroup ?? settings.groupScale}
+            onChange={setDGroup}
+          />
+          <RankPointsEditor value={dRank ?? settings.rankPoints} onChange={setDRank} />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
+              <span className="text-sm font-bold text-ink-800">🐢 주간 의무 권수</span>
+              <NumberStepper
+                value={dQuota ?? settings.weeklyReadingQuota}
+                min={0}
+                max={20}
+                onChange={setDQuota}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
+              <span className="text-sm font-bold text-ink-800">🎫 자리 변경 비용(실버)</span>
+              <NumberStepper
+                value={dSeat ?? settings.seatChangeCost}
+                min={0}
+                max={20}
+                onChange={setDSeat}
+              />
+            </div>
+          </div>
         </div>
-        <button
+        <Button
+          variant={savedFlash ? "success" : "primary"}
           onClick={() => void saveAll()}
-          className="mt-3 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+          className="mt-4"
         >
-          설정 저장
-        </button>
-      </section>
+          {savedFlash ? "✓ 저장됨" : "설정 저장"}
+        </Button>
+      </Card>
 
       <PasswordResetPanel />
       <ReadingAdjustPanel />

@@ -13,6 +13,8 @@ import { firebaseAuth } from "@/lib/firebase";
 import { useSession } from "@/stores/session";
 import { students } from "@/lib/roster";
 import { studentLogin, teacherLogin } from "@/lib/auth";
+import Button from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
 
 export default function LoginGate({ children }: { children: React.ReactNode }) {
   const { role, login, logout } = useSession();
@@ -45,7 +47,7 @@ export default function LoginGate({ children }: { children: React.ReactNode }) {
   if (role) {
     if (!authReady || !fbUser) {
       return (
-        <p className="py-10 text-center text-sm text-slate-400">🔐 연결 확인 중…</p>
+        <p className="py-16 text-center text-sm font-medium text-ink-400">🔐 연결 확인 중…</p>
       );
     }
     return <>{children}</>;
@@ -88,14 +90,16 @@ function LoginScreen({
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 py-8">
+    <div className="mx-auto max-w-sm space-y-4 py-10">
       <div className="text-center">
-        <p className="text-3xl">🏫</p>
-        <h2 className="mt-1 text-xl font-bold">2학기 학급 자치 시스템</h2>
-        <p className="mt-1 text-sm text-slate-500">로그인하고 시작해요</p>
+        <p className="text-4xl">🏫</p>
+        <h2 className="mt-2 text-xl font-extrabold tracking-tight text-ink-900">
+          2학기 학급 자치 시스템
+        </h2>
+        <p className="mt-1 text-sm text-ink-500">로그인하고 시작해요</p>
       </div>
 
-      <div className="flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
+      <div className="flex gap-1 rounded-btn bg-ink-100 p-1 text-sm font-bold">
         {(["student", "teacher"] as const).map((m) => (
           <button
             key={m}
@@ -103,8 +107,8 @@ function LoginScreen({
               setMode(m);
               setError("");
             }}
-            className={`flex-1 rounded-md py-2 transition-colors ${
-              mode === m ? "bg-white shadow text-slate-800" : "text-slate-500"
+            className={`press flex-1 rounded-[11px] py-2.5 transition-colors ${
+              mode === m ? "bg-white text-ink-900 shadow-card" : "text-ink-500"
             }`}
           >
             {m === "student" ? "🎒 학생" : "🧑‍🏫 선생님"}
@@ -119,55 +123,52 @@ function LoginScreen({
               <button
                 key={s.id}
                 onClick={() => setSelectedId(s.id)}
-                className={`rounded-lg border py-2 text-xs font-medium transition-colors ${
+                className={`press rounded-xl py-2.5 text-xs font-bold transition-colors ${
                   selectedId === s.id
-                    ? "border-slate-800 bg-slate-800 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
+                    ? "bg-brand text-white shadow-card"
+                    : "bg-ink-100 text-ink-600 hover:bg-ink-200"
                 }`}
               >
                 {s.name}
               </button>
             ))}
           </div>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submit(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
+            }}
             placeholder="비밀번호 (처음이면 새로 정하는 비밀번호)"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
           />
         </>
       ) : (
         <>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="선생님 이메일"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
           />
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submit(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
+            }}
             placeholder="비밀번호"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
           />
         </>
       )}
 
-      {error && <p className="text-sm text-red-600">⚠️ {error}</p>}
-      {notice && <p className="text-sm text-emerald-600">✅ {notice}</p>}
+      {error && <p className="text-sm font-medium text-danger">⚠️ {error}</p>}
+      {notice && <p className="text-sm font-medium text-success">✅ {notice}</p>}
 
-      <button
-        onClick={submit}
-        disabled={busy}
-        className="w-full rounded-lg bg-slate-800 py-2.5 font-bold text-white disabled:opacity-50"
-      >
+      <Button onClick={submit} disabled={busy} block size="lg">
         {busy ? "확인 중…" : "로그인"}
-      </button>
+      </Button>
     </div>
   );
 }

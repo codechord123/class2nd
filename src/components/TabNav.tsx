@@ -77,10 +77,10 @@ export default function TabNav() {
                   ref={active ? activeRef : undefined}
                   href={t.href}
                   aria-current={active ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center rounded-full px-3 py-2.5 font-medium transition-colors ${
+                  className={`press inline-flex min-h-11 items-center rounded-full px-3 py-2.5 font-bold transition-colors ${
                     active
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-brand text-white shadow-card"
+                      : "text-ink-500 hover:bg-ink-100"
                   }`}
                 >
                   <span className="mr-1">{t.emoji}</span>

@@ -11,20 +11,18 @@ import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
 
-function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: string }) {
-  const tones: Record<string, string> = {
-    slate: "border-slate-200 bg-white text-slate-800",
-    emerald: "border-emerald-200 bg-emerald-50/60 text-emerald-700",
-    indigo: "border-indigo-200 bg-indigo-50/60 text-indigo-700",
-    amber: "border-amber-200 bg-amber-50/60 text-amber-700",
-  };
-  return (
-    <div className={`rounded-xl border p-3 text-center ${tones[tone]}`}>
-      <p className="text-xs opacity-60">{label}</p>
-      <p className="mt-0.5 text-xl font-extrabold">{value}</p>
-      {sub && <p className="text-[10px] opacity-50">{sub}</p>}
-    </div>
-  );
+import StatCard from "@/components/ui/StatCard";
+
+// 도메인 톤 → StatCard 토큰 톤 매핑
+type Legacy = "slate" | "emerald" | "indigo" | "amber";
+const toneMap: Record<Legacy, "neutral" | "brand" | "success" | "warn"> = {
+  slate: "neutral",
+  emerald: "success",
+  indigo: "brand",
+  amber: "warn",
+};
+function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: Legacy }) {
+  return <StatCard label={label} value={value} sub={sub} tone={toneMap[tone]} />;
 }
 
 export default function MyStatus() {
@@ -69,12 +67,12 @@ export default function MyStatus() {
 
   return (
     <div className="space-y-3">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rise rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-1">
-          <h2 className="font-bold">🙋 내 현황</h2>
+          <h2 className="font-bold text-ink-900">🙋 내 현황</h2>
           {myGroup && (
-            <span className="text-xs text-slate-400">
-              이번 주 나: <b className="text-indigo-600">{myGroup.groupId}모둠 · {myRole} 지킴이</b>
+            <span className="text-xs text-ink-400">
+              이번 주 나: <b className="text-brand">{myGroup.groupId}모둠 · {myRole} 지킴이</b>
             </span>
           )}
         </div>
