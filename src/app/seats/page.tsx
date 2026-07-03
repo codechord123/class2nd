@@ -1,29 +1,76 @@
 "use client";
-// 자리 배치 및 일정 — 21주 사전계산 자리표(정적 JSON) 뷰. DB 읽기 0회.
-// 토큰 자리변경 신청(수요일 자정 마감·선착순)은 Phase 5에서 이 화면에 붙는다.
+// 자리 배치 및 일정 — 21주 사전계산 자리표(정적 JSON) + 승인된 swap 합성.
+// 실버 자리변경 신청: 전주 수요일 자정 마감 · 동일 자리 선착순.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import {
   schedules,
   scheduleOfWeek,
   currentWeekNum,
-  groupOf,
-  roleOf,
   TOTAL_WEEKS,
   SEMESTER_START,
 } from "@/lib/schedule";
 import SeatGrid from "@/components/seats/SeatGrid";
-import { chairsProvisional } from "@/lib/roster";
+import { chairsProvisional, studentById, ROLE_INFO } from "@/lib/roster";
+import { useSettings } from "@/lib/query/settings";
+import {
+  useWeekSwaps,
+  applySwaps,
+  useWeekRequests,
+  useCreateSeatRequest,
+  seatChangeDeadline,
+} from "@/lib/query/seatChange";
+import type { RoleKey } from "@/types";
 
 export default function SeatsPage() {
-  const { studentId } = useSession();
+  const { role, studentId } = useSession();
   const nowWeek = currentWeekNum();
   const [week, setWeek] = useState(nowWeek);
-  const schedule = scheduleOfWeek(week);
   const beforeSemester = new Date() < new Date(SEMESTER_START + "T00:00:00+09:00");
 
-  const myGroup = studentId ? groupOf(week, studentId) : undefined;
-  const myRole = studentId ? roleOf(week, studentId) : undefined;
+  const { data: swaps } = useWeekSwaps(week);
+  const schedule = applySwaps(scheduleOfWeek(week), swaps ?? []);
+
+  const myGroup = studentId
+    ? schedule.groups.find(
+        (g) => g.chair === studentId || g.members.some((m) => m.studentId === studentId)
+      )
+    : undefined;
+  const myRole =
+    myGroup &&
+    (myGroup.chair === studentId
+      ? "소통"
+      : myGroup.members.find((m) => m.studentId === studentId)?.role);
+
+  // ── 자리변경 신청 ─────────────────────────────────────────────
+  const { data: settings } = useSettings();
+  const { data: weekRequests } = useWeekRequests(week);
+  const createRequest = useCreateSeatRequest(studentId);
+  const [showRequest, setShowRequest] = useState(false);
+  const [targetGroup, setTargetGroup] = useState(1);
+  const [targetRole, setTargetRole] = useState<RoleKey>("질서");
+  const [msg, setMsg] = useState("");
+
+  const weekMeta = schedules.weeks[week - 1];
+  const deadline = seatChangeDeadline(weekMeta.weekStart);
+  const deadlinePassed = new Date() > deadline;
+
+  async function submitRequest() {
+    setMsg("");
+    try {
+      await createRequest({
+        week,
+        weekStart: weekMeta.weekStart,
+        targetGroup,
+        targetRole,
+        existing: weekRequests ?? [],
+      });
+      setMsg("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.");
+      setShowRequest(false);
+    } catch (e) {
+      setMsg(`⚠️ ${e instanceof Error ? e.message : "신청 실패"}`);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -72,10 +119,80 @@ export default function SeatsPage() {
 
       <SeatGrid schedule={schedule} myStudentId={studentId} />
 
-      <p className="text-xs text-slate-400">
-        ※ 자리표는 시뮬레이티드 어닐링으로 사전 계산되어 {TOTAL_WEEKS}주 전체가 확정되어
-        있어요. 토큰을 사용한 자리 변경 신청(전주 수요일 자정 마감, 선착순)은 곧 열립니다.
-      </p>
+      {/* 실버 자리변경 신청 */}
+      {role === "student" && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({week}주차)</h3>
+            <span className="text-xs text-slate-400">
+              비용 {settings?.seatChangeCost ?? 1}실버 · 마감{" "}
+              {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일
+              자정 · 선착순
+            </span>
+          </div>
+
+          {deadlinePassed ? (
+            <p className="mt-2 text-sm text-slate-400">이 주차는 신청 기한이 지났어요.</p>
+          ) : (
+            <>
+              <button
+                onClick={() => setShowRequest((v) => !v)}
+                className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                {showRequest ? "닫기" : "+ 자리 변경 신청"}
+              </button>
+              {showRequest && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <select
+                    value={targetGroup}
+                    onChange={(e) => setTargetGroup(Number(e.target.value))}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {[1, 2, 3, 4, 5].map((g) => (
+                      <option key={g} value={g}>
+                        {g}모둠
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value as RoleKey)}
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {ROLE_INFO.filter((r) => r.key !== "소통").map((r) => (
+                      <option key={r.key} value={r.key}>
+                        {r.emoji} {r.key} 지킴이
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => void submitRequest()}
+                    className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+                  >
+                    신청하기
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {msg && <p className="mt-2 text-sm">{msg}</p>}
+
+          {(weekRequests?.length ?? 0) > 0 && (
+            <ul className="mt-3 space-y-1 text-sm">
+              {weekRequests!.map((r) => (
+                <li key={r.id} className="flex justify-between rounded bg-slate-50 px-3 py-1.5">
+                  <span>
+                    {studentById.get(r.studentId)?.name} → {r.targetGroup}모둠 {r.targetRole}
+                  </span>
+                  <span className="text-xs">
+                    {r.status === "pending" ? "⏳ 대기" : r.status === "approved" ? "✅ 승인" : "❌ 반려"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }

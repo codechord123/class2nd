@@ -16,6 +16,9 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // 참고: 자리 변경 승인 기록(swap)은 classData/seatSwaps-{week} 문서에 저장
+    // (교사만 쓰기 — 위 classData 규칙으로 커버됨)
+
     // 모둠 내 평가: evaluations/{date}/entries/{evaluatorId}
     match /evaluations/{date}/entries/{evaluatorId} {
       allow read: if isAuthed();

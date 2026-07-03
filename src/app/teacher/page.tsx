@@ -7,6 +7,18 @@ import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, type AggregateResult } from "@/lib/aggregate";
 import { todayKST } from "@/lib/date";
+import { studentById, students } from "@/lib/roster";
+import {
+  usePendingRequests,
+  useDecideRequest,
+  useGrantSilver,
+  type WalletKind,
+} from "@/lib/query/wallet";
+import {
+  usePendingSeatRequests,
+  useDecideSeatRequest,
+  findOccupant,
+} from "@/lib/query/seatChange";
 import type { ClassSettings } from "@/types";
 
 function parseNums(text: string): number[] {
@@ -31,6 +43,20 @@ export default function TeacherPage() {
   const [groupScaleText, setGroupScaleText] = useState<string | null>(null);
   const [rankPointsText, setRankPointsText] = useState<string | null>(null);
   const [quotaText, setQuotaText] = useState<string | null>(null);
+  const [seatCostText, setSeatCostText] = useState<string | null>(null);
+
+  const isTeacher = role === "teacher";
+  const { data: pendS2 } = usePendingRequests("s2", isTeacher);
+  const { data: pendS1 } = usePendingRequests("s1", isTeacher);
+  const decideSpend = useDecideRequest("s2");
+  const decideSpendS1 = useDecideRequest("s1");
+  const { data: pendSeat } = usePendingSeatRequests(isTeacher);
+  const decideSeat = useDecideSeatRequest();
+  const grantSilver = useGrantSilver();
+
+  const [grantSid, setGrantSid] = useState(1);
+  const [grantAmt, setGrantAmt] = useState("1");
+  const [grantNote, setGrantNote] = useState("");
 
   if (role !== "teacher") {
     return (
@@ -66,6 +92,8 @@ export default function TeacherPage() {
       rankPoints: rankPointsText != null ? parseNums(rankPointsText) : settings!.rankPoints,
       weeklyReadingQuota:
         quotaText != null ? Number(quotaText) || settings!.weeklyReadingQuota : settings!.weeklyReadingQuota,
+      seatChangeCost:
+        seatCostText != null ? Number(seatCostText) || settings!.seatChangeCost : settings!.seatChangeCost,
     };
     try {
       await saveSettings(next);
@@ -146,6 +174,14 @@ export default function TeacherPage() {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
+          <label className="text-sm">
+            자리 변경 비용 (실버)
+            <input
+              value={seatCostText ?? String(settings.seatChangeCost)}
+              onChange={(e) => setSeatCostText(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            />
+          </label>
         </div>
         <button
           onClick={() => void saveAll()}
@@ -153,6 +189,143 @@ export default function TeacherPage() {
         >
           설정 저장
         </button>
+      </section>
+
+      {/* 실버 사용 승인 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold">
+          🛒 실버 사용 승인 대기{" "}
+          <span className="text-sm font-normal text-slate-400">
+            ({(pendS2?.length ?? 0) + (pendS1?.length ?? 0)}건)
+          </span>
+        </h2>
+        {!(pendS2?.length || pendS1?.length) && (
+          <p className="mt-2 text-sm text-slate-400">대기 중인 신청이 없어요.</p>
+        )}
+        <ul className="mt-3 space-y-2">
+          {([
+            ...(pendS2 ?? []).map((r) => ({ r, kind: "s2" as WalletKind })),
+            ...(pendS1 ?? []).map((r) => ({ r, kind: "s1" as WalletKind })),
+          ]).map(({ r, kind }) => (
+            <li
+              key={`${kind}-${r.id}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+            >
+              <span>
+                <b>{studentById.get(r.studentId)?.name}</b> · {r.item}{" "}
+                <span className="text-xs text-slate-400">
+                  ({kind === "s2" ? "2학기" : "이월"} 실버 {r.amount}개)
+                </span>
+              </span>
+              <span className="flex gap-1">
+                <button
+                  onClick={() => void (kind === "s2" ? decideSpend : decideSpendS1)(r, true)}
+                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                >
+                  승인
+                </button>
+                <button
+                  onClick={() => void (kind === "s2" ? decideSpend : decideSpendS1)(r, false)}
+                  className="rounded-lg bg-rose-500 px-3 py-1 text-xs font-bold text-white"
+                >
+                  반려
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* 자리 변경 승인 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold">
+          🎫 자리 변경 승인 대기{" "}
+          <span className="text-sm font-normal text-slate-400">({pendSeat?.length ?? 0}건)</span>
+        </h2>
+        {!pendSeat?.length && (
+          <p className="mt-2 text-sm text-slate-400">대기 중인 신청이 없어요.</p>
+        )}
+        <ul className="mt-3 space-y-2">
+          {pendSeat?.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+            >
+              <span>
+                <b>{studentById.get(r.studentId)?.name}</b> → {r.week}주차 {r.targetGroup}모둠{" "}
+                {r.targetRole} 지킴이
+              </span>
+              <span className="flex gap-1">
+                <button
+                  onClick={() =>
+                    void (async () => {
+                      const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                      await decideSeat(r, true, occ ?? undefined);
+                      setMsg(
+                        `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환. 실버 차감은 상점 신청과 연동해 처리하세요.`
+                      );
+                    })()
+                  }
+                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                >
+                  승인(자리 교환)
+                </button>
+                <button
+                  onClick={() => void decideSeat(r, false)}
+                  className="rounded-lg bg-rose-500 px-3 py-1 text-xs font-bold text-white"
+                >
+                  반려
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* 실버 지급 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold">🪙 실버 지급 (2학기)</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            value={grantSid}
+            onChange={(e) => setGrantSid(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          >
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.id}번 {s.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            value={grantAmt}
+            onChange={(e) => setGrantAmt(e.target.value)}
+            className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={grantNote}
+            onChange={(e) => setGrantNote(e.target.value)}
+            placeholder="사유 (예: 격주 MVP)"
+            className="min-w-40 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() =>
+              void (async () => {
+                try {
+                  await grantSilver(grantSid, Number(grantAmt) || 0, grantNote);
+                  setMsg(`✅ ${studentById.get(grantSid)?.name}에게 실버 ${grantAmt}개 지급`);
+                  setGrantNote("");
+                } catch (e) {
+                  setMsg(`⚠️ 지급 실패: ${e instanceof Error ? e.message : String(e)}`);
+                }
+              })()
+            }
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white"
+          >
+            지급
+          </button>
+        </div>
       </section>
 
       {msg && <p className="text-sm">{msg}</p>}

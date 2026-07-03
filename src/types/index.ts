@@ -56,6 +56,8 @@ export interface ClassSettings {
   rankPoints: number[];
   /** 거북이 독서 주간 의무 권수 (기본 3) */
   weeklyReadingQuota: number;
+  /** 자리 변경 비용 (실버, 기본 1) */
+  seatChangeCost: number;
   /** 학기 시작일 (주차 자동 계산 기준) */
   semesterStart: string; // "2026-08-17"
   semesterEnd: string; // "2027-01-08"
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   groupScale: [-1, 0, 1],
   rankPoints: [5, 4, 3, 2, 1],
   weeklyReadingQuota: 3,
+  seatChangeCost: 1,
   semesterStart: "2026-08-17",
   semesterEnd: "2027-01-08",
 };
