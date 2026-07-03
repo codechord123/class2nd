@@ -67,6 +67,24 @@ export function useSaveCompliment(date: string, myId: number | null) {
   };
 }
 
+/** 선생님에게 바라는 점 — 같은 평가 문서의 _toTeacher 필드 (추가 읽기 0) */
+export function useSaveToTeacher(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (text: string) => {
+    if (myId == null) return;
+    if (!text.trim()) throw new Error("내용을 적어주세요.");
+    await setDoc(
+      doc(db(), "evaluations", date, "entries", String(myId)),
+      { _toTeacher: text.trim() },
+      { merge: true }
+    );
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
+      ...prev,
+      _toTeacher: text.trim(),
+    }));
+  };
+}
+
 // ── 모둠 간 평가: groupVotes/{date}/entries/{evaluatorId} ───────
 export function useMyGroupVotes(date: string, myId: number | null) {
   return useQuery({

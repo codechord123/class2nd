@@ -18,6 +18,7 @@ import {
   useCumulativeScores,
   useSaveMvp,
   useSaveCompliment,
+  useSaveToTeacher,
 } from "@/lib/query/evaluation";
 import { useBestGroups } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
@@ -71,6 +72,7 @@ export default function TeamPage() {
   const saveVotes = useSaveGroupVotes(date, studentId);
   const saveMvp = useSaveMvp(date, studentId);
   const saveCompliment = useSaveCompliment(date, studentId);
+  const saveToTeacher = useSaveToTeacher(date, studentId);
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
   const { data: bestGroups } = useBestGroups();
@@ -78,6 +80,8 @@ export default function TeamPage() {
   const [complimentTo, setComplimentTo] = useState<number | null>(null);
   const [complimentText, setComplimentText] = useState("");
   const [complimentMsg, setComplimentMsg] = useState("");
+  const [toTeacherText, setToTeacherText] = useState("");
+  const [toTeacherMsg, setToTeacherMsg] = useState("");
 
   if (role === "teacher") {
     return (
@@ -274,6 +278,56 @@ export default function TeamPage() {
           </button>
         </div>
         {complimentMsg && <p className="mt-2 text-sm">{complimentMsg}</p>}
+      </section>
+
+      {/* 선생님에게 바라는 점 */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="font-bold">🙏 선생님에게 바라는 점</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          오늘 선생님께 하고 싶은 말이나 바라는 점을 남겨주세요. 선생님만 볼 수 있어요.
+        </p>
+        {(() => {
+          const saved = (myEval as Record<string, unknown> | undefined)?._toTeacher as
+            | string
+            | undefined;
+          return saved ? (
+            <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700">
+              💬 {saved}
+              <button
+                onClick={() => setToTeacherText(saved)}
+                className="ml-2 text-xs text-sky-400 underline"
+              >
+                고치기
+              </button>
+            </p>
+          ) : null;
+        })()}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            value={toTeacherText}
+            onChange={(e) => setToTeacherText(e.target.value)}
+            placeholder="예: 체육 시간이 더 있었으면 좋겠어요"
+            className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() =>
+              void (async () => {
+                setToTeacherMsg("");
+                try {
+                  await saveToTeacher(toTeacherText);
+                  setToTeacherMsg("✅ 전달됐어요!");
+                  setToTeacherText("");
+                } catch (e) {
+                  setToTeacherMsg(`⚠️ ${e instanceof Error ? e.message : "실패"}`);
+                }
+              })()
+            }
+            className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white"
+          >
+            보내기
+          </button>
+        </div>
+        {toTeacherMsg && <p className="mt-2 text-sm">{toTeacherMsg}</p>}
       </section>
 
       <TeamStats cumScores={cumScores} bestGroups={bestGroups} />

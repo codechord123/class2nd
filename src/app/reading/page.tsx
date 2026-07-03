@@ -2,10 +2,8 @@
 // 거북이 독서 — 주 3권(설정값) 의무, 미달 경고, 순위 캐러셀, 감상문 작성.
 // 1학기 기록은 정적 JSON(합산 검증 완료), 2학기 기록은 Firestore.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
-import { students, studentById } from "@/lib/roster";
-import { loadS1TurtleReading, s1BooksReadOf } from "@/lib/staticData";
+import { studentById } from "@/lib/roster";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
@@ -19,6 +17,7 @@ import { useSettings } from "@/lib/query/settings";
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
+import S1Archive from "@/components/reading/S1Archive";
 
 export default function ReadingPage() {
   const { studentId } = useSession();
@@ -30,15 +29,7 @@ export default function ReadingPage() {
   const { data: reports } = useRecentReports(pages);
   const saveReport = useSaveReport(studentId, week);
 
-  const [showS1, setShowS1] = useState(false);
-  const [s1Student, setS1Student] = useState<number | null>(null);
-  const { data: turtle } = useQuery({
-    queryKey: ["s1-turtle"],
-    queryFn: loadS1TurtleReading,
-    staleTime: Infinity,
-    enabled: showS1, // 1학기 백업(313KB)은 펼칠 때만 로드
-  });
-
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState<ReportForm>({ title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "" });
   const [editId, setEditId] = useState<string | undefined>();
   const [wasDraft, setWasDraft] = useState(false);
@@ -183,7 +174,15 @@ export default function ReadingPage() {
 
       {/* 최근 감상문 */}
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="font-bold">📖 친구들의 감상문</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold">📖 친구들의 감상문</h3>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 제목·내용·이름 검색"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          />
+        </div>
         {!reports?.length && (
           <p className="mt-2 text-sm text-slate-400">아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!</p>
         )}
@@ -224,6 +223,12 @@ export default function ReadingPage() {
         <ul className="mt-3 space-y-3">
           {reports
             ?.filter((r) => !r.isDraft)
+            .filter((r) => {
+              const kw = search.trim().toLowerCase();
+              if (!kw) return true;
+              const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
+              return hay.includes(kw);
+            })
             .map((r) => (
               <li key={r.id} className="rounded-lg bg-slate-50 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-1">
@@ -265,99 +270,8 @@ export default function ReadingPage() {
         )}
       </section>
 
-      {/* 1학기 기록 (정적, 접기) */}
-      <section className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
-        <button
-          onClick={() => setShowS1((v) => !v)}
-          className="flex w-full items-center justify-between font-bold"
-        >
-          <span>📚 1학기 읽은 책 (최종)</span>
-          <span className="text-sm text-slate-400">{showS1 ? "접기 ▲" : "펼치기 ▼"}</span>
-        </button>
-        {showS1 && !turtle && <p className="mt-2 text-sm text-slate-400">불러오는 중…</p>}
-        {showS1 && turtle && (
-          <>
-            <ul className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-              {students.map((s) => {
-                const n = s1BooksReadOf(turtle, s.id);
-                return (
-                  <li
-                    key={s.id}
-                    className="flex justify-between border-b border-emerald-100 py-1"
-                  >
-                    <button
-                      onClick={() => setS1Student(s1Student === s.id ? null : s.id)}
-                      className={`hover:underline ${s1Student === s.id ? "font-bold text-emerald-700" : ""}`}
-                    >
-                      {s.name}
-                    </button>
-                    <b className={n > 0 ? "text-emerald-700" : "text-slate-300"}>{n}권</b>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-2 text-xs text-slate-400">
-              이름을 누르면 그 친구의 1학기 감상문 전문을 볼 수 있어요. (감상문{" "}
-              {turtle.readingReports.length}건 보관 중)
-            </p>
-            {s1Student != null && (
-              <div className="mt-3 space-y-3">
-                <h4 className="text-sm font-bold text-emerald-800">
-                  ✍️ {studentById.get(s1Student)?.name}의 1학기 감상문
-                </h4>
-                {turtle.readingReports.filter((r) => r.studentId === s1Student).length === 0 && (
-                  <p className="text-sm text-slate-400">
-                    보관된 감상문이 없어요. (권수는 선생님 수동 기록 포함이라 감상문 수와 다를
-                    수 있어요)
-                  </p>
-                )}
-                {turtle.readingReports
-                  .filter((r) => r.studentId === s1Student)
-                  .map((r) => (
-                    <article key={r.docId} className="rounded-lg bg-white p-4 shadow-sm">
-                      <div className="flex flex-wrap items-baseline justify-between gap-1">
-                        <b className="text-sm">{r.title}</b>
-                        <span className="text-xs text-slate-400">{r.date}</span>
-                      </div>
-                      {(r.author || r.publisher) && (
-                        <p className="text-xs text-slate-400">
-                          {r.author}
-                          {r.publisher && ` · ${r.publisher}`}
-                        </p>
-                      )}
-                      {r.summary && (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                          <b className="text-xs text-emerald-600">줄거리</b>
-                          <br />
-                          {r.summary}
-                        </p>
-                      )}
-                      {r.thoughts && (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                          <b className="text-xs text-emerald-600">느낀 점</b>
-                          <br />
-                          {r.thoughts}
-                        </p>
-                      )}
-                      {r.scene && (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                          <b className="text-xs text-emerald-600">인상 깊은 장면</b>
-                          <br />
-                          {r.scene}
-                        </p>
-                      )}
-                      {r.quote && (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-500 italic">
-                          “{r.quote}”
-                        </p>
-                      )}
-                    </article>
-                  ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
+      <S1Archive />
+
     </div>
   );
 }

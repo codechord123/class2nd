@@ -23,7 +23,7 @@ import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
 import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
 import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
-import { openDailyPrintDoc } from "@/lib/exportDoc";
+import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
 import type { ClassSettings } from "@/types";
@@ -181,21 +181,38 @@ export default function TeacherPage() {
           >
             오늘의 모둠으로 선정
           </button>
-          <button
-            onClick={() =>
-              void (async () => {
-                try {
-                  const r = await openDailyPrintDoc(date);
-                  setMsg(`🖨️ 인쇄 창 열림 — 칭찬 ${r.compliments}건 · 건의 ${r.suggestions}건`);
-                } catch (e) {
-                  setMsg(`⚠️ ${e instanceof Error ? e.message : String(e)}`);
+          <span className="flex gap-1">
+            {(["일간", "주간", "월간"] as const).map((label) => (
+              <button
+                key={label}
+                onClick={() =>
+                  void (async () => {
+                    try {
+                      let start = date, end = date;
+                      if (label === "주간") {
+                        const s0 = new Date(date + "T00:00:00+09:00");
+                        s0.setDate(s0.getDate() - 6);
+                        start = s0.toISOString().slice(0, 10);
+                      } else if (label === "월간") {
+                        start = date.slice(0, 8) + "01";
+                        const e0 = new Date(date.slice(0, 7) + "-01T00:00:00Z");
+                        e0.setUTCMonth(e0.getUTCMonth() + 1);
+                        e0.setUTCDate(0);
+                        end = e0.toISOString().slice(0, 10);
+                      }
+                      const r = await openRangePrintDoc(start, end, label);
+                      setMsg(`🖨️ ${label} 인쇄 창 열림 — ${r.days}일치 · 칭찬 ${r.compliments}건 · 건의 ${r.suggestions}건`);
+                    } catch (e) {
+                      setMsg(`⚠️ ${e instanceof Error ? e.message : String(e)}`);
+                    }
+                  })()
                 }
-              })()
-            }
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
-          >
-            🖨️ 칭찬·건의 인쇄 (PDF)
-          </button>
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+              >
+                🖨️ {label}
+              </button>
+            ))}
+          </span>
         </div>
         {bestGroups?.[date] && (
           <p className="mt-2 text-sm text-slate-600">

@@ -62,6 +62,9 @@ export async function aggregateDate(
   //    "_"로 시작하는 키는 점수가 아닌 부가 필드(_mvp, _compliment)
   const peer: Record<number, number> = {};
   const mvpVotes: Record<number, number> = {};
+  // 칭찬·바라는 점도 _meta에 보관 → 기간 인쇄(일/주/월)가 집계 문서만 읽으면 되게 함
+  const compliments: { from: number; to: number; text: string }[] = [];
+  const toTeacher: { from: number; text: string }[] = [];
   evalSnap.forEach((entry) => {
     const data = entry.data();
     for (const [targetId, v] of Object.entries(data)) {
@@ -69,6 +72,10 @@ export async function aggregateDate(
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
     if (typeof data._mvp === "number") mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1;
+    const c = data._compliment as { to: number; text: string } | undefined;
+    if (c?.text) compliments.push({ from: Number(entry.id), to: c.to, text: c.text });
+    if (typeof data._toTeacher === "string" && data._toTeacher)
+      toTeacher.push({ from: Number(entry.id), text: data._toTeacher });
   });
 
   // 3) 모둠 간: 모둠별 득점 합 → Dense Ranking → 순위 점수
@@ -142,7 +149,15 @@ export async function aggregateDate(
   await Promise.all([
     setDoc(doc(d, "dailyScores", date), {
       ...rows,
-      _meta: { aggregatedAt: Date.now(), groupScore, ranks, mvpVotes, mvpWinners },
+      _meta: {
+        aggregatedAt: Date.now(),
+        groupScore,
+        ranks,
+        mvpVotes,
+        mvpWinners,
+        compliments,
+        toTeacher,
+      },
     }),
     setDoc(doc(d, "dailyScores", "_cumulative"), { ...cum, mvpWins, mvpVotesTotal }),
   ]);

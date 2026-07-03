@@ -166,6 +166,7 @@ export default function BoardPage() {
 
   const [content, setContent] = useState("");
   const [anon, setAnon] = useState(false);
+  const [search, setSearch] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -183,7 +184,15 @@ export default function BoardPage() {
     }
   }
 
-  const normalPosts = (posts ?? []).filter((p) => !p.isAnnouncement);
+  const kw = search.trim().toLowerCase();
+  const matches = (p: Suggestion) => {
+    if (!kw) return true;
+    const author = p.isAnonymous ? "익명" : (studentById.get(p.studentId)?.name ?? "");
+    const commentText = (p.comments ?? []).map((c) => c.text).join(" ");
+    return `${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
+  };
+  const pinnedPosts = (announcements ?? []).filter(matches);
+  const normalPosts = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
 
   return (
     <div className="space-y-4">
@@ -215,12 +224,22 @@ export default function BoardPage() {
       )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="font-bold">📋 건의 목록</h3>
-        {!announcements?.length && !normalPosts.length && (
-          <p className="mt-2 text-sm text-slate-400">아직 건의가 없어요.</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold">📋 건의 목록</h3>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 내용·이름·댓글 검색"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+          />
+        </div>
+        {!pinnedPosts.length && !normalPosts.length && (
+          <p className="mt-2 text-sm text-slate-400">
+            {search ? "검색 결과가 없어요." : "아직 건의가 없어요."}
+          </p>
         )}
         <ul className="mt-3 space-y-2">
-          {announcements?.map((p) => <SuggestionCard key={p.id} sug={p} pinned />)}
+          {pinnedPosts.map((p) => <SuggestionCard key={p.id} sug={p} pinned />)}
           {normalPosts.map((p) => (
             <SuggestionCard key={p.id} sug={p} />
           ))}

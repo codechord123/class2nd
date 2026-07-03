@@ -145,15 +145,31 @@ export function useDeleteSuggestion() {
   };
 }
 
-// ── 투표 게시판 ─────────────────────────────────────────────────
+// ── 투표 게시판 (v2: 설명·복수선택·익명·마감) ───────────────────
 export interface Poll {
   id: string;
   title: string;
+  desc?: string;
   options: string[];
-  votes: Record<string, number>; // studentId → 선택지 index
+  /** studentId → 선택 index 배열 (구버전 number도 호환) */
+  votes: Record<string, number[] | number>;
+  multi?: boolean; // 복수 선택 허용
+  anonymous?: boolean; // 익명 투표 (투표자 이름 숨김)
+  deadline?: number; // 마감 시각(ms) — 지나면 투표 불가
+  closed?: boolean; // 교사 수동 마감
   createdBy: number | "teacher";
   createdAt: number;
-  closed?: boolean;
+}
+
+/** 구버전(number) 투표값 호환 정규화 */
+export function votesOf(p: Poll, sid: string): number[] {
+  const v = p.votes?.[sid];
+  if (v == null) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+export function isPollClosed(p: Poll): boolean {
+  return Boolean(p.closed) || (p.deadline != null && Date.now() > p.deadline);
 }
 
 export function usePolls(pages: number) {
@@ -175,14 +191,25 @@ export function usePolls(pages: number) {
 
 export function useCreatePoll(creator: number | "teacher" | null) {
   const qc = useQueryClient();
-  return async (title: string, options: string[]) => {
+  return async (input: {
+    title: string;
+    desc?: string;
+    options: string[];
+    multi: boolean;
+    anonymous: boolean;
+    deadline?: number;
+  }) => {
     if (creator == null) throw new Error("로그인이 필요해요.");
-    const opts = options.map((o) => o.trim()).filter(Boolean);
-    if (!title.trim() || opts.length < 2) throw new Error("제목과 선택지 2개 이상이 필요해요.");
+    const opts = input.options.map((o) => o.trim()).filter(Boolean);
+    if (!input.title.trim() || opts.length < 2) throw new Error("제목과 선택지 2개 이상이 필요해요.");
     await addDoc(collection(db(), "polls"), {
-      title: title.trim(),
+      title: input.title.trim(),
+      ...(input.desc?.trim() ? { desc: input.desc.trim() } : {}),
       options: opts,
       votes: {},
+      multi: input.multi,
+      anonymous: input.anonymous,
+      ...(input.deadline ? { deadline: input.deadline } : {}),
       createdBy: creator,
       createdAt: Date.now(),
     });
@@ -190,19 +217,35 @@ export function useCreatePoll(creator: number | "teacher" | null) {
   };
 }
 
+/** 투표/토글: 단일 선택은 교체, 복수 선택은 켜고 끄기 */
 export function useVote(myId: number | null) {
   const qc = useQueryClient();
-  return async (pollId: string, optionIdx: number) => {
+  return async (poll: Poll, optionIdx: number) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
-    await setDoc(
-      doc(db(), "polls", pollId),
-      { votes: { [myId]: optionIdx } },
-      { merge: true }
-    );
+    if (isPollClosed(poll)) throw new Error("마감된 투표예요.");
+    const cur = votesOf(poll, String(myId));
+    let next: number[];
+    if (poll.multi) {
+      next = cur.includes(optionIdx) ? cur.filter((i) => i !== optionIdx) : [...cur, optionIdx];
+    } else {
+      next = cur.includes(optionIdx) ? [] : [optionIdx]; // 같은 것 다시 누르면 취소
+    }
+    await setDoc(doc(db(), "polls", poll.id), { votes: { [myId]: next } }, { merge: true });
     qc.setQueriesData({ queryKey: ["polls"] }, (prev: Poll[] | undefined) =>
       prev?.map((p) =>
-        p.id === pollId ? { ...p, votes: { ...p.votes, [myId]: optionIdx } } : p
+        p.id === poll.id ? { ...p, votes: { ...p.votes, [myId]: next } } : p
       )
+    );
+  };
+}
+
+/** 교사: 투표 마감/재개 */
+export function useClosePoll() {
+  const qc = useQueryClient();
+  return async (poll: Poll) => {
+    await setDoc(doc(db(), "polls", poll.id), { closed: !poll.closed }, { merge: true });
+    qc.setQueriesData({ queryKey: ["polls"] }, (prev: Poll[] | undefined) =>
+      prev?.map((p) => (p.id === poll.id ? { ...p, closed: !poll.closed } : p))
     );
   };
 }

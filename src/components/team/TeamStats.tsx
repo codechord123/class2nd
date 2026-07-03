@@ -1,21 +1,25 @@
 "use client";
-// 통계 (요구사항 v2 §3~5): 누적 점수 / MVP 득표·선정 / 오늘의 모둠 1등 의장 횟수.
-// 데이터 출처는 문서 2개(_cumulative + bestGroups)뿐 — 추가 읽기 없음.
-import { students, studentById } from "@/lib/roster";
+// 통계: ① 누적 점수 ② MVP 선정 횟수(반 친구들이 뽑은 오늘의 모둠 MVP)
+//      ③ 오늘의 모둠 포함 횟수(선생님이 뽑은 오늘의 모둠에 들어간 횟수 = 팀 기여도)
+// 데이터 출처는 문서 2개(_cumulative + bestGroups) + 정적 자리표 — 추가 읽기 없음.
+import { students } from "@/lib/roster";
+import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { weekOfDate } from "@/lib/date";
 import type { BestGroups } from "@/lib/query/classMeta";
 
 interface CumDoc {
   [sid: string]: number | Record<string, number> | undefined;
   mvpWins?: Record<string, number>;
-  mvpVotesTotal?: Record<string, number>;
 }
 
 function TopList({
   title,
+  desc,
   counts,
   unit,
 }: {
   title: string;
+  desc: string;
   counts: Record<string, number>;
   unit: string;
 }) {
@@ -26,7 +30,8 @@ function TopList({
     .slice(0, 5);
   return (
     <div className="rounded-lg bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-500">{title}</p>
+      <p className="text-xs font-bold text-slate-600">{title}</p>
+      <p className="text-[10px] text-slate-400">{desc}</p>
       {ranked.length === 0 ? (
         <p className="mt-1 text-xs text-slate-400">아직 기록이 없어요</p>
       ) : (
@@ -64,34 +69,40 @@ export default function TeamStats({
     if (typeof v === "number") totals[String(s.id)] = v;
   }
 
-  // 오늘의 모둠: 의장별 1등 횟수 ("1등 홍길동 3회")
-  const chairWins: Record<string, number> = {};
-  for (const v of Object.values(bestGroups ?? {})) {
-    chairWins[String(v.chairId)] = (chairWins[String(v.chairId)] ?? 0) + 1;
+  // 오늘의 모둠 포함 횟수: 선정된 날짜의 자리표에서 그 모둠 소속 전원 카운트
+  const inBestGroup: Record<string, number> = {};
+  for (const [date, v] of Object.entries(bestGroups ?? {})) {
+    const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+    const g = scheduleOfWeek(week).groups.find((x) => x.groupId === v.groupId);
+    if (!g) continue;
+    for (const sid of [g.chair, ...g.members.map((m) => m.studentId)]) {
+      inBestGroup[String(sid)] = (inBestGroup[String(sid)] ?? 0) + 1;
+    }
   }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="font-bold">📈 우리 반 통계</h3>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <TopList title="🏅 누적 점수 TOP 5" counts={totals} unit="점" />
-        <TopList title="⭐ MVP 선정 횟수" counts={cum.mvpWins ?? {}} unit="회" />
-        <TopList title="🗳️ MVP 득표 누적" counts={cum.mvpVotesTotal ?? {}} unit="표" />
-        <TopList title="👑 오늘의 모둠 이끈 의장" counts={chairWins} unit="회" />
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <TopList
+          title="🏅 누적 점수 TOP 5"
+          desc="매일 평가 집계의 합"
+          counts={totals}
+          unit="점"
+        />
+        <TopList
+          title="⭐ MVP 선정 횟수"
+          desc="반 친구들이 뽑은 오늘의 모둠 MVP"
+          counts={cum.mvpWins ?? {}}
+          unit="회"
+        />
+        <TopList
+          title="👑 오늘의 모둠 포함 횟수"
+          desc="선생님이 뽑은 오늘의 모둠에 든 횟수 (팀 기여도)"
+          counts={inBestGroup}
+          unit="회"
+        />
       </div>
-      {Object.keys(bestGroups ?? {}).length > 0 && (
-        <p className="mt-3 text-xs text-slate-400">
-          최근 오늘의 모둠:{" "}
-          {Object.entries(bestGroups!)
-            .sort((a, b) => b[0].localeCompare(a[0]))
-            .slice(0, 5)
-            .map(
-              ([d, v]) =>
-                `${d.slice(5)} ${v.groupId}모둠(${studentById.get(v.chairId)?.name ?? "?"})`
-            )
-            .join(" · ")}
-        </p>
-      )}
     </section>
   );
 }

@@ -2,19 +2,54 @@
 // 로그인 게이트 — 로그인 전에는 탭 콘텐츠 대신 로그인 화면을 보여준다.
 // 학생: 명단에서 이름 선택 + 비밀번호 (첫 로그인 시 그 비밀번호로 등록)
 // 교사: 이메일/비밀번호 (Firebase Auth 콘솔에 만든 계정)
+//
+// 중요: 새로고침 직후 Firebase 인증 복원이 끝나기 전에 Firestore 쿼리가 나가면
+// 전부 permission-denied가 된다("로딩 안 됨" 증상). 인증 상태가 확정될 때까지
+// 콘텐츠 렌더를 보류하고, 세션은 학생인데 Firebase 로그인이 풀려 있으면
+// 익명 로그인을 자동 복구, 교사면 재로그인을 요청한다.
 import { useEffect, useState } from "react";
+import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth";
+import { firebaseAuth } from "@/lib/firebase";
 import { useSession } from "@/stores/session";
 import { students } from "@/lib/roster";
 import { studentLogin, teacherLogin } from "@/lib/auth";
 
 export default function LoginGate({ children }: { children: React.ReactNode }) {
-  const { role, login } = useSession();
+  const { role, login, logout } = useSession();
   // persist 하이드레이션 전 SSR 불일치 방지
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Firebase 인증 상태 확정 대기
+  const [fbUser, setFbUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(firebaseAuth(), (u) => {
+      setFbUser(u);
+      setAuthReady(true);
+    });
+    return unsub;
+  }, []);
+
+  // 세션은 살아있는데 Firebase 로그인이 풀린 경우 복구
+  useEffect(() => {
+    if (!authReady || fbUser) return;
+    if (role === "student") {
+      void signInAnonymously(firebaseAuth()).catch(() => logout());
+    } else if (role === "teacher") {
+      logout(); // 교사는 비밀번호 재입력 필요
+    }
+  }, [authReady, fbUser, role, logout]);
+
   if (!mounted) return null;
-  if (role) return <>{children}</>;
+  if (role) {
+    if (!authReady || !fbUser) {
+      return (
+        <p className="py-10 text-center text-sm text-slate-400">🔐 연결 확인 중…</p>
+      );
+    }
+    return <>{children}</>;
+  }
   return <LoginScreen onLogin={login} />;
 }
 
