@@ -72,10 +72,9 @@ service cloud.firestore {
     }
 
     // 2학기 거북이 독서: 감상문 + 권수 통계
-    // update 허용: 임시저장 이어쓰기·정식 등록 승격 (학생)
+    // update: 임시저장 이어쓰기·수정 / delete: 본인 삭제(권수 차감은 앱이 처리)
     match /readingReports/{reportId} {
-      allow read, create, update: if isAuthed();
-      allow delete: if isTeacher();
+      allow read, create, update, delete: if isAuthed();
     }
     match /readingStats/{docId} {
       allow read, write: if isAuthed();

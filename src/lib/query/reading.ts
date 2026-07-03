@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -29,14 +30,20 @@ export interface ReadingReport2 {
   quote: string; // 인용
   thoughts: string; // 느낀 점
   isDraft: boolean;
+  tags?: string[]; // 책 종류 태그 (장르 분류)
   week: number;
   createdAt: number;
 }
 
+/** 책 종류 태그 후보 (폼에서 선택) */
+export const BOOK_TAGS = [
+  "그림책", "동화", "소설", "과학", "역사", "인물", "시", "만화", "지식·정보", "기타",
+] as const;
+
 export type ReportForm = Pick<
   ReadingReport2,
   "title" | "author" | "publisher" | "summary" | "scene" | "quote" | "thoughts"
->;
+> & { tags: string[] };
 
 /** 정식 등록 최소 글자수 검사 대상 (1학기와 동일: 장면+인용+줄거리+느낀점) */
 export function reportBodyLength(f: ReportForm): number {
@@ -81,8 +88,29 @@ export function useRecentReports(pages: number) {
   });
 }
 
+/** 감상문 삭제 — 정식 등록본이면 권수도 차감 (1학기와 동일 규칙) */
+export function useDeleteReport() {
+  const qc = useQueryClient();
+  return async (report: ReadingReport2) => {
+    const d = db();
+    await deleteDoc(doc(d, "readingReports", report.id));
+    if (!report.isDraft) {
+      await setDoc(
+        doc(d, "readingStats", "main"),
+        {
+          total: { [report.studentId]: increment(-1) },
+          byWeek: { [report.week]: { [report.studentId]: increment(-1) } },
+        },
+        { merge: true }
+      );
+      void qc.invalidateQueries({ queryKey: STATS_KEY });
+    }
+    void qc.invalidateQueries({ queryKey: ["readingReports"] });
+  };
+}
+
 /**
- * 감상문 저장 (신규/이어쓰기 겸용).
+ * 감상문 저장 (신규/이어쓰기/수정 겸용).
  * - draft=true: 임시저장 — 권수 미증가
  * - draft=false: 정식 등록 — (신규 또는 임시→정식 승격 시) 권수 +1
  */
@@ -90,7 +118,7 @@ export function useSaveReport(myId: number | null, week: number) {
   const qc = useQueryClient();
   return async (
     form: ReportForm,
-    opts: { draft: boolean; editId?: string; wasDraft?: boolean }
+    opts: { draft: boolean; editId?: string; wasDraft?: boolean; origWeek?: number }
   ): Promise<string> => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
@@ -105,7 +133,9 @@ export function useSaveReport(myId: number | null, week: number) {
 
     let id = opts.editId;
     if (id) {
-      await setDoc(doc(d, "readingReports", id), payload, { merge: true });
+      // 수정: 원래 주차/작성자 유지 (권수 귀속 주차가 바뀌면 안 됨)
+      const { week: _w, studentId: _s, ...editable } = payload;
+      await setDoc(doc(d, "readingReports", id), editable, { merge: true });
     } else {
       const ref = await addDoc(collection(d, "readingReports"), {
         ...payload,
@@ -114,12 +144,13 @@ export function useSaveReport(myId: number | null, week: number) {
       id = ref.id;
     }
 
-    // 권수 +1: 신규 정식 등록 또는 임시→정식 승격일 때만
+    // 권수 +1: 신규 정식 등록 또는 임시→정식 승격일 때만 (승격은 원래 주차에 귀속)
     const promoted = !opts.draft && (opts.editId == null || opts.wasDraft === true);
+    const statWeek = opts.editId ? (opts.origWeek ?? week) : week;
     if (promoted) {
       await setDoc(
         doc(d, "readingStats", "main"),
-        { total: { [myId]: increment(1) }, byWeek: { [week]: { [myId]: increment(1) } } },
+        { total: { [myId]: increment(1) }, byWeek: { [statWeek]: { [myId]: increment(1) } } },
         { merge: true }
       );
       qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
@@ -129,7 +160,10 @@ export function useSaveReport(myId: number | null, week: number) {
           total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
           byWeek: {
             ...p.byWeek,
-            [week]: { ...p.byWeek?.[week], [myId]: (p.byWeek?.[week]?.[myId] ?? 0) + 1 },
+            [statWeek]: {
+              ...p.byWeek?.[statWeek],
+              [myId]: (p.byWeek?.[statWeek]?.[myId] ?? 0) + 1,
+            },
           },
         };
       });

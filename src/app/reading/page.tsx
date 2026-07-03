@@ -10,8 +10,11 @@ import {
   useReadingStats,
   useRecentReports,
   useSaveReport,
+  useDeleteReport,
   reportBodyLength,
+  BOOK_TAGS,
   type ReportForm,
+  type ReadingReport2,
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
 import ReadingAlert from "@/components/reading/ReadingAlert";
@@ -19,8 +22,12 @@ import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import S1Archive from "@/components/reading/S1Archive";
 
+const EMPTY_FORM: ReportForm = {
+  title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "", tags: [],
+};
+
 export default function ReadingPage() {
-  const { studentId } = useSession();
+  const { role, studentId } = useSession();
   const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
 
   const { data: stats } = useReadingStats();
@@ -28,11 +35,16 @@ export default function ReadingPage() {
   const [pages, setPages] = useState(1);
   const { data: reports } = useRecentReports(pages);
   const saveReport = useSaveReport(studentId, week);
+  const deleteReport = useDeleteReport();
 
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState<ReportForm>({ title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "" });
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [form, setForm] = useState<ReportForm>(EMPTY_FORM);
   const [editId, setEditId] = useState<string | undefined>();
   const [wasDraft, setWasDraft] = useState(false);
+  const [origWeek, setOrigWeek] = useState<number | undefined>();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -40,9 +52,22 @@ export default function ReadingPage() {
   const bodyLen = reportBodyLength(form);
 
   function resetForm() {
-    setForm({ title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "" });
+    setForm(EMPTY_FORM);
     setEditId(undefined);
     setWasDraft(false);
+    setOrigWeek(undefined);
+  }
+
+  function loadIntoForm(r: ReadingReport2) {
+    setForm({
+      title: r.title, author: r.author ?? "", publisher: r.publisher ?? "",
+      summary: r.summary ?? "", scene: r.scene ?? "", quote: r.quote ?? "",
+      thoughts: r.thoughts ?? "", tags: r.tags ?? [],
+    });
+    setEditId(r.id);
+    setWasDraft(r.isDraft);
+    setOrigWeek(r.week);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function submit(draft: boolean) {
@@ -51,14 +76,15 @@ export default function ReadingPage() {
     try {
       if (!draft && bodyLen < charLimit)
         throw new Error(`본문은 ${charLimit}자 이상이어야 정식 등록할 수 있어요. (현재 ${bodyLen}자) 🐢`);
-      const id = await saveReport(form, { draft, editId, wasDraft });
+      const id = await saveReport(form, { draft, editId, wasDraft, origWeek });
       if (draft) {
         setEditId(id);
         setWasDraft(true);
         setMsg("💾 임시저장 완료! 나중에 이어서 쓸 수 있어요.");
       } else {
+        const wasEdit = editId && !wasDraft;
         resetForm();
-        setMsg("✅ 감상문이 정식 등록되었어요! +1권");
+        setMsg(wasEdit ? "✅ 감상문이 수정되었어요!" : "✅ 감상문이 정식 등록되었어요! +1권");
       }
     } catch (e) {
       setMsg(`⚠️ ${e instanceof Error ? e.message : "저장에 실패했어요."}`);
@@ -90,7 +116,8 @@ export default function ReadingPage() {
       {studentId && (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="font-bold">
-            ✍️ 감상문 쓰기 ({week}주차){editId && wasDraft && " — 임시저장 이어쓰기"}
+            ✍️ 감상문 쓰기 ({week}주차)
+            {editId && (wasDraft ? " — 임시저장 이어쓰기" : " — 등록본 수정 중")}
           </h3>
           <div className="mt-3 space-y-2">
             <div className="grid gap-2 sm:grid-cols-3">
@@ -141,6 +168,29 @@ export default function ReadingPage() {
               rows={3}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-slate-400">책 종류:</span>
+              {BOOK_TAGS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      tags: form.tags.includes(t)
+                        ? form.tags.filter((x) => x !== t)
+                        : [...form.tags, t],
+                    })
+                  }
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                    form.tags.includes(t)
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-slate-200 text-slate-500 hover:border-emerald-300"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
             <p
               className={`text-right text-xs font-bold ${bodyLen >= charLimit ? "text-emerald-600" : "text-red-500"}`}
             >
@@ -152,7 +202,7 @@ export default function ReadingPage() {
                 disabled={busy}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
-                {busy ? "저장 중…" : "정식 등록 (+1권)"}
+                {busy ? "저장 중…" : editId && !wasDraft ? "수정 저장" : "정식 등록 (+1권)"}
               </button>
               <button
                 onClick={() => void submit(true)}
@@ -176,12 +226,41 @@ export default function ReadingPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-bold">📖 친구들의 감상문</h3>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 제목·내용·이름 검색"
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setViewMode(viewMode === "list" ? "card" : "list")}
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+            >
+              {viewMode === "list" ? "🗂️ 카드로 보기" : "📋 목록으로 보기"}
+            </button>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="🔍 제목·내용·이름 검색"
+              className="w-40 rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+            />
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              tagFilter === null ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            전체
+          </button>
+          {BOOK_TAGS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTagFilter(tagFilter === t ? null : t)}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                tagFilter === t ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
         {!reports?.length && (
           <p className="mt-2 text-sm text-slate-400">아직 감상문이 없어요. 첫 번째 주인공이 되어보세요!</p>
@@ -196,23 +275,7 @@ export default function ReadingPage() {
                 .map((r) => (
                   <li key={r.id} className="flex justify-between">
                     <span>{r.title}</span>
-                    <button
-                      onClick={() => {
-                        setForm({
-                          title: r.title,
-                          author: r.author ?? "",
-                          publisher: r.publisher ?? "",
-                          summary: r.summary ?? "",
-                          scene: r.scene ?? "",
-                          quote: r.quote ?? "",
-                          thoughts: r.thoughts ?? "",
-                        });
-                        setEditId(r.id);
-                        setWasDraft(true);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                      className="text-xs text-amber-600 underline"
-                    >
+                    <button onClick={() => loadIntoForm(r)} className="text-xs text-amber-600 underline">
                       이어쓰기
                     </button>
                   </li>
@@ -220,46 +283,121 @@ export default function ReadingPage() {
             </ul>
           </div>
         )}
-        <ul className="mt-3 space-y-3">
-          {reports
-            ?.filter((r) => !r.isDraft)
+        {(() => {
+          const visible = (reports ?? [])
+            .filter((r) => !r.isDraft)
+            .filter((r) => (tagFilter ? (r.tags ?? []).includes(tagFilter) : true))
             .filter((r) => {
               const kw = search.trim().toLowerCase();
               if (!kw) return true;
-              const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
+              const hay = `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
               return hay.includes(kw);
-            })
-            .map((r) => (
-              <li key={r.id} className="rounded-lg bg-slate-50 p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-1">
-                  <b className="text-sm">{r.title}</b>
-                  <span className="text-xs text-slate-400">
-                    {studentById.get(r.studentId)?.name} · {r.week}주차
-                  </span>
+            });
+          const canManage = (r: ReadingReport2) =>
+            role === "teacher" || r.studentId === studentId;
+
+          const Body = ({ r }: { r: ReadingReport2 }) => (
+            <>
+              {(r.author || r.publisher) && (
+                <p className="text-xs text-slate-400">
+                  {r.author}
+                  {r.publisher && ` · ${r.publisher}`}
+                </p>
+              )}
+              {r.summary && (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</p>
+              )}
+              {r.scene && (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">🎬 {r.scene}</p>
+              )}
+              {r.quote && (
+                <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">
+                  “{r.quote}”
+                </p>
+              )}
+              {r.thoughts && (
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">💭 {r.thoughts}</p>
+              )}
+              {canManage(r) && (
+                <div className="mt-2 flex gap-2 text-xs">
+                  {r.studentId === studentId && (
+                    <button onClick={() => loadIntoForm(r)} className="text-indigo-500 underline">
+                      ✏️ 수정
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (confirm("이 감상문을 삭제할까요? 권수 1권도 함께 줄어들어요.")) {
+                        void deleteReport(r).catch((e: Error) => setMsg(`⚠️ ${e.message}`));
+                      }
+                    }}
+                    className="text-rose-400 underline"
+                  >
+                    🗑️ 삭제
+                  </button>
                 </div>
-                {(r.author || r.publisher) && (
-                  <p className="text-xs text-slate-400">
-                    {r.author}
-                    {r.publisher && ` · ${r.publisher}`}
-                  </p>
-                )}
-                {r.summary && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</p>
-                )}
-                {r.scene && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">🎬 {r.scene}</p>
-                )}
-                {r.quote && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm italic text-slate-500">
-                    “{r.quote}”
-                  </p>
-                )}
-                {r.thoughts && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">💭 {r.thoughts}</p>
-                )}
-              </li>
-            ))}
-        </ul>
+              )}
+            </>
+          );
+
+          const Tags = ({ r }: { r: ReadingReport2 }) =>
+            (r.tags?.length ?? 0) > 0 ? (
+              <span className="flex flex-wrap gap-1">
+                {r.tags!.map((t) => (
+                  <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
+                    {t}
+                  </span>
+                ))}
+              </span>
+            ) : null;
+
+          if (viewMode === "list") {
+            return (
+              <ul className="mt-3 divide-y divide-slate-100">
+                {visible.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                      className="flex w-full items-center justify-between gap-2 py-2 text-left hover:bg-slate-50"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <b className="truncate text-sm">{r.title}</b>
+                        <Tags r={r} />
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-400">
+                        {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
+                        {expandedId === r.id ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {expandedId === r.id && (
+                      <div className="rounded-lg bg-slate-50 p-3">
+                        <Body r={r} />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            );
+          }
+          return (
+            <ul className="mt-3 space-y-3">
+              {visible.map((r) => (
+                <li key={r.id} className="rounded-lg bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-1">
+                    <span className="flex items-center gap-2">
+                      <b className="text-sm">{r.title}</b>
+                      <Tags r={r} />
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {studentById.get(r.studentId)?.name} · {r.week}주차
+                    </span>
+                  </div>
+                  <Body r={r} />
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
         {reports && reports.length >= pages * 10 && (
           <button
             onClick={() => setPages((p) => p + 1)}

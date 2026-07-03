@@ -147,6 +147,27 @@ export default function S1Archive() {
             />
             <span className="text-xs text-slate-500">{filtered.length}건</span>
           </div>
+          {filterId !== 0 &&
+            (() => {
+              const reportCount = turtle.readingReports.filter(
+                (r) => r.studentId === filterId
+              ).length;
+              const total = s1BooksReadOf(turtle, filterId);
+              const manual = total - reportCount;
+              return (
+                <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs text-slate-500">
+                  📖 {studentById.get(filterId)?.name}: 총 <b>{total}권</b> = 감상문{" "}
+                  <b>{reportCount}건</b>
+                  {manual > 0 && (
+                    <>
+                      {" "}
+                      + 감상문 없이 선생님이 인정해준 <b>{manual}권</b> (종이 제출 등 —
+                      시스템에 감상문 원문이 없어요)
+                    </>
+                  )}
+                </p>
+              );
+            })()}
 
           <div className="mt-3 space-y-3">
             {filtered.slice(0, shown).map((r) => (
