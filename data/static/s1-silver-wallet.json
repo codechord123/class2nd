@@ -1,9 +1,9 @@
 {
   "meta": {
-    "note": "1학기 실버토큰 이월 데이터. silverRemaining만 2학기 상점에서 사용 가능(1회 이월). 나머지는 표시 전용, 2학기 연산과 격리.",
+    "note": "1학기 이월 지갑(별도 지갑 방식). 2학기 재화와 섞지 않고, '1학기 이월분' 지갑에서만 사용/차감한다. silverRemaining=학생별 이월 실버, classGold.remaining=학급 골드토큰 이월분.",
     "source": "1학기 엑셀 점수 자료 (기준일 2026-07-03)",
     "carryoverField": "silverRemaining",
-    "classGoldToken": "이 파일에 없음 — 별도 제공 필요"
+    "carryoverPolicy": "separate-wallet"
   },
   "students": [
     {
@@ -231,5 +231,9 @@
       "cumulativeScoreS1": 313,
       "booksReadS1": 14
     }
-  ]
+  ],
+  "classGold": {
+    "remaining": 14,
+    "note": "1학기 학급 골드토큰 이월분. 학급 전체 공용, 2학기에서 별도 사용 가능."
+  }
 }
