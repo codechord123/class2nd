@@ -9,6 +9,7 @@ import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
+import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { openPrintWindow, openRangePrintDoc, esc } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
@@ -30,14 +31,32 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const schedule = scheduleOfWeek(week);
   const quota = settings?.weeklyReadingQuota ?? 3;
 
-  // 주간 범위 (해당 주 월~일)
-  const weekStart = schedule.weekStart;
-  const weekEnd = (() => {
-    const e = new Date(weekStart + "T00:00:00Z");
-    e.setUTCDate(e.getUTCDate() + 6);
-    return e.toISOString().slice(0, 10);
-  })();
-  const { data: weekRep } = useRangeReport(weekStart, weekEnd, period === "week");
+  // 세션(2주) 범위 — 선택한 날짜가 속한 기(1~11기)
+  // 베타 기간(개학 전)은 모든 날짜가 1주차로 잡히므로, 범위를 7/1부터로 넓혀 베타 기록도 포함
+  const sessionNo = periodOfWeek(week);
+  const [s0, sessionEnd] = dateRangeOfPeriod(sessionNo);
+  const isBeta = date < s0;
+  const sessionStart = isBeta ? "2026-07-01" : s0;
+  const w1 = sessionNo * 2 - 1;
+  const w2 = Math.min(sessionNo * 2, TOTAL_WEEKS);
+  const { data: rep } = useRangeReport(sessionStart, sessionEnd, period === "week");
+
+  // 세션 독서 합산 (readingStats 캐시 — 추가 읽기 0): 두 주 byWeek 합
+  const sessionReadOf = (sid: number) =>
+    (stats?.byWeek?.[String(w1)]?.[String(sid)] ?? 0) +
+    (w2 !== w1 ? (stats?.byWeek?.[String(w2)]?.[String(sid)] ?? 0) : 0);
+
+  // 최다 집계(동점 모두) — [명단, 최댓값]
+  function topOf(counts: Record<string, number>): [number[], number] {
+    const max = Math.max(0, ...Object.values(counts));
+    if (max <= 0) return [[], 0];
+    return [
+      Object.entries(counts)
+        .filter(([, v]) => v === max)
+        .map(([k]) => Number(k)),
+      max,
+    ];
+  }
 
   const weekMap = stats?.byWeek?.[String(week)] ?? {};
   const weekRead = (sid: number) => weekMap[String(sid)] ?? 0;
@@ -182,14 +201,35 @@ export default function DailyReportPanel({ date }: { date: string }) {
     }
   }
 
-  async function weeklyPrint() {
+  async function sessionPrint() {
     if (printing) return;
     setPrinting(true);
     try {
-      const readingHtml = `<div class="t">📖 이번 주 독서 (${week}주차)</div><p>반 제출 <b>${weekBooks}권</b> · 목표 달성 ${metCount}/${students.length}명</p>${
-        notMet.length ? `<p class="muted">미달: ${notMet.map((s) => esc(s.name)).join(", ")}</p>` : ""
-      }`;
-      await openRangePrintDoc(weekStart, weekEnd, `${week}주차 주간`, readingHtml);
+      // 세션 하이라이트(독서 MVP·최다 모둠 등)를 인쇄 상단에 함께 담는다
+      const readCounts: Record<string, number> = {};
+      for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
+      const top = (counts: Record<string, number>) => {
+        const max = Math.max(0, ...Object.values(counts));
+        if (max <= 0) return null;
+        const ids = Object.entries(counts)
+          .filter(([, v]) => v === max)
+          .map(([k]) => Number(k));
+        return { ids, max };
+      };
+      const readTop = top(readCounts);
+      const bestTop = rep ? top(rep.rank1ByGroup) : null;
+      const mvpTop = rep ? top(rep.mvpCount) : null;
+      const names = (ids: number[]) => ids.map((id) => esc(nm(id))).join(", ");
+      const hi = (label: string, v: string) => `<li><b>${label}</b>: ${v}</li>`;
+      const highlightHtml = `<div class="t">🏆 ${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
+        readTop ? hi("🐢 독서 MVP", `${names(readTop.ids)} (${readTop.max}권)`) : "",
+        bestTop ? hi("👑 오늘의 모둠 최다", `${bestTop.ids.map((g) => `${g}모둠`).join(", ")} (1위 ${bestTop.max}회)`) : "",
+        mvpTop ? hi("⭐ MVP 최다", `${names(mvpTop.ids)} (${mvpTop.max}회)`) : "",
+        rep ? hi("🎯 미션 달성", `${rep.missionAchievements}회`) : "",
+      ]
+        .filter(Boolean)
+        .join("")}</ul>`;
+      await openRangePrintDoc(sessionStart, sessionEnd, `${sessionNo}기 세션`, highlightHtml);
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
     } finally {
@@ -203,7 +243,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         <SubTabs<"day" | "week">
           tabs={[
             { key: "day", label: "📅 일간" },
-            { key: "week", label: "📆 주간" },
+            { key: "week", label: "🏆 세션(2주)" },
           ]}
           active={period}
           onChange={setPeriod}
@@ -423,77 +463,93 @@ export default function DailyReportPanel({ date }: { date: string }) {
         </>
       )}
 
-      {/* 📆 주간 — 전체 요약만 */}
+      {/* 🏆 세션(2주) — 모둠별 없이 전체 하이라이트만 */}
       {period === "week" && (
         <div className="mt-2 space-y-2">
-          <div className="rounded-btn bg-ink-50 p-3">
-            <p className="text-sm font-bold text-ink-800">📖 이번 주 독서 ({week}주차)</p>
-            <p className="mt-1 text-sm text-ink-700">
-              반 제출 <b>{weekBooks}권</b> · 목표 달성{" "}
-              <b>
-                {metCount}/{students.length}명
-              </b>
-            </p>
-            {notMet.length > 0 && (
-              <p className="mt-1 text-xs text-ink-500">미달: {notMet.map((s) => s.name).join(", ")}</p>
-            )}
-          </div>
-
-          {!weekRep ? (
+          {!rep ? (
             <p className="rounded-btn bg-ink-50 p-3 text-xs text-ink-400">불러오는 중…</p>
-          ) : weekRep.days === 0 ? (
-            <p className="rounded-btn bg-ink-50 p-3 text-xs text-ink-400">
-              이번 주 집계된 날이 아직 없어요. (매일 집계하면 여기에 주간 합산이 쌓여요)
-            </p>
           ) : (
-            <>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="rounded-btn bg-ink-50 p-2">
-                  <p className="text-[11px] text-ink-400">집계 일수</p>
-                  <p className="tnum text-lg font-extrabold text-ink-900">{weekRep.days}일</p>
+            (() => {
+              // ── 세션 지표 알고리즘 ──
+              // 독서 MVP: 세션 두 주(byWeek w1+w2) 권수 최다 (동점 모두)
+              const readCounts: Record<string, number> = {};
+              for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
+              const [readTop, readMax] = topOf(readCounts);
+              // 오늘의 모둠 최다: 기간 중 1위 횟수 최다 모둠
+              const [bestGroups, bestMax] = topOf(rep.rank1ByGroup);
+              // MVP 최다 / 칭찬왕(보낸) / 인기왕(받은) / 미션 최다 모둠
+              const [mvpTop, mvpMax] = topOf(rep.mvpCount);
+              const [giveTop, giveMax] = topOf(rep.givenCount);
+              const [recvTop, recvMax] = topOf(rep.receivedCount);
+              const [missionTop, missionMax] = topOf(rep.missionByGroup);
+              const names = (ids: number[]) => ids.map(nm).join(", ");
+              const Hi = ({ icon, label, value, sub }: { icon: string; label: string; value: string; sub?: string }) => (
+                <div className="rounded-btn bg-ink-50 p-3">
+                  <p className="text-[11px] text-ink-400">{icon} {label}</p>
+                  <p className="mt-0.5 text-sm font-extrabold text-ink-900">{value}</p>
+                  {sub && <p className="text-[11px] text-ink-400">{sub}</p>}
                 </div>
-                <div className="rounded-btn bg-ink-50 p-2">
-                  <p className="text-[11px] text-ink-400">💌 칭찬</p>
-                  <p className="tnum text-lg font-extrabold text-pink-600">{weekRep.compliments}</p>
-                </div>
-                <div className="rounded-btn bg-ink-50 p-2">
-                  <p className="text-[11px] text-ink-400">🙋 건의</p>
-                  <p className="tnum text-lg font-extrabold text-brand-strong">
-                    {weekRep.suggestions}
+              );
+              return (
+                <>
+                  <p className="text-xs text-ink-400">
+                    {sessionNo}기 세션 ({sessionStart} ~ {sessionEnd}
+                    {isBeta && " · 🧪 베타 기록 포함"}) — 집계 {rep.days}일
                   </p>
-                </div>
-                <div className="rounded-btn bg-ink-50 p-2">
-                  <p className="text-[11px] text-ink-400">🎯 미션</p>
-                  <p className="tnum text-lg font-extrabold text-warn">
-                    {weekRep.missionAchievements}회
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-btn bg-ink-50 p-3">
-                <p className="text-sm font-bold text-ink-800">🏅 주간 점수 (합산 상위)</p>
-                <ol className="mt-1 space-y-0.5 text-sm">
-                  {[...students]
-                    .map((s) => ({ name: s.name, total: weekRep.totals[String(s.id)] ?? 0 }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, 5)
-                    .map((r, i) => (
-                      <li key={r.name} className="flex justify-between">
-                        <span>
-                          {MEDAL[i] ?? `${i + 1}.`} {r.name}
-                        </span>
-                        <b className="tnum">{r.total}점</b>
-                      </li>
-                    ))}
-                </ol>
-              </div>
-            </>
+                  {rep.days === 0 && (
+                    <p className="rounded-btn bg-ink-50 p-3 text-xs text-ink-400">
+                      이 세션에 집계된 날이 아직 없어요. 매일 집계하면 여기에 쌓여요.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Hi icon="🐢" label="독서 MVP" value={readMax > 0 ? names(readTop) : "아직 없음"} sub={readMax > 0 ? `${readMax}권` : undefined} />
+                    <Hi icon="👑" label="오늘의 모둠 최다" value={bestMax > 0 ? bestGroups.map((g) => `${g}모둠`).join(", ") : "아직 없음"} sub={bestMax > 0 ? `1위 ${bestMax}회` : undefined} />
+                    <Hi icon="⭐" label="MVP 최다" value={mvpMax > 0 ? names(mvpTop) : "아직 없음"} sub={mvpMax > 0 ? `${mvpMax}회` : undefined} />
+                    <Hi icon="🎯" label="미션 최다 모둠" value={missionMax > 0 ? missionTop.map((g) => `${g}모둠`).join(", ") : "아직 없음"} sub={missionMax > 0 ? `${missionMax}일 달성` : undefined} />
+                    <Hi icon="💌" label="칭찬왕 (보내기)" value={giveMax > 0 ? names(giveTop) : "아직 없음"} sub={giveMax > 0 ? `${giveMax}회` : undefined} />
+                    <Hi icon="💖" label="칭찬 많이 받은 친구" value={recvMax > 0 ? names(recvTop) : "아직 없음"} sub={recvMax > 0 ? `${recvMax}회` : undefined} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-btn bg-ink-50 p-2">
+                      <p className="text-[11px] text-ink-400">💌 칭찬</p>
+                      <p className="tnum text-lg font-extrabold text-pink-600">{rep.compliments}</p>
+                    </div>
+                    <div className="rounded-btn bg-ink-50 p-2">
+                      <p className="text-[11px] text-ink-400">🙋 건의</p>
+                      <p className="tnum text-lg font-extrabold text-brand-strong">{rep.suggestions}</p>
+                    </div>
+                    <div className="rounded-btn bg-ink-50 p-2">
+                      <p className="text-[11px] text-ink-400">🎯 미션 달성</p>
+                      <p className="tnum text-lg font-extrabold text-warn">{rep.missionAchievements}회</p>
+                    </div>
+                  </div>
+                  <div className="rounded-btn bg-ink-50 p-3">
+                    <p className="text-sm font-bold text-ink-800">🏅 세션 점수 TOP 5</p>
+                    <ol className="mt-1 space-y-0.5 text-sm">
+                      {[...students]
+                        .map((s) => ({ name: s.name, total: rep.totals[String(s.id)] ?? 0 }))
+                        .sort((a, b) => b.total - a.total)
+                        .slice(0, 5)
+                        .map((r, i) => (
+                          <li key={r.name} className="flex justify-between">
+                            <span>
+                              {MEDAL[i] ?? `${i + 1}.`} {r.name}
+                            </span>
+                            <b className="tnum">{r.total}점</b>
+                          </li>
+                        ))}
+                    </ol>
+                  </div>
+                </>
+              );
+            })()
           )}
 
-          <Button onClick={() => void weeklyPrint()} disabled={printing} className="mt-1">
-            🖨️ 주간 리포트 인쇄 / PDF 저장
+          <Button onClick={() => void sessionPrint()} disabled={printing} className="mt-1">
+            🖨️ 세션 리포트 인쇄 / PDF 저장
           </Button>
           <p className="mt-1.5 text-xs text-ink-400">
-            주간 리포트는 전체 요약(독서·점수·칭찬·건의·바라는 점)만 담겨요.
+            세션 리포트는 전체 하이라이트(독서 MVP·최다 모둠·점수·칭찬·건의)만 담겨요.
           </p>
         </div>
       )}

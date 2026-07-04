@@ -28,6 +28,7 @@ import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
+import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -357,6 +358,9 @@ export default function TeacherPage() {
           <TeacherMemoWidget />
         </>
       )}
+
+      {/* 베타 테스트 초기화 — 개학 전 새 출발용 */}
+      <BetaResetPanel />
       </>)}
 
       {tTab === "approve" && (<>

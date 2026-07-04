@@ -120,7 +120,11 @@ export interface RangeReport {
   compliments: number;
   suggestions: number;
   missionAchievements: number; // 모둠 미션 달성 횟수(모둠×일)
+  missionByGroup: Record<string, number>; // groupId → 미션 달성 일수
   mvpCount: Record<string, number>; // studentId → MVP 횟수
+  rank1ByGroup: Record<string, number>; // groupId → 오늘의 모둠(1위) 횟수
+  givenCount: Record<string, number>; // studentId → 칭찬 보낸 횟수
+  receivedCount: Record<string, number>; // studentId → 칭찬 받은 횟수
   days: number;
 }
 export function useRangeReport(start: string, end: string, enabled: boolean) {
@@ -137,6 +141,10 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       );
       const totals: Record<string, number> = {};
       const mvpCount: Record<string, number> = {};
+      const rank1ByGroup: Record<string, number> = {};
+      const missionByGroup: Record<string, number> = {};
+      const givenCount: Record<string, number> = {};
+      const receivedCount: Record<string, number> = {};
       let compliments = 0,
         suggestions = 0,
         missionAchievements = 0,
@@ -149,17 +157,38 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
           if (row?.total != null) totals[String(s.id)] = (totals[String(s.id)] ?? 0) + row.total;
         }
         const meta = (data._meta ?? {}) as {
-          compliments?: unknown[];
+          compliments?: { from: number; to: number }[];
           peerSuggestions?: unknown[];
-          missionGroups?: unknown[];
+          missionGroups?: number[];
           mvpWinners?: number[];
+          ranks?: Record<string, number>;
         };
         compliments += (meta.compliments ?? []).length;
         suggestions += (meta.peerSuggestions ?? []).length;
-        missionAchievements += (meta.missionGroups ?? []).length;
+        for (const c of meta.compliments ?? []) {
+          givenCount[String(c.from)] = (givenCount[String(c.from)] ?? 0) + 1;
+          receivedCount[String(c.to)] = (receivedCount[String(c.to)] ?? 0) + 1;
+        }
+        for (const g of meta.missionGroups ?? []) {
+          missionAchievements++;
+          missionByGroup[String(g)] = (missionByGroup[String(g)] ?? 0) + 1;
+        }
+        for (const [g, r] of Object.entries(meta.ranks ?? {}))
+          if (r === 1) rank1ByGroup[g] = (rank1ByGroup[g] ?? 0) + 1;
         for (const w of meta.mvpWinners ?? []) mvpCount[String(w)] = (mvpCount[String(w)] ?? 0) + 1;
       });
-      return { totals, compliments, suggestions, missionAchievements, mvpCount, days };
+      return {
+        totals,
+        compliments,
+        suggestions,
+        missionAchievements,
+        missionByGroup,
+        mvpCount,
+        rank1ByGroup,
+        givenCount,
+        receivedCount,
+        days,
+      };
     },
     staleTime: 5 * 60 * 1000,
   });

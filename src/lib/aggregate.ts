@@ -186,7 +186,7 @@ export function periodOfWeek(week: number): number {
   return Math.floor((week - 1) / 2) + 1;
 }
 
-function dateRangeOfPeriod(period: number): [string, string] {
+export function dateRangeOfPeriod(period: number): [string, string] {
   const first = scheduleOfWeek(period * 2 - 1).weekStart;
   const lastWeek = Math.min(period * 2, TOTAL_WEEKS);
   const end = new Date(scheduleOfWeek(lastWeek).weekStart + "T00:00:00Z");
