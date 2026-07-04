@@ -114,8 +114,12 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   }
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-      <button onClick={onBack} className="text-sm text-ink-400 hover:text-ink-600">
+    // 상세는 읽기용 — 데스크탑에서 글줄이 너무 길어지지 않게 폭 제한
+    <section className="mx-auto w-full max-w-3xl rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
+      <button
+        onClick={onBack}
+        className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
+      >
         ← 목록으로
       </button>
 

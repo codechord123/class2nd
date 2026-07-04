@@ -54,17 +54,28 @@ function ReportBody({
   return (
     <>
       {(r.author || r.publisher) && (
-        <p className="text-[13px] text-ink-500">
-          {r.author}
-          {r.publisher && ` · ${r.publisher}`}
+        <p className="text-[13px] text-ink-600">
+          {r.author && (
+            <>
+              지은이 <b>{r.author}</b>
+            </>
+          )}
+          {r.author && r.publisher && " · "}
+          {r.publisher && (
+            <>
+              출판사 <b>{r.publisher}</b>
+            </>
+          )}
         </p>
       )}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-2.5 rounded-btn border-l-4 border-emerald-500 bg-emerald-50/70 p-3.5">
-          <p className="text-[13px] font-extrabold text-emerald-700">마음에 남는 문장</p>
-          <p className="mt-1.5 whitespace-pre-wrap text-base italic leading-7 text-ink-700 [overflow-wrap:anywhere]">
+        <div className="mt-2.5 overflow-hidden rounded-btn border border-emerald-200 border-l-4 border-l-emerald-500">
+          <p className="border-b border-emerald-100 bg-emerald-50/70 px-3.5 py-2 text-[13px] font-extrabold text-emerald-800">
+            마음에 남는 문장
+          </p>
+          <p className="whitespace-pre-wrap bg-emerald-50/30 px-3.5 py-3 text-base italic leading-7 text-ink-700 [overflow-wrap:anywhere]">
             “{r.quote}”
           </p>
         </div>
@@ -147,13 +158,15 @@ function dateLabel(ms: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-// 감상문 본문 섹션 — 에메랄드 왼줄 악센트 + 텍스트 라벨 (구형 PC 이모지 깨짐 회피)
+// 감상문 본문 섹션 — 라벨 띠 + 테두리 상자 (ink-50 배경만으론 흰 카드와 구별이 안 됐음)
 // [overflow-wrap:anywhere]: 띄어쓰기 없는 긴 글이 카드 밖으로 넘치지 않게
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-2.5 rounded-btn border-l-4 border-emerald-500 bg-ink-50 p-3.5">
-      <p className="text-[13px] font-extrabold text-emerald-700">{label}</p>
-      <p className="mt-1.5 whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
+    <div className="mt-2.5 overflow-hidden rounded-btn border border-ink-200 border-l-4 border-l-emerald-500">
+      <p className="border-b border-ink-100 bg-emerald-50/70 px-3.5 py-2 text-[13px] font-extrabold text-emerald-800">
+        {label}
+      </p>
+      <p className="whitespace-pre-wrap px-3.5 py-3 text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
         <Linkify text={text} />
       </p>
     </div>
@@ -238,14 +251,15 @@ export default function ReadingPage() {
   if (selectedId && selectedReport) {
     const r = selectedReport;
     return (
-      <div className="space-y-3">
+      // 상세는 읽기용 — 데스크탑에서 글줄이 너무 길어지지 않게 폭 제한
+      <div className="mx-auto w-full max-w-3xl space-y-3">
         <button
           onClick={() => setSelectedId(null)}
-          className="text-sm text-ink-400 hover:text-ink-600"
+          className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
         >
           ← 목록으로
         </button>
-        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
           <div className="border-b border-ink-100 pb-3">
             <div className="flex flex-wrap items-center gap-1.5">
               {(r.tags?.length ?? 0) > 0 ? (
