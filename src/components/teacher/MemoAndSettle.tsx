@@ -2,7 +2,7 @@
 // 선생님 메모장 + 격주 MVP 정산 + 교사 보너스 (교사 탭 위젯 모음).
 import { useEffect, useState } from "react";
 import { useTeacherMemo, useSaveTeacherMemo } from "@/lib/query/classMeta";
-import { settleBiweekly, setBonus, periodOfWeek, type BiweeklyResult } from "@/lib/aggregate";
+import { settleSession, setBonus, periodOfWeek, type SessionSettleResult } from "@/lib/aggregate";
 import { currentWeekNum } from "@/lib/schedule";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
@@ -63,19 +63,20 @@ export function BiweeklySettlePanel() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState(periodOfWeek(currentWeekNum()));
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<BiweeklyResult | null>(null);
+  const [result, setResult] = useState<SessionSettleResult | null>(null);
   const [msg, setMsg] = useState("");
 
   async function run() {
     setBusy(true);
     setMsg("");
     try {
-      const r = await settleBiweekly(period);
+      const r = await settleSession(period);
       setResult(r);
       if (r.alreadySettled) {
-        setMsg(`ℹ️ ${period}기간은 이미 정산되었습니다. (아래는 그때 결과)`);
+        setMsg(`ℹ️ ${period}기(2주)는 이미 정산됐어요. (아래는 그때 결과)`);
       } else {
-        setMsg(`✅ ${period}기간 정산 완료 — MVP ${r.mvps.length}명에게 실버 1개씩 지급!`);
+        const paid = new Set([...r.mvps, ...r.bestGroupMembers]).size;
+        setMsg(`✅ ${period}기 정산 완료 — ${paid}명에게 실버 지급!`);
         void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
       }
     } catch (e) {
@@ -85,12 +86,14 @@ export function BiweeklySettlePanel() {
     }
   }
 
+  const names = (ids: number[]) => ids.map((sid) => studentById.get(sid)?.name).join(", ");
+
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-      <h2 className="text-lg font-bold">🏆 격주 MVP 정산</h2>
+      <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
-        2주 누적 점수 상위 5명(동점 포함)에게 실버 1개 자동 지급. 격주 금요일에 실행하세요.
-        같은 기간을 다시 눌러도 이중 지급되지 않습니다.
+        세션 MVP(모둠원 MVP 투표 최다)와 최고 모둠(순위 1위 최다) 모둠원 전원에게 실버 1개씩
+        지급해요. <b>금요일 밤에 실행</b>하세요. 같은 기를 다시 눌러도 이중 지급되지 않아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
@@ -100,25 +103,33 @@ export function BiweeklySettlePanel() {
         >
           {Array.from({ length: 11 }, (_, i) => i + 1).map((p) => (
             <option key={p} value={p}>
-              {p}기간 ({p * 2 - 1}~{Math.min(p * 2, 21)}주)
+              {p}기 ({p * 2 - 1}~{Math.min(p * 2, 21)}주)
             </option>
           ))}
         </select>
         <button
           onClick={() => void run()}
           disabled={busy}
-          className="rounded-btn bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          className="press rounded-btn bg-warn px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
         >
-          {busy ? "정산 중…" : "MVP 정산 실행"}
+          {busy ? "정산 중…" : "세션 보상 지급"}
         </button>
       </div>
-      {result && result.mvps.length > 0 && (
-        <p className="mt-2 text-sm text-ink-600">
-          🏅 MVP:{" "}
-          {result.mvps
-            .map((sid) => `${studentById.get(sid)?.name} (${result.sums[sid] ?? 0}점)`)
-            .join(" · ")}
-        </p>
+      {result && (
+        <div className="mt-2 space-y-1 text-sm text-ink-600">
+          <p>⭐ 세션 MVP: {result.mvps.length ? <b>{names(result.mvps)}</b> : "없음"}</p>
+          <p>
+            🥇 최고 모둠:{" "}
+            {result.bestGroups.length ? (
+              <>
+                <b>{result.bestGroups.map((g) => `${g}모둠`).join(", ")}</b> —{" "}
+                {names(result.bestGroupMembers)}
+              </>
+            ) : (
+              "없음"
+            )}
+          </p>
+        </div>
       )}
       {msg && <p className="mt-2 text-sm">{msg}</p>}
     </section>

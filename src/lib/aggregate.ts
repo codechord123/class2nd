@@ -290,6 +290,112 @@ export async function settleBiweekly(period: number): Promise<BiweeklyResult> {
   return { period, range: [start, end], sums, mvps, alreadySettled: false };
 }
 
+// ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
+// · 세션 MVP(모둠원 MVP 투표 최다) → 실버 1개
+// · 세션 최고 모둠(순위 1위 최다) → 모둠원 전원 실버 1개
+// 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 금요일에 실행.
+export interface SessionSettleResult {
+  period: number;
+  range: [string, string];
+  mvps: number[];
+  bestGroups: number[];
+  bestGroupMembers: number[];
+  alreadySettled: boolean;
+}
+
+/** 최댓값(>0)을 가진 키들 (동점 모두, 전부 0이면 빈 배열) */
+function topKeys(counts: Record<number, number>): number[] {
+  const max = Math.max(0, ...Object.values(counts));
+  if (max <= 0) return [];
+  return Object.entries(counts)
+    .filter(([, v]) => v === max)
+    .map(([k]) => Number(k));
+}
+
+export async function settleSession(period: number): Promise<SessionSettleResult> {
+  const d = db();
+  const [start, end] = dateRangeOfPeriod(period);
+  const marker = doc(d, "biweeklyScores", `session-${period}`);
+
+  const existing = await getDoc(marker);
+  if (existing.exists() && existing.data().awardedAt) {
+    const data = existing.data();
+    return {
+      period,
+      range: [start, end],
+      mvps: data.mvps ?? [],
+      bestGroups: data.bestGroups ?? [],
+      bestGroupMembers: data.bestGroupMembers ?? [],
+      alreadySettled: true,
+    };
+  }
+
+  // 기간 내 일일 집계 문서(최대 14개)에서 MVP 득표·모둠 1위 횟수 집계
+  const snap = await getDocs(
+    query(
+      collection(d, "dailyScores"),
+      where(documentId(), ">=", start),
+      where(documentId(), "<=", end)
+    )
+  );
+  const mvpCount: Record<number, number> = {};
+  const rank1Count: Record<number, number> = {};
+  snap.forEach((day) => {
+    const meta = (day.data()._meta ?? {}) as {
+      mvpWinners?: number[];
+      ranks?: Record<string, number>;
+    };
+    for (const w of meta.mvpWinners ?? []) mvpCount[w] = (mvpCount[w] ?? 0) + 1;
+    for (const [g, r] of Object.entries(meta.ranks ?? {}))
+      if (r === 1) rank1Count[Number(g)] = (rank1Count[Number(g)] ?? 0) + 1;
+  });
+
+  const mvps = topKeys(mvpCount);
+  const bestGroups = topKeys(rank1Count);
+
+  // 최고 모둠 전원 (세션 내 모둠 구성은 고정 — 세션 첫 주 자리표 사용)
+  const schedule = scheduleOfWeek(period * 2 - 1);
+  const bestGroupMembers = bestGroups.flatMap((gid) => {
+    const g = schedule.groups.find((x) => x.groupId === gid);
+    return g ? [g.chair, ...g.members.map((m) => m.studentId)] : [];
+  });
+
+  // 학생별 지급 개수 (MVP 1개 + 최고모둠 1개, 둘 다면 2개)
+  const grant: Record<number, number> = {};
+  for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
+
+  const entries = Object.entries(grant);
+  for (const [sid, n] of entries) {
+    await addDoc(collection(d, "coinTxns"), {
+      studentId: Number(sid),
+      amount: n,
+      item: `세션 보상 (${period}기)`,
+      type: "mvp",
+      status: "approved",
+      createdAt: Date.now(),
+    });
+  }
+  if (entries.length) {
+    await setDoc(
+      doc(d, "coinTxns", "0_balances"),
+      Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
+      { merge: true }
+    );
+  }
+  await setDoc(marker, {
+    mvps,
+    bestGroups,
+    bestGroupMembers,
+    mvpCount,
+    rank1Count,
+    range: [start, end],
+    awardedAt: Date.now(),
+  });
+
+  return { period, range: [start, end], mvps, bestGroups, bestGroupMembers, alreadySettled: false };
+}
+
 // ── 교사 보너스 점수 (일일 집계 행 보정 + 누적 동기화) ───────────
 export async function setBonus(date: string, studentId: number, bonus: number): Promise<void> {
   const d = db();
