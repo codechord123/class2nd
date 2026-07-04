@@ -59,7 +59,7 @@ function ReportBody({
         <div className="mt-4">
           <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남는 문장 (인용)</p>
           <div className="rounded-btn border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-            <p className="whitespace-pre-wrap text-[17px] italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
+            <p className="whitespace-pre-wrap text-base italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
               ❝ {r.quote}
             </p>
           </div>
@@ -156,7 +156,7 @@ function ReportSection({ label, text }: { label: string; text: string }) {
     <div className="mt-4 first:mt-0">
       <p className="mb-1.5 text-[13px] font-bold text-ink-700">{label}</p>
       <div className="rounded-btn border border-ink-200 bg-ink-50/40 px-3.5 py-3">
-        <p className="whitespace-pre-wrap text-[17px] leading-8 text-ink-800 [overflow-wrap:anywhere]">
+        <p className="whitespace-pre-wrap text-base leading-8 text-ink-800 [overflow-wrap:anywhere]">
           <Linkify text={text} />
         </p>
       </div>
@@ -284,10 +284,11 @@ export default function ReadingPage() {
         </button>
         {/* 책 정보 카드 — 독서 앱 문법: 표지가 왼쪽 앵커, 제목·저자가 그 옆 */}
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
-          <div className="flex gap-4">
+          {/* lg(2단)에서는 사이드 카드답게 표지를 위로 세로 배치 */}
+          <div className="flex gap-4 lg:flex-col lg:items-center lg:gap-3 lg:text-center">
             <BookCover r={r} size="lg" />
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 lg:justify-center">
                 {(r.tags?.length ?? 0) > 0 ? (
                   r.tags!.map((t) => (
                     <span
@@ -326,7 +327,7 @@ export default function ReadingPage() {
                   )}
                 </p>
               )}
-              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500 lg:justify-center">
                 <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                   {studentById.get(r.studentId)?.name}
                 </span>

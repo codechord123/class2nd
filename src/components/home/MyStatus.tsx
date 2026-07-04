@@ -111,10 +111,15 @@ export default function MyStatus() {
           <span className="text-sm font-bold text-ink-900">
             {allDone ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
           </span>
-          <span className="flex flex-wrap gap-1.5 text-xs">
+          <span className="flex flex-wrap gap-1">
             {todos.map((t) => (
-              <span key={t.label} className={t.done ? "text-success" : "text-ink-400"}>
-                {t.done ? "✅" : "○"} {t.label}
+              <span
+                key={t.label}
+                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                  t.done ? "bg-success-weak text-success" : "bg-ink-100 text-ink-500"
+                }`}
+              >
+                {t.done ? "✓" : "○"} {t.label}
               </span>
             ))}
           </span>
