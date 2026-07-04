@@ -280,13 +280,13 @@ export default function ShopPage() {
                 min={1}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+                className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-[15px] focus:border-brand focus:outline-none"
               />
               <input
                 value={item}
                 onChange={(e) => setItem(e.target.value)}
                 placeholder="무엇에 쓸까요? (예: 간식 교환권 · 자리는 자리 탭에서!)"
-                className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+                className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-[15px] focus:border-brand focus:outline-none"
               />
               <button
                 onClick={() => void submit()}
@@ -303,17 +303,17 @@ export default function ShopPage() {
       {/* 내 신청 내역 — 항상 노출 (승인 대기 확인용) */}
       {tab === "shop" && role === "student" && studentId && myRequests.length > 0 && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-          <p className="text-xs font-bold text-ink-500">📜 내 신청 내역</p>
+          <p className="text-[15px] font-bold text-ink-800">📜 내 신청 내역</p>
           <ul className="mt-2 space-y-1.5 text-sm">
             {myRequests.slice(0, 8).map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
+                className="flex items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3 py-2.5"
               >
                 <span className="min-w-0 truncate">
-                  <b className="text-ink-800">{r.item}</b>{" "}
-                  <span className="text-xs text-ink-400">
-                    {r.wallet === "s2" ? "2학기" : "이월"} {r.amount}개
+                  <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
+                  <span className="text-xs text-ink-500">
+                    · {r.wallet === "s2" ? "2학기" : "이월"} 실버 {r.amount}개
                   </span>
                 </span>
                 <span
