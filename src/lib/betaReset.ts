@@ -5,6 +5,7 @@
 //       건의·투표·세션 정산·오늘의모둠·비번 재설정 요청.
 import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { todayKST } from "@/lib/date";
 
 const SIMPLE_COLLECTIONS = [
   "dailyScores", // _cumulative 포함
@@ -20,9 +21,11 @@ const SIMPLE_COLLECTIONS = [
   "resetRequests",
 ];
 
-/** 베타 기간 날짜 목록 (evaluations/{date}/entries 하위컬렉션 열거용) */
+/** 베타 기간 날짜 목록 (evaluations/{date}/entries 하위컬렉션 열거용).
+ *  종료일은 반드시 KST 오늘 — UTC(toISOString)를 쓰면 한국 시간과 날짜가 어긋나는
+ *  시간대(KST 00~09시 등)에 '오늘' 평가가 안 지워진다 (개학 리허설에서 발견된 버그). */
 function betaDates(from = "2026-06-20", to?: string): string[] {
-  const end = to ?? new Date().toISOString().slice(0, 10);
+  const end = to ?? todayKST();
   const dates: string[] = [];
   const d = new Date(from + "T00:00:00Z");
   while (d.toISOString().slice(0, 10) <= end) {
