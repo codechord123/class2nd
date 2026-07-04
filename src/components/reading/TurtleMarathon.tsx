@@ -16,12 +16,18 @@ export default function TurtleMarathon() {
   const s1Progress = Math.min((s1TotalBooks / goal) * 100, 100);
 
   return (
-    <div className="rounded-card border border-emerald-200 bg-emerald-50/70 p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-1">
-        <h3 className="text-sm font-extrabold text-emerald-800">🐢 거북이 독서 마라톤</h3>
-        <p className="text-xs font-bold text-emerald-600">
-          목표 {goal.toLocaleString()}권 중 <b>{total.toLocaleString()}권</b> (
-          {Math.floor(progress)}%)
+    <div className="rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-extrabold text-emerald-900">🐢 거북이 독서 마라톤</h3>
+        {/* 성취 숫자가 이 블록의 주인공 — 크게, 진하게 */}
+        <p className="flex items-baseline gap-1.5">
+          <b className="tnum text-xl font-extrabold text-emerald-700">
+            {total.toLocaleString()}
+          </b>
+          <span className="text-sm font-bold text-emerald-600">/ {goal.toLocaleString()}권</span>
+          <span className="tnum rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-extrabold text-white">
+            {Math.floor(progress)}%
+          </span>
         </p>
       </div>
       <div className="relative mt-2 h-8 w-full overflow-hidden rounded-full border-2 border-emerald-300 bg-emerald-100 shadow-inner">
@@ -45,8 +51,9 @@ export default function TurtleMarathon() {
           🐢
         </div>
       </div>
-      <p className="mt-1 text-right text-[10px] text-emerald-600">
-        1학기 {s1TotalBooks}권 + 2학기 {s2Total}권 — 이어서 달려요!
+      <p className="mt-1.5 text-right text-[11px] font-medium text-emerald-700">
+        1학기 <b className="tnum">{s1TotalBooks}권</b> + 2학기 <b className="tnum">{s2Total}권</b>{" "}
+        — 이어서 달려요!
       </p>
     </div>
   );

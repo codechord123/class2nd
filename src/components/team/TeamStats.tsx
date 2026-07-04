@@ -29,19 +29,19 @@ function TopList({
     .sort((a, b) => b.n - a.n)
     .slice(0, 5);
   return (
-    <div className="rounded-btn bg-ink-50 p-3">
-      <p className="text-xs font-bold text-ink-600">{title}</p>
-      <p className="text-[10px] text-ink-400">{desc}</p>
+    <div className="rounded-btn border border-ink-200 bg-ink-50/60 p-3">
+      <p className="text-[13px] font-extrabold text-ink-800">{title}</p>
+      <p className="text-[11px] text-ink-500">{desc}</p>
       {ranked.length === 0 ? (
         <p className="mt-1 text-xs text-ink-400">아직 기록이 없어요</p>
       ) : (
-        <ol className="mt-1 space-y-0.5 text-sm">
+        <ol className="mt-1.5 space-y-1 text-sm">
           {ranked.map((x, i) => (
-            <li key={x.name} className="flex justify-between">
+            <li key={x.name} className="flex justify-between text-ink-800">
               <span>
                 {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`} {x.name}
               </span>
-              <b>
+              <b className="tnum">
                 {x.n}
                 {unit}
               </b>
@@ -82,7 +82,7 @@ export default function TeamStats({
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-      <h3 className="font-bold">📈 우리 반 통계</h3>
+      <h3 className="text-lg font-bold">📈 우리 반 통계</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <TopList
           title="🏅 누적 점수 TOP 5"

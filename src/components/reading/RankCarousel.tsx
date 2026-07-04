@@ -23,14 +23,16 @@ export default function RankCarousel({ totals }: { totals: Record<string, number
   const Item = ({ s, i, dup }: { s: (typeof ranked)[number]; i: number; dup?: boolean }) => (
     <div
       aria-hidden={dup}
-      className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
-        i < 3 ? "bg-amber-100 font-bold text-amber-800" : "bg-white/70 text-ink-600"
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${
+        i < 3
+          ? "border-amber-300 bg-amber-100 font-bold text-amber-900"
+          : "border-ink-200 bg-white font-medium text-ink-700"
       }`}
     >
       <span>{medal(i)}</span>
       <span>{s.name}</span>
-      <span className="text-xs opacity-70">
-        {s.count}권{s.s2 > 0 && <span className="opacity-60"> (+{s.s2})</span>}
+      <span className="tnum text-xs text-ink-500">
+        {s.count}권{s.s2 > 0 && <span> (+{s.s2})</span>}
       </span>
     </div>
   );
@@ -47,8 +49,8 @@ export default function RankCarousel({ totals }: { totals: Record<string, number
           ))}
         </div>
       </div>
-      <p className="mt-1 text-[10px] text-ink-400">
-        1·2학기 합산 TOP 10 · (+n)은 2학기에 읽은 권수
+      <p className="mt-1 text-[11px] text-ink-500">
+        1·2학기 합산 TOP 10 · (+n)은 2학기에 읽은 권수 · 마우스를 올리면 멈춰요
       </p>
     </div>
   );

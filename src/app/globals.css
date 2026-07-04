@@ -140,3 +140,9 @@ h1, h2, h3 {
 .marquee:hover {
   animation-play-state: paused;
 }
+/* 움직임 최소화 설정 사용자(어지럼 민감)는 정지 상태로 */
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    animation: none;
+  }
+}
