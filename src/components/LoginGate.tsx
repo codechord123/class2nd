@@ -35,19 +35,49 @@ export default function LoginGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 세션은 살아있는데 Firebase 로그인이 풀린 경우 복구
+  const [connErr, setConnErr] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
     if (!authReady || fbUser) return;
     if (role === "student") {
-      void signInAnonymously(firebaseAuth()).catch(() => logout());
+      setConnErr(false);
+      void signInAnonymously(firebaseAuth()).catch(() => setConnErr(true));
     } else if (role === "teacher") {
       logout(); // 교사는 비밀번호 재입력 필요
     }
-  }, [authReady, fbUser, role, logout]);
+  }, [authReady, fbUser, role, logout, retryKey]);
+
+  // 8초 넘게 연결이 안 되면 무한 대기 대신 재시도 안내
+  useEffect(() => {
+    if (!role || (authReady && fbUser)) return;
+    const t = setTimeout(() => setConnErr(true), 8000);
+    return () => clearTimeout(t);
+  }, [role, authReady, fbUser, retryKey]);
 
   if (!mounted) return null;
   if (role) {
     if (!authReady || !fbUser) {
-      return (
+      return connErr ? (
+        <div className="py-16 text-center">
+          <p className="text-sm font-medium text-ink-500">
+            📡 인터넷 연결이 불안정해요. 잠시 후 다시 시도해 주세요.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button
+              onClick={() => setRetryKey((k) => k + 1)}
+              className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+            >
+              🔄 다시 연결
+            </button>
+            <button
+              onClick={logout}
+              className="press rounded-btn border border-ink-200 bg-white px-4 py-2 text-sm font-bold text-ink-600"
+            >
+              처음으로
+            </button>
+          </div>
+        </div>
+      ) : (
         <p className="py-16 text-center text-sm font-medium text-ink-400">🔐 연결 확인 중…</p>
       );
     }

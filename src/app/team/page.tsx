@@ -220,6 +220,12 @@ export default function TeamPage() {
             {(myRow.mission ?? 0) > 0 && (
               <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">🎯 미션 +{myRow.mission}</span>
             )}
+            {(myRow.mvp ?? 0) > 0 && (
+              <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">⭐ MVP +{myRow.mvp}</span>
+            )}
+            {(myRow.read ?? 0) > 0 && (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">📖 독서 +{myRow.read}</span>
+            )}
           </div>
         ) : (
           <p className="mt-2 text-center text-xs text-ink-400">아직 오늘 점수는 집계 전이에요</p>

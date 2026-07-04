@@ -33,12 +33,23 @@ export async function aggregateDate(
 ): Promise<AggregateResult> {
   const d = db();
 
+  // 그날 감상문 제출자 (독서 자동 +1점) — createdAt 하루 범위 쿼리 (교사 1회)
+  const dayStartMs = new Date(date + "T00:00:00+09:00").getTime();
+  const dayEndMs = dayStartMs + 86400000;
+
   // 1) 원시 평가 읽기 (교사 1회 — 최대 25문서)
-  const [evalSnap, prevSnap, cumSnap, bestSnap] = await Promise.all([
+  const [evalSnap, prevSnap, cumSnap, bestSnap, reportSnap] = await Promise.all([
     getDocs(collection(d, "evaluations", date, "entries")),
     getDoc(doc(d, "dailyScores", date)), // 재집계 시 이전분 차감용
     getDoc(doc(d, "dailyScores", "_cumulative")),
     getDoc(doc(d, "classData", "bestGroups")), // 모둠 간 평가 폐지 → 교사 '오늘의 모둠'이 순위 결정
+    getDocs(
+      query(
+        collection(d, "readingReports"),
+        where("createdAt", ">=", dayStartMs),
+        where("createdAt", "<", dayEndMs)
+      )
+    ),
   ]);
 
   // 2) 모둠 내 점수: 받은 평가 합 (+ MVP 득표 집계)
@@ -97,6 +108,13 @@ export async function aggregateDate(
     for (const m of g.members) groupOfStudent[m.studentId] = g.groupId;
   }
 
+  // 4-0) 그날 감상문 제출자 집합 (독서 자동 +1점)
+  const readToday = new Set<number>();
+  reportSnap.forEach((r) => {
+    const sid = r.data().studentId as number | undefined;
+    if (typeof sid === "number") readToday.add(sid);
+  });
+
   // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
   //      (서로 칭찬하기를 매일 미션으로 — 협력하면 다 같이 이득)
   const complimentedIds = new Set(compliments.map((c) => c.to));
@@ -107,7 +125,17 @@ export async function aggregateDate(
   }
   const missionSet = new Set(missionGroups);
 
+  // 4-2) 모둠별 MVP: 각 모둠에서 최다 득표(1표 이상, 동점 모두) — MVP는 +1점
+  const mvpWinners: number[] = [];
+  for (const g of schedule.groups) {
+    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    const max = Math.max(0, ...ids.map((id) => mvpVotes[id] ?? 0));
+    if (max > 0) mvpWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
+  }
+  const mvpSet = new Set(mvpWinners);
+
   // 5) 학생별 행 구성 (기존 보너스는 유지)
+  //    total = 정량평가 + 오늘의모둠 순위 + 칭찬미션 + MVP + 독서 + 교사보너스
   const prevRows = (prevSnap.exists() ? prevSnap.data() : {}) as Record<
     string,
     DailyScoreRow | unknown
@@ -121,15 +149,17 @@ export async function aggregateDate(
     const gr = myRank ? rankPoint(myRank) : 0;
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
-    rows[s.id] = { peer: p, groupRank: gr, bonus, mission, total: p + gr + bonus + mission };
-  }
-
-  // 5-1) 모둠별 MVP: 각 모둠에서 최다 득표(1표 이상, 동점 모두)
-  const mvpWinners: number[] = [];
-  for (const g of schedule.groups) {
-    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
-    const max = Math.max(0, ...ids.map((id) => mvpVotes[id] ?? 0));
-    if (max > 0) mvpWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
+    const mvp = mvpSet.has(s.id) ? 1 : 0;
+    const read = readToday.has(s.id) ? 1 : 0;
+    rows[s.id] = {
+      peer: p,
+      groupRank: gr,
+      bonus,
+      mission,
+      mvp,
+      read,
+      total: p + gr + bonus + mission + mvp + read,
+    };
   }
 
   // 6) 저장: 그날 문서 1개 + 누적 문서 1개 (이전 집계분 빼고 더해 멱등)
@@ -195,9 +225,11 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 }
 
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
-// · 세션 MVP(모둠원 MVP 투표 최다) → 실버 1개
-// · 세션 최고 모둠(순위 1위 최다) → 모둠원 전원 실버 1개
-// · 성실 독서상(세션 두 주 모두 주간 목표 달성) → 실버 1개  ← 순위와 무관한 바닥층 보상
+// · 최다 MVP(투표 최다) → 실버 1개
+// · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
+// · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
+// · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
+// · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 실버 (1주=1, 2주 연속=2, 3주+=3 상한)
 // 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 금요일에 실행.
 export interface SessionSettleResult {
   period: number;
@@ -205,9 +237,14 @@ export interface SessionSettleResult {
   mvps: number[];
   bestGroups: number[];
   bestGroupMembers: number[];
-  readingAwards: number[];
+  readingTop: number[]; // 최다 독서
+  missionTopGroups: number[]; // 최다 미션 모둠
+  missionTopMembers: number[];
+  streakSilver: Record<string, number>; // studentId → 스트릭 지급 실버
   alreadySettled: boolean;
 }
+
+const STREAK_CAP = 3; // 스트릭 보상 상한 (주당 최대 실버)
 
 /** 최댓값(>0)을 가진 키들 (동점 모두, 전부 0이면 빈 배열) */
 function topKeys(counts: Record<number, number>): number[] {
@@ -232,7 +269,10 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       mvps: data.mvps ?? [],
       bestGroups: data.bestGroups ?? [],
       bestGroupMembers: data.bestGroupMembers ?? [],
-      readingAwards: data.readingAwards ?? [],
+      readingTop: data.readingTop ?? [],
+      missionTopGroups: data.missionTopGroups ?? [],
+      missionTopMembers: data.missionTopMembers ?? [],
+      streakSilver: data.streakSilver ?? {},
       alreadySettled: true,
     };
   }
@@ -251,51 +291,77 @@ export async function settleSession(period: number): Promise<SessionSettleResult
   ]);
   const mvpCount: Record<number, number> = {};
   const rank1Count: Record<number, number> = {};
+  const missionCount: Record<number, number> = {};
   snap.forEach((day) => {
     const meta = (day.data()._meta ?? {}) as {
       mvpWinners?: number[];
       ranks?: Record<string, number>;
+      missionGroups?: number[];
     };
     for (const w of meta.mvpWinners ?? []) mvpCount[w] = (mvpCount[w] ?? 0) + 1;
     for (const [g, r] of Object.entries(meta.ranks ?? {}))
       if (r === 1) rank1Count[Number(g)] = (rank1Count[Number(g)] ?? 0) + 1;
+    for (const g of meta.missionGroups ?? []) missionCount[g] = (missionCount[g] ?? 0) + 1;
   });
 
   const mvps = topKeys(mvpCount);
   const bestGroups = topKeys(rank1Count);
+  const missionTopGroups = topKeys(missionCount);
 
-  // 최고 모둠 전원 (세션 내 모둠 구성은 고정 — 세션 첫 주 자리표 사용)
+  // 모둠원 전원 명단 (세션 내 모둠 구성은 고정 — 세션 첫 주 자리표 사용)
   const schedule = scheduleOfWeek(period * 2 - 1);
-  const bestGroupMembers = bestGroups.flatMap((gid) => {
+  const membersOf = (gid: number) => {
     const g = schedule.groups.find((x) => x.groupId === gid);
     return g ? [g.chair, ...g.members.map((m) => m.studentId)] : [];
-  });
+  };
+  const bestGroupMembers = bestGroups.flatMap(membersOf);
+  const missionTopMembers = missionTopGroups.flatMap(membersOf);
 
-  // 성실 독서상: 세션 두 주 모두 주간 목표 달성 (순위·투표와 무관한 바닥층 보상 —
-  // MVP가 못 되고 모둠이 못 이겨도 성실하면 실버를 벌 수 있게)
+  // 독서: 최다 독서(두 주 합산 최다) + 스트릭 보상(주간 목표 달성 주마다 연속 주수만큼)
   const quota =
     (settingsSnap.exists() ? (settingsSnap.data().weeklyReadingQuota as number) : undefined) ?? 3;
   const byWeek = (statsSnap.exists()
     ? ((statsSnap.data().byWeek as Record<string, Record<string, number>>) ?? {})
     : {}) as Record<string, Record<string, number>>;
-  const w1 = String(period * 2 - 1);
-  const w2 = String(Math.min(period * 2, TOTAL_WEEKS));
-  const readingAwards =
-    quota > 0
-      ? students
-          .filter(
-            (s) =>
-              (byWeek[w1]?.[String(s.id)] ?? 0) >= quota &&
-              (byWeek[w2]?.[String(s.id)] ?? 0) >= quota
-          )
-          .map((s) => s.id)
-      : [];
+  const w1 = period * 2 - 1;
+  const w2 = Math.min(period * 2, TOTAL_WEEKS);
 
-  // 학생별 지급 개수 (MVP 1 + 최고모둠 1 + 성실독서 1 — 중복 수상 시 합산)
+  const readSum: Record<number, number> = {};
+  for (const s of students)
+    readSum[s.id] =
+      (byWeek[String(w1)]?.[String(s.id)] ?? 0) +
+      (w2 !== w1 ? (byWeek[String(w2)]?.[String(s.id)] ?? 0) : 0);
+  const readingTop = topKeys(readSum);
+
+  // 스트릭: 주 w까지의 연속 목표 달성 주수 (1주=1, 2주 연속=2, 상한 STREAK_CAP)
+  const streakAt = (sid: number, w: number): number => {
+    let n = 0;
+    for (let k = w; k >= 1; k--) {
+      if ((byWeek[String(k)]?.[String(sid)] ?? 0) >= quota) n++;
+      else break;
+    }
+    return n;
+  };
+  const streakSilver: Record<string, number> = {};
+  if (quota > 0) {
+    for (const s of students) {
+      let award = 0;
+      for (const w of w2 !== w1 ? [w1, w2] : [w1]) {
+        const st = streakAt(s.id, w);
+        if (st > 0) award += Math.min(st, STREAK_CAP);
+      }
+      if (award > 0) streakSilver[String(s.id)] = award;
+    }
+  }
+
+  // 학생별 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1 + 스트릭 n)
   const grant: Record<number, number> = {};
   for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
-  for (const sid of readingAwards) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of readingTop) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of missionTopMembers) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const [sid, n] of Object.entries(streakSilver))
+    grant[Number(sid)] = (grant[Number(sid)] ?? 0) + n;
 
   const entries = Object.entries(grant);
   // 지급 대상이 없으면(집계 전이거나 수상자 미정) 마커를 남기지 않아 재실행 가능하게 둔다
@@ -306,7 +372,10 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       mvps: [],
       bestGroups: [],
       bestGroupMembers: [],
-      readingAwards: [],
+      readingTop: [],
+      missionTopGroups: [],
+      missionTopMembers: [],
+      streakSilver: {},
       alreadySettled: false,
     };
   }
@@ -329,7 +398,10 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     mvps,
     bestGroups,
     bestGroupMembers,
-    readingAwards,
+    readingTop,
+    missionTopGroups,
+    missionTopMembers,
+    streakSilver,
     mvpCount,
     rank1Count,
     range: [start, end],
@@ -342,7 +414,10 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     mvps,
     bestGroups,
     bestGroupMembers,
-    readingAwards,
+    readingTop,
+    missionTopGroups,
+    missionTopMembers,
+    streakSilver,
     alreadySettled: false,
   };
 }
@@ -364,7 +439,13 @@ export async function setBonus(date: string, studentId: number, bonus: number): 
   const newRow: DailyScoreRow = {
     ...prevRow,
     bonus,
-    total: prevRow.peer + prevRow.groupRank + bonus + (prevRow.mission ?? 0),
+    total:
+      prevRow.peer +
+      prevRow.groupRank +
+      bonus +
+      (prevRow.mission ?? 0) +
+      (prevRow.mvp ?? 0) +
+      (prevRow.read ?? 0),
   };
   const cum = cumSnap.exists() ? cumSnap.data() : {};
   const prevCum = typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;

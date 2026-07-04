@@ -40,6 +40,8 @@ export interface DailyScoreRow {
   groupRank: number; // 오늘의 모둠 순위 → 개인 점수
   bonus: number; // 교사 보너스
   mission?: number; // 모둠 칭찬 미션(전원 칭찬받기) 달성 시 +1
+  mvp?: number; // 오늘의 모둠 MVP 선정 시 +1
+  read?: number; // 그날 감상문 제출 시 +1 (독서 자동 가점)
   total: number;
 }
 export type DailyScores = Record<number, DailyScoreRow>; // studentId → row
