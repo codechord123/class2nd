@@ -63,7 +63,8 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const setStatus = useSetAgendaStatus();
   const enactLaw = useEnactLaw();
   const { toast, confirm } = useFeedback();
-  const isMine = role === "student" && sug.studentId === studentId;
+  const isMine =
+    role === "teacher" ? sug.studentId === "teacher" : sug.studentId === studentId;
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -148,7 +149,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             </span>
             <span>· 💬 {comments.length}</span>
           </span>
-          {isMine && (
+          {isMine && role === "student" && (
             <span className="flex gap-2">
               <button
                 onClick={() => {
@@ -175,6 +176,18 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           )}
           {role === "teacher" && (
             <span className="flex gap-2">
+              {isMine && (
+                <button
+                  onClick={() => {
+                    setEditTitle(sug.title ?? "");
+                    setEditContent(sug.content);
+                    setEditing(true);
+                  }}
+                  className="text-brand hover:opacity-80"
+                >
+                  ✏️ 수정
+                </button>
+              )}
               <button
                 onClick={async () => {
                   try {
@@ -448,7 +461,7 @@ export default function BoardPage() {
   const [page, setPage] = useState(1);
   const { data: posts } = useSuggestions(page * pageSize + 1);
   const { data: announcements } = useAnnouncements();
-  const post = usePostSuggestion(studentId);
+  const post = usePostSuggestion(role === "teacher" ? "teacher" : studentId);
   const { toast } = useFeedback();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -456,6 +469,7 @@ export default function BoardPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [anon, setAnon] = useState(false);
+  const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -465,9 +479,10 @@ export default function BoardPage() {
   async function submit() {
     setBusy(true);
     try {
-      await post(title, content, anon);
+      await post(title, content, role === "teacher" ? false : anon, role === "teacher" && announce);
       setTitle("");
       setContent("");
+      setAnnounce(false);
       setWriting(false);
       toast("✅ 등록되었어요!");
     } catch (e) {
@@ -552,12 +567,12 @@ export default function BoardPage() {
               placeholder="검색"
               className="w-32 rounded-btn border border-ink-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none"
             />
-            {role === "student" && (
+            {role != null && (
               <button
                 onClick={() => setWriting((v) => !v)}
                 className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
               >
-                {writing ? "닫기" : "✏️ 안건 올리기"}
+                {writing ? "닫기" : role === "teacher" ? "✏️ 글 올리기" : "✏️ 안건 올리기"}
               </button>
             )}
           </div>
@@ -579,10 +594,21 @@ export default function BoardPage() {
               className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
             />
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-sm text-ink-500">
-                <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
-                익명으로
-              </label>
+              {role === "student" ? (
+                <label className="flex items-center gap-1.5 text-sm text-ink-500">
+                  <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
+                  익명으로
+                </label>
+              ) : (
+                <label className="flex items-center gap-1.5 text-sm text-ink-500">
+                  <input
+                    type="checkbox"
+                    checked={announce}
+                    onChange={(e) => setAnnounce(e.target.checked)}
+                  />
+                  📌 공지로 고정
+                </label>
+              )}
               <button
                 onClick={() => void submit()}
                 disabled={busy}

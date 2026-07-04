@@ -21,7 +21,8 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-ink-50 text-ink-800">
+      {/* 배경은 ink-100(옅은 회색) — 흰 카드가 배경과 분리되어 블록 경계가 또렷해진다 */}
+      <body className="min-h-full flex flex-col bg-ink-100 text-ink-800">
         <Providers>
           <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/80 backdrop-blur-md">
             <BetaBanner />
@@ -41,7 +42,7 @@ export default function RootLayout({
               <TabNav />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 lg:max-w-5xl">
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4 lg:max-w-5xl">
             <LoginGate>{children}</LoginGate>
           </main>
         </Providers>

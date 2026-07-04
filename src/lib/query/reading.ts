@@ -155,20 +155,29 @@ export function useDeleteReportComment() {
   };
 }
 
-/** 정식 감상문 삭제 — 권수 1권 차감 (본인/교사) */
+/** 정식 감상문 삭제 — 권수 1권 차감 (본인/교사).
+ *  트랜잭션: 서버 값을 읽고 0 밑으로 내려가지 않게 클램프 (증감 꼬임으로 음수 권수 방지) */
 export function useDeleteReport() {
   const qc = useQueryClient();
   return async (report: ReadingReport2) => {
     const d = db();
-    await deleteDoc(doc(d, "readingReports", report.id));
-    await setDoc(
-      doc(d, "readingStats", "main"),
-      {
-        total: { [report.studentId]: increment(-1) },
-        byWeek: { [report.week]: { [report.studentId]: increment(-1) } },
-      },
-      { merge: true }
-    );
+    const { runTransaction } = await import("firebase/firestore");
+    const key = String(report.studentId);
+    const week = String(report.week);
+    await runTransaction(d, async (tx) => {
+      const statsRef = doc(d, "readingStats", "main");
+      const snap = await tx.get(statsRef);
+      const data = (snap.exists() ? snap.data() : {}) as ReadingStats;
+      tx.delete(doc(d, "readingReports", report.id));
+      tx.set(
+        statsRef,
+        {
+          total: { [key]: Math.max((data.total?.[key] ?? 0) - 1, 0) },
+          byWeek: { [week]: { [key]: Math.max((data.byWeek?.[week]?.[key] ?? 0) - 1, 0) } },
+        },
+        { merge: true }
+      );
+    });
     void qc.invalidateQueries({ queryKey: STATS_KEY });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
   };

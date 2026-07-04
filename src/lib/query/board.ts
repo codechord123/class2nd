@@ -35,7 +35,7 @@ export const AGENDA_STATUS: AgendaStatus[] = ["논의중", "채택", "보류"];
 
 export interface Suggestion {
   id: string;
-  studentId: number;
+  studentId: number | "teacher"; // 교사가 쓴 글은 "teacher"
   title?: string; // 커뮤니티 게시판형 제목 (구버전 글은 없음)
   content: string;
   isAnonymous: boolean;
@@ -92,9 +92,14 @@ export function useAnnouncements() {
   });
 }
 
-export function usePostSuggestion(myId: number | null) {
+export function usePostSuggestion(myId: number | "teacher" | null) {
   const qc = useQueryClient();
-  return async (title: string, content: string, isAnonymous: boolean) => {
+  return async (
+    title: string,
+    content: string,
+    isAnonymous: boolean,
+    isAnnouncement = false // 교사 전용 — 쓰면서 바로 공지로 고정
+  ) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!title.trim()) throw new Error("제목을 입력해주세요.");
     if (!content.trim()) throw new Error("내용을 입력해주세요.");
@@ -103,10 +108,12 @@ export function usePostSuggestion(myId: number | null) {
       title: title.trim(),
       content: content.trim(),
       isAnonymous,
+      ...(isAnnouncement ? { isAnnouncement: true } : {}),
       comments: [],
       createdAt: Date.now(),
     });
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
+    if (isAnnouncement) void qc.invalidateQueries({ queryKey: ["announcements"] });
   };
 }
 

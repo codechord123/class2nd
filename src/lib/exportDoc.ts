@@ -23,47 +23,69 @@ export const esc = (s: string) =>
 
 const name = (id: number | string) => studentById.get(Number(id))?.name ?? `?${id}`;
 
-// 화면 리포트와 결을 맞춘 카드형 인쇄 스타일 (배경색은 print-color-adjust로 강제)
-// 촘촘하게: A4 한두 장 안에 담기도록 여백·글자를 조이되, 표 선·볼드로 가독성 유지
+// 학부모 공유용 인쇄 스타일 — "가정 통신문" 문법으로 전면 개편:
+//   또렷한 문서 헤더(제목 + 진한 밑줄) · 섹션 카드(파란 왼줄 제목) · 큰 숫자 타일 ·
+//   지브라 표(이름은 왼쪽 정렬) · 본문 12.5px/행간 1.6. A4 1~2장에 담기는 밀도는 유지.
 const PRINT_CSS = `
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
-  body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif; margin: 12px 14px; color: #191f28; background:#fff; }
-  h1 { font-size: 17px; margin: 0 0 1px; }
-  .sub { color: #8b95a1; font-size: 11px; margin-bottom: 8px; }
-  .card { border: 1px solid #e5e8eb; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; page-break-inside: avoid; }
-  .card > .t { font-size: 12.5px; font-weight: 800; margin: 0 0 5px; border-left: 3px solid #2272eb; padding-left: 7px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .stats { display: flex; gap: 8px; text-align: center; }
-  .stats > div { flex: 1; }
-  .stats .l { font-size: 10px; color: #8b95a1; }
-  .stats .v { font-size: 15px; font-weight: 800; }
-  .green { color: #12b886; } .blue { color: #2272eb; } .amber { color: #ff9f1c; }
-  ul { margin: 4px 0 0; padding-left: 16px; }
-  li { margin: 1.5px 0; line-height: 1.35; font-size: 11.5px; }
+  body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+         margin: 0; color: #191f28; background: #fff; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 18px 22px 24px; }
+  /* 문서 헤더 — 공문서처럼 제목이 문서의 주인 */
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+  .sub { color: #6b7684; font-size: 12.5px; padding: 4px 0 12px;
+         border-bottom: 3px solid #191f28; margin-bottom: 16px; }
+  /* 섹션 카드 */
+  .card { border: 1px solid #d1d6db; border-radius: 12px; padding: 12px 14px;
+          margin-bottom: 10px; page-break-inside: avoid; }
+  .card > .t { font-size: 14px; font-weight: 800; margin: 0 0 8px;
+               border-left: 4px solid #3182f6; padding-left: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* 큰 숫자 타일 */
+  .stats { display: flex; gap: 10px; text-align: center; }
+  .stats > div { flex: 1; background: #f9fafb; border-radius: 10px; padding: 8px 4px; }
+  .stats .l { font-size: 11px; color: #6b7684; }
+  .stats .v { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .green { color: #0ca678; } .blue { color: #2272eb; } .amber { color: #f08c00; }
+  /* 목록 — 학부모가 읽는 본문이므로 넉넉한 행간 */
+  ul { margin: 4px 0 0; padding-left: 18px; }
+  li { margin: 3px 0; line-height: 1.6; font-size: 12.5px; }
+  /* 표 — 지브라 + 이름 왼쪽 정렬 (숫자만 가운데) */
   table { border-collapse: collapse; margin-top: 4px; width: 100%; }
-  th, td { border: 1px solid #e5e8eb; padding: 1.5px 5px; font-size: 11px; text-align: center; }
-  th { background: #f2f4f6; font-size: 10.5px; }
-  td b { font-size: 11.5px; }
-  .cols { display: flex; gap: 8px; align-items: flex-start; }
+  th, td { border: 1px solid #e5e8eb; padding: 4px 8px; font-size: 12px; text-align: center; }
+  th { background: #f2f4f6; font-size: 11.5px; color: #4e5968; }
+  td:nth-child(2) { text-align: left; }
+  tbody tr:nth-child(even) td { background: #f9fafb; }
+  td b { font-size: 12.5px; }
+  .cols { display: flex; gap: 10px; align-items: flex-start; }
   .cols > table { flex: 1; }
-  .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-  .muted { color: #8b95a1; font-size: 11px; margin: 4px 0 0; }
-  .warn { color: #f76707; font-weight: 600; }
-  .grp { border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px 8px; page-break-inside: avoid; }
+  .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .muted { color: #6b7684; font-size: 11.5px; margin: 6px 0 0; line-height: 1.5; }
+  .warn { color: #e8590c; font-weight: 600; }
+  .grp { border: 1px solid #e5e8eb; border-radius: 10px; padding: 8px 10px; page-break-inside: avoid; }
   .grp .h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-  .grp .gname { font-weight: 800; font-size: 12px; }
-  .grp .mem { font-size: 10.5px; color: #4e5968; }
+  .grp .gname { font-weight: 800; font-size: 13px; }
+  .grp .mem { font-size: 11.5px; color: #4e5968; line-height: 1.5; }
   .grp .mem b { color: #191f28; }
-  .badge { display: inline-block; border-radius: 999px; padding: 0 6px; font-size: 9.5px; font-weight: 700; background: #fff4e6; color: #f76707; margin-left: 3px; }
+  .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px;
+           font-weight: 700; background: #fff4e6; color: #e8590c; margin-left: 3px; }
+  .docfoot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e5e8eb;
+             text-align: center; color: #b0b8c1; font-size: 10.5px; }
   @media print { .noprint { display: none; } }
 `;
 
 /** 인쇄 문서를 새 창에 연다 (공용 래퍼). body는 카드형 HTML. */
 export function openPrintWindow(title: string, bodyHtml: string): void {
+  const printed = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric",
+  }).format(new Date());
   const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
 <title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>
+<div class="wrap">
 <button class="noprint" onclick="window.print()" style="padding:8px 16px;font-weight:bold;border-radius:8px;border:1px solid #d1d6db;background:#fff;cursor:pointer;margin-bottom:12px">🖨️ 인쇄 / PDF 저장</button>
 ${bodyHtml}
+<div class="docfoot">2학기 학급 자치 시스템 · ${esc(printed)} 출력</div>
+</div>
 </body></html>`;
   const win = window.open("", "_blank");
   if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");

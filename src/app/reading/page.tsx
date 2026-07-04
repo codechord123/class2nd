@@ -403,15 +403,16 @@ export default function ReadingPage() {
               noComments={!!r.s1}
               onEdit={!r.s1 && r.studentId === studentId ? () => editReport(r) : undefined}
               onDelete={
-                // 1학기 기록은 보관용(수정·삭제 불가). 학생 본인 삭제는 작성 당일만 —
-                // 지난 주 권수·스트릭이 몰래 줄어드는 것 방지 (교사는 무제한)
-                !r.s1 &&
-                (role === "teacher" ||
-                  (r.studentId === studentId && kstDateOf(r.createdAt) === todayKST()))
+                // 1학기 기록은 보관용(수정·삭제 불가). 본인 글은 언제든 삭제 가능 —
+                // 당일 제한은 "내 글을 못 지운다"는 혼란만 낳아 해제 (사용자 결정)
+                !r.s1 && (role === "teacher" || r.studentId === studentId)
                   ? async () => {
                       const ok = await confirm({
                         title: "이 감상문을 삭제할까요?",
-                        body: "권수 1권도 함께 줄어들어요.",
+                        body:
+                          kstDateOf(r.createdAt) === todayKST()
+                            ? "권수 1권도 함께 줄어들어요."
+                            : "지난 글이에요 — 그 주의 권수 1권도 함께 줄어들어요.",
                         confirmLabel: "삭제",
                         danger: true,
                       });

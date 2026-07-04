@@ -15,7 +15,8 @@ export default function SegmentedControl<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-btn border border-ink-200 bg-ink-100 p-1 text-sm font-bold">
+    // 트랙은 배경(ink-100)보다 한 톤 어둡게 — 회색 페이지 배경 위에서도 경계가 보이게
+    <div className="flex gap-1 overflow-x-auto rounded-btn border border-ink-200 bg-ink-200/60 p-1 text-sm font-bold">
       {tabs.map((t) => (
         <button
           key={t.key}
