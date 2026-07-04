@@ -24,32 +24,37 @@ export const esc = (s: string) =>
 const name = (id: number | string) => studentById.get(Number(id))?.name ?? `?${id}`;
 
 // 화면 리포트와 결을 맞춘 카드형 인쇄 스타일 (배경색은 print-color-adjust로 강제)
+// 촘촘하게: A4 한두 장 안에 담기도록 여백·글자를 조이되, 표 선·볼드로 가독성 유지
 const PRINT_CSS = `
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
-  body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif; margin: 24px; color: #191f28; background:#fff; }
-  h1 { font-size: 20px; margin: 0 0 2px; }
-  .sub { color: #8b95a1; font-size: 12px; margin-bottom: 16px; }
-  .card { border: 1px solid #e5e8eb; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; page-break-inside: avoid; }
-  .card > .t { font-size: 14px; font-weight: 800; margin: 0 0 8px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .stats { display: flex; gap: 10px; text-align: center; }
+  body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif; margin: 12px 14px; color: #191f28; background:#fff; }
+  h1 { font-size: 17px; margin: 0 0 1px; }
+  .sub { color: #8b95a1; font-size: 11px; margin-bottom: 8px; }
+  .card { border: 1px solid #e5e8eb; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; page-break-inside: avoid; }
+  .card > .t { font-size: 12.5px; font-weight: 800; margin: 0 0 5px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stats { display: flex; gap: 8px; text-align: center; }
   .stats > div { flex: 1; }
-  .stats .l { font-size: 11px; color: #8b95a1; }
-  .stats .v { font-size: 20px; font-weight: 800; }
+  .stats .l { font-size: 10px; color: #8b95a1; }
+  .stats .v { font-size: 15px; font-weight: 800; }
   .green { color: #12b886; } .blue { color: #2272eb; } .amber { color: #ff9f1c; }
-  ul { margin: 6px 0 0; padding-left: 18px; }
-  li { margin: 3px 0; line-height: 1.5; font-size: 13px; }
-  table { border-collapse: collapse; margin-top: 6px; width: 100%; }
-  th, td { border: 1px solid #e5e8eb; padding: 3px 8px; font-size: 12px; text-align: center; }
-  th { background: #f2f4f6; }
-  .muted { color: #8b95a1; font-size: 12px; margin: 6px 0 0; }
+  ul { margin: 4px 0 0; padding-left: 16px; }
+  li { margin: 1.5px 0; line-height: 1.35; font-size: 11.5px; }
+  table { border-collapse: collapse; margin-top: 4px; width: 100%; }
+  th, td { border: 1px solid #e5e8eb; padding: 1.5px 5px; font-size: 11px; text-align: center; }
+  th { background: #f2f4f6; font-size: 10.5px; }
+  td b { font-size: 11.5px; }
+  .cols { display: flex; gap: 8px; align-items: flex-start; }
+  .cols > table { flex: 1; }
+  .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .muted { color: #8b95a1; font-size: 11px; margin: 4px 0 0; }
   .warn { color: #f76707; font-weight: 600; }
-  .grp { border: 1px solid #e5e8eb; border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; page-break-inside: avoid; }
-  .grp .h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .grp .gname { font-weight: 800; font-size: 13px; }
-  .grp .mem { font-size: 11px; color: #4e5968; }
+  .grp { border: 1px solid #e5e8eb; border-radius: 8px; padding: 6px 8px; page-break-inside: avoid; }
+  .grp .h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .grp .gname { font-weight: 800; font-size: 12px; }
+  .grp .mem { font-size: 10.5px; color: #4e5968; }
   .grp .mem b { color: #191f28; }
-  .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; background: #fff4e6; color: #f76707; margin-left: 4px; }
+  .badge { display: inline-block; border-radius: 999px; padding: 0 6px; font-size: 9.5px; font-weight: 700; background: #fff4e6; color: #f76707; margin-left: 3px; }
   @media print { .noprint { display: none; } }
 `;
 
@@ -182,12 +187,18 @@ export async function openRangePrintDoc(
   if (extraHtml) sections.push(`<div class="card">${extraHtml}</div>`);
 
   if (hasScores) {
+    // 25명 표를 2단으로 나눠 세로 공간 절약
+    const half = Math.ceil(scoreRows.length / 2);
+    const tbl = (rows: typeof scoreRows, offset: number) =>
+      `<table><thead><tr><th>순위</th><th>이름</th><th>합계</th></tr></thead><tbody>${rows
+        .map(
+          (r, i) => `<tr><td>${offset + i + 1}</td><td>${esc(r.name)}</td><td><b>${r.sum}</b>점</td></tr>`
+        )
+        .join("")}</tbody></table>`;
     sections.push(
       card(
         `🏅 점수 요약 (집계된 ${daySnap.size}일 합산)`,
-        `<table><thead><tr><th>순위</th><th>이름</th><th>합계</th></tr></thead><tbody>${scoreRows
-          .map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td>${r.sum}점</td></tr>`)
-          .join("")}</tbody></table>`
+        `<div class="cols">${tbl(scoreRows.slice(0, half), 0)}${tbl(scoreRows.slice(half), half)}</div>`
       )
     );
   }

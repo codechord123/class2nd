@@ -3,7 +3,7 @@
 // 읽기 예산: 이미 캐시된 문서만 사용(readingStats·dailyScores·settings). 인쇄 시에만 그날 문서 추가 조회.
 import { useState } from "react";
 import { students, studentById } from "@/lib/roster";
-import { s1TotalBooks } from "@/lib/staticData";
+import { s1TotalBooks, s1BooksByStudent } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
@@ -131,17 +131,26 @@ export default function DailyReportPanel({ date }: { date: string }) {
           )}</div>`
         );
 
-        // 오늘 점수 (전원)
+        // 오늘 점수 (전원) — 2단 표 + 거북이 독서 오늘/누적 권수 함께
+        const readTodayOf = (id: number) =>
+          (today?.[id] as { read?: number } | undefined)?.read ?? 0;
+        const cumBooksOf = (id: number) =>
+          (s1BooksByStudent[String(id)] ?? 0) + (stats?.total?.[String(id)] ?? 0);
         const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
+        const half = Math.ceil(ranked.length / 2);
+        const scoreTbl = (rows: typeof ranked, offset: number) =>
+          `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th><th>📖오늘</th><th>📖누적</th></tr></thead><tbody>${rows
+            .map(
+              (s, i) =>
+                `<tr><td>${offset + i + 1}</td><td>${esc(s.name)}</td><td><b>${totalOf(s.id)}</b></td><td>${
+                  readTodayOf(s.id) || "·"
+                }</td><td>${cumBooksOf(s.id)}</td></tr>`
+            )
+            .join("")}</tbody></table>`;
         sections.push(
           card(
-            "🏅 오늘 점수",
-            `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th></tr></thead><tbody>${ranked
-              .map(
-                (s, i) =>
-                  `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${totalOf(s.id)}점</td></tr>`
-              )
-              .join("")}</tbody></table>`
+            "🏅 오늘 점수 · 📖 거북이 독서 (오늘 쓴 권수 / 1·2학기 누적)",
+            `<div class="cols">${scoreTbl(ranked.slice(0, half), 0)}${scoreTbl(ranked.slice(half), half)}</div>`
           )
         );
 
@@ -172,7 +181,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
             return `<div class="grp"><div class="h"><span class="gname">${gRank === 1 ? "👑 " : ""}${g.groupId}모둠${gRank ? `<span class="badge">${gRank}위</span>` : ""}${missionBadge}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
           })
           .join("");
-        sections.push(card("👥 모둠별 오늘 기록", groupsHtml));
+        sections.push(card("👥 모둠별 오늘 기록", `<div class="grps">${groupsHtml}</div>`));
 
         // 바라는 점
         sections.push(
