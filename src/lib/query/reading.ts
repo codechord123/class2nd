@@ -140,11 +140,17 @@ export function useAddReportComment(author: number | "teacher" | null) {
 export function useDeleteReportComment() {
   const qc = useQueryClient();
   return async (report: ReadingReport2, commentId: number) => {
-    const next = (report.comments ?? []).filter((c) => c.id !== commentId);
-    const { updateDoc } = await import("firebase/firestore");
-    await updateDoc(doc(db(), "readingReports", report.id), { comments: next });
+    // arrayRemove(원자적) — 배열 재기록이면 낡은 캐시로 남의 새 댓글이 지워지는 꼬임 발생
+    const target = (report.comments ?? []).find((c) => c.id === commentId);
+    if (!target) return;
+    const { updateDoc, arrayRemove } = await import("firebase/firestore");
+    await updateDoc(doc(db(), "readingReports", report.id), { comments: arrayRemove(target) });
     qc.setQueriesData({ queryKey: ["readingReports"] }, (prev: ReadingReport2[] | undefined) =>
-      prev?.map((r) => (r.id === report.id ? { ...r, comments: next } : r))
+      prev?.map((r) =>
+        r.id === report.id
+          ? { ...r, comments: (r.comments ?? []).filter((c) => c.id !== commentId) }
+          : r
+      )
     );
   };
 }

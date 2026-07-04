@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   deleteDoc,
@@ -137,16 +138,25 @@ export function useAddComment(author: number | "teacher" | null) {
   };
 }
 
-/** 댓글 삭제 — 교사 또는 본인 (배열 재기록) */
+/**
+ * 댓글 삭제 — 교사 또는 본인. arrayRemove(원자적)로 해당 댓글+답글만 제거:
+ * 배열 전체 재기록이면 낡은 캐시로 남의 새 댓글을 지워버리는 동시성 꼬임이 생긴다.
+ */
 export function useDeleteComment() {
   const qc = useQueryClient();
   return async (sug: Suggestion, commentId: number) => {
-    const next = (sug.comments ?? []).filter(
-      (c) => c.id !== commentId && c.replyTo !== commentId // 답글도 함께 삭제
+    const toRemove = (sug.comments ?? []).filter(
+      (c) => c.id === commentId || c.replyTo === commentId // 답글도 함께 삭제
     );
-    await updateDoc(doc(db(), "suggestions", sug.id), { comments: next });
+    if (!toRemove.length) return;
+    await updateDoc(doc(db(), "suggestions", sug.id), { comments: arrayRemove(...toRemove) });
+    const removed = new Set(toRemove.map((c) => c.id));
     const patch = (prev: Suggestion[] | undefined) =>
-      prev?.map((s) => (s.id === sug.id ? { ...s, comments: next } : s));
+      prev?.map((s) =>
+        s.id === sug.id
+          ? { ...s, comments: (s.comments ?? []).filter((c) => !removed.has(c.id)) }
+          : s
+      );
     qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
     qc.setQueriesData({ queryKey: ["announcements"] }, patch);
   };
