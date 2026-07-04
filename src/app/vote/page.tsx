@@ -102,7 +102,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
             value={editDesc}
             onChange={(e) => setEditDesc(e.target.value)}
             placeholder="설명 (선택)"
-            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+            className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
           />
           <p className="text-[11px] text-ink-400">선택지와 표는 공정성을 위해 수정할 수 없어요.</p>
           <div className="flex gap-2">
@@ -336,13 +336,13 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="투표 제목 (예: 학급 파티 날 뭐 할까?)"
-        className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+        className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
       />
       <input
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
         placeholder="설명 (선택)"
-        className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+        className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
       />
       {options.map((opt, i) => (
         <div key={i} className="flex items-center gap-1.5">
@@ -352,7 +352,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
               setOptions(options.map((o, j) => (j === i ? e.target.value : o)))
             }
             placeholder={`선택지 ${i + 1}`}
-            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
           />
           {options.length > 2 && (
             <button
@@ -366,7 +366,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       ))}
       <button
         onClick={() => setOptions([...options, ""])}
-        className="rounded-btn border border-dashed border-ink-300 px-3 py-1.5 text-xs text-ink-500 hover:border-ink-400"
+        className="press rounded-btn bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-600 hover:bg-ink-200"
       >
         + 선택지 추가
       </button>
@@ -418,23 +418,26 @@ function PollRow({ p, myId, onOpen }: { p: Poll; myId: number | null; onOpen: ()
   const author =
     p.createdBy === "teacher" ? "선생님" : (studentById.get(p.createdBy as number)?.name ?? "?");
   return (
-    <button onClick={onOpen} className="w-full px-3 py-2.5 text-left hover:bg-ink-50">
+    <button onClick={onOpen} className="w-full px-3.5 py-3 text-left hover:bg-ink-50">
       <span className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
           <span
-            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
               closed ? "bg-ink-200 text-ink-500" : "bg-success-weak text-success"
             }`}
           >
             {closed ? "마감" : "진행"}
           </span>
-          <span className="truncate text-sm font-bold text-ink-800">{p.title}</span>
+          <b className="truncate text-[15px] text-ink-900">{p.title}</b>
           {p.multi && <span className="shrink-0 text-[10px] text-ink-400">복수</span>}
           {p.anonymous && <span className="shrink-0 text-[10px] text-ink-400">익명</span>}
         </span>
-        <span className="shrink-0 text-xs text-ink-400">
-          {iVoted && <span className="mr-1 font-bold text-success">✓내 투표</span>}
-          {author} · 👥{voterIds.length}
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-500">
+          {iVoted && <span className="font-bold text-success">✓내 투표</span>}
+          <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+            {author}
+          </span>
+          <span className="tnum">👥{voterIds.length}</span>
         </span>
       </span>
       {/* 선두 옵션 미리보기 — 열지 않아도 판세가 보임 */}
@@ -485,7 +488,7 @@ export default function VotePage() {
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-          <h3 className="font-bold">🗳️ 투표 게시판</h3>
+          <h3 className="text-lg font-bold">🗳️ 투표 게시판</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}

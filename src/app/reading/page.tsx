@@ -394,7 +394,7 @@ export default function ReadingPage() {
       {tab === "list" && (
         <section className="rounded-card border border-ink-200 bg-white shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-            <h3 className="font-bold">📖 친구들의 감상문</h3>
+            <h3 className="text-lg font-bold">📖 친구들의 감상문</h3>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}

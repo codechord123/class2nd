@@ -224,7 +224,7 @@ export default function ShopPage() {
       {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
       {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-          <h3 className="font-bold">📋 우리 반 메뉴판</h3>
+          <h3 className="text-lg font-bold">📋 우리 반 메뉴판</h3>
           <p className="mt-1 text-xs text-ink-500">
             선생님이 올린 메뉴예요. 골라서 신청하면 다음 날 아침에 승인돼요!
           </p>

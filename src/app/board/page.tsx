@@ -435,8 +435,10 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
 // ── 목록 화면 ────────────────────────────────────────────────────
 export default function BoardPage() {
   const { role, studentId } = useSession();
-  const [pages, setPages] = useState(1);
-  const { data: posts } = useSuggestions(pages);
+  // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (+1은 다음 페이지 존재 탐지)
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const { data: posts } = useSuggestions(page * pageSize + 1);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(studentId);
   const { toast } = useFeedback();
@@ -481,38 +483,51 @@ export default function BoardPage() {
   };
   const pinned = (announcements ?? []).filter(matches);
   const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
+  // 검색 중에는 결과 전체, 평소엔 현재 페이지 분량만
+  const pageItems = kw ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
+  const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
 
   const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => {
     const { up, down } = reactionCounts(p);
+    const author = p.isAnonymous
+      ? role === "teacher"
+        ? `익명(${authorName(p.studentId)})`
+        : "익명"
+      : authorName(p.studentId);
     return (
       <button
         onClick={() => setSelectedId(p.id)}
-        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-ink-50 ${
+        className={`flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-ink-50 ${
           pin ? "bg-amber-50/60" : ""
         }`}
       >
-        <StatusBadge sug={p} />
-        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
-          <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
-          {p.enactedAsLaw && <span className="shrink-0 text-xs">⚖️</span>}
-          {up + down > 0 && (
-            <span className="shrink-0 text-[11px] text-ink-400">
-              👍{up} 👎{down}
+        <span className="min-w-0 flex-1">
+          {/* 1줄: 상태 + 제목 */}
+          <span className="flex items-center gap-1.5">
+            {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
+            <StatusBadge sug={p} />
+            <b className="truncate text-[15px] text-ink-900">{titleOf(p)}</b>
+            {p.enactedAsLaw && <span className="shrink-0 text-xs">📜</span>}
+          </span>
+          {/* 2줄: 작성자 칩 · 날짜 · 찬반 */}
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+            <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+              {author}
             </span>
-          )}
-          {(p.comments?.length ?? 0) > 0 && (
-            <span className="shrink-0 text-xs font-bold text-brand">💬{p.comments!.length}</span>
-          )}
+            <span className="tnum shrink-0">{dateLabel(p.createdAt)}</span>
+            {up + down > 0 && (
+              <span className="shrink-0">
+                👍{up} 👎{down}
+              </span>
+            )}
+          </span>
         </span>
-        <span className="shrink-0 text-xs text-ink-400">
-          {p.isAnonymous
-            ? role === "teacher"
-              ? `익명(${authorName(p.studentId)})`
-              : "익명"
-            : authorName(p.studentId)}{" "}
-          · {dateLabel(p.createdAt)}
-        </span>
+        {(p.comments?.length ?? 0) > 0 && (
+          <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-600">
+            💬 {p.comments!.length}
+          </span>
+        )}
+        <span className="shrink-0 text-sm text-ink-300">›</span>
       </button>
     );
   };
@@ -521,13 +536,13 @@ export default function BoardPage() {
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-          <h3 className="font-bold">📬 안건·토론</h3>
+          <h3 className="text-lg font-bold">📬 안건·토론</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="🔍 검색"
-              className="w-32 rounded-btn border border-ink-200 px-3 py-1.5 text-sm"
+              placeholder="검색"
+              className="w-32 rounded-btn border border-ink-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none"
             />
             {role === "student" && (
               <button
@@ -546,14 +561,14 @@ export default function BoardPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="안건 제목 (예: 사물함 정리 규칙을 정하자)"
-              className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
             />
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="어떤 점을 바꾸면 좋을지, 왜 그런지 적어주세요. 친구들이 댓글로 토론하고 👍👎로 의견을 모아요."
               rows={4}
-              className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
             />
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 text-sm text-ink-500">
@@ -587,7 +602,7 @@ export default function BoardPage() {
                 <Row p={p} pin />
               </li>
             ))}
-            {normal.map((p) => (
+            {pageItems.map((p) => (
               <li key={p.id}>
                 <Row p={p} />
               </li>
@@ -595,13 +610,39 @@ export default function BoardPage() {
           </ul>
         )}
 
-        {posts && posts.length >= pages * 10 && (
-          <button
-            onClick={() => setPages((p) => p + 1)}
-            className="w-full border-t border-ink-100 py-2.5 text-sm text-ink-500 hover:bg-ink-50"
-          >
-            더 보기
-          </button>
+        {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색 중엔 숨김) */}
+        {!kw && (posts?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5">
+            <div className="flex items-center gap-1">
+              {[10, 20].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => {
+                    setPageSize(n);
+                    setPage(1);
+                  }}
+                  className={`press rounded-btn px-2.5 py-1 text-xs font-bold ${
+                    pageSize === n ? "bg-ink-700 text-white" : "bg-ink-100 text-ink-500"
+                  }`}
+                >
+                  {n}개
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: knownPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`press tnum min-w-8 rounded-btn px-2 py-1 text-sm font-bold ${
+                    p === page ? "bg-brand text-white" : "bg-ink-100 text-ink-600 hover:bg-ink-200"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </section>
     </div>

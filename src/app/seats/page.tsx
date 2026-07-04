@@ -151,7 +151,7 @@ export default function SeatsPage() {
       {role === "student" && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
+            <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
             <span className="text-xs text-ink-400">
               비용 {settings?.seatChangeCost ?? 1}실버 · 마감{" "}
               {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일

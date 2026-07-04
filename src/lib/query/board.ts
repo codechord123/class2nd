@@ -62,14 +62,14 @@ function toSuggestion(d: { id: string; data: () => unknown }): Suggestion {
   return { id: d.id, ...(d.data() as Omit<Suggestion, "id">) };
 }
 
-export function useSuggestions(pages: number) {
+export function useSuggestions(count: number) {
   return useQuery({
-    queryKey: ["suggestions", pages],
+    queryKey: ["suggestions", count],
     queryFn: async (): Promise<Suggestion[]> => {
       const q = query(
         collection(db(), "suggestions"),
         orderBy("createdAt", "desc"),
-        limit(PAGE * pages)
+        limit(count)
       );
       const snap = await getDocs(q);
       return snap.docs.map(toSuggestion);
