@@ -1,3 +1,98 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# 프로젝트: 2학기 학급 자치 시스템 (class2nd)
+
+초등 5학년 학급(25명)의 모둠 평가·독서·상점·게시판 웹앱. 1학기 앱(GAS + Firebase `w-program`)의
+**Firestore 무료 한도(읽기) 초과** 문제를 구조로 해결하는 리뉴얼. 학생들은 주로 "디벗"(태블릿)과
+구형 Windows 데스크탑에서 사용한다.
+
+## 명령어
+
+```bash
+npm run dev            # 개발 서버
+npm run build          # 프로덕션 빌드 (배포 전 필수 — 타입 검사 포함)
+npm run lint           # eslint
+```
+
+테스트 스위트는 없다. 검증은 빌드 + 아래 **에뮬레이터 셀프 검증**으로 한다.
+
+### 에뮬레이터 셀프 검증 (배포 전 실화면 확인)
+
+```bash
+firebase emulators:start --project nd-cf543          # auth 9099 / firestore 8080 (Java 필요)
+node scripts/seed-emulator.mjs                       # 픽스처 시드 (firestore.rules 검증 겸함)
+NEXT_PUBLIC_FIREBASE_EMULATOR=1 npm run build        # 이 플래그가 firebase.ts를 에뮬레이터로 연결
+NEXT_PUBLIC_FIREBASE_EMULATOR=1 npx next start -p 3100
+```
+
+- 스크린샷: playwright-core + 시스템 Chromium으로 3100 포트를 촬영해 직접 눈으로 확인한다.
+  로그인 세션 주입: localStorage `class2nd-session` = `{"state":{"role":"student","studentId":1},"version":0}`.
+  단, **쓰기 검증은 세션 주입으로 불가**(익명 auth uid 바인딩 필요) — 실제 로그인 UI를 거쳐야 한다.
+- 에뮬레이터 시드의 비밀번호는 더미(`emulator-only-password`)만 사용한다.
+
+## 아키텍처 — 읽기 예산이 모든 설계를 지배한다
+
+Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 데이터 접근 코드는 이 원칙을 따른다:**
+
+1. **onSnapshot 금지, 전체 컬렉션 조회 금지.** TanStack Query + `staleTime` + 낙관적 캐시 갱신
+   (`src/lib/query/*.ts`가 유일한 데이터 접근 계층).
+2. **집계 문서 하나만 읽는다.** 원시 평가(`evaluations/{date}/entries/*`)는 교사 집계
+   (`src/lib/aggregate.ts`)가 `dailyScores/{date}`(rows + `_meta`)와 `_cumulative`로 접어서 저장하고,
+   학생 화면은 그 문서만 읽는다. 댓글은 부모 문서 배열 필드(arrayUnion/arrayRemove — 추가 읽기 0).
+3. **정적 데이터는 DB 금지.** 1학기 지갑·독서 백업·감상문 수·21주 자리표 → `data/static/*.json`
+   (313KB 독서 백업은 동적 import로 코드 스플리팅). 1학기 권수 = `s1-report-counts.json`(실기록)
+   + `readingStats/main.s1Adj`(교사 보정) — 합산은 `staticData.s1BooksOf/s1TotalOf`.
+4. **자동 집계·정산**: 교사 화면 접속이 트리거(`src/lib/autoRun.ts`) — `classData/autoRun` 마커를
+   트랜잭션으로 선점해 이중 실행 방지, 매일 자정(KST) 기준 확정, 세션은 일요일 자정.
+
+### 인증 모델 (`src/lib/auth.ts` + `firestore.rules`)
+
+- 교사: Firebase 이메일/비밀번호. 규칙에서 email로 판별.
+- 학생: **익명 Auth + SHA-256 해시**를 `studentAuth/{id}`에 저장. 학생은 이 문서를 읽을 수 없고
+  (무차별 대입 차단), 로그인 = `verify`(입력 해시)를 실은 update를 규칙이 저장된 hash와 대조 →
+  성공 시 기기 uid 자동 재바인딩. 문서가 없으면 update가 **not-found가 아니라 permission-denied**로
+  떨어지므로 create 재시도 폴백이 반드시 필요하다 (이미 구현됨 — 제거 금지).
+- `firestore.rules` 변경은 **사용자가 Firebase 콘솔에서 수동 게시**해야 반영된다. 규칙 게시 전
+  구버전 호환 경로(클라이언트 대조 fallback)가 auth.ts에 공존한다.
+
+### 도메인 규칙 (사용자가 확정한 것 — 임의 변경 금지)
+
+- **독서 점수는 캡 없이 "쓴 만큼 그대로"**: 데일리 read = 그날 감상문 편수, 주간·스트릭·순위도
+  실제 권수 그대로. 안전장치는 본문 700자 최소(설정 조정 가능), 학생 본인 삭제는 작성 당일만,
+  삭제 시 통계 자동 차감.
+- 데일리 점수 행 구조: `{peer, groupRank, bonus, mission, mvp, read, total}`.
+- 1학기 이월 재화(실버/골드)는 별도 지갑 — 2학기 재화와 절대 합산하지 않음.
+- 1학기 감상문은 감상문 게시판에 통합 표시하되 **보관용**(수정·삭제·댓글 없음).
+- 날짜는 전부 KST (`src/lib/date.ts`의 `todayKST/weekOfDate`), 학기 상수는 `src/lib/schedule.ts`.
+
+### UI 컨벤션
+
+- 디자인 토큰은 `src/app/globals.css`의 `@theme`(Toss ink 스케일, brand/success/warn/danger) —
+  매직 컬러 대신 토큰 유틸(bg-brand, text-ink-500, rounded-card, shadow-card)을 쓴다.
+- 탭별 시그니처 컬러는 `TabNav.tsx`의 `TABS[].accent`.
+- 게시판 규격: 작성자 칩(bg-brand-weak) + 굵은 제목 15px + 10/20개 페이지네이션 + 페이지 번호.
+- **구형 Windows에서 깨지는 최신 이모지(U+1FA70 이상) 금지** (🫂🪙🪑🫧 등 — 🤝💰💺✨로 대체).
+- 한국어 입력창은 Enter 처리 시 `!e.nativeEvent.isComposing` 가드 필수 (IME 중복 전송).
+- 인쇄물은 `src/lib/exportDoc.ts`(`openPrintWindow`) / 출판용 감상문집은 `src/lib/booklet.ts`.
+
+## 보안 (절대 규칙)
+
+- 교사 비밀번호를 코드·커밋·산출물 어디에도 저장하지 않는다. 교사 이메일은 firestore.rules에
+  공개 식별자로 존재하는 것만 허용.
+- **1학기 Firebase 프로젝트(`w-program`)는 절대 수정하지 않는다** (참고 조회만).
+- 학생 비밀번호는 SHA-256 해시로만 저장.
+
+## Git / 배포
+
+- Vercel이 GitHub `main`을 프로덕션으로 자동 배포한다. **main에 머지 = 즉시 배포.**
+- 세션 작업 브랜치에서 개발 → push → 검증 후 `git checkout main && git merge --ff-only <branch>
+  && git push && git checkout <branch>` 로 배포. main에 직접 커밋하지 않는다.
+- `*-debug.log`(firebase 에뮬레이터 산출물)는 커밋 금지 (.gitignore 등재).
+
+---
+
 # Superpower Pro
 
 '수석 프로덕트 매니저 + 디자이너 + 개발자 통합 에이전트' 모드. 연동된 코드·시각 자료(웹/앱 화면, 수업 PPT, 워크북, 안내문 등)와 동기화되어 기능 설계부터 구현·개선까지 전 사이클을 담당한다.
