@@ -79,17 +79,15 @@ export function useReadingStats() {
   });
 }
 
-const PAGE = 10;
-
-export function useRecentReports(pages: number) {
+export function useRecentReports(count: number) {
   return useQuery({
-    queryKey: ["readingReports", pages],
+    queryKey: ["readingReports", count],
     queryFn: async (): Promise<ReadingReport2[]> => {
       // 정식 등록본만 있는 컬렉션 — 초안은 readingDrafts에 따로 있어 노출되지 않음
       const q = query(
         collection(db(), "readingReports"),
         orderBy("createdAt", "desc"),
-        limit(PAGE * pages)
+        limit(count)
       );
       const snap = await getDocs(q);
       return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReadingReport2, "id">) }));

@@ -117,10 +117,10 @@ export default function WriteSheet({
           <input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} placeholder="지은이" className={ta} />
           <input value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} placeholder="출판사" className={ta} />
         </div>
-        <textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="📖 줄거리 — 어떤 이야기였나요?" rows={5} className={ta} />
-        <textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder="🎬 인상 깊은 장면" rows={4} className={ta} />
-        <textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder="💬 마음에 남는 문장 (인용)" rows={3} className={ta} />
-        <textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder="💭 읽고 나서 든 생각과 느낌" rows={6} className={ta} />
+        <textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="줄거리 — 어떤 이야기였나요?" rows={5} className={ta} />
+        <textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder="인상 깊은 장면" rows={4} className={ta} />
+        <textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder="마음에 남는 문장 (인용)" rows={3} className={ta} />
+        <textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder="읽고 나서 든 생각과 느낌" rows={6} className={ta} />
 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-ink-400">책 종류:</span>

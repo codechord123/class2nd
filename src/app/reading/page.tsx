@@ -54,22 +54,22 @@ function ReportBody({
   return (
     <>
       {(r.author || r.publisher) && (
-        <p className="text-xs text-ink-400">
+        <p className="text-[13px] text-ink-500">
           {r.author}
           {r.publisher && ` · ${r.publisher}`}
         </p>
       )}
-      {r.summary && <ReportSection label="📖 줄거리" text={r.summary} />}
-      {r.scene && <ReportSection label="🎬 인상 깊은 장면" text={r.scene} />}
+      {r.summary && <ReportSection label="줄거리" text={r.summary} />}
+      {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-2 rounded-btn bg-emerald-50/70 p-3">
-          <p className="text-xs font-bold text-emerald-700">💬 마음에 남는 문장</p>
-          <p className="mt-1 whitespace-pre-wrap border-l-2 border-emerald-300 pl-2.5 text-[15px] italic leading-7 text-ink-600">
+        <div className="mt-2 rounded-btn border-l-[3px] border-emerald-400 bg-emerald-50/70 p-3">
+          <p className="text-xs font-bold text-emerald-700">마음에 남는 문장</p>
+          <p className="mt-1 whitespace-pre-wrap text-[15px] italic leading-7 text-ink-600 [overflow-wrap:anywhere]">
             “{r.quote}”
           </p>
         </div>
       )}
-      {r.thoughts && <ReportSection label="💭 읽고 난 생각" text={r.thoughts} />}
+      {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
       {(onEdit || onDelete) && (
         <div className="mt-2 flex gap-2 text-xs">
           {onEdit && (
@@ -89,7 +89,7 @@ function ReportBody({
       <div className="mt-2 border-t border-ink-200 pt-2">
         {(r.comments ?? []).map((c) => (
           <div key={c.id} className="flex items-baseline justify-between gap-2 text-sm">
-            <span>
+            <span className="[overflow-wrap:anywhere]">
               <b className="text-xs text-ink-500">{name(c.studentId)}</b>{" "}
               <span className="text-ink-600">{c.text}</span>
             </span>
@@ -141,12 +141,13 @@ function dateLabel(ms: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-// 감상문 본문 섹션 — 라벨 달린 박스로 긴 글을 덩어리째 분리 (벽글 방지)
+// 감상문 본문 섹션 — 에메랄드 왼줄 악센트 + 텍스트 라벨 (구형 PC 이모지 깨짐 회피)
+// [overflow-wrap:anywhere]: 띄어쓰기 없는 긴 글이 카드 밖으로 넘치지 않게
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-2 rounded-btn bg-ink-50 p-3">
-      <p className="text-xs font-bold text-ink-500">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap text-[15px] leading-7 text-ink-700">
+    <div className="mt-2 rounded-btn border-l-[3px] border-emerald-400 bg-ink-50 p-3">
+      <p className="text-xs font-bold text-emerald-700">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap text-[15px] leading-7 text-ink-700 [overflow-wrap:anywhere]">
         <Linkify text={text} />
       </p>
     </div>
@@ -173,8 +174,10 @@ export default function ReadingPage() {
   const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
 
   const { data: stats } = useReadingStats();
-  const [pages, setPages] = useState(1);
-  const { data: reports } = useRecentReports(pages);
+  // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (fetch는 현재 페이지까지 +1로 다음 페이지 존재 탐지)
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const { data: reports } = useRecentReports(page * pageSize + 1);
   const { data: myDrafts } = useMyDrafts(studentId);
   const deleteReport = useDeleteReport();
   const deleteDraft = useDeleteDraft(studentId);
@@ -219,6 +222,11 @@ export default function ReadingPage() {
       return hay.includes(kw);
     });
 
+  // 페이지네이션: 검색·태그 필터 중에는 결과 전체를 그대로 (페이지 개념이 헷갈리지 않게)
+  const filtering = Boolean(search.trim() || tagFilter);
+  const knownPages = Math.max(1, Math.ceil((reports?.length ?? 0) / pageSize));
+  const pageItems = filtering ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
+
   // ── 상세 화면 (제목 클릭 진입) — 잠긴 글은 진입 불가 ──────────────
   const selectedReport = (reports ?? []).find((r) => r.id === selectedId && !isLocked(r));
   if (selectedId && selectedReport) {
@@ -251,10 +259,15 @@ export default function ReadingPage() {
             </div>
             <div className="mt-1.5 flex items-center gap-2">
               {r.isPrivate && <span className="shrink-0 text-sm">🔒</span>}
-              <h3 className="text-lg font-bold">{r.title}</h3>
+              <h3 className="text-xl font-bold [overflow-wrap:anywhere]">{r.title}</h3>
             </div>
-            <p className="mt-1 text-xs text-ink-400">
-              {studentById.get(r.studentId)?.name} · {r.week}주차 · {dateLabel(r.createdAt)}
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-500">
+              <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+                {studentById.get(r.studentId)?.name}
+              </span>
+              <span>{r.week}주차</span>
+              <span>·</span>
+              <span className="tnum">{dateLabel(r.createdAt)}</span>
             </p>
           </div>
           <div className="mt-3">
@@ -303,8 +316,8 @@ export default function ReadingPage() {
       <TurtleMarathon />
 
       {/* 🏁 독서 순위 — 목표 블록 바로 아래 상시 노출 (탭 아님) */}
-      <section className="rounded-card border border-amber-200 bg-amber-50/60 px-4 py-3">
-        <h3 className="text-sm font-bold text-amber-800">🏁 독서 순위 (1·2학기 합산)</h3>
+      <section className="rounded-card border border-ink-200 bg-white px-4 py-3 shadow-card">
+        <h3 className="text-sm font-bold text-ink-800">🏁 독서 순위 (1·2학기 합산)</h3>
         <div className="mt-1">
           <RankCarousel totals={stats?.total ?? {}} />
         </div>
@@ -335,8 +348,8 @@ export default function ReadingPage() {
 
           {/* 내 임시저장 */}
           {(myDrafts?.length ?? 0) > 0 && (
-            <div className="mt-4 rounded-card border border-dashed border-amber-300 bg-amber-50/50 p-3">
-              <p className="text-xs font-bold text-amber-700">💾 내 임시저장 ({myDrafts!.length})</p>
+            <div className="mt-4 rounded-card border border-ink-200 bg-ink-50/60 p-3">
+              <p className="text-xs font-bold text-ink-600">💾 내 임시저장 ({myDrafts!.length})</p>
               <ul className="mt-1 space-y-1 text-sm">
                 {myDrafts!.map((r) => (
                   <li key={r.id} className="flex justify-between gap-2">
@@ -416,56 +429,88 @@ export default function ReadingPage() {
             ))
           )}
           <ul className="divide-y divide-ink-100">
-            {visible.map((r) =>
+            {pageItems.map((r) =>
               isLocked(r) ? (
                 // 🔒 잠긴 행 — 제목·내용 비노출, 클릭해도 펼쳐지지 않음
                 <li key={r.id}>
-                  <div className="flex w-full items-center justify-between gap-2 px-4 py-2.5">
-                    <span className="text-sm font-bold text-ink-400">🔒 비공개 글</span>
-                    <span className="shrink-0 text-xs text-ink-400">
-                      {studentById.get(r.studentId)?.name} · {dateLabel(r.createdAt)}
+                  <div className="flex w-full items-center justify-between gap-2 px-4 py-3">
+                    <span className="flex items-center gap-2">
+                      <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold text-ink-500">
+                        {studentById.get(r.studentId)?.name}
+                      </span>
+                      <span className="text-sm font-bold text-ink-400">🔒 비공개 글</span>
                     </span>
+                    <span className="shrink-0 tnum text-xs text-ink-400">{dateLabel(r.createdAt)}</span>
                   </div>
                 </li>
               ) : (
                 <li key={r.id}>
                   <button
                     onClick={() => setSelectedId(r.id)}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-ink-50"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-50"
                   >
                     <span className="min-w-0 flex-1">
-                      {/* 1줄: 책 제목 + 태그 + 댓글수 */}
+                      {/* 1줄: 작성자 칩 + 책 제목 + 태그 */}
                       <span className="flex items-center gap-1.5">
+                        <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+                          {studentById.get(r.studentId)?.name}
+                        </span>
                         {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
-                        <b className="truncate text-sm text-ink-800">{r.title}</b>
+                        <b className="truncate text-[15px] text-ink-900">{r.title}</b>
                         <Tags r={r} />
-                        {(r.comments?.length ?? 0) > 0 && (
-                          <span className="shrink-0 text-xs font-bold text-brand">
-                            💬{r.comments!.length}
-                          </span>
-                        )}
                       </span>
-                      {/* 2줄: 작가 · 작성자 · 작성일 */}
-                      <span className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-400">
-                        {r.author && <span className="max-w-[8rem] truncate">✍️ {r.author}</span>}
-                        <span className="truncate">{studentById.get(r.studentId)?.name}</span>
-                        <span>·</span>
+                      {/* 2줄: 작가 · 작성일 */}
+                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+                        {r.author && <span className="max-w-[10rem] truncate">{r.author}</span>}
+                        {r.author && <span>·</span>}
                         <span className="shrink-0 tnum">{dateLabel(r.createdAt)}</span>
                       </span>
                     </span>
+                    {(r.comments?.length ?? 0) > 0 && (
+                      <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-600">
+                        💬 {r.comments!.length}
+                      </span>
+                    )}
                     <span className="shrink-0 self-center text-sm text-ink-300">›</span>
                   </button>
                 </li>
               )
             )}
           </ul>
-          {reports && reports.length >= pages * 10 && (
-            <button
-              onClick={() => setPages((p) => p + 1)}
-              className="w-full border-t border-ink-100 py-2.5 text-sm text-ink-500 hover:bg-ink-50"
-            >
-              더 보기
-            </button>
+
+          {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색·필터 중에는 숨김) */}
+          {!filtering && (reports?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5">
+              <div className="flex items-center gap-1">
+                {[10, 20].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => {
+                      setPageSize(n);
+                      setPage(1);
+                    }}
+                    className={`press rounded-btn px-2.5 py-1 text-xs font-bold ${
+                      pageSize === n ? "bg-ink-700 text-white" : "bg-ink-100 text-ink-500"
+                    }`}
+                  >
+                    {n}개
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: knownPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`press tnum min-w-8 rounded-btn px-2 py-1 text-sm font-bold ${
+                      p === page ? "bg-brand text-white" : "bg-ink-100 text-ink-600 hover:bg-ink-200"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </section>
       )}
