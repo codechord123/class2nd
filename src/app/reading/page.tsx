@@ -53,36 +53,19 @@ function ReportBody({
 
   return (
     <>
-      {(r.author || r.publisher) && (
-        <p className="text-[13px] text-ink-600">
-          {r.author && (
-            <>
-              지은이 <b>{r.author}</b>
-            </>
-          )}
-          {r.author && r.publisher && " · "}
-          {r.publisher && (
-            <>
-              출판사 <b>{r.publisher}</b>
-            </>
-          )}
-        </p>
-      )}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-2.5 overflow-hidden rounded-btn border border-emerald-200 border-l-4 border-l-emerald-500">
-          <p className="border-b border-emerald-100 bg-emerald-100/80 px-3.5 py-2 text-[13px] font-extrabold text-emerald-900">
-            마음에 남는 문장
-          </p>
-          <p className="whitespace-pre-wrap bg-emerald-50/30 px-3.5 py-3 text-base italic leading-7 text-ink-700 [overflow-wrap:anywhere]">
-            “{r.quote}”
+        <div className="mt-6 rounded-card bg-emerald-50 p-4">
+          <p className="text-[13px] font-extrabold text-emerald-700">❝ 마음에 남는 문장</p>
+          <p className="mt-1.5 whitespace-pre-wrap text-lg font-medium italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
+            {r.quote}
           </p>
         </div>
       )}
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
       {(onEdit || onDelete) && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-5 flex gap-2">
           {onEdit && (
             <button
               onClick={onEdit}
@@ -102,14 +85,20 @@ function ReportBody({
         </div>
       )}
 
-      {/* 친구 댓글 */}
-      <div className="mt-2 border-t border-ink-200 pt-2">
+      {/* 친구 댓글 — 말풍선 */}
+      <div className="mt-5 border-t border-ink-100 pt-3">
+        <p className="text-[13px] font-bold text-ink-500">
+          응원 댓글 {(r.comments?.length ?? 0) > 0 && `${r.comments!.length}개`}
+        </p>
         {(r.comments ?? []).map((c) => (
-          <div key={c.id} className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="[overflow-wrap:anywhere]">
-              <b className="text-xs text-ink-500">{name(c.studentId)}</b>{" "}
-              <span className="text-ink-600">{c.text}</span>
+          <div key={c.id} className="mt-2 flex items-start gap-2">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-extrabold text-emerald-700">
+              {name(c.studentId).charAt(0)}
             </span>
+            <div className="min-w-0 rounded-2xl rounded-tl-sm bg-ink-100 px-3 py-2">
+              <span className="text-xs font-bold text-ink-500">{name(c.studentId)}</span>
+              <p className="text-sm leading-6 text-ink-800 [overflow-wrap:anywhere]">{c.text}</p>
+            </div>
             {(role === "teacher" || c.studentId === studentId) && (
               <button
                 onClick={() =>
@@ -117,14 +106,14 @@ function ReportBody({
                     (ok) => ok && void deleteComment(r, c.id)
                   )
                 }
-                className="shrink-0 text-[10px] text-ink-400 hover:text-danger"
+                className="shrink-0 self-center text-[11px] text-ink-400 hover:text-danger"
               >
                 삭제
               </button>
             )}
           </div>
         ))}
-        <div className="mt-1.5 flex items-center gap-1.5">
+        <div className="mt-2.5 flex items-center gap-1.5">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -158,15 +147,17 @@ function dateLabel(ms: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-// 감상문 본문 섹션 — 라벨 띠 + 테두리 상자 (ink-50 배경만으론 흰 카드와 구별이 안 됐음)
+// 감상문 본문 섹션 — 문서형: 초록 마커 소제목 + 넉넉한 줄간격 본문
+// (상자 나열 대신 읽는 문서의 흐름 — 색은 헤더가 담당, 본문은 깨끗하게)
 // [overflow-wrap:anywhere]: 띄어쓰기 없는 긴 글이 카드 밖으로 넘치지 않게
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-2.5 overflow-hidden rounded-btn border border-ink-200 border-l-4 border-l-emerald-500">
-      <p className="border-b border-emerald-100 bg-emerald-100/80 px-3.5 py-2 text-[13px] font-extrabold text-emerald-900">
+    <div className="mt-6 first:mt-0">
+      <p className="flex items-center gap-2 text-[15px] font-extrabold text-emerald-700">
+        <span className="inline-block h-4 w-1.5 rounded-full bg-emerald-500" />
         {label}
       </p>
-      <p className="whitespace-pre-wrap px-3.5 py-3 text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
+      <p className="mt-2 whitespace-pre-wrap text-base leading-8 text-ink-800 [overflow-wrap:anywhere]">
         <Linkify text={text} />
       </p>
     </div>
@@ -259,30 +250,42 @@ export default function ReadingPage() {
         >
           ← 목록으로
         </button>
-        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
-          <div className="border-b border-ink-100 pb-3">
+        <section className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-card">
+          {/* 책 표지형 헤더 — 제목·지은이·작성자를 초록 그라데이션 위에 */}
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white">
             <div className="flex flex-wrap items-center gap-1.5">
               {(r.tags?.length ?? 0) > 0 ? (
                 r.tags!.map((t) => (
                   <span
                     key={t}
-                    className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
+                    className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold"
                   >
                     {t}
                   </span>
                 ))
               ) : (
-                <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-bold text-ink-400">
+                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white/80">
                   미분류
                 </span>
               )}
+              {r.isPrivate && (
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold">
+                  🔒 선생님만 보기
+                </span>
+              )}
             </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              {r.isPrivate && <span className="shrink-0 text-sm">🔒</span>}
-              <h3 className="text-xl font-bold [overflow-wrap:anywhere]">{r.title}</h3>
-            </div>
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-500">
-              <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+            <h3 className="mt-2 text-2xl font-extrabold leading-snug [overflow-wrap:anywhere]">
+              {r.title}
+            </h3>
+            {(r.author || r.publisher) && (
+              <p className="mt-1 text-sm font-medium text-white/90 [overflow-wrap:anywhere]">
+                {r.author}
+                {r.author && r.publisher && " · "}
+                {r.publisher}
+              </p>
+            )}
+            <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-white/90">
+              <span className="rounded-full bg-white/25 px-2 py-0.5 font-bold">
                 {studentById.get(r.studentId)?.name}
               </span>
               <span>{r.week}주차</span>
@@ -290,7 +293,7 @@ export default function ReadingPage() {
               <span className="tnum">{dateLabel(r.createdAt)}</span>
             </p>
           </div>
-          <div className="mt-3">
+          <div className="p-5">
             <ReportBody
               r={r}
               onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
