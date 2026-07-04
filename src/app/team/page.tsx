@@ -26,7 +26,7 @@ import {
 import TeamStats from "@/components/team/TeamStats";
 import SubTabs from "@/components/ui/SubTabs";
 import { useFeedback } from "@/components/ui/Feedback";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { DailyScoreRow } from "@/types";
 
 const roleEmoji = Object.fromEntries(ROLE_INFO.map((r) => [r.key, r.emoji]));
@@ -89,7 +89,18 @@ export default function TeamPage() {
   const [sugOpen, setSugOpen] = useState(false);
   const [toTeacherText, setToTeacherText] = useState("");
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
+  const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
   const { toast } = useFeedback();
+
+  // 데스크탑 더블클릭 오동작 방지 — 같은 토글 버튼이 짧은 간격에 다시 눌리면 무시
+  // (마우스 더블클릭 습관 → 선택과 취소가 연달아 일어나는 문제)
+  const lastClickRef = useRef<{ key: string; t: number }>({ key: "", t: 0 });
+  function firstClick(key: string): boolean {
+    const now = Date.now();
+    if (lastClickRef.current.key === key && now - lastClickRef.current.t < 450) return false;
+    lastClickRef.current = { key, t: now };
+    return true;
+  }
 
   if (role === "teacher") {
     return (
@@ -245,7 +256,9 @@ export default function TeamPage() {
         onChange={setTab}
       />
 
-      {tab === "eval" && (<>
+      {tab === "eval" && (
+      /* 디벗·데스크탑(lg)에서는 2열 배치 — 모바일은 기존 세로 스택 그대로 */
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
 
       {/* 모둠 내 상호평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -288,12 +301,16 @@ export default function TeamPage() {
             return (
               <button
                 key={t.studentId}
-                onClick={() =>
-                  void saveMvp(selected ? 0 : t.studentId).then(
-                    () => toast(selected ? "MVP 선택을 취소했어요." : "⭐ MVP를 뽑았어요!"),
-                    (e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                  )
-                }
+                onClick={() => {
+                  if (mvpBusy || !firstClick(`mvp-${t.studentId}`)) return;
+                  setMvpBusy(true);
+                  void saveMvp(selected ? 0 : t.studentId)
+                    .then(
+                      () => toast(selected ? "MVP 선택을 취소했어요." : "⭐ MVP를 뽑았어요!"),
+                      (e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                    )
+                    .finally(() => setMvpBusy(false));
+                }}
                 className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
                   selected
                     ? "border-warn bg-warn text-white"
@@ -352,7 +369,10 @@ export default function TeamPage() {
           {sortedTargets.map((t) => (
             <button
               key={t.studentId}
-              onClick={() => setCompTo(compTo === t.studentId ? null : t.studentId)}
+              onClick={() => {
+                if (!firstClick(`comp-${t.studentId}`)) return;
+                setCompTo(compTo === t.studentId ? null : t.studentId);
+              }}
               className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
                 compTo === t.studentId
                   ? "border-pink-400 bg-pink-500 text-white"
@@ -397,7 +417,10 @@ export default function TeamPage() {
 
         {/* 건의 — 필요할 때만 */}
         <button
-          onClick={() => setSugOpen((v) => !v)}
+          onClick={() => {
+            if (!firstClick("sug-open")) return;
+            setSugOpen((v) => !v);
+          }}
           className="mt-3 text-xs font-medium text-ink-400 underline-offset-2 hover:text-ink-600 hover:underline"
         >
           {sugOpen ? "건의 접기 ▲" : "🙋 친구에게 건의할 게 있어요 (선택) ▼"}
@@ -408,7 +431,10 @@ export default function TeamPage() {
               {targets.map((t) => (
                 <button
                   key={t.studentId}
-                  onClick={() => setSugTo(sugTo === t.studentId ? null : t.studentId)}
+                  onClick={() => {
+                    if (!firstClick(`sug-${t.studentId}`)) return;
+                    setSugTo(sugTo === t.studentId ? null : t.studentId);
+                  }}
                   className={`press rounded-full border px-2.5 py-1 text-xs font-medium ${
                     sugTo === t.studentId
                       ? "border-sky-400 bg-sky-500 text-white"
@@ -489,7 +515,7 @@ export default function TeamPage() {
         </div>
       </section>
 
-      </>)}
+      </div>)}
 
       {tab === "stats" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
 

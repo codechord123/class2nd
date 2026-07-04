@@ -43,7 +43,53 @@ export async function studentLogin(
   if (snap.data().hash !== hash) {
     throw new Error("비밀번호가 올바르지 않습니다.");
   }
+  // 선생님이 발급한 비밀번호(uid 미바인딩)로 첫 로그인 → 이 기기 uid로 바인딩 (best-effort).
+  // 이미 다른 uid에 바인딩돼 있으면 규칙이 거부 — 조용히 넘어가고 로그인은 유지.
+  if (snap.data().uid !== auth.currentUser?.uid) {
+    await setDoc(
+      ref,
+      { uid: auth.currentUser?.uid ?? null, updatedAt: Date.now() },
+      { merge: true }
+    ).catch(() => {});
+  }
   return { firstTime: false };
+}
+
+/**
+ * 교사: 전체 학생 비밀번호 일괄 초기화 + 새 비밀번호(4자리 숫자) 발급.
+ * 발급 즉시 각 학생은 새 번호로만 로그인 가능. uid 바인딩·힌트는 해제(새 기기에서 재바인딩).
+ * 반환된 목록은 저장되지 않으니(해시만 저장) 화면에서 인쇄/기록해야 한다.
+ */
+export async function issueAllPasswords(
+  studentIds: number[]
+): Promise<{ studentId: number; code: string }[]> {
+  const { deleteField } = await import("firebase/firestore");
+  // 서로 다른 4자리 코드 (중복 없음 — 친구 번호 추측 방지)
+  const codes = new Set<string>();
+  const rand = new Uint32Array(1);
+  while (codes.size < studentIds.length) {
+    crypto.getRandomValues(rand);
+    codes.add(String(1000 + (rand[0] % 9000)));
+  }
+  const list = [...codes];
+  const issued: { studentId: number; code: string }[] = [];
+  for (let i = 0; i < studentIds.length; i++) {
+    const sid = studentIds[i];
+    const code = list[i];
+    await setDoc(
+      doc(db(), "studentAuth", String(sid)),
+      {
+        hash: await sha256(code),
+        updatedAt: Date.now(),
+        issuedAt: Date.now(),
+        uid: deleteField(),
+        hint: deleteField(),
+      },
+      { merge: true }
+    );
+    issued.push({ studentId: sid, code });
+  }
+  return issued;
 }
 
 /** 학생 본인: 비밀번호 변경 (+ 힌트 동시 설정 가능) */

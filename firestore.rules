@@ -70,11 +70,11 @@ service cloud.firestore {
     }
 
     // 학생 비밀번호 해시 — 계정 선점/탈취 방지:
-    //  create는 uid를 본인 것으로 바인딩, update는 그 uid 소유자 또는 교사만.
-    //  (uid 없는 레거시 문서는 한 번 갱신되며 uid가 채워짐)
+    //  create는 uid를 본인 것으로 바인딩(교사는 일괄 발급용 예외), update는 그 uid 소유자 또는 교사만.
+    //  (uid 없는 문서 = 교사 발급/레거시 — 다음 로그인에서 그 기기 uid로 바인딩됨)
     match /studentAuth/{studentId} {
       allow read: if isAuthed();
-      allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+      allow create: if isTeacher() || (isAuthed() && request.resource.data.uid == request.auth.uid);
       allow update: if isAuthed() && (
         !("uid" in resource.data) ||
         resource.data.uid == request.auth.uid ||

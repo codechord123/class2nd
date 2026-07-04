@@ -25,7 +25,7 @@ export default function RootLayout({
         <Providers>
           <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/80 backdrop-blur-md">
             <BetaBanner />
-            <div className="mx-auto max-w-3xl px-4">
+            <div className="mx-auto max-w-3xl px-4 lg:max-w-5xl">
               <div className="flex items-center justify-between py-3">
                 <h1 className="text-[15px] font-extrabold tracking-tight text-ink-900">
                   🏫 2학기 학급 자치
@@ -35,7 +35,7 @@ export default function RootLayout({
               <TabNav />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">
+          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 lg:max-w-5xl">
             <LoginGate>{children}</LoginGate>
           </main>
         </Providers>
