@@ -23,6 +23,19 @@ export async function sha256(text: string): Promise<string> {
 
 const codeOf = (e: unknown): string => (e as { code?: string })?.code ?? "";
 
+/** 알 수 없는 오류를 진단 가능한 한국어 메시지로 (원인 코드 병기 — 원격 진단용) */
+function friendlyAuthError(e: unknown): Error {
+  const code = codeOf(e);
+  if (code === "auth/admin-restricted-operation" || code === "auth/operation-not-allowed")
+    return new Error("익명 로그인 설정이 꺼져 있어요 — 선생님께 알려주세요. (Firebase 콘솔 > Authentication > 익명 사용 설정)");
+  if (code === "auth/network-request-failed" || code === "unavailable")
+    return new Error("인터넷 연결이 불안정해요 — 와이파이/LTE를 확인하고 다시 시도해주세요.");
+  if (code === "resource-exhausted")
+    return new Error("오늘 사용량 한도에 걸렸어요 — 선생님께 알려주세요. (resource-exhausted)");
+  const msg = e instanceof Error ? e.message : String(e);
+  return new Error(`로그인 중 문제가 생겼어요 (${code || msg})`);
+}
+
 export async function teacherLogin(email: string, password: string): Promise<void> {
   await signInWithEmailAndPassword(firebaseAuth(), email, password);
 }
@@ -34,7 +47,13 @@ export async function studentLogin(
 ): Promise<{ firstTime: boolean }> {
   if (!password.trim()) throw new Error("비밀번호를 입력해주세요.");
   const auth = firebaseAuth();
-  if (!auth.currentUser) await signInAnonymously(auth);
+  if (!auth.currentUser) {
+    try {
+      await signInAnonymously(auth);
+    } catch (e) {
+      throw friendlyAuthError(e);
+    }
+  }
   const uid = auth.currentUser?.uid ?? null;
 
   const ref = doc(db(), "studentAuth", String(studentId));
@@ -52,7 +71,8 @@ export async function studentLogin(
     if (snap.data().hash !== verify) throw new Error("비밀번호가 올바르지 않습니다.");
     verifiedLocally = true;
   } catch (e) {
-    if (codeOf(e) !== "permission-denied") throw e;
+    if (e instanceof Error && e.message === "비밀번호가 올바르지 않습니다.") throw e;
+    if (codeOf(e) !== "permission-denied") throw friendlyAuthError(e);
     // 신규 규칙: 읽기 금지 — 아래 update에서 규칙이 비밀번호를 검증한다
   }
 
@@ -79,7 +99,7 @@ export async function studentLogin(
         throw new Error("비밀번호가 올바르지 않습니다.");
       }
     }
-    throw e;
+    throw friendlyAuthError(e);
   }
   return { firstTime: false };
 }

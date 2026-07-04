@@ -195,7 +195,7 @@ export default function WriteSheet({
             <span className={`tnum text-sm font-extrabold ${pct >= 100 ? "text-success" : "text-ink-600"}`}>
               {bodyLen} / {charLimit}자 {pct >= 100 ? "✅ 등록 가능!" : ""}
             </span>
-            <Button size="lg" variant="success" onClick={() => void submit(false)} disabled={busy}>
+            <Button size="lg" variant="primary" onClick={() => void submit(false)} disabled={busy}>
               {busy ? "저장 중…" : editingReport ? "수정 저장" : "정식 등록 (+1권)"}
             </Button>
           </div>

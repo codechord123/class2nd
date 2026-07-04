@@ -5,17 +5,17 @@ import { useClassBanner } from "@/lib/query/classMeta";
 export default function ClassBanner({ compact = false }: { compact?: boolean }) {
   const { data: banner } = useClassBanner();
   if (!banner || !banner.active || !banner.title.trim()) return null;
-  // 흰 카드 + 주황 왼줄 액센트 — 다른 탭과 같은 카드 문법 (그라데이션 블록은 컨셉이 튐)
+  // 그라데이션 배너 유지하되 브랜드 파랑으로 — 앱 전체가 파랑 한 계열로 통일 (사용자 결정)
   return (
     <div
-      className={`rounded-card border border-ink-200 border-l-4 border-l-warn bg-white px-4 shadow-card ${
-        compact ? "py-2.5" : "py-3"
+      className={`rounded-card bg-gradient-to-r from-brand to-blue-600 px-5 text-white shadow ${
+        compact ? "py-3" : "py-3.5"
       }`}
     >
       {!compact && banner.sub?.trim() && (
-        <p className="text-xs font-bold text-warn">{banner.sub}</p>
+        <p className="text-xs font-medium opacity-90">{banner.sub}</p>
       )}
-      <p className={`font-extrabold text-ink-900 ${compact ? "text-base" : "mt-0.5 text-lg"}`}>
+      <p className={`font-extrabold ${compact ? "text-base" : "mt-0.5 text-lg"}`}>
         🎯 {banner.title}
       </p>
     </div>

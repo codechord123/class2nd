@@ -131,6 +131,24 @@ function LoginScreen({
     }
   }
 
+  // '확인 중…'에서 무한 대기하지 않게 — 서버 응답이 없으면 20초 후 명확한 안내로 끊는다
+  function withTimeout<T>(p: Promise<T>, ms = 20000): Promise<T> {
+    return Promise.race([
+      p,
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "서버 응답이 없어요 — 인터넷 연결(와이파이/LTE)을 확인하고 다시 시도해주세요."
+              )
+            ),
+          ms
+        )
+      ),
+    ]);
+  }
+
   async function submit() {
     setError("");
     setNotice("");
@@ -138,11 +156,11 @@ function LoginScreen({
     try {
       if (mode === "student") {
         if (!selectedId) throw new Error("이름을 선택해주세요.");
-        const { firstTime } = await studentLogin(selectedId, password);
+        const { firstTime } = await withTimeout(studentLogin(selectedId, password));
         if (firstTime) setNotice("첫 로그인! 지금 입력한 비밀번호가 등록되었어요.");
         onLogin("student", selectedId);
       } else {
-        await teacherLogin(email, password);
+        await withTimeout(teacherLogin(email, password));
         onLogin("teacher");
       }
     } catch (e) {

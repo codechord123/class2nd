@@ -175,7 +175,7 @@ export default function MyStatus() {
             </span>
           </span>
         </span>
-        <span className="shrink-0 rounded-btn bg-success px-3 py-2 text-xs font-bold text-white">
+        <span className="shrink-0 rounded-btn bg-brand px-3 py-2 text-xs font-bold text-white">
           ✍️ 감상문 쓰기
         </span>
       </a>

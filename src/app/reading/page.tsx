@@ -141,7 +141,7 @@ function ReportBody({
               void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
             }}
             disabled={!text.trim()}
-            className="press shrink-0 rounded-btn bg-success px-3.5 py-2 text-sm font-bold text-white disabled:opacity-40"
+            className="press shrink-0 rounded-btn bg-brand px-3.5 py-2 text-sm font-bold text-white disabled:opacity-40"
           >
             등록
           </button>
@@ -474,7 +474,7 @@ export default function ReadingPage() {
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <button
             onClick={openNew}
-            className="press flex w-full items-center justify-center gap-2 rounded-card bg-success py-6 text-base font-extrabold text-white shadow-card"
+            className="press flex w-full items-center justify-center gap-2 rounded-card bg-brand py-6 text-base font-extrabold text-white shadow-card"
           >
             ✍️ 감상문 쓰기 ({week}주차)
           </button>
@@ -547,7 +547,7 @@ export default function ReadingPage() {
                 setPage(1);
               }}
               className={`press rounded-full px-2.5 py-1 text-xs font-medium ${
-                onlyS2 ? "bg-emerald-600 text-white" : "bg-ink-100 text-ink-500"
+                onlyS2 ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
               }`}
             >
               2학기만

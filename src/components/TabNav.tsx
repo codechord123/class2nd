@@ -11,7 +11,7 @@ import { useSession } from "@/stores/session";
 const TABS = [
   { href: "/", label: "개요", accent: "bg-brand" },
   { href: "/team", label: "Team", accent: "bg-orange-500" },
-  { href: "/reading", label: "독서", accent: "bg-emerald-500" },
+  { href: "/reading", label: "독서", accent: "bg-brand" },
   { href: "/board", label: "건의", accent: "bg-sky-500" },
   { href: "/vote", label: "투표", accent: "bg-violet-500" },
   { href: "/seats", label: "자리", accent: "bg-amber-500" },
