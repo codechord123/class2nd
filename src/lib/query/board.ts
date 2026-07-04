@@ -8,6 +8,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -39,6 +40,7 @@ export interface Suggestion {
   isAnonymous: boolean;
   isAnnouncement?: boolean; // 공지 고정 (교사)
   status?: AgendaStatus; // 안건 상태 (기본 논의중)
+  enactedAsLaw?: boolean; // 채택 후 학급 법률로 등록됨
   agree?: Record<string, boolean>; // studentId → 찬성
   disagree?: Record<string, boolean>; // studentId → 반대
   comments?: BoardComment[];
@@ -195,6 +197,29 @@ export function useReactSuggestion(myId: number | null) {
       });
     qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
     qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+  };
+}
+
+/**
+ * 교사: 채택된 안건을 학급 법률로 등록 — 자치 루프의 마지막 고리
+ * (안건 제안 → 토론·찬반 → 채택 → 법률). 헌법 문서 laws 배열에 추가하고
+ * 안건에 enactedAsLaw 표시. 반환값은 새 법률의 조 번호.
+ */
+export function useEnactLaw() {
+  const qc = useQueryClient();
+  return async (sug: Suggestion): Promise<number> => {
+    const ref = doc(db(), "classData", "constitution");
+    const snap = await getDoc(ref);
+    const c = (snap.exists() ? snap.data() : {}) as { laws?: string[] };
+    const laws = [...(c.laws ?? []), titleOf(sug)];
+    await setDoc(ref, { laws }, { merge: true });
+    await updateDoc(doc(db(), "suggestions", sug.id), { enactedAsLaw: true });
+    const patch = (prev: Suggestion[] | undefined) =>
+      prev?.map((s) => (s.id === sug.id ? { ...s, enactedAsLaw: true } : s));
+    qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
+    qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+    void qc.invalidateQueries({ queryKey: ["constitution"] });
+    return laws.length;
   };
 }
 

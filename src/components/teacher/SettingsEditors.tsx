@@ -65,7 +65,7 @@ export function ScaleEditor({
   );
 }
 
-/** 모둠 순위 → 개인 점수. 1~5위 각 스텝퍼 행. */
+/** 오늘의 모둠 점수 — 모둠 간 평가 폐지 후 순위는 '오늘의 모둠(1위)'만 존재. */
 export function RankPointsEditor({
   value,
   onChange,
@@ -73,26 +73,20 @@ export function RankPointsEditor({
   value: number[];
   onChange: (v: number[]) => void;
 }) {
-  const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}위`);
   return (
     <div className="rounded-card bg-ink-50 p-4">
-      <p className="text-sm font-bold text-ink-800">모둠 순위 → 개인 점수</p>
-      <div className="mt-2 space-y-1.5">
-        {value.map((pt, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <span className="text-sm text-ink-700">
-              <span className="mr-1">{medal(i)}</span>
-              {i >= 3 && "모둠"}
-            </span>
-            <NumberStepper
-              value={pt}
-              min={0}
-              max={20}
-              onChange={(v) => onChange(value.map((p, j) => (j === i ? v : p)))}
-            />
-          </div>
-        ))}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-ink-800">👑 오늘의 모둠 점수</span>
+        <NumberStepper
+          value={value[0] ?? 5}
+          min={0}
+          max={20}
+          onChange={(v) => onChange([v, ...value.slice(1)])}
+        />
       </div>
+      <p className="mt-1.5 text-[11px] text-ink-400">
+        선생님이 고른 오늘의 모둠 전원이 받는 점수예요. (다른 모둠은 0점)
+      </p>
     </div>
   );
 }

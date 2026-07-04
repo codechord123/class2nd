@@ -6,7 +6,7 @@ import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, type AggregateResult } from "@/lib/aggregate";
-import { todayKST } from "@/lib/date";
+import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
 import {
   usePendingRequests,
@@ -36,7 +36,6 @@ import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { weekOfDate } from "@/lib/date";
 import type { ClassSettings } from "@/types";
 
 export default function TeacherPage() {
@@ -97,7 +96,11 @@ export default function TeacherPage() {
       // 집계 결과 캐시 무효화 — 다음 조회 때 새 문서를 읽는다
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
       void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
-      setMsg(`✅ ${date} 집계 완료 — 평가 ${r.evaluatorCount}명 · 모둠투표 ${r.voterCount}명`);
+      const noBest = Object.keys(r.groupRanks).length === 0;
+      setMsg(
+        `✅ ${date} 집계 완료 — 평가 ${r.evaluatorCount}명 제출` +
+          (noBest ? " · ⚠️ 오늘의 모둠 미선정(순위 점수 0점) — 아래에서 선정 후 재집계하세요" : "")
+      );
     } catch (e) {
       setMsg(`⚠️ 집계 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {

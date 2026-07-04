@@ -52,6 +52,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const compliments = meta?.compliments ?? [];
   const peerSug = meta?.peerSuggestions ?? [];
   const wishes = meta?.toTeacher ?? [];
+  // 커버리지 백스톱: 오늘 칭찬을 하나도 못 받은 친구 — 아침 조회 때 한마디 보정용
+  const praisedIds = new Set(compliments.map((c) => c.to));
+  const notPraised = students.filter((s) => !praisedIds.has(s.id));
 
   async function print() {
     if (printing) return;
@@ -136,12 +139,14 @@ ${
               </p>
             </div>
             <div className="rounded-btn bg-ink-50 p-3">
-              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠 순위</p>
+              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠</p>
               <p className="mt-1 text-sm text-ink-700">
                 {rankPairs.length ? (
-                  rankPairs.map(([g, r]) => `${g}모둠 ${r}위`).join(" · ")
+                  rankPairs.map(([g]) => `👑 ${g}모둠`).join(" · ")
                 ) : (
-                  <span className="text-ink-400">순위 없음 (오늘의 모둠 미선정)</span>
+                  <span className="font-bold text-warn">
+                    ⚠️ 미선정 — 순위 점수 0점. 선정 후 재집계하세요
+                  </span>
                 )}
               </p>
             </div>
@@ -159,6 +164,12 @@ ${
               </ul>
             ) : (
               <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
+            )}
+            {compliments.length > 0 && notPraised.length > 0 && (
+              <p className="mt-1.5 text-xs font-medium text-warn">
+                💌 오늘 칭찬 못 받은 친구({notPraised.length}):{" "}
+                {notPraised.map((s) => s.name).join(", ")}
+              </p>
             )}
           </div>
 

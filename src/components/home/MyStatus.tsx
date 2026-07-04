@@ -5,8 +5,13 @@ import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useBalances } from "@/lib/query/wallet";
-import { useCumulativeScores } from "@/lib/query/evaluation";
-import { getS1WalletOf, s1ClassGoldRemaining, s1TotalBooks } from "@/lib/staticData";
+import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
+import {
+  getS1WalletOf,
+  s1ClassGoldRemaining,
+  s1TotalBooks,
+  s1BooksByStudent,
+} from "@/lib/staticData";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
@@ -36,8 +41,10 @@ export default function MyStatus() {
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
   const { data: cum } = useCumulativeScores();
+  const today = todayKST();
+  const { data: myEval } = useMyEvaluation(today, role === "student" ? studentId : null);
 
-  const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
+  const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
 
   // 학급 스코어보드 (전원 공통)
@@ -68,9 +75,50 @@ export default function MyStatus() {
   const nowWeek = currentWeekNum();
   const myGroup = groupOf(nowWeek, studentId);
   const myRole = roleOf(nowWeek, studentId);
+  const myTotalBooks = (s1BooksByStudent[String(studentId)] ?? 0) + (stats?.total?.[String(studentId)] ?? 0);
+
+  // 오늘 할 일 — Team 탭과 같은 판정 (내 평가 문서 하나, 캐시 공유라 추가 읽기 0)
+  const evalRec = (myEval ?? {}) as Record<string, unknown>;
+  const targets = myGroup
+    ? [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].filter((id) => id !== studentId)
+    : [];
+  const doneScores = targets.length > 0 && targets.every((id) => typeof evalRec[id] === "number");
+  const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
+  const doneComp = Object.values(
+    (evalRec._compliments as Record<string, string>) ?? {}
+  ).some((v) => v?.trim());
+  const doneRead = myWeekRead >= quota;
+  const todos: { label: string; done: boolean }[] = [
+    { label: "모둠 평가", done: doneScores },
+    { label: "MVP", done: doneMvp },
+    { label: "칭찬", done: doneComp },
+    { label: `독서 ${myWeekRead}/${quota}`, done: doneRead },
+  ];
+  const allDone = todos.every((t) => t.done);
 
   return (
     <div className="space-y-3">
+      {/* 오늘 할 일 — 매일 열 이유를 홈 최상단에 */}
+      <a
+        href="/team"
+        className={`block rounded-card border p-3 shadow-card ${
+          allDone ? "border-success/40 bg-success-weak" : "border-ink-200 bg-white"
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <span className="text-sm font-bold text-ink-900">
+            {allDone ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
+          </span>
+          <span className="flex flex-wrap gap-1.5 text-xs">
+            {todos.map((t) => (
+              <span key={t.label} className={t.done ? "text-success" : "text-ink-400"}>
+                {t.done ? "✅" : "○"} {t.label}
+              </span>
+            ))}
+          </span>
+        </div>
+      </a>
+
       <section className="rise rounded-card border border-ink-200 bg-white p-3 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-1">
           <h2 className="text-sm font-bold text-ink-900">🙋 내 현황</h2>
@@ -84,6 +132,7 @@ export default function MyStatus() {
           <Stat
             label="이번 주 독서"
             value={`${myWeekRead}/${quota}권`}
+            sub={`누적 ${myTotalBooks}권 기여`}
             tone={myWeekRead >= quota ? "emerald" : "slate"}
           />
           <Stat label="누적 점수" value={typeof myScore === "number" ? myScore : 0} tone="indigo" />

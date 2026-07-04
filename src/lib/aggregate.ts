@@ -1,5 +1,5 @@
 // 일일 점수 집계 — 교사 세션에서 실행 (Admin SDK/서비스 계정 불필요).
-// 원시 평가를 읽는 유일한 코드 경로: 하루 최대 50문서(평가 25 + 모둠투표 25)를
+// 원시 평가를 읽는 유일한 코드 경로: 하루 최대 25문서(평가)를
 // 교사만 1회 읽고, 결과는 dailyScores/{date} 문서 하나로 저장한다.
 // 학생들은 이 결과 문서만 읽으므로 읽기 폭증이 구조적으로 불가능하다.
 // 재집계해도 누적이 어긋나지 않도록 이전 집계분을 빼고 더한다(멱등).
@@ -21,26 +21,9 @@ import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
 import type { ClassSettings, DailyScoreRow } from "@/types";
 
-/** Dense Ranking: 점수 내림차순, 동점은 같은 순위·후순위 안 내림 (인수인계 §5.5) */
-export function denseRank(groupScores: Record<number, number>): Record<number, number> {
-  const sorted = Object.entries(groupScores).sort((a, b) => b[1] - a[1]);
-  const ranks: Record<number, number> = {};
-  let rank = 0;
-  let prev: number | null = null;
-  for (const [gId, score] of sorted) {
-    if (score !== prev) {
-      rank++;
-      prev = score;
-    }
-    ranks[Number(gId)] = rank;
-  }
-  return ranks;
-}
-
 export interface AggregateResult {
   date: string;
   evaluatorCount: number;
-  voterCount: number;
   groupRanks: Record<number, number>;
 }
 
@@ -50,13 +33,12 @@ export async function aggregateDate(
 ): Promise<AggregateResult> {
   const d = db();
 
-  // 1) 원시 평가 읽기 (교사 1회 — 최대 50문서)
-  const [evalSnap, voteSnap, prevSnap, cumSnap, bestSnap] = await Promise.all([
+  // 1) 원시 평가 읽기 (교사 1회 — 최대 25문서)
+  const [evalSnap, prevSnap, cumSnap, bestSnap] = await Promise.all([
     getDocs(collection(d, "evaluations", date, "entries")),
-    getDocs(collection(d, "groupVotes", date, "entries")),
     getDoc(doc(d, "dailyScores", date)), // 재집계 시 이전분 차감용
     getDoc(doc(d, "dailyScores", "_cumulative")),
-    getDoc(doc(d, "classData", "bestGroups")), // 모둠 간 평가 폐지 → 교사 '오늘의 모둠'으로 순위 대체
+    getDoc(doc(d, "classData", "bestGroups")), // 모둠 간 평가 폐지 → 교사 '오늘의 모둠'이 순위 결정
   ]);
 
   // 2) 모둠 내 점수: 받은 평가 합 (+ MVP 득표 집계)
@@ -91,27 +73,14 @@ export async function aggregateDate(
       toTeacher.push({ from, text: data._toTeacher });
   });
 
-  // 3) 모둠 간: 모둠별 득점 합 → Dense Ranking → 순위 점수
-  const groupScore: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  voteSnap.forEach((entry) => {
-    for (const [gId, v] of Object.entries(entry.data())) {
-      if (typeof v === "number" && groupScore[Number(gId)] !== undefined)
-        groupScore[Number(gId)] += v;
-    }
-  });
+  // 3) 순위 산정: 교사가 고른 '오늘의 모둠'만 1위 → 그 모둠 전원 rankPoints[0]점.
+  //    미선정이면 순위 점수 0 (호출부에서 경고 표시).
   const rankPoint = (rank: number) =>
     settings.rankPoints[rank - 1] ?? settings.rankPoints[settings.rankPoints.length - 1] ?? 0;
-
-  // 순위 산정: 모둠 간 평가 표가 있으면 Dense Ranking, 없으면(현행) 교사가 고른
-  // '오늘의 모둠'만 1위 → 나머지 모둠은 순위 점수 0. (모둠 간 평가 폐지 반영)
   const bestGroupId = bestSnap.exists()
     ? (bestSnap.data() as Record<string, { groupId: number } | undefined>)[date]?.groupId
     : undefined;
-  const ranks: Record<number, number> = !voteSnap.empty
-    ? denseRank(groupScore)
-    : bestGroupId
-      ? { [bestGroupId]: 1 }
-      : {};
+  const ranks: Record<number, number> = bestGroupId ? { [bestGroupId]: 1 } : {};
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
@@ -176,7 +145,6 @@ export async function aggregateDate(
       ...rows,
       _meta: {
         aggregatedAt: Date.now(),
-        groupScore,
         ranks,
         mvpVotes,
         mvpWinners,
@@ -191,18 +159,8 @@ export async function aggregateDate(
   return {
     date,
     evaluatorCount: evalSnap.size,
-    voterCount: voteSnap.size,
     groupRanks: ranks,
   };
-}
-
-// ── 격주 MVP 정산 (인수인계 §5.7: 2주 누적 상위 5명, 동점 포함, 실버 1개) ──
-export interface BiweeklyResult {
-  period: number;
-  range: [string, string];
-  sums: Record<number, number>;
-  mvps: number[];
-  alreadySettled: boolean;
 }
 
 /** 주차 → 격주 기간 번호 (1~11) */
@@ -218,81 +176,10 @@ function dateRangeOfPeriod(period: number): [string, string] {
   return [first, end.toISOString().slice(0, 10)];
 }
 
-/**
- * 격주 정산: 기간 내 일일 집계 문서(최대 14개)를 합산해 MVP 선정 + 실버 1개 지급.
- * 같은 기간을 두 번 정산하면 alreadySettled=true로 반환하고 지급하지 않는다.
- */
-export async function settleBiweekly(period: number): Promise<BiweeklyResult> {
-  const d = db();
-  const [start, end] = dateRangeOfPeriod(period);
-
-  const existing = await getDoc(doc(d, "biweeklyScores", String(period)));
-  if (existing.exists() && existing.data().awardedAt) {
-    const data = existing.data();
-    return {
-      period,
-      range: [start, end],
-      sums: data.sums ?? {},
-      mvps: data.mvps ?? [],
-      alreadySettled: true,
-    };
-  }
-
-  // 기간 내 일일 집계 문서 범위 조회 (_cumulative는 "_"라 범위 밖)
-  const snap = await getDocs(
-    query(
-      collection(d, "dailyScores"),
-      where(documentId(), ">=", start),
-      where(documentId(), "<=", end)
-    )
-  );
-  const sums: Record<number, number> = {};
-  snap.forEach((day) => {
-    for (const s of students) {
-      const row = day.data()[String(s.id)] as DailyScoreRow | undefined;
-      if (row) sums[s.id] = (sums[s.id] ?? 0) + row.total;
-    }
-  });
-
-  // 상위 5명 (동점자 모두 포함)
-  const sorted = Object.entries(sums).sort((a, b) => b[1] - a[1]);
-  const cutoff = sorted[4]?.[1];
-  const mvps =
-    cutoff === undefined
-      ? sorted.map(([sid]) => Number(sid))
-      : sorted.filter(([, v]) => v >= cutoff).map(([sid]) => Number(sid));
-
-  // 지급: 실버 1개씩 (원장 + 잔액)
-  for (const sid of mvps) {
-    await addDoc(collection(d, "coinTxns"), {
-      studentId: sid,
-      amount: 1,
-      item: `격주 MVP (${period}기간)`,
-      type: "mvp",
-      status: "approved",
-      createdAt: Date.now(),
-    });
-  }
-  if (mvps.length) {
-    await setDoc(
-      doc(d, "coinTxns", "0_balances"),
-      Object.fromEntries(mvps.map((sid) => [sid, increment(1)])),
-      { merge: true }
-    );
-  }
-  await setDoc(doc(d, "biweeklyScores", String(period)), {
-    sums,
-    mvps,
-    range: [start, end],
-    awardedAt: Date.now(),
-  });
-
-  return { period, range: [start, end], sums, mvps, alreadySettled: false };
-}
-
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
 // · 세션 MVP(모둠원 MVP 투표 최다) → 실버 1개
 // · 세션 최고 모둠(순위 1위 최다) → 모둠원 전원 실버 1개
+// · 성실 독서상(세션 두 주 모두 주간 목표 달성) → 실버 1개  ← 순위와 무관한 바닥층 보상
 // 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 금요일에 실행.
 export interface SessionSettleResult {
   period: number;
@@ -300,6 +187,7 @@ export interface SessionSettleResult {
   mvps: number[];
   bestGroups: number[];
   bestGroupMembers: number[];
+  readingAwards: number[];
   alreadySettled: boolean;
 }
 
@@ -326,18 +214,23 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       mvps: data.mvps ?? [],
       bestGroups: data.bestGroups ?? [],
       bestGroupMembers: data.bestGroupMembers ?? [],
+      readingAwards: data.readingAwards ?? [],
       alreadySettled: true,
     };
   }
 
-  // 기간 내 일일 집계 문서(최대 14개)에서 MVP 득표·모둠 1위 횟수 집계
-  const snap = await getDocs(
-    query(
-      collection(d, "dailyScores"),
-      where(documentId(), ">=", start),
-      where(documentId(), "<=", end)
-    )
-  );
+  // 기간 내 일일 집계 문서(최대 14개) + 독서 통계·설정 (교사 1회)
+  const [snap, statsSnap, settingsSnap] = await Promise.all([
+    getDocs(
+      query(
+        collection(d, "dailyScores"),
+        where(documentId(), ">=", start),
+        where(documentId(), "<=", end)
+      )
+    ),
+    getDoc(doc(d, "readingStats", "main")),
+    getDoc(doc(d, "classData", "settings")),
+  ]);
   const mvpCount: Record<number, number> = {};
   const rank1Count: Record<number, number> = {};
   snap.forEach((day) => {
@@ -360,15 +253,44 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     return g ? [g.chair, ...g.members.map((m) => m.studentId)] : [];
   });
 
-  // 학생별 지급 개수 (MVP 1개 + 최고모둠 1개, 둘 다면 2개)
+  // 성실 독서상: 세션 두 주 모두 주간 목표 달성 (순위·투표와 무관한 바닥층 보상 —
+  // MVP가 못 되고 모둠이 못 이겨도 성실하면 실버를 벌 수 있게)
+  const quota =
+    (settingsSnap.exists() ? (settingsSnap.data().weeklyReadingQuota as number) : undefined) ?? 3;
+  const byWeek = (statsSnap.exists()
+    ? ((statsSnap.data().byWeek as Record<string, Record<string, number>>) ?? {})
+    : {}) as Record<string, Record<string, number>>;
+  const w1 = String(period * 2 - 1);
+  const w2 = String(Math.min(period * 2, TOTAL_WEEKS));
+  const readingAwards =
+    quota > 0
+      ? students
+          .filter(
+            (s) =>
+              (byWeek[w1]?.[String(s.id)] ?? 0) >= quota &&
+              (byWeek[w2]?.[String(s.id)] ?? 0) >= quota
+          )
+          .map((s) => s.id)
+      : [];
+
+  // 학생별 지급 개수 (MVP 1 + 최고모둠 1 + 성실독서 1 — 중복 수상 시 합산)
   const grant: Record<number, number> = {};
   for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of readingAwards) grant[sid] = (grant[sid] ?? 0) + 1;
 
   const entries = Object.entries(grant);
-  // 지급 대상이 없으면(집계 전이거나 MVP·최고모둠 미정) 마커를 남기지 않아 재실행 가능하게 둔다
+  // 지급 대상이 없으면(집계 전이거나 수상자 미정) 마커를 남기지 않아 재실행 가능하게 둔다
   if (entries.length === 0) {
-    return { period, range: [start, end], mvps: [], bestGroups: [], bestGroupMembers: [], alreadySettled: false };
+    return {
+      period,
+      range: [start, end],
+      mvps: [],
+      bestGroups: [],
+      bestGroupMembers: [],
+      readingAwards: [],
+      alreadySettled: false,
+    };
   }
   for (const [sid, n] of entries) {
     await addDoc(collection(d, "coinTxns"), {
@@ -389,13 +311,22 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     mvps,
     bestGroups,
     bestGroupMembers,
+    readingAwards,
     mvpCount,
     rank1Count,
     range: [start, end],
     awardedAt: Date.now(),
   });
 
-  return { period, range: [start, end], mvps, bestGroups, bestGroupMembers, alreadySettled: false };
+  return {
+    period,
+    range: [start, end],
+    mvps,
+    bestGroups,
+    bestGroupMembers,
+    readingAwards,
+    alreadySettled: false,
+  };
 }
 
 // ── 교사 보너스 점수 (일일 집계 행 보정 + 누적 동기화) ───────────

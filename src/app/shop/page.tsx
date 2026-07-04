@@ -159,8 +159,20 @@ export default function ShopPage() {
               <p className="tnum text-xl font-extrabold text-warn">{classGoldLeft}</p>
             </div>
           </div>
+          {/* 버는 법 — 경제가 쓰기 전용으로 보이지 않게 */}
+          <details className="mt-2 border-t border-ink-100 pt-2">
+            <summary className="cursor-pointer text-xs font-medium text-ink-400">
+              🪙 실버는 어떻게 벌어요?
+            </summary>
+            <ul className="mt-1.5 space-y-0.5 text-xs text-ink-500">
+              <li>⭐ 세션(2주) MVP — 모둠 친구들의 투표</li>
+              <li>👑 최고 모둠 — 오늘의 모둠에 가장 많이 뽑힌 모둠 전원</li>
+              <li>🐢 성실 독서상 — 두 주 모두 독서 목표 달성 (누구나 가능!)</li>
+              <li>🎁 선생님 지급 — 특별히 잘한 일</li>
+            </ul>
+          </details>
           {tab === "shop" && (
-            <div className="mt-3 flex items-center gap-2 border-t border-ink-100 pt-3">
+            <div className="mt-2 flex items-center gap-2 border-t border-ink-100 pt-2">
               <span className="shrink-0 text-xs text-ink-400">결제 지갑</span>
               {(["s2", "s1"] as const).map((w) => (
                 <button
@@ -272,7 +284,7 @@ export default function ShopPage() {
               <input
                 value={item}
                 onChange={(e) => setItem(e.target.value)}
-                placeholder="무엇에 쓸까요? (예: 자리 이동권)"
+                placeholder="무엇에 쓸까요? (예: 간식 교환권 · 자리는 자리 탭에서!)"
                 className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
               />
               <button

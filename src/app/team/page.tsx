@@ -161,7 +161,9 @@ export default function TeamPage() {
       await savePeer(compliments, suggestions);
       // 칭찬 이력 갱신 → 다음부터 다른 친구가 앞에 옴
       localStorage.setItem(praiseLogKey, JSON.stringify({ ...praiseLog, [compTo]: date }));
+      setCompTo(null);
       setCompText("");
+      setSugTo(null);
       setSugText("");
       setSugOpen(false);
       toast("💌 전달됐어요!", "success");

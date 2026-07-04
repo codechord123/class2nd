@@ -18,6 +18,7 @@ import {
   useToggleAnnouncement,
   useReactSuggestion,
   useSetAgendaStatus,
+  useEnactLaw,
   reactionCounts,
   titleOf,
   AGENDA_STATUS,
@@ -57,6 +58,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const removeSuggestion = useDeleteSuggestion();
   const react = useReactSuggestion(studentId);
   const setStatus = useSetAgendaStatus();
+  const enactLaw = useEnactLaw();
   const { toast, confirm } = useFeedback();
 
   const { up, down } = reactionCounts(sug);
@@ -189,7 +191,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
         </button>
       </div>
 
-      {/* 교사: 안건 상태 결정 */}
+      {/* 교사: 안건 상태 결정 + 채택 → 법률 등록 (자치 루프 완결) */}
       {role === "teacher" && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-ink-100 pt-3">
           <span className="text-xs text-ink-400">안건 상태:</span>
@@ -212,6 +214,34 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               </button>
             );
           })}
+          {sug.status === "채택" &&
+            (sug.enactedAsLaw ? (
+              <span className="rounded-full bg-success-weak px-3 py-1 text-xs font-bold text-success">
+                ⚖️ 법률 등록됨
+              </span>
+            ) : (
+              <button
+                onClick={async () => {
+                  if (
+                    !(await confirm({
+                      title: "이 안건을 학급 법률로 올릴까요?",
+                      body: `"${titleOf(sug)}" 이(가) 헌법 탭의 법률 목록에 추가돼요.`,
+                      confirmLabel: "법률로 등록",
+                    }))
+                  )
+                    return;
+                  try {
+                    const n = await enactLaw(sug);
+                    toast(`⚖️ 법률 제${n}조로 등록됐어요!`, "success");
+                  } catch (e) {
+                    toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
+                  }
+                }}
+                className="press rounded-full bg-ink-800 px-3 py-1 text-xs font-bold text-white"
+              >
+                ⚖️ 법률로 올리기
+              </button>
+            ))}
         </div>
       )}
 
@@ -372,6 +402,7 @@ export default function BoardPage() {
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
           <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
+          {p.enactedAsLaw && <span className="shrink-0 text-xs">⚖️</span>}
           {up + down > 0 && (
             <span className="shrink-0 text-[11px] text-ink-400">
               👍{up} 👎{down}

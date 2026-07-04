@@ -34,9 +34,6 @@ export interface WeekSchedule {
 /** 모둠 내 상호평가: evaluations/{date}/{evaluatorId} */
 export type PeerEvaluation = Record<number, number>; // targetId → 점수(척도는 설정값)
 
-/** 모둠 간 평가: groupVotes/{date}/{evaluatorId} */
-export type GroupVote = Record<number, number>; // groupId → 점수
-
 /** 서버 사전집계 결과: dailyScores/{date} 문서 하나에 학생 전원 */
 export interface DailyScoreRow {
   peer: number; // 모둠 내 받은 점수 합

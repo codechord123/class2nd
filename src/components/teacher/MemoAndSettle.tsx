@@ -92,8 +92,9 @@ export function BiweeklySettlePanel() {
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
-        세션 MVP(모둠원 MVP 투표 최다)와 최고 모둠(순위 1위 최다) 모둠원 전원에게 실버 1개씩
-        지급해요. <b>금요일 밤에 실행</b>하세요. 같은 기를 다시 눌러도 이중 지급되지 않아요.
+        세션 MVP(투표 최다)·최고 모둠(1위 최다) 전원·성실 독서상(두 주 모두 목표 달성)에게
+        실버 1개씩 지급해요. <b>금요일 밤에 실행</b>하세요. 같은 기를 다시 눌러도 이중 지급되지
+        않아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
@@ -128,6 +129,10 @@ export function BiweeklySettlePanel() {
             ) : (
               "없음"
             )}
+          </p>
+          <p>
+            🐢 성실 독서상:{" "}
+            {result.readingAwards.length ? <b>{names(result.readingAwards)}</b> : "없음"}
           </p>
         </div>
       )}
