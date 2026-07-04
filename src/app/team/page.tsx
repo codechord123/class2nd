@@ -18,7 +18,11 @@ import {
   useSavePeerNotes,
   useSaveToTeacher,
 } from "@/lib/query/evaluation";
-import { useBestGroups } from "@/lib/query/classMeta";
+import {
+  useBestGroups,
+  useComplimentCoverage,
+  useSetComplimentCoverage,
+} from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
 import SubTabs from "@/components/ui/SubTabs";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -74,6 +78,8 @@ export default function TeamPage() {
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
   const { data: bestGroups } = useBestGroups();
+  const { data: coverage } = useComplimentCoverage(date, role === "student");
+  const setCoverage = useSetComplimentCoverage(date, studentId);
 
   const [tab, setTab] = useState<"eval" | "stats">("eval");
   const [compTo, setCompTo] = useState<number | null>(null);
@@ -106,7 +112,8 @@ export default function TeamPage() {
     return <p className="text-sm text-ink-400">불러오는 중…</p>;
   }
 
-  // 평가 대상: 나를 제외한 우리 모둠 전원 (의장 포함)
+  // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외
+  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)];
   const targets = [
     { studentId: myGroup.chair, role: "소통" },
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
@@ -115,24 +122,28 @@ export default function TeamPage() {
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
 
-  // ── 칭찬(필수·자유 선택 + 골고루 넛지) / 건의(필요할 때만) ─────
-  // 시기성 보존: 오늘 실제 고마웠던 친구를 직접 고른다. 대신 '내가 최근에 칭찬 안 한
-  // 친구'를 앞에 세우고 🌱 배지로 표시해 골고루를 유도(강제 배정 아님).
-  // 받는 커버리지는 교사 데일리 리포트의 '칭찬 못 받은 친구' 목록이 보완한다.
+  // ── 칭찬(필수·자유 선택) / 건의(필요할 때만) ──────────────────
+  // 미션: 모둠원 전원이 1번씩 칭찬받으면 전원 +1점. 그래서 '아직 칭찬 못 받은 친구'를
+  // 커버리지 문서로 파악해 앞에 세우고 표시(누가 칭찬했는지는 안 보여줌).
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
   const name = (tid: number) => studentById.get(tid)?.name ?? "?";
 
-  // 내 칭찬 이력(localStorage, 읽기 0) — 최근에 칭찬한 날짜 기록 → 오래된/없는 친구 우선
-  const praiseLogKey = `praiseLog-${studentId}`;
-  const praiseLog: Record<string, string> =
-    typeof window === "undefined" ? {} : JSON.parse(localStorage.getItem(praiseLogKey) ?? "{}");
+  // 오늘 우리 모둠 칭찬 커버리지 — { 칭찬한사람: 대상 } → 대상 집합이 '받은 사람'
+  const receivedSet = new Set(
+    Object.values(coverage ?? {})
+      .map((v) => Number(v))
+      .filter((v) => v > 0)
+  );
+  const notReceived = (tid: number) => !receivedSet.has(tid);
+  // 아직 칭찬 못 받은 우리 모둠원(나 포함 전원 기준) → 미션 대상
+  const uncoveredMembers = allMembers.filter((id) => notReceived(id));
+  // 내가 칭찬할 수 있는 대상(나 제외): 아직 못 받은 친구를 앞으로
   const sortedTargets = [...targets].sort((a, b) => {
-    const la = praiseLog[a.studentId] ?? "";
-    const lb = praiseLog[b.studentId] ?? "";
-    return la === lb ? a.studentId - b.studentId : la < lb ? -1 : 1; // 안 한(빈)·오래된 순
+    const ua = notReceived(a.studentId) ? 0 : 1;
+    const ub = notReceived(b.studentId) ? 0 : 1;
+    return ua === ub ? a.studentId - b.studentId : ua - ub;
   });
-  const neverPraised = (tid: number) => !praiseLog[tid];
 
   // 오늘 평가 완성 체크 — 정량 전원 + MVP + 칭찬 1건 (건의는 선택이라 미포함)
   const doneScores = targets.every((t) => typeof evalRec[t.studentId] === "number");
@@ -159,8 +170,8 @@ export default function TeamPage() {
     if (sugOpen && sugTo != null && sugText.trim()) suggestions[sugTo] = sugText.trim();
     try {
       await savePeer(compliments, suggestions);
-      // 칭찬 이력 갱신 → 다음부터 다른 친구가 앞에 옴
-      localStorage.setItem(praiseLogKey, JSON.stringify({ ...praiseLog, [compTo]: date }));
+      // 커버리지 갱신(best-effort) → 다른 친구 화면에서 '받음'으로. 실패해도 칭찬 저장엔 영향 없음
+      void setCoverage(compTo).catch(() => {});
       setCompTo(null);
       setCompText("");
       setSugTo(null);
@@ -305,12 +316,26 @@ export default function TeamPage() {
           </span>
         </div>
         <p className="mt-1 text-xs text-ink-500">
-          오늘 고마웠던 친구를 골라 칭찬해요. 🌱 붙은 친구는 아직 내가 칭찬 안 한 친구예요 —
-          골고루 칭찬해 주세요!
+          오늘 고마웠던 친구를 골라 칭찬해요. 🙏 붙은 친구는 <b>아직 아무도 칭찬 안 한 친구</b>예요.
         </p>
-        <div className="mt-2 rounded-btn bg-pink-50 px-3 py-2 text-xs text-pink-700">
-          🎯 <b>오늘의 미션</b> — 우리 모둠 <b>모두</b>가 칭찬을 받으면 모둠원 전원 <b>+1점</b>!
-          한 명이라도 빠지지 않게 서로서로 칭찬해요.
+        {/* 미션 진행 — 모둠원 전원 칭찬받기 */}
+        <div
+          className={`mt-2 rounded-btn px-3 py-2 text-xs ${
+            uncoveredMembers.length === 0
+              ? "bg-success-weak text-success"
+              : "bg-pink-50 text-pink-700"
+          }`}
+        >
+          🎯 <b>오늘의 미션</b> — 모둠 전원이 칭찬받으면 <b>전원 +1점</b>! (
+          {allMembers.length - uncoveredMembers.length}/{allMembers.length}명 받음)
+          {uncoveredMembers.length > 0 ? (
+            <>
+              {" "}
+              아직 기다려요: <b>{uncoveredMembers.map(name).join(", ")}</b>
+            </>
+          ) : (
+            <> 🎉 전원 달성!</>
+          )}
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {sortedTargets.map((t) => (
@@ -320,10 +345,12 @@ export default function TeamPage() {
               className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
                 compTo === t.studentId
                   ? "border-pink-400 bg-pink-500 text-white"
-                  : "border-ink-200 bg-white text-ink-600 hover:border-pink-300"
+                  : notReceived(t.studentId)
+                    ? "border-pink-300 bg-pink-50 text-pink-700"
+                    : "border-ink-200 bg-white text-ink-500 hover:border-pink-300"
               }`}
             >
-              {neverPraised(t.studentId) && "🌱 "}
+              {notReceived(t.studentId) && "🙏 "}
               {name(t.studentId)}
             </button>
           ))}

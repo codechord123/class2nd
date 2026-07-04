@@ -108,6 +108,12 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
+    match /complimentCoverage/{date} {
+      allow read, create, update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
     // 그 외 모든 경로는 차단
     match /{document=**} {
       allow read, write: if false;

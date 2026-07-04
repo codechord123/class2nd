@@ -34,6 +34,38 @@ export function useSetBestGroup() {
   };
 }
 
+// ── 오늘의 칭찬 커버리지: complimentCoverage/{date} = { 칭찬한사람: 대상 } ──
+// 학생이 남의 평가를 읽지 않고도 '아직 칭찬 못 받은 친구'를 알 수 있게 하는 최소 문서.
+// (관계는 UI에 노출하지 않고 '받은 사람 집합'만 사용)
+export function useComplimentCoverage(date: string, enabled = true) {
+  return useQuery({
+    queryKey: ["complimentCoverage", date],
+    enabled,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const snap = await getDoc(doc(db(), "complimentCoverage", date));
+      return snap.exists() ? (snap.data() as Record<string, number>) : {};
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useSetComplimentCoverage(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (targetId: number | null) => {
+    if (myId == null) return;
+    // 내 키에 내 대상 기록 → 대상을 바꿔도 항상 정확. 대상 없으면 0(=미기록).
+    await setDoc(
+      doc(db(), "complimentCoverage", date),
+      { [myId]: targetId ?? 0 },
+      { merge: true }
+    );
+    qc.setQueryData(["complimentCoverage", date], (prev: Record<string, number> | undefined) => ({
+      ...prev,
+      [myId]: targetId ?? 0,
+    }));
+  };
+}
+
 // ── 상점 메뉴판: classData/shopMenu (아이들과 토의 후 그때그때 추가) ──
 export interface ShopMenuItem {
   id: number;

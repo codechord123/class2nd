@@ -129,17 +129,40 @@ export default function MyStatus() {
           )}
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1.5">
-          <Stat
-            label="이번 주 독서"
-            value={`${myWeekRead}/${quota}권`}
-            sub={`누적 ${myTotalBooks}권 기여`}
-            tone={myWeekRead >= quota ? "emerald" : "slate"}
-          />
           <Stat label="누적 점수" value={typeof myScore === "number" ? myScore : 0} tone="indigo" />
           <Stat label="2학기 실버" value={mySilver} />
           <Stat label="이월 실버" value={myCarry} tone="amber" />
+          <a href="/shop" className="rounded-btn bg-ink-50 px-2 py-2 text-center hover:bg-ink-100">
+            <p className="text-[11px] leading-tight text-ink-400">상점</p>
+            <p className="text-base font-extrabold leading-tight text-ink-700">🛒</p>
+            <p className="text-[10px] leading-tight text-ink-300">쓰러 가기</p>
+          </a>
         </div>
       </section>
+
+      {/* 🐢 거북이 독서 — 이번 주 + 누적 + 감상문 쓰기 */}
+      <a
+        href="/reading"
+        className="flex items-center justify-between gap-2 rounded-card border border-emerald-200 bg-emerald-50/60 p-3 shadow-card"
+      >
+        <span className="flex items-center gap-3">
+          <span className="text-2xl">🐢</span>
+          <span>
+            <span className="block text-sm font-bold text-emerald-800">거북이 독서</span>
+            <span className="block text-xs text-emerald-700">
+              이번 주{" "}
+              <b className={myWeekRead >= quota ? "text-success" : ""}>
+                {myWeekRead}/{quota}권
+              </b>{" "}
+              · 누적 <b>{myTotalBooks}권</b>
+            </span>
+          </span>
+        </span>
+        <span className="shrink-0 rounded-btn bg-success px-3 py-2 text-xs font-bold text-white">
+          ✍️ 감상문 쓰기
+        </span>
+      </a>
+
       {classBoard}
     </div>
   );
