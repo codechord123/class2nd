@@ -15,13 +15,15 @@ export default function SegmentedControl<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-btn bg-ink-100 p-1 text-sm font-bold">
+    <div className="flex gap-1 overflow-x-auto rounded-btn border border-ink-200 bg-ink-100 p-1 text-sm font-bold">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={`press flex-1 whitespace-nowrap rounded-[11px] px-3 py-2 transition-colors ${
-            active === t.key ? "bg-white text-brand-strong shadow-card" : "text-ink-500 hover:text-ink-700"
+            active === t.key
+              ? "bg-white font-extrabold text-brand-strong shadow-card"
+              : "text-ink-500 hover:text-ink-700"
           }`}
         >
           {stripEmoji(t.label)}

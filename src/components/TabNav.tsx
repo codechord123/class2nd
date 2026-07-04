@@ -71,7 +71,7 @@ export default function TabNav() {
         onScroll={updateFade}
         className="overflow-x-auto px-4"
       >
-        <ul className="flex gap-1 pb-2 text-sm whitespace-nowrap">
+        <ul className="flex gap-1.5 pb-2 text-sm whitespace-nowrap">
           {tabs.map((t) => {
             const active =
               t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
@@ -84,7 +84,7 @@ export default function TabNav() {
                   className={`press inline-flex min-h-11 items-center rounded-full px-3.5 py-2.5 font-bold transition-colors ${
                     active
                       ? "bg-brand text-white shadow-card"
-                      : "text-ink-500 hover:bg-ink-100 hover:text-ink-700"
+                      : "bg-ink-100 text-ink-600 hover:bg-ink-200 hover:text-ink-800"
                   }`}
                 >
                   {t.label}

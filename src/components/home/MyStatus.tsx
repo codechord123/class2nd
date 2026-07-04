@@ -17,20 +17,21 @@ import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
 
-// 컴팩트 스탯 타일 — 숫자 하나에 큰 카드를 쓰지 않도록 밀도 높인 버전
+// 컴팩트 스탯 타일 — 톤별 옅은 바탕색으로 서로 구별되게, 숫자는 크게 (살아있는 숫자)
 type Legacy = "slate" | "emerald" | "indigo" | "amber";
-const valueColor: Record<Legacy, string> = {
-  slate: "text-ink-900",
-  emerald: "text-success",
-  indigo: "text-brand-strong",
-  amber: "text-warn",
+const toneStyle: Record<Legacy, { tile: string; value: string }> = {
+  slate: { tile: "bg-ink-50", value: "text-ink-900" },
+  emerald: { tile: "bg-success-weak", value: "text-success" },
+  indigo: { tile: "bg-brand-weak", value: "text-brand-strong" },
+  amber: { tile: "bg-warn-weak", value: "text-warn" },
 };
 function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: Legacy }) {
+  const s = toneStyle[tone];
   return (
-    <div className="rounded-btn bg-ink-50 px-2 py-2 text-center">
-      <p className="text-[11px] leading-tight text-ink-400">{label}</p>
-      <p className={`tnum text-lg font-extrabold leading-tight ${valueColor[tone]}`}>{value}</p>
-      {sub && <p className="text-[10px] leading-tight text-ink-300">{sub}</p>}
+    <div className={`rounded-btn px-2 py-2.5 text-center ${s.tile}`}>
+      <p className="text-[11px] leading-tight text-ink-500">{label}</p>
+      <p className={`tnum text-xl font-extrabold leading-tight ${s.value}`}>{value}</p>
+      {sub && <p className="text-[10px] leading-tight text-ink-400">{sub}</p>}
     </div>
   );
 }
