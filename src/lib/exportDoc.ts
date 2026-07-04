@@ -23,19 +23,28 @@ const esc = (s: string) =>
 
 const name = (id: number | string) => studentById.get(Number(id))?.name ?? `?${id}`;
 
-/** 아직 집계 전인 날짜의 칭찬/바라는점을 원시 평가에서 직접 수집 */
+/** 아직 집계 전인 날짜의 칭찬/건의/바라는점을 원시 평가에서 직접 수집 */
 async function liveDayExtras(date: string) {
   const snap = await getDocs(collection(db(), "evaluations", date, "entries"));
   const compliments: Compliment[] = [];
+  const peerSuggestions: Compliment[] = [];
   const toTeacher: ToTeacher[] = [];
   snap.forEach((entry) => {
     const d = entry.data();
+    const from = Number(entry.id);
     const c = d._compliment as { to: number; text: string } | undefined;
-    if (c?.text) compliments.push({ from: Number(entry.id), to: c.to, text: c.text });
-    if (typeof d._toTeacher === "string" && d._toTeacher)
-      toTeacher.push({ from: Number(entry.id), text: d._toTeacher });
+    if (c?.text) compliments.push({ from, to: c.to, text: c.text });
+    const cmap = d._compliments as Record<string, string> | undefined;
+    if (cmap)
+      for (const [to, text] of Object.entries(cmap))
+        if (text?.trim()) compliments.push({ from, to: Number(to), text });
+    const smap = d._peerSuggestions as Record<string, string> | undefined;
+    if (smap)
+      for (const [to, text] of Object.entries(smap))
+        if (text?.trim()) peerSuggestions.push({ from, to: Number(to), text });
+    if (typeof d._toTeacher === "string" && d._toTeacher) toTeacher.push({ from, text: d._toTeacher });
   });
-  return { compliments, toTeacher };
+  return { compliments, peerSuggestions, toTeacher };
 }
 
 export async function openRangePrintDoc(
@@ -57,14 +66,24 @@ export async function openRangePrintDoc(
 
   const byDate = new Map<
     string,
-    { compliments: Compliment[]; toTeacher: ToTeacher[]; rows?: Record<string, DailyScoreRow> }
+    {
+      compliments: Compliment[];
+      peerSuggestions: Compliment[];
+      toTeacher: ToTeacher[];
+      rows?: Record<string, DailyScoreRow>;
+    }
   >();
   const scoreSum: Record<string, number> = {};
   daySnap.forEach((day) => {
     const data = day.data();
-    const meta = (data._meta ?? {}) as { compliments?: Compliment[]; toTeacher?: ToTeacher[] };
+    const meta = (data._meta ?? {}) as {
+      compliments?: Compliment[];
+      peerSuggestions?: Compliment[];
+      toTeacher?: ToTeacher[];
+    };
     byDate.set(day.id, {
       compliments: meta.compliments ?? [],
+      peerSuggestions: meta.peerSuggestions ?? [],
       toTeacher: meta.toTeacher ?? [],
     });
     for (const s of students) {
@@ -138,6 +157,21 @@ ${
     : `<p class="muted">칭찬 기록이 없습니다.</p>`
 }
 ${allCompliments.length && notPraised.length ? `<p class="muted">📌 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>` : ""}`);
+
+  const allPeerSug = dates.flatMap((dt) =>
+    byDate.get(dt)!.peerSuggestions.map((c) => ({ ...c, date: dt }))
+  );
+  sections.push(`<h2>🙋 모둠원 건의 (${allPeerSug.length}건)</h2>
+${
+    allPeerSug.length
+      ? `<ul>${allPeerSug
+          .map(
+            (c) =>
+              `<li>[${c.date}] <b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
+          )
+          .join("")}</ul>`
+      : `<p class="muted">모둠원 건의 기록이 없습니다.</p>`
+  }`);
 
   const allToTeacher = dates.flatMap((dt) => byDate.get(dt)!.toTeacher.map((t) => ({ ...t, date: dt })));
   sections.push(`<h2>🙏 선생님에게 바라는 점 (${allToTeacher.length}건)</h2>

@@ -2,7 +2,7 @@
 // 데일리 리포트 — 오늘의 독서 현황 + 점수를 한눈에, 인쇄/PDF로 뽑기.
 // 읽기 예산: 이미 캐시된 문서만 사용(readingStats·dailyScores·settings). 인쇄 시에만 그날 문서 추가 조회.
 import { useState } from "react";
-import { students } from "@/lib/roster";
+import { students, studentById } from "@/lib/roster";
 import { s1TotalBooks } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores } from "@/lib/query/evaluation";
@@ -37,6 +37,21 @@ export default function DailyReportPanel({ date }: { date: string }) {
     .map((s) => ({ name: s.name, row: today?.[s.id] }))
     .filter((r) => r.row)
     .sort((a, b) => b.row!.total - a.row!.total);
+
+  // 집계 문서의 _meta — 집계 후에만 존재
+  const meta = (today?._meta ?? null) as {
+    mvpWinners?: number[];
+    ranks?: Record<string, number>;
+    compliments?: { from: number; to: number; text: string }[];
+    peerSuggestions?: { from: number; to: number; text: string }[];
+    toTeacher?: { from: number; text: string }[];
+  } | null;
+  const nm = (id: number) => studentById.get(id)?.name ?? `?${id}`;
+  const mvpNames = (meta?.mvpWinners ?? []).map(nm);
+  const rankPairs = Object.entries(meta?.ranks ?? {}).sort((a, b) => a[1] - b[1]);
+  const compliments = meta?.compliments ?? [];
+  const peerSug = meta?.peerSuggestions ?? [];
+  const wishes = meta?.toTeacher ?? [];
 
   async function print() {
     if (printing) return;
@@ -110,6 +125,79 @@ ${
           )}
         </div>
       </div>
+      {/* 집계 후 — MVP·모둠순위·칭찬·건의·바라는 점 */}
+      {meta ? (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-btn bg-ink-50 p-3">
+              <p className="text-sm font-bold text-ink-800">⭐ 오늘의 MVP</p>
+              <p className="mt-1 text-sm text-ink-700">
+                {mvpNames.length ? mvpNames.join(", ") : <span className="text-ink-400">없음</span>}
+              </p>
+            </div>
+            <div className="rounded-btn bg-ink-50 p-3">
+              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠 순위</p>
+              <p className="mt-1 text-sm text-ink-700">
+                {rankPairs.length ? (
+                  rankPairs.map(([g, r]) => `${g}모둠 ${r}위`).join(" · ")
+                ) : (
+                  <span className="text-ink-400">순위 없음 (오늘의 모둠 미선정)</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-btn bg-ink-50 p-3">
+            <p className="text-sm font-bold text-ink-800">💌 모둠원 칭찬 ({compliments.length})</p>
+            {compliments.length ? (
+              <ul className="mt-1 space-y-0.5 text-sm text-ink-700">
+                {compliments.map((c, i) => (
+                  <li key={i}>
+                    <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
+            )}
+          </div>
+
+          <div className="rounded-btn bg-ink-50 p-3">
+            <p className="text-sm font-bold text-ink-800">🙋 모둠원 건의 ({peerSug.length})</p>
+            {peerSug.length ? (
+              <ul className="mt-1 space-y-0.5 text-sm text-ink-700">
+                {peerSug.map((c, i) => (
+                  <li key={i}>
+                    <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
+            )}
+          </div>
+
+          <div className="rounded-btn bg-ink-50 p-3">
+            <p className="text-sm font-bold text-ink-800">📨 선생님에게 바라는 점 ({wishes.length})</p>
+            {wishes.length ? (
+              <ul className="mt-1 space-y-0.5 text-sm text-ink-700">
+                {wishes.map((t, i) => (
+                  <li key={i}>
+                    <b>{nm(t.from)}</b>: {t.text}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-ink-400">
+          집계 후 MVP·모둠 순위·칭찬·건의·바라는 점이 여기에 표시돼요.
+        </p>
+      )}
+
       <Button onClick={() => void print()} disabled={printing} className="mt-3">
         {printing ? "여는 중…" : "🖨️ 리포트 인쇄 / PDF 저장"}
       </Button>
