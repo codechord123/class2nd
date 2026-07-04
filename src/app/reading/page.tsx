@@ -164,6 +164,36 @@ function ReportSection({ label, text }: { label: string; text: string }) {
   );
 }
 
+// 장르별 표지 색·아이콘 — 실제 독서 앱(밀리의서재 등)처럼 '표지'가 책의 첫인상을 만든다.
+// 표지 이미지가 없으니 장르 색 + 아이콘 + 책등(왼쪽 어두운 줄)으로 표지를 생성.
+const COVER_STYLE: Record<string, { grad: string; emoji: string }> = {
+  그림책: { grad: "from-amber-400 to-orange-500", emoji: "🎨" },
+  동화: { grad: "from-rose-400 to-pink-500", emoji: "🏰" },
+  소설: { grad: "from-violet-500 to-purple-600", emoji: "📖" },
+  과학: { grad: "from-sky-400 to-blue-600", emoji: "🔬" },
+  역사: { grad: "from-yellow-600 to-amber-700", emoji: "🏛️" },
+  인물: { grad: "from-red-400 to-rose-600", emoji: "👤" },
+  시: { grad: "from-fuchsia-400 to-pink-600", emoji: "🌙" },
+  만화: { grad: "from-orange-400 to-amber-500", emoji: "💥" },
+  "지식·정보": { grad: "from-cyan-500 to-teal-600", emoji: "💡" },
+  기타: { grad: "from-emerald-400 to-teal-600", emoji: "📚" },
+};
+
+function BookCover({ r, size, locked }: { r: ReadingReport2; size: "sm" | "lg"; locked?: boolean }) {
+  const c = locked
+    ? { grad: "from-slate-300 to-slate-400", emoji: "🔒" }
+    : (COVER_STYLE[r.tags?.[0] ?? "기타"] ?? COVER_STYLE.기타);
+  return (
+    <span
+      className={`grid shrink-0 place-items-center rounded-r-md rounded-l-[3px] border-l-4 border-black/20 bg-gradient-to-br shadow-card ${c.grad} ${
+        size === "lg" ? "h-24 w-[4.5rem] text-3xl" : "h-12 w-9 text-lg"
+      }`}
+    >
+      {c.emoji}
+    </span>
+  );
+}
+
 // 책 종류 태그 칩
 function Tags({ r }: { r: ReadingReport2 }) {
   if (!(r.tags?.length ?? 0)) return null;
@@ -250,55 +280,60 @@ export default function ReadingPage() {
         >
           ← 목록으로
         </button>
-        {/* 책 정보 카드 — 쓰기 화면 '1. 어떤 책인가요?'와 같은 문법 */}
+        {/* 책 정보 카드 — 독서 앱 문법: 표지가 왼쪽 앵커, 제목·저자가 그 옆 */}
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(r.tags?.length ?? 0) > 0 ? (
-              r.tags!.map((t) => (
-                <span
-                  key={t}
-                  className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
-                >
-                  {t}
+          <div className="flex gap-4">
+            <BookCover r={r} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(r.tags?.length ?? 0) > 0 ? (
+                  r.tags!.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
+                    >
+                      {t}
+                    </span>
+                  ))
+                ) : (
+                  <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-bold text-ink-400">
+                    미분류
+                  </span>
+                )}
+                {r.isPrivate && (
+                  <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
+                    🔒 선생님만 보기
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-1.5 text-2xl font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]">
+                {r.title}
+              </h3>
+              {(r.author || r.publisher) && (
+                <p className="mt-1 text-[15px] text-ink-600 [overflow-wrap:anywhere]">
+                  {r.author && (
+                    <>
+                      지은이 <b>{r.author}</b>
+                    </>
+                  )}
+                  {r.author && r.publisher && " · "}
+                  {r.publisher && (
+                    <>
+                      출판사 <b>{r.publisher}</b>
+                    </>
+                  )}
+                </p>
+              )}
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+                  {studentById.get(r.studentId)?.name}
                 </span>
-              ))
-            ) : (
-              <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-bold text-ink-400">
-                미분류
-              </span>
-            )}
-            {r.isPrivate && (
-              <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
-                🔒 선생님만 보기
-              </span>
-            )}
-            <span className="ml-auto flex items-center gap-1.5 text-xs text-ink-500">
-              <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
-                {studentById.get(r.studentId)?.name}
-              </span>
-              <span>{r.week}주차</span>
-              <span>·</span>
-              <span className="tnum">{dateLabel(r.createdAt)}</span>
-            </span>
+                <span>{r.week}주차</span>
+                <span>·</span>
+                <span className="tnum">{dateLabel(r.createdAt)}</span>
+              </p>
+            </div>
           </div>
-          <h3 className="mt-2.5 text-2xl font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]">
-            {r.title}
-          </h3>
-          {(r.author || r.publisher) && (
-            <p className="mt-1 text-[15px] text-ink-600 [overflow-wrap:anywhere]">
-              {r.author && (
-                <>
-                  지은이 <b>{r.author}</b>
-                </>
-              )}
-              {r.author && r.publisher && " · "}
-              {r.publisher && (
-                <>
-                  출판사 <b>{r.publisher}</b>
-                </>
-              )}
-            </p>
-          )}
         </section>
 
         {/* 감상 카드 — 쓰기 화면 '2. 감상을 남겨요'와 같은 라벨+상자 구조 */}
@@ -466,8 +501,9 @@ export default function ReadingPage() {
               isLocked(r) ? (
                 // 🔒 잠긴 행 — 제목·내용 비노출, 클릭해도 펼쳐지지 않음
                 <li key={r.id}>
-                  <div className="flex w-full items-center justify-between gap-2 px-4 py-3">
-                    <span className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-3 px-4 py-2.5">
+                    <BookCover r={r} size="sm" locked />
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
                       <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold text-ink-500">
                         {studentById.get(r.studentId)?.name}
                       </span>
@@ -480,22 +516,23 @@ export default function ReadingPage() {
                 <li key={r.id}>
                   <button
                     onClick={() => setSelectedId(r.id)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink-50"
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-ink-50"
                   >
+                    {/* 미니 표지 — 장르 색으로 목록이 '서재'처럼 스캔되게 */}
+                    <BookCover r={r} size="sm" />
                     <span className="min-w-0 flex-1">
-                      {/* 1줄: 작성자 칩 + 책 제목 + 태그 */}
+                      {/* 1줄: 책 제목 + 잠금 */}
                       <span className="flex items-center gap-1.5">
+                        {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
+                        <b className="truncate text-[15px] text-ink-900">{r.title}</b>
+                      </span>
+                      {/* 2줄: 작가 · 작성자 칩 · 작성일 */}
+                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+                        {r.author && <span className="max-w-[9rem] truncate">{r.author}</span>}
+                        {r.author && <span>·</span>}
                         <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                           {studentById.get(r.studentId)?.name}
                         </span>
-                        {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
-                        <b className="truncate text-[15px] text-ink-900">{r.title}</b>
-                        <Tags r={r} />
-                      </span>
-                      {/* 2줄: 작가 · 작성일 */}
-                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
-                        {r.author && <span className="max-w-[10rem] truncate">{r.author}</span>}
-                        {r.author && <span>·</span>}
                         <span className="shrink-0 tnum">{dateLabel(r.createdAt)}</span>
                       </span>
                     </span>
