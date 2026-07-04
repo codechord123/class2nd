@@ -26,6 +26,7 @@ import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
+import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -139,6 +140,9 @@ export default function TeacherPage() {
       />
 
       {tTab === "score" && (<>
+      {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
+      <DailyReportPanel date={date} />
+
       {/* 일일 집계 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>

@@ -41,7 +41,8 @@ async function liveDayExtras(date: string) {
 export async function openRangePrintDoc(
   start: string,
   end: string,
-  label: string
+  label: string,
+  extraHtml?: string // 리포트 상단에 붙일 추가 섹션(예: 독서 현황) — 호출부의 캐시 데이터로 구성
 ): Promise<{ days: number; compliments: number; suggestions: number }> {
   const d = db();
 
@@ -112,6 +113,8 @@ export async function openRangePrintDoc(
   const hasScores = scoreRows.some((r) => r.sum !== 0);
 
   const sections: string[] = [];
+
+  if (extraHtml) sections.push(extraHtml);
 
   if (hasScores) {
     sections.push(`<h2>점수 요약 (집계된 ${daySnap.size}일 합산)</h2>
