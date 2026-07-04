@@ -31,7 +31,14 @@ export default function BetaResetPanel() {
     try {
       const r = await resetAllRecords(setProgress);
       qc.clear(); // 캐시 전체 비우기 — 모든 화면이 빈 상태부터 다시
-      toast(`🧹 초기화 완료 — ${r.deleted}개 기록 삭제. 새 출발!`, "success");
+      if (r.failed.length === 0) {
+        toast(`🧹 초기화 완료 — ${r.deleted}개 기록 삭제. 새 출발!`, "success");
+      } else {
+        toast(
+          `⚠️ ${r.deleted}개 삭제했지만 일부 실패: ${r.failed.join(", ")} — Firebase 콘솔에 최신 규칙(firestore.rules)을 게시한 뒤 다시 실행해주세요.`,
+          "warn"
+        );
+      }
       setProgress("");
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "초기화 실패"}`, "error");

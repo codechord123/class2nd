@@ -44,7 +44,7 @@ export default function ReadingAlert() {
     return (
       <div className="rounded-card border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
         🎉 이번 주 거북이 독서 {quota}권 달성!
-        {current >= 2 ? ` ${current}주 연속이에요 — 스트릭 실버 +${Math.min(current, 3)} 예약! 🔥` : " 최고예요!"}
+        {current >= 1 ? ` ${current}주 연속 — 스트릭 상점 +${Math.min(current, 3)}점 예약! 🔥` : " 최고예요!"}
         {streakChip}
       </div>
     );
@@ -63,7 +63,7 @@ export default function ReadingAlert() {
   return (
     <div className="rounded-card border border-warn/30 bg-warn-weak p-4 text-sm font-medium text-warn">
       🐢 이번 주 거북이 독서가 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권) — 매주 채우면
-      연속 보너스 실버가 커져요! 🔥
+      연속 보너스 상점이 커져요! 🔥
       {streakChip}
     </div>
   );

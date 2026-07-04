@@ -78,7 +78,8 @@ export function RankPointsEditor({
     <div className="rounded-card bg-ink-50 p-4">
       <p className="text-sm font-bold text-ink-800">모둠 순위 → 개인 점수</p>
       <p className="mt-0.5 text-[11px] text-ink-400">
-        선생님이 매긴 오늘의 모둠 순위대로 모둠원 전원에게 배분돼요. (1위 = 오늘의 모둠)
+        선생님이 매긴 오늘의 모둠 순위대로 모둠원 전원에게 배분돼요. 1위(오늘의 모둠)는 여기
+        점수에 +1점 더 받아요.
       </p>
       <div className="mt-2 space-y-1.5">
         {value.map((pt, i) => (

@@ -322,7 +322,8 @@ export default function TeamPage() {
           </span>
         </div>
         <p className="mt-1 text-xs text-ink-500">
-          오늘 고마웠던 친구를 골라 칭찬해요. 🙏 붙은 친구는 <b>아직 아무도 칭찬 안 한 친구</b>예요.
+          오늘 고마웠던 친구를 골라 칭찬해요. 🌱 새싹 친구는 <b>아직 칭찬을 못 받은 친구</b> —
+          칭찬을 받으면 새싹이 사라져요!
         </p>
         {/* 미션 진행 — 모둠원 전원 칭찬받기 */}
         <div
@@ -337,7 +338,7 @@ export default function TeamPage() {
           {uncoveredMembers.length > 0 ? (
             <>
               {" "}
-              아직 기다려요: <b>{uncoveredMembers.map(name).join(", ")}</b>
+              🌱 새싹 친구: <b>{uncoveredMembers.map(name).join(", ")}</b>
             </>
           ) : (
             <> 🎉 전원 달성!</>
@@ -356,7 +357,7 @@ export default function TeamPage() {
                     : "border-ink-200 bg-white text-ink-500 hover:border-pink-300"
               }`}
             >
-              {notReceived(t.studentId) && "🙏 "}
+              {notReceived(t.studentId) && "🌱 "}
               {name(t.studentId)}
             </button>
           ))}

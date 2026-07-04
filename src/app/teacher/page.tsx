@@ -189,8 +189,9 @@ export default function TeacherPage() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
         <p className="mt-1 text-xs text-ink-500">
-          잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점이 배분되고, 세션
-          통계(최고 모둠)는 1위만 집계돼요. <b>순위 저장 후 위에서 집계 실행</b>하면 반영돼요.
+          잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점 + <b>오늘의 모둠(1위)은
+          +1점 더</b> 받아요. 세션 통계(최고 모둠)는 1위만 집계. <b>순위 저장 후 위에서 집계
+          실행</b>하면 반영돼요.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {[1, 2, 3, 4, 5].map((g) => {

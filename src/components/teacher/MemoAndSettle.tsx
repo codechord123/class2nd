@@ -75,9 +75,16 @@ export function BiweeklySettlePanel() {
       if (r.alreadySettled) {
         setMsg(`ℹ️ ${period}기(2주)는 이미 정산됐어요. (아래는 그때 결과)`);
       } else {
-        const paid = new Set([...r.mvps, ...r.bestGroupMembers]).size;
-        setMsg(`✅ ${period}기 정산 완료 — ${paid}명에게 실버 지급!`);
+        const silverPaid = new Set([
+          ...r.mvps,
+          ...r.bestGroupMembers,
+          ...r.readingTop,
+          ...r.missionTopMembers,
+        ]).size;
+        const streakPaid = Object.keys(r.streakPoints).length;
+        setMsg(`✅ ${period}기 정산 완료 — 실버 ${silverPaid}명 · 스트릭 상점 ${streakPaid}명!`);
         void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+        void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       }
     } catch (e) {
       setMsg(`⚠️ ${e instanceof Error ? e.message : "정산 실패"}`);
@@ -92,9 +99,9 @@ export function BiweeklySettlePanel() {
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
-        최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 실버 1개 + 독서 스트릭(주간
-        목표 달성 주마다 연속 1·2·3개)을 지급해요. <b>금요일 밤에 실행</b>하세요. 같은 기를 다시
-        눌러도 이중 지급되지 않아요.
+        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 1개. 상점(누적 점수):
+        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점. <b>금요일 밤에 실행</b>하세요. 같은 기를
+        다시 눌러도 이중 지급되지 않아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
@@ -145,11 +152,11 @@ export function BiweeklySettlePanel() {
             )}
           </p>
           <p>
-            🔥 독서 스트릭:{" "}
-            {Object.keys(result.streakSilver).length ? (
+            🔥 독서 스트릭 상점(누적 점수):{" "}
+            {Object.keys(result.streakPoints).length ? (
               <b>
-                {Object.entries(result.streakSilver)
-                  .map(([sid, n]) => `${studentById.get(Number(sid))?.name} +${n}`)
+                {Object.entries(result.streakPoints)
+                  .map(([sid, n]) => `${studentById.get(Number(sid))?.name} +${n}점`)
                   .join(" · ")}
               </b>
             ) : (

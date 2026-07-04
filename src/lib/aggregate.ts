@@ -144,9 +144,9 @@ export async function aggregateDate(
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
     const p = peer[s.id] ?? 0;
-    // 순위에 든 모둠 소속이면 그 순위 점수, 아니면 0 (미평가 그룹은 가점 없음)
+    // 순위에 든 모둠 소속이면 그 순위 점수 — 오늘의 모둠(1위)은 +1점 더
     const myRank = ranks[groupOfStudent[s.id]];
-    const gr = myRank ? rankPoint(myRank) : 0;
+    const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
     const mvp = mvpSet.has(s.id) ? 1 : 0;
@@ -229,7 +229,7 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
 // · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
-// · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 실버 (1주=1, 2주 연속=2, 3주+=3 상한)
+// · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 상점(누적 점수) (1주=1, 2주=2, 3주+=3 상한)
 // 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 금요일에 실행.
 export interface SessionSettleResult {
   period: number;
@@ -240,7 +240,7 @@ export interface SessionSettleResult {
   readingTop: number[]; // 최다 독서
   missionTopGroups: number[]; // 최다 미션 모둠
   missionTopMembers: number[];
-  streakSilver: Record<string, number>; // studentId → 스트릭 지급 실버
+  streakPoints: Record<string, number>; // studentId → 스트릭 상점(누적 점수 가산)
   alreadySettled: boolean;
 }
 
@@ -272,7 +272,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       readingTop: data.readingTop ?? [],
       missionTopGroups: data.missionTopGroups ?? [],
       missionTopMembers: data.missionTopMembers ?? [],
-      streakSilver: data.streakSilver ?? {},
+      streakPoints: data.streakPoints ?? {},
       alreadySettled: true,
     };
   }
@@ -342,7 +342,8 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     }
     return n;
   };
-  const streakSilver: Record<string, number> = {};
+  // 스트릭 보상은 실버가 아닌 '상점'(누적 점수 가산)
+  const streakPoints: Record<string, number> = {};
   if (quota > 0) {
     for (const s of students) {
       let award = 0;
@@ -350,22 +351,21 @@ export async function settleSession(period: number): Promise<SessionSettleResult
         const st = streakAt(s.id, w);
         if (st > 0) award += Math.min(st, STREAK_CAP);
       }
-      if (award > 0) streakSilver[String(s.id)] = award;
+      if (award > 0) streakPoints[String(s.id)] = award;
     }
   }
 
-  // 학생별 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1 + 스트릭 n)
+  // 실버 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1)
   const grant: Record<number, number> = {};
   for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of readingTop) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of missionTopMembers) grant[sid] = (grant[sid] ?? 0) + 1;
-  for (const [sid, n] of Object.entries(streakSilver))
-    grant[Number(sid)] = (grant[Number(sid)] ?? 0) + n;
 
   const entries = Object.entries(grant);
-  // 지급 대상이 없으면(집계 전이거나 수상자 미정) 마커를 남기지 않아 재실행 가능하게 둔다
-  if (entries.length === 0) {
+  const hasStreak = Object.keys(streakPoints).length > 0;
+  // 지급 대상이 전혀 없으면 마커를 남기지 않아 재실행 가능하게 둔다
+  if (entries.length === 0 && !hasStreak) {
     return {
       period,
       range: [start, end],
@@ -375,7 +375,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       readingTop: [],
       missionTopGroups: [],
       missionTopMembers: [],
-      streakSilver: {},
+      streakPoints: {},
       alreadySettled: false,
     };
   }
@@ -389,11 +389,21 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       createdAt: Date.now(),
     });
   }
-  await setDoc(
-    doc(d, "coinTxns", "0_balances"),
-    Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
-    { merge: true }
-  );
+  if (entries.length) {
+    await setDoc(
+      doc(d, "coinTxns", "0_balances"),
+      Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
+      { merge: true }
+    );
+  }
+  // 스트릭 상점 → 누적 점수에 가산 (일일 재집계는 델타 방식이라 이 가산은 보존됨)
+  if (hasStreak) {
+    await setDoc(
+      doc(d, "dailyScores", "_cumulative"),
+      Object.fromEntries(Object.entries(streakPoints).map(([sid, n]) => [sid, increment(n)])),
+      { merge: true }
+    );
+  }
   await setDoc(marker, {
     mvps,
     bestGroups,
@@ -401,7 +411,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     readingTop,
     missionTopGroups,
     missionTopMembers,
-    streakSilver,
+    streakPoints,
     mvpCount,
     rank1Count,
     range: [start, end],
@@ -417,7 +427,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
     readingTop,
     missionTopGroups,
     missionTopMembers,
-    streakSilver,
+    streakPoints,
     alreadySettled: false,
   };
 }

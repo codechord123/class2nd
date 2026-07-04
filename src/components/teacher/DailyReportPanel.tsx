@@ -509,10 +509,17 @@ export default function DailyReportPanel({ date }: { date: string }) {
                     <Hi icon="💌" label="칭찬왕 (보내기)" value={giveMax > 0 ? names(giveTop) : "아직 없음"} sub={giveMax > 0 ? `${giveMax}회` : undefined} />
                     <Hi icon="💖" label="칭찬 많이 받은 친구" value={recvMax > 0 ? names(recvTop) : "아직 없음"} sub={recvMax > 0 ? `${recvMax}회` : undefined} />
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="rounded-btn bg-ink-50 p-2">
                       <p className="text-[11px] text-ink-400">💌 칭찬</p>
                       <p className="tnum text-lg font-extrabold text-pink-600">{rep.compliments}</p>
+                    </div>
+                    <div className="rounded-btn bg-ink-50 p-2">
+                      <p className="text-[11px] text-ink-400">🗣 칭찬 참여</p>
+                      <p className="tnum text-lg font-extrabold text-ink-900">
+                        {Object.keys(rep.givenCount).length}
+                        <span className="text-xs font-normal text-ink-400">/{students.length}</span>
+                      </p>
                     </div>
                     <div className="rounded-btn bg-ink-50 p-2">
                       <p className="text-[11px] text-ink-400">🙋 건의</p>
@@ -523,6 +530,104 @@ export default function DailyReportPanel({ date }: { date: string }) {
                       <p className="tnum text-lg font-extrabold text-warn">{rep.missionAchievements}회</p>
                     </div>
                   </div>
+
+                  {/* 📖 독서 목표 달성률 — 주별 달성 인원 + 세션 학급 권수 */}
+                  {(() => {
+                    const metOf = (w: number) =>
+                      students.filter(
+                        (s) => (stats?.byWeek?.[String(w)]?.[String(s.id)] ?? 0) >= quota
+                      ).length;
+                    const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
+                    return (
+                      <div className="rounded-btn bg-ink-50 p-3">
+                        <p className="text-sm font-bold text-ink-800">📖 독서 목표 달성률</p>
+                        <p className="mt-1 text-sm text-ink-700">
+                          {w1}주차 <b>{metOf(w1)}/{students.length}명</b>
+                          {w2 !== w1 && (
+                            <>
+                              {" "}
+                              · {w2}주차 <b>{metOf(w2)}/{students.length}명</b>
+                            </>
+                          )}{" "}
+                          · 세션 학급 <b>+{sessionBooks}권</b>
+                        </p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 💗 관심이 필요한 친구 — 세션 동안 칭찬 0회 (MVP도 0이면 ★) */}
+                  {rep.days > 0 &&
+                    (() => {
+                      const noLove = students.filter((s) => !(rep.receivedCount[String(s.id)] > 0));
+                      if (!noLove.length)
+                        return (
+                          <p className="rounded-btn bg-success-weak p-3 text-xs font-bold text-success">
+                            💖 세션 동안 전원이 칭찬을 받았어요!
+                          </p>
+                        );
+                      return (
+                        <div className="rounded-btn bg-warn-weak p-3">
+                          <p className="text-sm font-bold text-warn">
+                            💗 관심이 필요한 친구 ({noLove.length})
+                          </p>
+                          <p className="mt-1 text-xs text-ink-700">
+                            {noLove
+                              .map(
+                                (s) =>
+                                  `${s.name}${!(rep.mvpCount[String(s.id)] > 0) ? "★" : ""}`
+                              )
+                              .join(", ")}
+                          </p>
+                          <p className="mt-1 text-[11px] text-ink-500">
+                            세션 동안 칭찬을 못 받은 친구예요. ★는 MVP도 없던 친구 — 조회 때
+                            선생님이 한마디 해주세요.
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                  {/* 👥 모둠 균형 — 모둠별 평균 점수 (개별 기록 아님) */}
+                  {rep.days > 0 &&
+                    (() => {
+                      const rows = schedule.groups
+                        .map((g) => {
+                          const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+                          const sum = ids.reduce(
+                            (a, id) => a + (rep.totals[String(id)] ?? 0),
+                            0
+                          );
+                          return { g: g.groupId, avg: sum / ids.length };
+                        })
+                        .sort((a, b) => b.avg - a.avg);
+                      const max = Math.max(1, ...rows.map((r) => r.avg));
+                      return (
+                        <div className="rounded-btn bg-ink-50 p-3">
+                          <p className="text-sm font-bold text-ink-800">👥 모둠 평균 점수</p>
+                          <div className="mt-2 space-y-1">
+                            {rows.map((r, i) => (
+                              <div key={r.g} className="flex items-center gap-2 text-xs">
+                                <span className="w-12 shrink-0 font-bold text-ink-700">
+                                  {i === 0 && "👑 "}
+                                  {r.g}모둠
+                                </span>
+                                <span className="h-2 flex-1 overflow-hidden rounded-full bg-ink-100">
+                                  <span
+                                    className={`block h-full rounded-full ${i === 0 ? "bg-warn" : "bg-brand"}`}
+                                    style={{ width: `${Math.max(4, (r.avg / max) * 100)}%` }}
+                                  />
+                                </span>
+                                <span className="tnum w-10 shrink-0 text-right font-bold text-ink-700">
+                                  {r.avg.toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-ink-400">
+                            평균 차이가 크면 모둠 구성·역할을 살펴봐 주세요.
+                          </p>
+                        </div>
+                      );
+                    })()}
                   <div className="rounded-btn bg-ink-50 p-3">
                     <p className="text-sm font-bold text-ink-800">🏅 세션 점수 TOP 5</p>
                     <ol className="mt-1 space-y-0.5 text-sm">

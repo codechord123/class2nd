@@ -32,37 +32,57 @@ function betaDates(from = "2026-06-20", to?: string): string[] {
   return dates;
 }
 
-export async function resetAllRecords(
-  onProgress?: (msg: string) => void
-): Promise<{ deleted: number }> {
+export interface ResetResult {
+  deleted: number;
+  failed: string[]; // 실패한 컬렉션 이름 (대개 콘솔 규칙 미게시가 원인)
+}
+
+/**
+ * 전체 초기화 — 컬렉션별로 격리 실행: 하나가 권한 오류로 실패해도
+ * 나머지는 계속 지우고, 실패 목록을 모아 보고한다.
+ */
+export async function resetAllRecords(onProgress?: (msg: string) => void): Promise<ResetResult> {
   const d = db();
   let deleted = 0;
+  const failed: string[] = [];
 
-  // 1) 단순 컬렉션 전부 삭제
+  // 1) 단순 컬렉션 전부 삭제 (컬렉션 단위 격리)
   for (const coll of SIMPLE_COLLECTIONS) {
     onProgress?.(`${coll} 삭제 중…`);
-    const snap = await getDocs(collection(d, coll));
-    for (const docu of snap.docs) {
-      await deleteDoc(docu.ref);
-      deleted++;
+    try {
+      const snap = await getDocs(collection(d, coll));
+      for (const docu of snap.docs) {
+        await deleteDoc(docu.ref);
+        deleted++;
+      }
+    } catch {
+      failed.push(coll);
     }
   }
 
   // 2) 평가(evaluations/{date}/entries)·칭찬 커버리지 — 베타 날짜 순회
   onProgress?.("평가 기록 삭제 중…");
+  let evalFailed = false;
   for (const date of betaDates()) {
-    const entries = await getDocs(collection(d, "evaluations", date, "entries"));
-    for (const e of entries.docs) {
-      await deleteDoc(e.ref);
-      deleted++;
+    try {
+      const entries = await getDocs(collection(d, "evaluations", date, "entries"));
+      for (const e of entries.docs) {
+        await deleteDoc(e.ref);
+        deleted++;
+      }
+    } catch {
+      evalFailed = true;
     }
     // 커버리지 문서는 존재 여부와 무관하게 삭제 시도 (없으면 no-op)
-    await deleteDoc(doc(d, "complimentCoverage", date)).catch(() => {});
+    await deleteDoc(doc(d, "complimentCoverage", date)).catch(() => {
+      // 규칙 미게시 시 실패 가능 — 아래에서 한 번만 보고
+    });
   }
+  if (evalFailed) failed.push("evaluations");
 
   // 3) 오늘의 모둠 순위 기록 삭제 (설정·메뉴 등 다른 classData 문서는 유지)
   onProgress?.("모둠 순위 기록 삭제 중…");
-  await deleteDoc(doc(d, "classData", "bestGroups")).catch(() => {});
+  await deleteDoc(doc(d, "classData", "bestGroups")).catch(() => failed.push("bestGroups"));
 
-  return { deleted };
+  return { deleted, failed: [...new Set(failed)] };
 }
