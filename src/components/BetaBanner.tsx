@@ -10,9 +10,11 @@ export default function BetaBanner() {
   const today = todayKST();
   if (!role || today > BETA_END) return null;
   return (
-    <div className="bg-violet-600 px-4 py-1.5 text-center text-xs font-bold text-white">
-      🧪 베타 테스트 기간 (~7/20 방학 전) — 지금 기록은 연습이에요! 개학 전에 깨끗하게
-      초기화돼요.
+    <div className="border-b border-violet-100 bg-violet-50 px-4 py-1.5 text-center text-[11px] font-semibold text-violet-700">
+      <span className="mr-1.5 rounded-full bg-violet-600 px-1.5 py-px text-[10px] font-bold text-white">
+        BETA
+      </span>
+      테스트 기간 (~7/20) · 지금 기록은 연습이에요 — 개학 전에 초기화돼요
     </div>
   );
 }

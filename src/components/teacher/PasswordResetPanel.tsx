@@ -129,7 +129,7 @@ export default function PasswordResetPanel() {
       </div>
 
       {/* 전체 일괄 발급 */}
-      <div className="mt-4 rounded-card border border-dashed border-ink-300 bg-ink-50/50 p-3">
+      <div className="mt-4 rounded-card border border-ink-200 bg-ink-50/60 p-3">
         <p className="text-sm font-bold text-ink-800">🎫 전체 비밀번호 일괄 발급</p>
         <p className="mt-0.5 text-xs text-ink-500">
           전원의 비밀번호를 무작위 4자리 숫자로 새로 정해서 나눠줘요 (학기 초·비밀번호 대란 때).

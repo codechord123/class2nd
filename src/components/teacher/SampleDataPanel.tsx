@@ -66,7 +66,7 @@ export default function SampleDataPanel({ date }: { date: string }) {
   }
 
   return (
-    <section className="rounded-card border border-dashed border-ink-300 bg-ink-50/50 p-4">
+    <section className="rounded-card border border-ink-200 bg-ink-50/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-ink-800">🧪 샘플 데이터 (미리보기용)</p>

@@ -15,10 +15,13 @@ export default function UserChip() {
   if (!mounted || !role) return null;
 
   const label =
-    role === "teacher" ? "🧑‍🏫 선생님" : `🎒 ${studentById.get(studentId ?? 0)?.name ?? "학생"}`;
+    role === "teacher" ? "선생님" : (studentById.get(studentId ?? 0)?.name ?? "학생");
 
   return (
     <div className="flex items-center gap-1.5 text-sm">
+      <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-weak text-[11px] font-extrabold text-brand-strong">
+        {label.charAt(0)}
+      </span>
       <span className="font-bold text-ink-700">{label}</span>
       {role === "student" && (
         <button

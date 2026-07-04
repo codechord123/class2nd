@@ -49,6 +49,24 @@ body {
   font-family: var(--font-sans);
   letter-spacing: -0.01em; /* 토스 특유의 살짝 좁은 자간 */
 }
+h1, h2, h3 {
+  letter-spacing: -0.02em; /* 제목은 조금 더 조밀하게 — 또렷한 위계 */
+}
+
+/* 정식 프로그램의 마감 — 포커스 링·선택 색·얇은 스크롤바 */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+::selection {
+  background: var(--color-brand-weak);
+}
+.overflow-x-auto,
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
 
 /* 숫자 강조용 — 성취 숫자를 또렷하게 */
 .tnum {

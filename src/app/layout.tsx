@@ -27,8 +27,14 @@ export default function RootLayout({
             <BetaBanner />
             <div className="mx-auto max-w-3xl px-4 lg:max-w-5xl">
               <div className="flex items-center justify-between py-3">
-                <h1 className="text-[15px] font-extrabold tracking-tight text-ink-900">
-                  🏫 2학기 학급 자치
+                <h1 className="flex items-center gap-2 text-[15px] font-extrabold tracking-tight text-ink-900">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand text-[13px] font-extrabold text-white shadow-card">
+                    학
+                  </span>
+                  학급 자치
+                  <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold text-ink-500">
+                    2학기
+                  </span>
                 </h1>
                 <UserChip />
               </div>

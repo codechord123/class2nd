@@ -155,11 +155,15 @@ function LoginScreen({
   return (
     <div className="mx-auto max-w-sm space-y-4 py-10">
       <div className="text-center">
-        <p className="text-4xl">🏫</p>
-        <h2 className="mt-2 text-xl font-extrabold tracking-tight text-ink-900">
-          2학기 학급 자치 시스템
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand text-2xl font-extrabold text-white shadow-pop">
+          학
+        </span>
+        <h2 className="mt-3 text-xl font-extrabold tracking-tight text-ink-900">
+          학급 자치 시스템
         </h2>
-        <p className="mt-1 text-sm text-ink-500">로그인하고 시작해요</p>
+        <p className="mt-1 text-sm text-ink-500">
+          2학기 · 로그인하고 시작해요
+        </p>
       </div>
 
       <div className="flex gap-1 rounded-btn bg-ink-100 p-1 text-sm font-bold">

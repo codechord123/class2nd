@@ -1,5 +1,10 @@
 "use client";
 // 세그먼트 컨트롤 — SubTabs 승격판. 활성 세그먼트에 흰 캡슐 + 옅은 그림자(토스식).
+// 컨트롤(탭·버튼류)에서는 이모지를 걷어내 정돈된 인상으로 — 호출부 라벨은 그대로 두고
+// 렌더 시점에 제거한다 (이모지는 콘텐츠 영역의 배지·제목에서만).
+const stripEmoji = (s: string) =>
+  s.replace(/[\p{Extended_Pictographic}️‍]/gu, "").replace(/\s{2,}/g, " ").trim();
+
 export default function SegmentedControl<T extends string>({
   tabs,
   active,
@@ -16,10 +21,10 @@ export default function SegmentedControl<T extends string>({
           key={t.key}
           onClick={() => onChange(t.key)}
           className={`press flex-1 whitespace-nowrap rounded-[11px] px-3 py-2 transition-colors ${
-            active === t.key ? "bg-white text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-700"
+            active === t.key ? "bg-white text-brand-strong shadow-card" : "text-ink-500 hover:text-ink-700"
           }`}
         >
-          {t.label}
+          {stripEmoji(t.label)}
         </button>
       ))}
     </div>
