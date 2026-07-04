@@ -31,6 +31,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
 import { ScaleEditor, RankPointsEditor } from "@/components/teacher/SettingsEditors";
+import { requestWindowLabel } from "@/lib/requestWindow";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
@@ -54,6 +55,8 @@ export default function TeacherPage() {
   const [dRank, setDRank] = useState<number[] | null>(null);
   const [dQuota, setDQuota] = useState<number | null>(null);
   const [dSeat, setDSeat] = useState<number | null>(null);
+  const [dOpen, setDOpen] = useState<number | null>(null);
+  const [dClose, setDClose] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -107,6 +110,8 @@ export default function TeacherPage() {
       rankPoints: dRank ?? settings!.rankPoints,
       weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
       seatChangeCost: dSeat ?? settings!.seatChangeCost,
+      requestOpenHour: dOpen ?? settings!.requestOpenHour,
+      requestCloseHour: dClose ?? settings!.requestCloseHour,
     };
     try {
       await saveSettings(next);
@@ -275,6 +280,42 @@ export default function TeacherPage() {
                 max={20}
                 onChange={setDSeat}
               />
+            </div>
+          </div>
+
+          {/* 토큰 신청 가능 시간대 — 아침 신청 러시 방지 */}
+          <div className="rounded-card bg-ink-50 p-4 sm:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-bold text-ink-800">🕓 토큰 신청 가능 시간</span>
+              <span className="rounded-full bg-brand-weak px-2.5 py-0.5 text-xs font-bold text-brand-strong">
+                {requestWindowLabel(
+                  dOpen ?? settings.requestOpenHour,
+                  dClose ?? settings.requestCloseHour
+                )}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-ink-500">
+              학생은 이 시간에만 실버·골드 사용을 신청할 수 있어요. (승인은 선생님이 다음 날 아침에)
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-500">시작</span>
+                <NumberStepper
+                  value={dOpen ?? settings.requestOpenHour}
+                  min={0}
+                  max={23}
+                  onChange={setDOpen}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-500">마감</span>
+                <NumberStepper
+                  value={dClose ?? settings.requestCloseHour}
+                  min={1}
+                  max={24}
+                  onChange={setDClose}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -12,8 +12,9 @@ import {
   type WalletKind,
 } from "@/lib/query/wallet";
 import { useShopMenu } from "@/lib/query/classMeta";
+import { useSettings } from "@/lib/query/settings";
+import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
-import StatCard from "@/components/ui/StatCard";
 import { useFeedback } from "@/components/ui/Feedback";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
@@ -34,6 +35,7 @@ export default function ShopPage() {
   const [amount, setAmount] = useState("1");
   const [item, setItem] = useState("");
   const [busy, setBusy] = useState(false);
+  const [directOpen, setDirectOpen] = useState(false);
   const { toast, confirm } = useFeedback();
 
   const createRequest = useCreateSpendRequest(wallet, studentId);
@@ -41,6 +43,13 @@ export default function ShopPage() {
   const { data: myS2 } = useMyRequests("s2", studentId);
   const { data: myS1 } = useMyRequests("s1", studentId);
   const { data: menu } = useShopMenu();
+  const { data: settings } = useSettings();
+
+  // 신청 가능 시간대 (KST) — 교사는 제한 없음
+  const openHour = settings?.requestOpenHour ?? 16;
+  const closeHour = settings?.requestCloseHour ?? 24;
+  const windowLabel = requestWindowLabel(openHour, closeHour);
+  const requestOpen = role === "teacher" || isRequestOpen(openHour, closeHour);
 
   const myS2Balance = studentId ? (s2Bal?.[String(studentId)] ?? 0) : 0;
   const myS1Remaining = studentId
@@ -50,6 +59,10 @@ export default function ShopPage() {
 
   // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청
   async function submit() {
+    if (!requestOpen) {
+      toast(`지금은 신청할 수 없어요. ${windowLabel}에 다시 와줘요 🕓`, "warn");
+      return;
+    }
     const n = Number(amount);
     const name = item.trim();
     if (!name) {
@@ -86,6 +99,10 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
+    if (!requestOpen) {
+      toast(`지금은 신청할 수 없어요. ${windowLabel}에 다시 와줘요 🕓`, "warn");
+      return;
+    }
     if (m.wallet === "gold") {
       if (m.price > classGoldLeft) {
         toast("학급 골드토큰이 부족해요.", "warn");
@@ -125,12 +142,39 @@ export default function ShopPage() {
 
   return (
     <div className="space-y-4">
-      {/* 내 지갑 */}
+      {/* 내 지갑 — 잔액 요약 + (상점 탭) 결제 지갑 토글을 한 카드로 압축 */}
       {role === "student" && studentId && (
-        <section className="grid grid-cols-3 gap-2">
-          <StatCard label="2학기 실버" value={myS2Balance} tone="neutral" />
-          <StatCard label="이월 실버" value={myS1Remaining} tone="brand" />
-          <StatCard label="골드토큰" value={classGoldLeft} sub="학급 공용" tone="warn" />
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <div className="grid grid-cols-3 divide-x divide-ink-100 text-center">
+            <div className="px-1">
+              <p className="text-[11px] text-ink-400">2학기 실버</p>
+              <p className="tnum text-xl font-extrabold text-ink-900">{myS2Balance}</p>
+            </div>
+            <div className="px-1">
+              <p className="text-[11px] text-ink-400">이월 실버</p>
+              <p className="tnum text-xl font-extrabold text-brand-strong">{myS1Remaining}</p>
+            </div>
+            <div className="px-1">
+              <p className="text-[11px] text-ink-400">골드 · 공용</p>
+              <p className="tnum text-xl font-extrabold text-warn">{classGoldLeft}</p>
+            </div>
+          </div>
+          {tab === "shop" && (
+            <div className="mt-3 flex items-center gap-2 border-t border-ink-100 pt-3">
+              <span className="shrink-0 text-xs text-ink-400">결제 지갑</span>
+              {(["s2", "s1"] as const).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setWallet(w)}
+                  className={`press rounded-full px-3 py-1 text-xs font-bold ${
+                    wallet === w ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
+                  }`}
+                >
+                  {w === "s2" ? `2학기 (${myS2Balance})` : `이월 (${myS1Remaining})`}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -143,30 +187,20 @@ export default function ShopPage() {
         onChange={setTab}
       />
 
-      {/* 실버 결제 지갑 선택 — 메뉴 신청이 어느 지갑에서 나가는지 명시 (레드팀 반영) */}
-      {tab === "shop" && role === "student" && studentId && (
-        <div className="flex items-center gap-2 rounded-card border border-ink-200 bg-white px-4 py-2.5 text-sm shadow-card">
-          <span className="text-xs text-ink-400">실버 결제 지갑:</span>
-          {(["s2", "s1"] as const).map((w) => (
-            <button
-              key={w}
-              onClick={() => setWallet(w)}
-              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                wallet === w ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
-              }`}
-            >
-              {w === "s2" ? `2학기 실버 (${myS2Balance})` : `이월 실버 (${myS1Remaining})`}
-            </button>
-          ))}
+      {/* 신청 시간창 안내 — 닫혀 있으면 구경만 가능 */}
+      {tab === "shop" && role === "student" && studentId && !requestOpen && (
+        <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm text-warn">
+          🕓 토큰 신청은 <b>{windowLabel}</b>에만 할 수 있어요. 지금은 구경만! 신청은 저녁에,
+          승인은 다음 날 아침에 해요.
         </div>
       )}
 
       {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
       {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <h3 className="font-bold">📋 우리 반 메뉴판</h3>
           <p className="mt-1 text-xs text-ink-500">
-            학급 회의로 정한 메뉴예요. 골라서 바로 신청하세요!
+            선생님이 올린 메뉴예요. 골라서 신청하면 다음 날 아침에 승인돼요!
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {menu!.map((m) => (
@@ -186,9 +220,9 @@ export default function ShopPage() {
                 </div>
                 <button
                   onClick={() => void requestMenuItem(m)}
-                  disabled={busy}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 ${
-                    m.wallet === "gold" ? "bg-amber-500" : "bg-brand"
+                  disabled={busy || !requestOpen}
+                  className={`press shrink-0 rounded-btn px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40 ${
+                    m.wallet === "gold" ? "bg-warn" : "bg-brand"
                   }`}
                 >
                   신청
@@ -200,61 +234,70 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 직접 입력 신청 */}
+      {/* 직접 입력 신청 — 메뉴판이 주인공, 직접 입력은 접어둠 */}
       {tab === "shop" && role === "student" && studentId && (
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
-          <h3 className="font-bold">🛒 실버 사용 신청 (직접 입력)</h3>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-lg bg-ink-100 px-3 py-2 text-xs font-bold text-ink-500">
-              {WALLET_LABEL[wallet]}에서
-            </span>
-            <input
-              type="number"
-              min={1}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm"
-            />
-            <input
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
-              placeholder="무엇에 쓸까요? (예: 자리 이동권)"
-              className="min-w-40 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
-            />
-            <button
-              onClick={() => void submit()}
-              disabled={busy}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              신청
-            </button>
-          </div>
-
-          {myRequests.length > 0 && (
-            <>
-              <p className="mt-4 text-xs font-bold text-ink-500">내 신청 내역</p>
-              <ul className="mt-1.5 space-y-1.5 text-sm">
-                {myRequests.slice(0, 8).map((r) => (
-                  <li
-                    key={r.id}
-                    className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
-                  >
-                    <span className="min-w-0 truncate">
-                      <b className="text-ink-800">{r.item}</b>{" "}
-                      <span className="text-xs text-ink-400">
-                        {r.wallet === "s2" ? "2학기" : "이월"} {r.amount}개
-                      </span>
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
-                    >
-                      {STATUS_LABEL[r.status]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <button
+            onClick={() => setDirectOpen((v) => !v)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="text-sm font-bold text-ink-700">🛒 메뉴에 없는 것 직접 신청</span>
+            <span className="text-xs text-ink-400">{directOpen ? "접기 ▲" : "펼치기 ▼"}</span>
+          </button>
+          {directOpen && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-btn bg-ink-100 px-3 py-2 text-xs font-bold text-ink-500">
+                {WALLET_LABEL[wallet]}에서
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              />
+              <input
+                value={item}
+                onChange={(e) => setItem(e.target.value)}
+                placeholder="무엇에 쓸까요? (예: 자리 이동권)"
+                className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() => void submit()}
+                disabled={busy || !requestOpen}
+                className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+              >
+                신청
+              </button>
+            </div>
           )}
+        </section>
+      )}
+
+      {/* 내 신청 내역 — 항상 노출 (승인 대기 확인용) */}
+      {tab === "shop" && role === "student" && studentId && myRequests.length > 0 && (
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <p className="text-xs font-bold text-ink-500">📜 내 신청 내역</p>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {myRequests.slice(0, 8).map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
+              >
+                <span className="min-w-0 truncate">
+                  <b className="text-ink-800">{r.item}</b>{" "}
+                  <span className="text-xs text-ink-400">
+                    {r.wallet === "s2" ? "2학기" : "이월"} {r.amount}개
+                  </span>
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
+                >
+                  {STATUS_LABEL[r.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

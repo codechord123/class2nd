@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
-import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { useFeedback } from "@/components/ui/Feedback";
 import {
@@ -37,7 +36,7 @@ function PollCard({ poll }: { poll: Poll }) {
 
   return (
     <section
-      className={`rounded-xl border bg-white p-5 shadow-card ${closed ? "border-ink-300 opacity-90" : "border-indigo-200"}`}
+      className={`rounded-card border bg-white p-5 shadow-card ${closed ? "border-ink-300 opacity-90" : "border-brand/30"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
@@ -216,7 +215,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="space-y-2">
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -280,11 +279,41 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       </div>
       <button
         onClick={() => void submit()}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white"
+        className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
       >
         투표 만들기
       </button>
     </div>
+  );
+}
+
+// ── 목록 Row (제목 클릭 → 상세) ──────────────────────────────────
+function PollRow({ p, onOpen }: { p: Poll; onOpen: () => void }) {
+  const closed = isPollClosed(p);
+  const voters = Object.keys(p.votes ?? {}).filter((sid) => votesOf(p, sid).length).length;
+  const author =
+    p.createdBy === "teacher" ? "선생님" : (studentById.get(p.createdBy as number)?.name ?? "?");
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-ink-50"
+    >
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span
+          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            closed ? "bg-ink-200 text-ink-500" : "bg-success-weak text-success"
+          }`}
+        >
+          {closed ? "마감" : "진행"}
+        </span>
+        <span className="truncate text-sm font-medium text-ink-700">{p.title}</span>
+        {p.multi && <span className="shrink-0 text-[10px] text-ink-400">복수</span>}
+        {p.anonymous && <span className="shrink-0 text-[10px] text-ink-400">익명</span>}
+      </span>
+      <span className="shrink-0 text-xs text-ink-400">
+        {author} · 👥{voters}
+      </span>
+    </button>
   );
 }
 
@@ -293,57 +322,89 @@ export default function VotePage() {
   const { data: polls } = usePolls(pages);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const kw = search.trim().toLowerCase();
   const filtered = (polls ?? []).filter((p) => {
-    const kw = search.trim().toLowerCase();
     if (!kw) return true;
     return `${p.title} ${p.desc ?? ""} ${p.options.join(" ")}`.toLowerCase().includes(kw);
   });
 
+  // 상세 화면 — 삭제되어 목록에서 사라지면 자동으로 목록 복귀
+  const selected = (polls ?? []).find((p) => p.id === selectedId);
+  if (selectedId && selected) {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setSelectedId(null)}
+          className="text-sm text-ink-400 hover:text-ink-600"
+        >
+          ← 목록으로
+        </button>
+        <PollCard poll={selected} />
+      </div>
+    );
+  }
+
+  // 진행 중 우선, 그 안에서 최신순
+  const sorted = [...filtered].sort((a, b) => {
+    const diff = Number(isPollClosed(a)) - Number(isPollClosed(b));
+    return diff !== 0 ? diff : b.createdAt - a.createdAt;
+  });
+
   return (
     <div className="space-y-4">
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <section className="rounded-card border border-ink-200 bg-white shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
           <h3 className="font-bold">🗳️ 투표 게시판</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 검색"
-              className="w-32 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
+              className="w-32 rounded-btn border border-ink-200 px-3 py-1.5 text-sm"
             />
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white"
+              className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
             >
-              {showForm ? "닫기" : "+ 투표 만들기"}
+              {showForm ? "닫기" : "✏️ 투표 만들기"}
             </button>
           </div>
         </div>
-        {showForm && <CreatePollForm onDone={() => setShowForm(false)} />}
-      </section>
 
-      {!filtered.length && (
-        <Card>
-          {search ? (
+        {showForm && (
+          <div className="border-b border-ink-100 bg-ink-50/50 p-4">
+            <CreatePollForm onDone={() => setShowForm(false)} />
+          </div>
+        )}
+
+        {/* 목록 */}
+        {!sorted.length ? (
+          search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />
           ) : (
             <EmptyState emoji="🗳️" title="아직 투표가 없어요" desc="첫 투표를 만들어보세요!" />
-          )}
-        </Card>
-      )}
-      {filtered.map((p) => (
-        <PollCard key={p.id} poll={p} />
-      ))}
+          )
+        ) : (
+          <ul className="divide-y divide-ink-100">
+            {sorted.map((p) => (
+              <li key={p.id}>
+                <PollRow p={p} onOpen={() => setSelectedId(p.id)} />
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {polls && polls.length >= pages * 10 && (
-        <button
-          onClick={() => setPages((p) => p + 1)}
-          className="w-full rounded-lg border border-ink-200 py-2 text-sm text-ink-500 hover:bg-ink-50"
-        >
-          더 보기
-        </button>
-      )}
+        {polls && polls.length >= pages * 10 && (
+          <button
+            onClick={() => setPages((p) => p + 1)}
+            className="w-full border-t border-ink-100 py-2.5 text-sm text-ink-500 hover:bg-ink-50"
+          >
+            더 보기
+          </button>
+        )}
+      </section>
     </div>
   );
 }

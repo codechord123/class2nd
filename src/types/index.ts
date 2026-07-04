@@ -65,6 +65,9 @@ export interface ClassSettings {
   /** 학기 시작일 (주차 자동 계산 기준) */
   semesterStart: string; // "2026-08-17"
   semesterEnd: string; // "2027-01-08"
+  /** 토큰(실버/골드) 사용 신청을 받는 시각(KST, 0~24). 기본 오후 4시~자정. */
+  requestOpenHour: number;
+  requestCloseHour: number;
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {
@@ -77,6 +80,8 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   readingCharLimit: 700,
   semesterStart: "2026-08-17",
   semesterEnd: "2027-01-08",
+  requestOpenHour: 16,
+  requestCloseHour: 24,
 };
 
 // ── 1학기 이월 지갑 (정적 JSON — 별도 지갑 방식) ────────────────
