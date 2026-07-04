@@ -35,7 +35,6 @@ import NumberStepper from "@/components/ui/NumberStepper";
 import { ScaleEditor, RankPointsEditor } from "@/components/teacher/SettingsEditors";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
-import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import type { ClassSettings } from "@/types";
 
@@ -154,7 +153,10 @@ export default function TeacherPage() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
         <p className="mt-1 text-xs text-ink-500">
-          종회 후 하루 1번 실행하세요. 다시 실행해도 안전해요(누적 자동 보정).
+          학생들이 낸 평가(모둠 친구 점수·MVP·칭찬)를 모아 <b>오늘 점수를 계산</b>해서 반영해요.
+          <br />
+          순서: ① 아래 👑에서 모둠 순위 저장 → ② 종회 때 이 버튼 1번. 다시 눌러도 안전해요(누적
+          자동 보정).
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
@@ -182,12 +184,12 @@ export default function TeacherPage() {
         )}
       </section>
 
-      {/* 오늘의 모둠 순위(1~5위) 선정 + 칭찬/건의 인쇄 */}
+      {/* 오늘의 모둠 순위(1~5위) 선정 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">👑 오늘의 모둠 순위 & 칭찬 인쇄</h2>
+        <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
         <p className="mt-1 text-xs text-ink-500">
           잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점이 배분되고, 세션
-          통계(최고 모둠)는 1위만 집계돼요.
+          통계(최고 모둠)는 1위만 집계돼요. <b>순위 저장 후 위에서 집계 실행</b>하면 반영돼요.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {[1, 2, 3, 4, 5].map((g) => {
@@ -238,40 +240,6 @@ export default function TeacherPage() {
           >
             순위 저장
           </button>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="flex gap-1">
-            {(["일간", "주간", "월간"] as const).map((label) => (
-              <button
-                key={label}
-                onClick={() =>
-                  void (async () => {
-                    try {
-                      let start = date, end = date;
-                      if (label === "주간") {
-                        const s0 = new Date(date + "T00:00:00+09:00");
-                        s0.setDate(s0.getDate() - 6);
-                        start = s0.toISOString().slice(0, 10);
-                      } else if (label === "월간") {
-                        start = date.slice(0, 8) + "01";
-                        const e0 = new Date(date.slice(0, 7) + "-01T00:00:00Z");
-                        e0.setUTCMonth(e0.getUTCMonth() + 1);
-                        e0.setUTCDate(0);
-                        end = e0.toISOString().slice(0, 10);
-                      }
-                      const r = await openRangePrintDoc(start, end, label);
-                      setMsg(`🖨️ ${label} 인쇄 창 열림 — ${r.days}일치 · 칭찬 ${r.compliments}건 · 건의 ${r.suggestions}건`);
-                    } catch (e) {
-                      setMsg(`⚠️ ${e instanceof Error ? e.message : String(e)}`);
-                    }
-                  })()
-                }
-                className="rounded-btn border border-ink-300 px-3 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50"
-              >
-                🖨️ {label}
-              </button>
-            ))}
-          </span>
         </div>
         {bestGroups?.[date] && (
           <p className="mt-2 text-sm text-ink-600">

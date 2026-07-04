@@ -5,11 +5,11 @@ import { useState } from "react";
 import { students, studentById } from "@/lib/roster";
 import { s1TotalBooks } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
-import { useDailyScores } from "@/lib/query/evaluation";
+import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
-import { openPrintWindow, esc } from "@/lib/exportDoc";
+import { openPrintWindow, openRangePrintDoc, esc } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -23,11 +23,21 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const { data: settings } = useSettings();
   const { toast } = useFeedback();
   const [printing, setPrinting] = useState(false);
+  const [period, setPeriod] = useState<"day" | "week">("day");
   const [view, setView] = useState<"all" | "groups">("all");
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
   const quota = settings?.weeklyReadingQuota ?? 3;
+
+  // 주간 범위 (해당 주 월~일)
+  const weekStart = schedule.weekStart;
+  const weekEnd = (() => {
+    const e = new Date(weekStart + "T00:00:00Z");
+    e.setUTCDate(e.getUTCDate() + 6);
+    return e.toISOString().slice(0, 10);
+  })();
+  const { data: weekRep } = useRangeReport(weekStart, weekEnd, period === "week");
 
   const weekMap = stats?.byWeek?.[String(week)] ?? {};
   const weekRead = (sid: number) => weekMap[String(sid)] ?? 0;
@@ -45,10 +55,12 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const meta = (today?._meta ?? null) as {
     mvpWinners?: number[];
     ranks?: Record<string, number>;
+    missionGroups?: number[];
     compliments?: { from: number; to: number; text: string }[];
     peerSuggestions?: { from: number; to: number; text: string }[];
     toTeacher?: { from: number; text: string }[];
   } | null;
+  const missionSet = new Set(meta?.missionGroups ?? []);
   const nm = (id: number) => studentById.get(id)?.name ?? `?${id}`;
   const mvpNames = (meta?.mvpWinners ?? []).map(nm);
   const rankPairs = Object.entries(meta?.ranks ?? {}).sort((a, b) => a[1] - b[1]);
@@ -135,7 +147,8 @@ export default function DailyReportPanel({ date }: { date: string }) {
                   (c) => `<li>🙋 <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
                 ),
               ].join("") || `<li class="muted">오늘 기록이 없어요.</li>`;
-            return `<div class="grp"><div class="h"><span class="gname">${gRank === 1 ? "👑 " : ""}${g.groupId}모둠${gRank ? `<span class="badge">${gRank}위</span>` : ""}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
+            const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">🎯 미션 +1</span>` : "";
+            return `<div class="grp"><div class="h"><span class="gname">${gRank === 1 ? "👑 " : ""}${g.groupId}모둠${gRank ? `<span class="badge">${gRank}위</span>` : ""}${missionBadge}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
           })
           .join("");
         sections.push(card("👥 모둠별 오늘 기록", groupsHtml));
@@ -169,21 +182,49 @@ export default function DailyReportPanel({ date }: { date: string }) {
     }
   }
 
+  async function weeklyPrint() {
+    if (printing) return;
+    setPrinting(true);
+    try {
+      const readingHtml = `<div class="t">📖 이번 주 독서 (${week}주차)</div><p>반 제출 <b>${weekBooks}권</b> · 목표 달성 ${metCount}/${students.length}명</p>${
+        notMet.length ? `<p class="muted">미달: ${notMet.map((s) => esc(s.name)).join(", ")}</p>` : ""
+      }`;
+      await openRangePrintDoc(weekStart, weekEnd, `${week}주차 주간`, readingHtml);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return (
-    <Card title="🗒️ 데일리 리포트" desc={`${date} · ${week}주차 — 오늘 한눈에 보고 인쇄까지`}>
+    <Card title="🗒️ 리포트" desc={`${date} · ${week}주차`}>
       <div className="mt-3">
-        <SubTabs<"all" | "groups">
+        <SubTabs<"day" | "week">
           tabs={[
-            { key: "all", label: "📊 전체" },
-            { key: "groups", label: "👥 모둠별" },
+            { key: "day", label: "📅 일간" },
+            { key: "week", label: "📆 주간" },
           ]}
-          active={view}
-          onChange={setView}
+          active={period}
+          onChange={setPeriod}
         />
       </div>
 
+      {period === "day" && (
+        <div className="mt-2">
+          <SubTabs<"all" | "groups">
+            tabs={[
+              { key: "all", label: "📊 전체" },
+              { key: "groups", label: "👥 모둠별" },
+            ]}
+            active={view}
+            onChange={setView}
+          />
+        </div>
+      )}
+
       {/* 👥 모둠별 — 1~5모둠 각자의 오늘 팀 기록 */}
-      {view === "groups" &&
+      {period === "day" && view === "groups" &&
         (meta ? (
           <div className="mt-2 space-y-2">
             {schedule.groups.map((g) => {
@@ -204,6 +245,11 @@ export default function DailyReportPanel({ date }: { date: string }) {
                           {gRank}위
                         </span>
                       ) : null}
+                      {missionSet.has(g.groupId) && (
+                        <span className="ml-1 rounded-full bg-pink-100 px-2 py-0.5 text-[10px] font-bold text-pink-600">
+                          🎯 미션 +1
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-ink-500">
                       {memberIds.map((id) => (
@@ -246,7 +292,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
           <p className="mt-2 text-xs text-ink-400">집계 후 모둠별 기록이 표시돼요.</p>
         ))}
 
-      {view === "all" && (<>
+      {period === "day" && view === "all" && (<>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {/* 독서 현황 */}
         <div className="rounded-btn bg-ink-50 p-3">
@@ -365,12 +411,92 @@ export default function DailyReportPanel({ date }: { date: string }) {
       )}
       </>)}
 
-      <Button onClick={() => print()} disabled={printing} className="mt-3">
-        🖨️ 리포트 인쇄 / PDF 저장
-      </Button>
-      <p className="mt-1.5 text-xs text-ink-400">
-        인쇄본도 화면처럼 독서·점수·MVP·순위·모둠별 칭찬/건의·바라는 점 카드로 담겨요.
-      </p>
+      {/* 일간 인쇄 */}
+      {period === "day" && (
+        <>
+          <Button onClick={() => print()} disabled={printing} className="mt-3">
+            🖨️ 일간 리포트 인쇄 / PDF 저장
+          </Button>
+          <p className="mt-1.5 text-xs text-ink-400">
+            인쇄본도 화면처럼 독서·점수·MVP·순위·모둠별 칭찬/건의·바라는 점 카드로 담겨요.
+          </p>
+        </>
+      )}
+
+      {/* 📆 주간 — 전체 요약만 */}
+      {period === "week" && (
+        <div className="mt-2 space-y-2">
+          <div className="rounded-btn bg-ink-50 p-3">
+            <p className="text-sm font-bold text-ink-800">📖 이번 주 독서 ({week}주차)</p>
+            <p className="mt-1 text-sm text-ink-700">
+              반 제출 <b>{weekBooks}권</b> · 목표 달성{" "}
+              <b>
+                {metCount}/{students.length}명
+              </b>
+            </p>
+            {notMet.length > 0 && (
+              <p className="mt-1 text-xs text-ink-500">미달: {notMet.map((s) => s.name).join(", ")}</p>
+            )}
+          </div>
+
+          {!weekRep ? (
+            <p className="rounded-btn bg-ink-50 p-3 text-xs text-ink-400">불러오는 중…</p>
+          ) : weekRep.days === 0 ? (
+            <p className="rounded-btn bg-ink-50 p-3 text-xs text-ink-400">
+              이번 주 집계된 날이 아직 없어요. (매일 집계하면 여기에 주간 합산이 쌓여요)
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="rounded-btn bg-ink-50 p-2">
+                  <p className="text-[11px] text-ink-400">집계 일수</p>
+                  <p className="tnum text-lg font-extrabold text-ink-900">{weekRep.days}일</p>
+                </div>
+                <div className="rounded-btn bg-ink-50 p-2">
+                  <p className="text-[11px] text-ink-400">💌 칭찬</p>
+                  <p className="tnum text-lg font-extrabold text-pink-600">{weekRep.compliments}</p>
+                </div>
+                <div className="rounded-btn bg-ink-50 p-2">
+                  <p className="text-[11px] text-ink-400">🙋 건의</p>
+                  <p className="tnum text-lg font-extrabold text-brand-strong">
+                    {weekRep.suggestions}
+                  </p>
+                </div>
+                <div className="rounded-btn bg-ink-50 p-2">
+                  <p className="text-[11px] text-ink-400">🎯 미션</p>
+                  <p className="tnum text-lg font-extrabold text-warn">
+                    {weekRep.missionAchievements}회
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-btn bg-ink-50 p-3">
+                <p className="text-sm font-bold text-ink-800">🏅 주간 점수 (합산 상위)</p>
+                <ol className="mt-1 space-y-0.5 text-sm">
+                  {[...students]
+                    .map((s) => ({ name: s.name, total: weekRep.totals[String(s.id)] ?? 0 }))
+                    .sort((a, b) => b.total - a.total)
+                    .slice(0, 5)
+                    .map((r, i) => (
+                      <li key={r.name} className="flex justify-between">
+                        <span>
+                          {MEDAL[i] ?? `${i + 1}.`} {r.name}
+                        </span>
+                        <b className="tnum">{r.total}점</b>
+                      </li>
+                    ))}
+                </ol>
+              </div>
+            </>
+          )}
+
+          <Button onClick={() => void weeklyPrint()} disabled={printing} className="mt-1">
+            🖨️ 주간 리포트 인쇄 / PDF 저장
+          </Button>
+          <p className="mt-1.5 text-xs text-ink-400">
+            주간 리포트는 전체 요약(독서·점수·칭찬·건의·바라는 점)만 담겨요.
+          </p>
+        </div>
+      )}
     </Card>
   );
 }

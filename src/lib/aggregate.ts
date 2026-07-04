@@ -97,6 +97,16 @@ export async function aggregateDate(
     for (const m of g.members) groupOfStudent[m.studentId] = g.groupId;
   }
 
+  // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
+  //      (서로 칭찬하기를 매일 미션으로 — 협력하면 다 같이 이득)
+  const complimentedIds = new Set(compliments.map((c) => c.to));
+  const missionGroups: number[] = [];
+  for (const g of schedule.groups) {
+    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    if (ids.every((id) => complimentedIds.has(id))) missionGroups.push(g.groupId);
+  }
+  const missionSet = new Set(missionGroups);
+
   // 5) 학생별 행 구성 (기존 보너스는 유지)
   const prevRows = (prevSnap.exists() ? prevSnap.data() : {}) as Record<
     string,
@@ -110,7 +120,8 @@ export async function aggregateDate(
     const myRank = ranks[groupOfStudent[s.id]];
     const gr = myRank ? rankPoint(myRank) : 0;
     const bonus = prevRow?.bonus ?? 0;
-    rows[s.id] = { peer: p, groupRank: gr, bonus, total: p + gr + bonus };
+    const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
+    rows[s.id] = { peer: p, groupRank: gr, bonus, mission, total: p + gr + bonus + mission };
   }
 
   // 5-1) 모둠별 MVP: 각 모둠에서 최다 득표(1표 이상, 동점 모두)
@@ -154,6 +165,7 @@ export async function aggregateDate(
         ranks,
         mvpVotes,
         mvpWinners,
+        missionGroups,
         compliments,
         peerSuggestions,
         toTeacher,
@@ -352,7 +364,7 @@ export async function setBonus(date: string, studentId: number, bonus: number): 
   const newRow: DailyScoreRow = {
     ...prevRow,
     bonus,
-    total: prevRow.peer + prevRow.groupRank + bonus,
+    total: prevRow.peer + prevRow.groupRank + bonus + (prevRow.mission ?? 0),
   };
   const cum = cumSnap.exists() ? cumSnap.data() : {};
   const prevCum = typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;

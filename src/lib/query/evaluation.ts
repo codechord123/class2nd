@@ -3,9 +3,10 @@
 //   학생 1명·1일: 본인 평가 문서 2개 읽기(모둠 내 + 모둠 간) + 저장 시 쓰기만.
 //   저장 후에는 캐시만 갱신(재조회 금지). 남의 평가는 절대 읽지 않는다(집계가 대신함).
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, documentId, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { PeerEvaluation } from "@/types";
+import { students } from "@/lib/roster";
+import type { PeerEvaluation, DailyScoreRow } from "@/types";
 
 // ── 모둠 내 평가: evaluations/{date}/entries/{evaluatorId} ──────
 export function useMyEvaluation(date: string, myId: number | null) {
@@ -110,6 +111,57 @@ export function useDailyScores(date: string) {
       return snap.exists() ? snap.data() : null;
     },
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+// 주간/기간 리포트 — 기간 내 일일 집계 문서(최대 7개)를 합산 (교사 전용, 필요할 때만)
+export interface RangeReport {
+  totals: Record<string, number>; // studentId → 기간 총점
+  compliments: number;
+  suggestions: number;
+  missionAchievements: number; // 모둠 미션 달성 횟수(모둠×일)
+  mvpCount: Record<string, number>; // studentId → MVP 횟수
+  days: number;
+}
+export function useRangeReport(start: string, end: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["rangeReport", start, end],
+    enabled,
+    queryFn: async (): Promise<RangeReport> => {
+      const snap = await getDocs(
+        query(
+          collection(db(), "dailyScores"),
+          where(documentId(), ">=", start),
+          where(documentId(), "<=", end)
+        )
+      );
+      const totals: Record<string, number> = {};
+      const mvpCount: Record<string, number> = {};
+      let compliments = 0,
+        suggestions = 0,
+        missionAchievements = 0,
+        days = 0;
+      snap.forEach((day) => {
+        days++;
+        const data = day.data();
+        for (const s of students) {
+          const row = data[String(s.id)] as DailyScoreRow | undefined;
+          if (row?.total != null) totals[String(s.id)] = (totals[String(s.id)] ?? 0) + row.total;
+        }
+        const meta = (data._meta ?? {}) as {
+          compliments?: unknown[];
+          peerSuggestions?: unknown[];
+          missionGroups?: unknown[];
+          mvpWinners?: number[];
+        };
+        compliments += (meta.compliments ?? []).length;
+        suggestions += (meta.peerSuggestions ?? []).length;
+        missionAchievements += (meta.missionGroups ?? []).length;
+        for (const w of meta.mvpWinners ?? []) mvpCount[String(w)] = (mvpCount[String(w)] ?? 0) + 1;
+      });
+      return { totals, compliments, suggestions, missionAchievements, mvpCount, days };
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

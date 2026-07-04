@@ -206,6 +206,9 @@ export default function TeamPage() {
             {myRow.bonus !== 0 && (
               <span className="rounded-full bg-success-weak px-2 py-0.5 text-success">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
             )}
+            {(myRow.mission ?? 0) > 0 && (
+              <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">🎯 미션 +{myRow.mission}</span>
+            )}
           </div>
         ) : (
           <p className="mt-2 text-center text-xs text-ink-400">아직 오늘 점수는 집계 전이에요</p>
@@ -305,6 +308,10 @@ export default function TeamPage() {
           오늘 고마웠던 친구를 골라 칭찬해요. 🌱 붙은 친구는 아직 내가 칭찬 안 한 친구예요 —
           골고루 칭찬해 주세요!
         </p>
+        <div className="mt-2 rounded-btn bg-pink-50 px-3 py-2 text-xs text-pink-700">
+          🎯 <b>오늘의 미션</b> — 우리 모둠 <b>모두</b>가 칭찬을 받으면 모둠원 전원 <b>+1점</b>!
+          한 명이라도 빠지지 않게 서로서로 칭찬해요.
+        </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {sortedTargets.map((t) => (
             <button
