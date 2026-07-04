@@ -31,18 +31,19 @@ export default function ReadingAlert() {
 
   const streakChip =
     current >= 1 ? (
-      <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
+      <span className="ml-2 rounded-full border border-ink-200/60 bg-white/70 px-2 py-0.5 text-xs font-bold">
         🔥 {current}주 연속{best > current ? ` · 최고 ${best}주` : ""}
       </span>
     ) : best >= 1 ? (
-      <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold">
+      <span className="ml-2 rounded-full border border-ink-200/60 bg-white/70 px-2 py-0.5 text-xs font-bold">
         🏆 최고 기록 {best}주 연속
       </span>
     ) : null;
 
+  // 알림은 얇은 줄 문법 — 상점 시간 안내와 동일 (컬러 카드 블록이 여러 층 쌓이지 않게)
   if (shortfall <= 0) {
     return (
-      <div className="rounded-card border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+      <div className="rounded-btn bg-success-weak px-4 py-2.5 text-sm text-success">
         🎉 이번 주 거북이 독서 {quota}권 달성!
         {current >= 1 ? ` ${current}주 연속 — 연속 보너스 +${Math.min(current, 3)}점 예약! 🔥` : " 최고예요!"}
         {streakChip}
@@ -53,7 +54,7 @@ export default function ReadingAlert() {
   // 마감 임박(2일 이하)에만 강한 경고 — 그 전부터 빨간불이면 학급 목표보다 경고가 먼저 보인다
   if (daysLeft <= 2) {
     return (
-      <div className="rounded-card border border-danger/40 bg-danger-weak p-4 text-sm font-bold text-danger">
+      <div className="rounded-btn bg-danger-weak px-4 py-2.5 text-sm font-bold text-danger">
         ⏰ 주간 마감 D-{daysLeft}! 아직 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권)
         {current >= 1 && ` — 지금 안 읽으면 🔥${current}주 연속 기록이 끊겨요!`}
         {streakChip}
@@ -61,7 +62,7 @@ export default function ReadingAlert() {
     );
   }
   return (
-    <div className="rounded-card border border-ink-200 bg-white p-4 text-sm font-medium text-ink-700 shadow-card">
+    <div className="rounded-btn border border-ink-200 bg-white px-4 py-2.5 text-sm font-medium text-ink-600">
       🐢 이번 주 <b className="text-emerald-700">{shortfall}권</b> 남았어요 ({read}/{quota}권) —
       매주 채우면 연속 보너스 점수가 커져요! 🔥
       {streakChip}

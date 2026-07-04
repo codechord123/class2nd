@@ -60,11 +60,15 @@ export default function MyStatus() {
     .filter(([k, v]) => /^\d+$/.test(k) && typeof v === "number")
     .reduce((a, [, v]) => a + (v as number), 0);
 
+  // 색 타일을 흰 카드로 감싼다 — 맨몸 타일이 회색 배경 위에 뜨면 카드 문법에서 벗어난다
   const classBoard = (
-    <section className="grid grid-cols-3 gap-1.5">
-      <Stat label="🐢 학급 총 권수" value={classTotalBooks} sub={`2학기 +${s2Total}`} tone="emerald" />
-      <Stat label="🏅 학급 총점" value={classScore} tone="indigo" />
-      <Stat label="🥇 골드토큰" value={goldLeft} sub="학급 공용" tone="amber" />
+    <section className="rounded-card border border-ink-200 bg-white p-3 shadow-card">
+      <h2 className="text-sm font-bold text-ink-900">🏫 우리 반</h2>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <Stat label="🐢 학급 총 권수" value={classTotalBooks} sub={`2학기 +${s2Total}`} tone="emerald" />
+        <Stat label="🏅 학급 총점" value={classScore} tone="indigo" />
+        <Stat label="🥇 골드토큰" value={goldLeft} sub="학급 공용" tone="amber" />
+      </div>
     </section>
   );
 
