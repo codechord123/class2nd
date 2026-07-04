@@ -172,6 +172,25 @@ export function useToggleAnnouncement() {
   };
 }
 
+/** 본인 글 수정 (제목·내용) */
+export function useUpdateSuggestion() {
+  const qc = useQueryClient();
+  return async (id: string, title: string, content: string) => {
+    if (!title.trim()) throw new Error("제목을 입력해주세요.");
+    if (!content.trim()) throw new Error("내용을 입력해주세요.");
+    await updateDoc(doc(db(), "suggestions", id), {
+      title: title.trim(),
+      content: content.trim(),
+    });
+    const patch = (prev: Suggestion[] | undefined) =>
+      prev?.map((s) =>
+        s.id === id ? { ...s, title: title.trim(), content: content.trim() } : s
+      );
+    qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
+    qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+  };
+}
+
 export function useDeleteSuggestion() {
   const qc = useQueryClient();
   return async (id: string) => {
@@ -346,6 +365,18 @@ export function useClosePoll() {
     await setDoc(doc(db(), "polls", poll.id), { closed: !poll.closed }, { merge: true });
     qc.setQueriesData({ queryKey: ["polls"] }, (prev: Poll[] | undefined) =>
       prev?.map((p) => (p.id === poll.id ? { ...p, closed: !poll.closed } : p))
+    );
+  };
+}
+
+/** 작성자: 투표 제목·설명 수정 (선택지·표는 그대로 — 공정성 유지) */
+export function useUpdatePoll() {
+  const qc = useQueryClient();
+  return async (id: string, title: string, desc: string) => {
+    if (!title.trim()) throw new Error("제목을 입력해주세요.");
+    await updateDoc(doc(db(), "polls", id), { title: title.trim(), desc: desc.trim() });
+    qc.setQueriesData({ queryKey: ["polls"] }, (prev: Poll[] | undefined) =>
+      prev?.map((p) => (p.id === id ? { ...p, title: title.trim(), desc: desc.trim() } : p))
     );
   };
 }

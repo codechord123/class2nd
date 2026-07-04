@@ -53,16 +53,44 @@ export function useSetComplimentCoverage(date: string, myId: number | null) {
   const qc = useQueryClient();
   return async (targetId: number | null) => {
     if (myId == null) return;
-    // 내 키에 내 대상 기록 → 대상을 바꿔도 항상 정확. 대상 없으면 0(=미기록).
-    await setDoc(
-      doc(db(), "complimentCoverage", date),
-      { [myId]: targetId ?? 0 },
-      { merge: true }
-    );
+    // 낙관적 갱신 먼저 — 서버 쓰기가 실패해도(규칙 미게시 등) 내 화면 새싹은 즉시 갱신
     qc.setQueryData(["complimentCoverage", date], (prev: Record<string, number> | undefined) => ({
       ...prev,
       [myId]: targetId ?? 0,
     }));
+    // 내 키에 내 대상 기록 → 대상을 바꿔도 항상 정확. 대상 없으면 0(=미기록).
+    await setDoc(doc(db(), "complimentCoverage", date), { [myId]: targetId ?? 0 }, { merge: true });
+  };
+}
+
+// ── 학급 목표 배너: classData/banner — 교사가 자유롭게 수정/숨김 ──
+export interface ClassBanner {
+  title: string;
+  sub?: string;
+  active: boolean;
+}
+const DEFAULT_BANNER: ClassBanner = {
+  title: "🍜 짜파게티 파티까지 달린다!",
+  sub: "🐢 거북이 독서 최종 미션",
+  active: true,
+};
+
+export function useClassBanner() {
+  return useQuery({
+    queryKey: ["classBanner"],
+    queryFn: async (): Promise<ClassBanner> => {
+      const snap = await getDoc(doc(db(), "classData", "banner"));
+      return snap.exists() ? { ...DEFAULT_BANNER, ...(snap.data() as Partial<ClassBanner>) } : DEFAULT_BANNER;
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useSaveClassBanner() {
+  const qc = useQueryClient();
+  return async (banner: ClassBanner) => {
+    await setDoc(doc(db(), "classData", "banner"), banner);
+    qc.setQueryData(["classBanner"], banner);
   };
 }
 

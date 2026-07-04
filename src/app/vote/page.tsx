@@ -12,6 +12,7 @@ import {
   useVote,
   useClosePoll,
   useDeletePoll,
+  useUpdatePoll,
   votesOf,
   isPollClosed,
   type Poll,
@@ -22,8 +23,13 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
   const vote = useVote(studentId);
   const closePoll = useClosePoll();
   const removePoll = useDeletePoll();
+  const updatePoll = useUpdatePoll();
   const { toast, confirm } = useFeedback();
   const [showVoters, setShowVoters] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const isMine = role === "student" && poll.createdBy === studentId;
 
   const closed = isPollClosed(poll);
   const allVoterIds = Object.keys(poll.votes ?? {}).filter((sid) => votesOf(poll, sid).length);
@@ -84,6 +90,45 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
           )}
         </span>
       </div>
+
+      {editing && (
+        <div className="mt-2 space-y-2 rounded-btn bg-ink-50 p-3">
+          <input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm font-bold"
+          />
+          <input
+            value={editDesc}
+            onChange={(e) => setEditDesc(e.target.value)}
+            placeholder="설명 (선택)"
+            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+          />
+          <p className="text-[11px] text-ink-400">선택지와 표는 공정성을 위해 수정할 수 없어요.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  await updatePoll(poll.id, editTitle, editDesc);
+                  setEditing(false);
+                  toast("✏️ 수정됐어요!", "success");
+                } catch (e) {
+                  toast(`⚠️ ${e instanceof Error ? e.message : "수정 실패"}`, "error");
+                }
+              }}
+              className="press rounded-btn bg-brand px-3 py-1.5 text-xs font-bold text-white"
+            >
+              저장
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="press rounded-btn border border-ink-200 px-3 py-1.5 text-xs text-ink-500"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
 
       <ul className="mt-3 space-y-1.5">
         {poll.options.map((opt, i) => {
@@ -154,6 +199,29 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
             </button>
           )}
         </span>
+        {isMine && (
+          <span className="flex gap-2">
+            <button
+              onClick={() => {
+                setEditTitle(poll.title);
+                setEditDesc(poll.desc ?? "");
+                setEditing(true);
+              }}
+              className="text-brand hover:opacity-80"
+            >
+              ✏️ 수정
+            </button>
+            <button
+              onClick={async () => {
+                if (await confirm({ title: "내 투표를 삭제할까요?", danger: true }))
+                  void removePoll(poll.id).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
+              }}
+              className="text-danger hover:opacity-80"
+            >
+              삭제
+            </button>
+          </span>
+        )}
         {role === "teacher" && (
           <span className="flex gap-2">
             <button

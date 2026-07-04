@@ -129,12 +129,16 @@ export default function TeamPage() {
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
   const name = (tid: number) => studentById.get(tid)?.name ?? "?";
 
-  // 오늘 우리 모둠 칭찬 커버리지 — { 칭찬한사람: 대상 } → 대상 집합이 '받은 사람'
-  const receivedSet = new Set(
-    Object.values(coverage ?? {})
+  // 오늘 우리 모둠 칭찬 커버리지 — { 칭찬한사람: 대상 } → 대상 집합이 '받은 사람'.
+  // 내가 보낸 칭찬(savedComp)은 서버 커버리지와 무관하게 즉시 반영(쓰기 실패 대비).
+  const receivedSet = new Set([
+    ...Object.values(coverage ?? {})
       .map((v) => Number(v))
-      .filter((v) => v > 0)
-  );
+      .filter((v) => v > 0),
+    ...Object.entries(savedComp)
+      .filter(([, v]) => v?.trim())
+      .map(([k]) => Number(k)),
+  ]);
   const notReceived = (tid: number) => !receivedSet.has(tid);
   // 아직 칭찬 못 받은 우리 모둠원(나 포함 전원 기준) → 미션 대상
   const uncoveredMembers = allMembers.filter((id) => notReceived(id));

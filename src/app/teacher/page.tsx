@@ -29,6 +29,8 @@ import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
 import BetaResetPanel from "@/components/teacher/BetaResetPanel";
+import BannerEditor from "@/components/teacher/BannerEditor";
+import ScoreDiagnosisPanel from "@/components/teacher/ScoreDiagnosisPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -258,9 +260,12 @@ export default function TeacherPage() {
 
       <BiweeklySettlePanel />
       <BonusPanel />
+      <ScoreDiagnosisPanel />
       </>)}
 
       {tTab === "tools" && (<>
+      {/* 학급 목표 배너 편집 */}
+      <BannerEditor />
       {/* 평가 척도 설정 — 모듈형 */}
       <Card title="⚙️ 평가 척도 설정" desc="버튼으로 조절하고, 학생 화면 미리보기로 바로 확인하세요.">
         <div className="mt-4 grid gap-3 sm:grid-cols-2">

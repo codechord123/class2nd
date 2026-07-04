@@ -7,6 +7,7 @@ import { s1TotalBooks } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
+import { useClassBanner } from "@/lib/query/classMeta";
 import { weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
@@ -22,7 +23,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const { data: stats } = useReadingStats();
   const { data: today } = useDailyScores(date);
   const { data: settings } = useSettings();
+  const { data: banner } = useClassBanner();
   const { toast } = useFeedback();
+  const goalLine = banner?.active && banner.title.trim() ? banner.title.trim() : null;
   const [printing, setPrinting] = useState(false);
   const [period, setPeriod] = useState<"day" | "week">("day");
   const [view, setView] = useState<"all" | "groups">("all");
@@ -192,7 +195,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
 
       openPrintWindow(
         `${date} 데일리 리포트`,
-        `<h1>🗒️ ${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치</div>${sections.join("")}`
+        `<h1>🗒️ ${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치${
+          goalLine ? ` · 🎯 ${esc(goalLine)}` : ""
+        }</div>${sections.join("")}`
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
@@ -221,7 +226,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
       const mvpTop = rep ? top(rep.mvpCount) : null;
       const names = (ids: number[]) => ids.map((id) => esc(nm(id))).join(", ");
       const hi = (label: string, v: string) => `<li><b>${label}</b>: ${v}</li>`;
-      const highlightHtml = `<div class="t">🏆 ${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
+      const highlightHtml = `${
+        goalLine ? `<p class="muted">🎯 학급 목표: ${esc(goalLine)}</p>` : ""
+      }<div class="t">🏆 ${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
         readTop ? hi("🐢 독서 MVP", `${names(readTop.ids)} (${readTop.max}권)`) : "",
         bestTop ? hi("👑 오늘의 모둠 최다", `${bestTop.ids.map((g) => `${g}모둠`).join(", ")} (1위 ${bestTop.max}회)`) : "",
         mvpTop ? hi("⭐ MVP 최다", `${names(mvpTop.ids)} (${mvpTop.max}회)`) : "",
@@ -249,6 +256,13 @@ export default function DailyReportPanel({ date }: { date: string }) {
           onChange={setPeriod}
         />
       </div>
+
+      {/* 학급 목표 — 교사탭에서 편집한 배너를 리포트에도 */}
+      {goalLine && (
+        <p className="mt-2 rounded-btn bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+          🎯 학급 목표: {goalLine}
+        </p>
+      )}
 
       {period === "day" && (
         <div className="mt-2">

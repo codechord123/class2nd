@@ -24,6 +24,7 @@ import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import S1Archive from "@/components/reading/S1Archive";
 import WriteSheet, { type WriteInitial } from "@/components/reading/WriteSheet";
+import ClassBanner from "@/components/ClassBanner";
 import SubTabs from "@/components/ui/SubTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import Linkify from "@/components/ui/Linkify";
@@ -294,10 +295,8 @@ export default function ReadingPage() {
 
   return (
     <div className="space-y-4">
-      {/* 히어로: 목표 + 경고 + 마라톤 (항상 표시, 컴팩트) */}
-      <div className="rounded-card bg-gradient-to-r from-amber-400 to-orange-500 px-5 py-3 text-white shadow">
-        <p className="text-lg font-extrabold">🍜 짜파게티 파티까지 달린다!</p>
-      </div>
+      {/* 히어로: 학급 목표(교사 편집) + 경고 + 마라톤 (항상 표시, 컴팩트) */}
+      <ClassBanner compact />
       <ReadingAlert />
       <TurtleMarathon />
 

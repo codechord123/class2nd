@@ -13,6 +13,7 @@ import {
   useAnnouncements,
   usePostSuggestion,
   useDeleteSuggestion,
+  useUpdateSuggestion,
   useAddComment,
   useDeleteComment,
   useToggleAnnouncement,
@@ -56,10 +57,15 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const deleteComment = useDeleteComment();
   const toggleAnnouncement = useToggleAnnouncement();
   const removeSuggestion = useDeleteSuggestion();
+  const updateSuggestion = useUpdateSuggestion();
   const react = useReactSuggestion(studentId);
   const setStatus = useSetAgendaStatus();
   const enactLaw = useEnactLaw();
   const { toast, confirm } = useFeedback();
+  const isMine = role === "student" && sug.studentId === studentId;
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
 
   const { up, down } = reactionCounts(sug);
   const myReaction =
@@ -140,6 +146,31 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             })}{" "}
             · 💬 {comments.length}
           </span>
+          {isMine && (
+            <span className="flex gap-2">
+              <button
+                onClick={() => {
+                  setEditTitle(titleOf(sug));
+                  setEditContent(sug.content);
+                  setEditing(true);
+                }}
+                className="text-brand hover:opacity-80"
+              >
+                ✏️ 수정
+              </button>
+              <button
+                onClick={() =>
+                  void confirmDelete("내 안건을 삭제할까요? (댓글도 함께 지워져요)", async () => {
+                    await removeSuggestion(sug.id);
+                    onBack();
+                  })
+                }
+                className="text-danger hover:opacity-80"
+              >
+                삭제
+              </button>
+            </span>
+          )}
           {role === "teacher" && (
             <span className="flex gap-2">
               <button
@@ -171,9 +202,47 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
         </div>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
-        <Linkify text={sug.content} />
-      </p>
+      {editing ? (
+        <div className="mt-3 space-y-2">
+          <input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm font-bold"
+          />
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={4}
+            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  await updateSuggestion(sug.id, editTitle, editContent);
+                  setEditing(false);
+                  toast("✏️ 수정됐어요!", "success");
+                } catch (e) {
+                  toast(`⚠️ ${e instanceof Error ? e.message : "수정 실패"}`, "error");
+                }
+              }}
+              className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+            >
+              저장
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="press rounded-btn border border-ink-200 px-4 py-2 text-sm text-ink-500"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
+          <Linkify text={sug.content} />
+        </p>
+      )}
 
       {/* 찬성/반대 — 안건에 대한 의사 표시 */}
       <div className="mt-4 flex items-center gap-2">

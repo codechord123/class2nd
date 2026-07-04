@@ -98,14 +98,12 @@ service cloud.firestore {
 
     // 게시판/투표 (Phase 5에서 세분화 예정)
     // update 허용: 댓글·답글 달기 (학생)
+    // delete도 isAuthed: 본인 글 삭제 허용 (본인 확인은 앱에서 — 익명 인증이라 규칙으로 소유자 판별 불가)
     match /suggestions/{postId} {
-      allow read, create, update: if isAuthed();
-      allow delete: if isTeacher();
+      allow read, create, update, delete: if isAuthed();
     }
     match /polls/{pollId} {
-      allow read, create: if isAuthed();
-      allow update: if isAuthed();
-      allow delete: if isTeacher();
+      allow read, create, update, delete: if isAuthed();
     }
 
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
