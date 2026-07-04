@@ -43,7 +43,9 @@ export default function TabNav() {
       : TABS;
   const tabCount = tabs.length;
 
-  // 페이지 로드·탭 변경 시 활성 탭이 화면 밖이면 보이도록 스크롤
+  // 페이지 로드·탭 변경 시 활성 탭이 화면 밖이면 보이도록 스크롤.
+  // mounted·role 의존성 필수: 하이드레이션 전엔 nav가 null(ref 없음)이라
+  // 이들 없이 실행된 effect가 다시 돌지 않아 스크롤·페이드가 무효화된다.
   useEffect(() => {
     const el = activeRef.current;
     const scroller = scrollerRef.current;
@@ -53,14 +55,14 @@ export default function TabNav() {
     if (tabRect.left < navRect.left || tabRect.right > navRect.right) {
       el.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
     }
-  }, [pathname, tabCount]);
+  }, [pathname, tabCount, mounted, role]);
 
   // 최초 렌더·탭 수 변화·창 크기 변화 시 페이드 표시 여부 갱신
   useEffect(() => {
     updateFade();
     window.addEventListener("resize", updateFade);
     return () => window.removeEventListener("resize", updateFade);
-  }, [updateFade, tabCount]);
+  }, [updateFade, tabCount, mounted, role]);
 
   // 로그인 전에는 탭 숨김 — 이동 가능한 곳이 없어 인지부하만 됨
   if (!mounted || !role) return null;
