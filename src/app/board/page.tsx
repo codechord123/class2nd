@@ -123,7 +123,18 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
           <span>
-            {sug.isAnonymous ? "익명" : authorName(sug.studentId)} ·{" "}
+            {sug.isAnonymous ? (
+              role === "teacher" ? (
+                <span>
+                  익명 <span className="font-bold text-danger">({authorName(sug.studentId)})</span>
+                </span>
+              ) : (
+                "익명"
+              )
+            ) : (
+              authorName(sug.studentId)
+            )}{" "}
+            ·{" "}
             {new Date(sug.createdAt).toLocaleString("ko-KR", {
               month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
             })}{" "}
@@ -426,7 +437,12 @@ export default function BoardPage() {
           )}
         </span>
         <span className="shrink-0 text-xs text-ink-400">
-          {p.isAnonymous ? "익명" : authorName(p.studentId)} · {dateLabel(p.createdAt)}
+          {p.isAnonymous
+            ? role === "teacher"
+              ? `익명(${authorName(p.studentId)})`
+              : "익명"
+            : authorName(p.studentId)}{" "}
+          · {dateLabel(p.createdAt)}
         </span>
       </button>
     );

@@ -326,37 +326,62 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ── 목록 Row (제목 클릭 → 상세) ──────────────────────────────────
-function PollRow({ p, onOpen }: { p: Poll; onOpen: () => void }) {
+// ── 목록 Row — 1학기 차용: 결과(선두 옵션+미니 막대)가 목록에서 바로 보이게 ──
+function PollRow({ p, myId, onOpen }: { p: Poll; myId: number | null; onOpen: () => void }) {
   const closed = isPollClosed(p);
-  const voters = Object.keys(p.votes ?? {}).filter((sid) => votesOf(p, sid).length).length;
+  const voterIds = Object.keys(p.votes ?? {}).filter((sid) => votesOf(p, sid).length);
+  const counts = p.options.map(
+    (_, i) => voterIds.filter((sid) => votesOf(p, sid).includes(i)).length
+  );
+  const total = counts.reduce((a, b) => a + b, 0);
+  const topIdx = counts.indexOf(Math.max(...counts));
+  const topPct = total ? Math.round((counts[topIdx] / total) * 100) : 0;
+  const iVoted = myId != null && votesOf(p, String(myId)).length > 0;
   const author =
     p.createdBy === "teacher" ? "선생님" : (studentById.get(p.createdBy as number)?.name ?? "?");
   return (
-    <button
-      onClick={onOpen}
-      className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-ink-50"
-    >
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span
-          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-            closed ? "bg-ink-200 text-ink-500" : "bg-success-weak text-success"
-          }`}
-        >
-          {closed ? "마감" : "진행"}
+    <button onClick={onOpen} className="w-full px-3 py-2.5 text-left hover:bg-ink-50">
+      <span className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+              closed ? "bg-ink-200 text-ink-500" : "bg-success-weak text-success"
+            }`}
+          >
+            {closed ? "마감" : "진행"}
+          </span>
+          <span className="truncate text-sm font-bold text-ink-800">{p.title}</span>
+          {p.multi && <span className="shrink-0 text-[10px] text-ink-400">복수</span>}
+          {p.anonymous && <span className="shrink-0 text-[10px] text-ink-400">익명</span>}
         </span>
-        <span className="truncate text-sm font-medium text-ink-700">{p.title}</span>
-        {p.multi && <span className="shrink-0 text-[10px] text-ink-400">복수</span>}
-        {p.anonymous && <span className="shrink-0 text-[10px] text-ink-400">익명</span>}
+        <span className="shrink-0 text-xs text-ink-400">
+          {iVoted && <span className="mr-1 font-bold text-success">✓내 투표</span>}
+          {author} · 👥{voterIds.length}
+        </span>
       </span>
-      <span className="shrink-0 text-xs text-ink-400">
-        {author} · 👥{voters}
-      </span>
+      {/* 선두 옵션 미리보기 — 열지 않아도 판세가 보임 */}
+      {total > 0 && (
+        <span className="mt-1.5 block">
+          <span className="flex items-center justify-between text-[11px] text-ink-500">
+            <span className="truncate">
+              {closed && "🏆 "}1위 · {p.options[topIdx]}
+            </span>
+            <span className="tnum shrink-0">{topPct}%</span>
+          </span>
+          <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-ink-100">
+            <span
+              className={`block h-full rounded-full ${closed ? "bg-warn" : "bg-brand"}`}
+              style={{ width: `${topPct}%` }}
+            />
+          </span>
+        </span>
+      )}
     </button>
   );
 }
 
 export default function VotePage() {
+  const { studentId } = useSession();
   const [pages, setPages] = useState(1);
   const { data: polls } = usePolls(pages);
   const [showForm, setShowForm] = useState(false);
@@ -369,21 +394,8 @@ export default function VotePage() {
     return `${p.title} ${p.desc ?? ""} ${p.options.join(" ")}`.toLowerCase().includes(kw);
   });
 
-  // 상세 화면 — 삭제되어 목록에서 사라지면 자동으로 목록 복귀
+  // 상세 — 1학기 차용: 목록 위 모달 오버레이 (맥락 유지, 삭제되면 자동 닫힘)
   const selected = (polls ?? []).find((p) => p.id === selectedId);
-  if (selectedId && selected) {
-    return (
-      <div className="space-y-3">
-        <button
-          onClick={() => setSelectedId(null)}
-          className="text-sm text-ink-400 hover:text-ink-600"
-        >
-          ← 목록으로
-        </button>
-        <PollCard poll={selected} onDone={() => setSelectedId(null)} />
-      </div>
-    );
-  }
 
   // 진행 중 우선, 그 안에서 최신순
   const sorted = [...filtered].sort((a, b) => {
@@ -431,7 +443,7 @@ export default function VotePage() {
           <ul className="divide-y divide-ink-100">
             {sorted.map((p) => (
               <li key={p.id}>
-                <PollRow p={p} onOpen={() => setSelectedId(p.id)} />
+                <PollRow p={p} myId={studentId} onOpen={() => setSelectedId(p.id)} />
               </li>
             ))}
           </ul>
@@ -446,6 +458,30 @@ export default function VotePage() {
           </button>
         )}
       </section>
+
+      {/* 투표 상세 모달 — 1학기 차용: 목록 위 오버레이, 모바일은 바텀시트 */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
+          onClick={() => setSelectedId(null)}
+        >
+          <div
+            className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white sm:rounded-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 flex items-center justify-between border-b border-ink-100 bg-white px-4 py-2.5">
+              <span className="text-sm font-bold text-ink-900">🗳️ 투표</span>
+              <button
+                onClick={() => setSelectedId(null)}
+                className="press rounded-full bg-ink-100 px-2.5 py-1 text-xs font-bold text-ink-500"
+              >
+                ✕ 닫기
+              </button>
+            </div>
+            <PollCard poll={selected} onDone={() => setSelectedId(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
