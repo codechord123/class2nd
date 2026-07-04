@@ -112,22 +112,40 @@ export default function TeamPage() {
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
 
-  // 모둠원 칭찬·건의 — 저장값(서버) 위에 편집값을 얹어 표시
+  // ── 칭찬·건의 배정 (순환 배정) ────────────────────────────────
+  // 모둠 전원을 학번순으로 놓고 나로부터 k칸 뒤 친구에게 배정 → 전원이 정확히 1개씩
+  // 주고받아(빠짐없이), 매일 k가 돌아가며 대상이 바뀐다. 칭찬·건의는 서로 다른 친구.
+  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].sort(
+    (a, b) => a - b
+  );
+  const N = allMembers.length;
+  const myIdx = allMembers.indexOf(studentId);
+  const dayIndex = Math.floor(
+    (new Date(date + "T00:00:00+09:00").getTime() -
+      new Date(SEMESTER_START + "T00:00:00+09:00").getTime()) /
+      86400000
+  );
+  const shiftFor = (base: number) => (N > 1 ? (((base % (N - 1)) + (N - 1)) % (N - 1)) + 1 : 0);
+  const kComp = shiftFor(dayIndex);
+  const kSug = N > 2 ? shiftFor(dayIndex + 1) : kComp;
+  const complimentTarget = N > 1 && myIdx >= 0 ? allMembers[(myIdx + kComp) % N] : null;
+  const suggestTarget = N > 1 && myIdx >= 0 ? allMembers[(myIdx + kSug) % N] : null;
+
+  // 저장값(서버) 위에 편집값을 얹어 표시
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
   const savedSug = (evalRec._peerSuggestions as Record<string, string>) ?? {};
   const compVal = (tid: number) => editComp[tid] ?? savedComp[tid] ?? "";
   const sugVal = (tid: number) => editSug[tid] ?? savedSug[tid] ?? "";
+  const name = (tid: number) => studentById.get(tid)?.name ?? "?";
 
   async function submitPeerNotes() {
     if (sending) return;
     setSending(true);
     const compliments: Record<string, string> = {};
     const suggestions: Record<string, string> = {};
-    for (const t of targets) {
-      compliments[t.studentId] = compVal(t.studentId).trim();
-      suggestions[t.studentId] = sugVal(t.studentId).trim();
-    }
+    if (complimentTarget != null) compliments[complimentTarget] = compVal(complimentTarget).trim();
+    if (suggestTarget != null) suggestions[suggestTarget] = sugVal(suggestTarget).trim();
     try {
       await savePeer(compliments, suggestions);
       setEditComp({});
@@ -250,41 +268,49 @@ export default function TeamPage() {
         </div>
       </section>
 
-      {/* 모둠원 칭찬 & 건의 — 모두가 받을 수 있게 친구별로 */}
+      {/* 오늘의 칭찬 & 건의 — 순환 배정(모두가 빠짐없이 주고받게) */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">💌 모둠원 칭찬 &amp; 건의</h3>
+        <h3 className="font-bold">💌 오늘의 칭찬 &amp; 건의</h3>
         <p className="mt-1 text-xs text-ink-500">
-          친구마다 칭찬 한마디와 바라는 점(건의)을 남길 수 있어요. 빈칸은 안 보내도 돼요.
+          오늘은 아래 친구에게 남겨요. 매일 대상이 바뀌어서 모두가 빠짐없이 주고받아요.
         </p>
-        <div className="mt-3 space-y-2">
-          {targets.map((t) => (
-            <div key={t.studentId} className="rounded-btn bg-ink-50 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
-                <b>{studentById.get(t.studentId)?.name}</b>
-              </div>
+        {complimentTarget != null ? (
+          <div className="mt-3 space-y-3">
+            <div className="rounded-btn bg-pink-50 p-3">
+              <p className="text-sm text-pink-700">
+                💌 <b>{name(complimentTarget)}</b>에게 칭찬 한마디
+              </p>
               <input
-                value={compVal(t.studentId)}
-                onChange={(e) => setEditComp({ ...editComp, [t.studentId]: e.target.value })}
-                placeholder="💌 칭찬 한마디"
-                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-1.5 text-sm"
-              />
-              <input
-                value={sugVal(t.studentId)}
-                onChange={(e) => setEditSug({ ...editSug, [t.studentId]: e.target.value })}
-                placeholder="🙋 이렇게 하면 좋겠어 (건의)"
-                className="mt-1.5 w-full rounded-btn border border-ink-200 bg-white px-3 py-1.5 text-sm"
+                value={compVal(complimentTarget)}
+                onChange={(e) =>
+                  setEditComp({ ...editComp, [complimentTarget]: e.target.value })
+                }
+                placeholder="예: 발표할 때 목소리가 또렷해서 좋았어!"
+                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
               />
             </div>
-          ))}
-        </div>
-        <button
-          onClick={() => void submitPeerNotes()}
-          disabled={sending}
-          className="press mt-3 rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-        >
-          {sending ? "저장 중…" : "칭찬·건의 저장"}
-        </button>
+            <div className="rounded-btn bg-sky-50 p-3">
+              <p className="text-sm text-sky-700">
+                🙋 <b>{name(suggestTarget!)}</b>에게 건의(바라는 점)
+              </p>
+              <input
+                value={sugVal(suggestTarget!)}
+                onChange={(e) => setEditSug({ ...editSug, [suggestTarget!]: e.target.value })}
+                placeholder="예: 준비물을 미리 챙겨오면 더 좋을 것 같아"
+                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <button
+              onClick={() => void submitPeerNotes()}
+              disabled={sending}
+              className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {sending ? "저장 중…" : "칭찬·건의 저장"}
+            </button>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-ink-400">모둠원이 없어 대상이 없어요.</p>
+        )}
       </section>
 
       {/* 선생님에게 바라는 점 */}

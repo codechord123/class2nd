@@ -54,13 +54,13 @@ export default function TeacherPage() {
 
   // 설정 드래프트 — null이면 서버값 사용, 편집 시 모듈형 컨트롤이 직접 값 조작
   const [dPeer, setDPeer] = useState<number[] | null>(null);
-  const [dGroup, setDGroup] = useState<number[] | null>(null);
   const [dRank, setDRank] = useState<number[] | null>(null);
   const [dQuota, setDQuota] = useState<number | null>(null);
   const [dSeat, setDSeat] = useState<number | null>(null);
   const [dOpen, setDOpen] = useState<number | null>(null);
   const [dClose, setDClose] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   const isTeacher = role === "teacher";
   const { data: pendS2 } = usePendingRequests("s2", isTeacher);
@@ -109,7 +109,7 @@ export default function TeacherPage() {
     const next: ClassSettings = {
       ...settings!,
       peerScale: dPeer ?? settings!.peerScale,
-      groupScale: dGroup ?? settings!.groupScale,
+      groupScale: settings!.groupScale,
       rankPoints: dRank ?? settings!.rankPoints,
       weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
       seatChangeCost: dSeat ?? settings!.seatChangeCost,
@@ -262,11 +262,6 @@ export default function TeacherPage() {
             value={dPeer ?? settings.peerScale}
             onChange={setDPeer}
           />
-          <ScaleEditor
-            label="모둠 간 평가 척도"
-            value={dGroup ?? settings.groupScale}
-            onChange={setDGroup}
-          />
           <RankPointsEditor value={dRank ?? settings.rankPoints} onChange={setDRank} />
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
@@ -334,11 +329,29 @@ export default function TeacherPage() {
         </Button>
       </Card>
 
-      <PasswordResetPanel />
-      <ReadingAdjustPanel />
-      <CsvExportPanel />
-      <LinksEditor />
-      <TeacherMemoWidget />
+      <button
+        onClick={() => setShowMoreTools((v) => !v)}
+        className="press flex w-full items-center justify-between rounded-card border border-ink-200 bg-white px-4 py-3 text-left shadow-card"
+      >
+        <span className="text-sm font-bold text-ink-800">
+          🧰 기타 관리 도구
+          <span className="ml-1 font-normal text-ink-400">
+            비밀번호·독서 보정·CSV·바로가기·메모
+          </span>
+        </span>
+        <span className="shrink-0 text-xs text-ink-400">
+          {showMoreTools ? "접기 ▲" : "펼치기 ▼"}
+        </span>
+      </button>
+      {showMoreTools && (
+        <>
+          <PasswordResetPanel />
+          <ReadingAdjustPanel />
+          <CsvExportPanel />
+          <LinksEditor />
+          <TeacherMemoWidget />
+        </>
+      )}
       </>)}
 
       {tTab === "approve" && (<>

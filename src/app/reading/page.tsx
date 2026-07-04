@@ -58,24 +58,17 @@ function ReportBody({
           {r.publisher && ` · ${r.publisher}`}
         </p>
       )}
-      {r.summary && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
-          <Linkify text={r.summary} />
-        </p>
-      )}
-      {r.scene && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
-          🎬 <Linkify text={r.scene} />
-        </p>
-      )}
+      {r.summary && <ReportSection label="📖 줄거리" text={r.summary} />}
+      {r.scene && <ReportSection label="🎬 인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <p className="mt-1 whitespace-pre-wrap text-sm italic text-ink-500">“{r.quote}”</p>
+        <div className="mt-3">
+          <p className="text-xs font-bold text-ink-500">💬 마음에 남는 문장</p>
+          <p className="mt-0.5 whitespace-pre-wrap border-l-2 border-emerald-200 pl-2.5 text-sm italic text-ink-500">
+            “{r.quote}”
+          </p>
+        </div>
       )}
-      {r.thoughts && (
-        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">
-          💭 <Linkify text={r.thoughts} />
-        </p>
-      )}
+      {r.thoughts && <ReportSection label="💭 읽고 난 생각" text={r.thoughts} />}
       {(onEdit || onDelete) && (
         <div className="mt-2 flex gap-2 text-xs">
           {onEdit && (
@@ -145,6 +138,18 @@ function ReportBody({
 function dateLabel(ms: number): string {
   const d = new Date(ms);
   return `${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+// 감상문 본문 섹션 — 라벨 + 내용으로 구분해 가독성↑
+function ReportSection({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-bold text-ink-500">{label}</p>
+      <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
+        <Linkify text={text} />
+      </p>
+    </div>
+  );
 }
 
 // 책 종류 태그 칩
@@ -227,16 +232,29 @@ export default function ReadingPage() {
         </button>
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="border-b border-ink-100 pb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(r.tags?.length ?? 0) > 0 ? (
+                r.tags!.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
+                  >
+                    {t}
+                  </span>
+                ))
+              ) : (
+                <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-bold text-ink-400">
+                  미분류
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
               {r.isPrivate && <span className="shrink-0 text-sm">🔒</span>}
               <h3 className="text-lg font-bold">{r.title}</h3>
             </div>
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <p className="text-xs text-ink-400">
-                {studentById.get(r.studentId)?.name} · {r.week}주차 · {dateLabel(r.createdAt)}
-              </p>
-              <Tags r={r} />
-            </div>
+            <p className="mt-1 text-xs text-ink-400">
+              {studentById.get(r.studentId)?.name} · {r.week}주차 · {dateLabel(r.createdAt)}
+            </p>
           </div>
           <div className="mt-3">
             <ReportBody
