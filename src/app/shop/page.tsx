@@ -17,6 +17,11 @@ import StatCard from "@/components/ui/StatCard";
 import { useFeedback } from "@/components/ui/Feedback";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
+const STATUS_STYLE = {
+  pending: "bg-warn-weak text-warn",
+  approved: "bg-success-weak text-success",
+  rejected: "bg-danger-weak text-danger",
+} as const;
 const WALLET_LABEL = { s2: "2학기 실버", s1: "이월 실버" } as const;
 
 export default function ShopPage() {
@@ -226,19 +231,29 @@ export default function ShopPage() {
           </div>
 
           {myRequests.length > 0 && (
-            <ul className="mt-4 space-y-1 text-sm">
-              {myRequests.slice(0, 8).map((r) => (
-                <li key={r.id} className="flex justify-between rounded bg-ink-50 px-3 py-1.5">
-                  <span>
-                    {r.item}{" "}
-                    <span className="text-xs text-ink-400">
-                      ({r.wallet === "s2" ? "2학기" : "이월"} {r.amount}개)
+            <>
+              <p className="mt-4 text-xs font-bold text-ink-500">내 신청 내역</p>
+              <ul className="mt-1.5 space-y-1.5 text-sm">
+                {myRequests.slice(0, 8).map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      <b className="text-ink-800">{r.item}</b>{" "}
+                      <span className="text-xs text-ink-400">
+                        {r.wallet === "s2" ? "2학기" : "이월"} {r.amount}개
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-xs">{STATUS_LABEL[r.status]}</span>
-                </li>
-              ))}
-            </ul>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
+                    >
+                      {STATUS_LABEL[r.status]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </section>
       )}
