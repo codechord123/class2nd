@@ -90,7 +90,9 @@ export default function TeamPage() {
   const [toTeacherText, setToTeacherText] = useState("");
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
-  const { toast } = useFeedback();
+  // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
+  const [editPeer, setEditPeer] = useState<{ kind: "comp" | "sug"; tid: string; text: string } | null>(null);
+  const { toast, confirm } = useFeedback();
 
   // 데스크탑 더블클릭 오동작 방지 — 같은 토글 버튼이 짧은 간격에 다시 눌리면 무시
   // (마우스 더블클릭 습관 → 선택과 취소가 연달아 일어나는 문제)
@@ -138,6 +140,9 @@ export default function TeamPage() {
   // 커버리지 문서로 파악해 앞에 세우고 표시(누가 칭찬했는지는 안 보여줌).
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
+  const savedSug = (evalRec._peerSuggestions as Record<string, string>) ?? {};
+  const sentComp = Object.entries(savedComp).filter(([, v]) => v?.trim());
+  const sentSug = Object.entries(savedSug).filter(([, v]) => v?.trim());
   const name = (tid: number) => studentById.get(tid)?.name ?? "?";
 
   // 오늘 우리 모둠 칭찬 커버리지 — { 칭찬한사람: 대상 } → 대상 집합이 '받은 사람'.
@@ -200,6 +205,96 @@ export default function TeamPage() {
     }
   }
 
+  // 보낸 칭찬·건의 삭제 — 빈 문자열 merge 저장 = 집계에서 '없음' 처리 (trim 필터와 호환)
+  async function deletePeerNote(kind: "comp" | "sug", tid: string) {
+    const label = kind === "comp" ? "칭찬" : "건의";
+    const ok = await confirm({
+      title: `${name(Number(tid))}에게 보낸 ${label}을 삭제할까요?`,
+      confirmLabel: "삭제",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      if (kind === "comp") {
+        await savePeer({ [tid]: "" }, {});
+        // 커버리지 재계산 — 남은 칭찬 대상이 있으면 그 친구로, 없으면 해제(새싹 복귀)
+        const rest = Object.entries(savedComp)
+          .filter(([k, v]) => k !== tid && v?.trim())
+          .map(([k]) => Number(k));
+        void setCoverage(rest[0] ?? null).catch(() => {});
+      } else {
+        await savePeer({}, { [tid]: "" });
+      }
+      toast(`${label}을 삭제했어요.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "삭제에 실패했어요.", "error");
+    }
+  }
+
+  // 보낸 칭찬·건의 인라인 수정 저장
+  async function savePeerEdit() {
+    if (!editPeer) return;
+    if (!editPeer.text.trim()) {
+      toast("내용을 적어주세요. 지우려면 삭제를 눌러요.", "warn");
+      return;
+    }
+    try {
+      if (editPeer.kind === "comp") await savePeer({ [editPeer.tid]: editPeer.text.trim() }, {});
+      else await savePeer({}, { [editPeer.tid]: editPeer.text.trim() });
+      setEditPeer(null);
+      toast("✏️ 수정됐어요!", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "수정에 실패했어요.", "error");
+    }
+  }
+
+  // 보낸 칭찬·건의 한 줄 — 이름 + 내용 + 수정/삭제 (수정 중엔 인라인 입력)
+  const renderSentItem = (kind: "comp" | "sug", tid: string, v: string) => {
+    const editing = editPeer?.kind === kind && editPeer.tid === tid;
+    return (
+      <li
+        key={`${kind}-${tid}`}
+        className="flex items-start gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
+      >
+        <span className="shrink-0 font-bold text-ink-700">{name(Number(tid))}</span>
+        {editing && editPeer ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <input
+              value={editPeer.text}
+              onChange={(e) => setEditPeer({ ...editPeer, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) void savePeerEdit();
+              }}
+              autoFocus
+              className="min-w-0 flex-1 rounded-btn border border-ink-300 bg-white px-2 py-1 text-sm focus:border-brand focus:outline-none"
+            />
+            <button onClick={() => void savePeerEdit()} className="shrink-0 text-xs font-bold text-brand">
+              저장
+            </button>
+            <button onClick={() => setEditPeer(null)} className="shrink-0 text-xs text-ink-400">
+              취소
+            </button>
+          </span>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 text-ink-600 [overflow-wrap:anywhere]">{v}</span>
+            <span className="flex shrink-0 gap-2 text-xs">
+              <button onClick={() => setEditPeer({ kind, tid, text: v })} className="text-brand">
+                수정
+              </button>
+              <button
+                onClick={() => void deletePeerNote(kind, tid)}
+                className="text-ink-400 hover:text-danger"
+              >
+                삭제
+              </button>
+            </span>
+          </>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -257,8 +352,10 @@ export default function TeamPage() {
       />
 
       {tab === "eval" && (
-      /* 디벗·데스크탑(lg)에서는 2열 배치 — 모바일은 기존 세로 스택 그대로 */
-      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+      /* 디벗·데스크탑(lg): 좌우 독립 스택 2열 — 그리드는 행 높이를 서로 맞추느라
+         짧은 카드 아래 빈 공간이 생겨서(사용자 지적) 열마다 따로 쌓는다 */
+      <div className="space-y-4 lg:flex lg:items-start lg:gap-4 lg:space-y-0">
+      <div className="min-w-0 space-y-4 lg:flex-1">
 
       {/* 모둠 내 상호평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -322,7 +419,9 @@ export default function TeamPage() {
           })}
         </div>
       </section>
+      </div>
 
+      <div className="min-w-0 space-y-4 lg:flex-1">
       {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -403,14 +502,15 @@ export default function TeamPage() {
             {sending ? "저장 중…" : "보내기"}
           </button>
         </div>
-        {doneComp && (
-          <p className="mt-2 text-xs text-ink-500">
-            오늘 보낸 칭찬:{" "}
-            {Object.entries(savedComp)
-              .filter(([, v]) => v?.trim())
-              .map(([tid, v]) => `${name(Number(tid))}(${v})`)
-              .join(" · ")}
-          </p>
+        {sentComp.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-bold text-ink-500">
+              💌 오늘 보낸 칭찬 <span className="font-normal text-ink-400">— 오늘 안엔 고치거나 지울 수 있어요</span>
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {sentComp.map(([tid, v]) => renderSentItem("comp", tid, v))}
+            </ul>
+          </div>
         )}
 
         {/* 건의 — 필요할 때만 */}
@@ -452,6 +552,16 @@ export default function TeamPage() {
             <p className="mt-1 text-[11px] text-ink-400">
               건의는 칭찬 보내기를 누를 때 함께 전달돼요. 비워두면 안 보내져요.
             </p>
+          </div>
+        )}
+        {sentSug.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-bold text-ink-500">
+              🙋 오늘 보낸 건의 <span className="font-normal text-ink-400">— 오늘 안엔 고치거나 지울 수 있어요</span>
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {sentSug.map(([tid, v]) => renderSentItem("sug", tid, v))}
+            </ul>
           </div>
         )}
       </section>
@@ -512,6 +622,7 @@ export default function TeamPage() {
           </button>
         </div>
       </section>
+      </div>
 
       </div>)}
 

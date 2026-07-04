@@ -3,6 +3,7 @@
 //   목록(번호·제목·작성자·날짜·💬댓글수) → 클릭하면 상세 화면(본문+댓글 스레드).
 //   공지 상단 고정 · 검색 · 글쓰기 접기 · 더보기 페이지네이션.
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
@@ -120,7 +121,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
         onClick={onBack}
         className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
       >
-        ← 목록으로
+        ✕ 닫기
       </button>
 
       <div className="mt-3 border-b border-ink-100 pb-3">
@@ -476,11 +477,6 @@ export default function BoardPage() {
     }
   }
 
-  // 상세 화면
-  if (selected) {
-    return <PostDetail sug={selected} onBack={() => setSelectedId(null)} />;
-  }
-
   const kw = search.trim().toLowerCase();
   const matches = (p: Suggestion) => {
     if (!kw) return true;
@@ -511,8 +507,13 @@ export default function BoardPage() {
         <span className="min-w-0 flex-1">
           {/* 1줄: 상태 + 제목 */}
           <span className="flex items-center gap-1.5">
-            {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
-            <StatusBadge sug={p} />
+            {/* 1학기 게시판 차용 — 공지는 빨간 배지로 확실하게 (📌보다 눈에 잘 띔) */}
+            {pin && (
+              <span className="shrink-0 rounded bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white">
+                공지
+              </span>
+            )}
+            {!pin && <StatusBadge sug={p} />}
             <b className="truncate text-[15px] text-ink-900">{titleOf(p)}</b>
             {p.enactedAsLaw && <span className="shrink-0 text-xs">📜</span>}
           </span>
@@ -652,6 +653,20 @@ export default function BoardPage() {
           </div>
         )}
       </section>
+
+      {/* 상세 — 1학기 게시판처럼 목록 위 모달로 (목록 스크롤·페이지 상태 유지) */}
+      {selected &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/40 p-3 py-6 sm:py-10"
+            onClick={() => setSelectedId(null)}
+          >
+            <div className="rise mx-auto w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+              <PostDetail sug={selected} onBack={() => setSelectedId(null)} />
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
