@@ -219,10 +219,8 @@ function LoginScreen({
                 <p className="text-ink-700">
                   💡 <b>{studentById.get(selectedId ?? 0)?.name}</b> 힌트: {findState.hint}
                 </p>
-              ) : findState.hint === "" ? (
-                <p className="text-ink-500">힌트를 정해두지 않았어요.</p>
               ) : (
-                <p className="text-ink-500">아직 비밀번호를 등록하지 않은 이름이에요.</p>
+                <p className="text-ink-500">저장된 힌트가 없어요.</p>
               )}
               {findState.requested ? (
                 <p className="mt-2 font-medium text-success">

@@ -8,6 +8,14 @@ import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import type { PeerEvaluation, DailyScoreRow } from "@/types";
 
+// 평가 쓰기는 규칙이 '이 기기로 로그인한 본인'인지 검증한다(대리 작성 차단).
+// 기기 인증이 풀린 경우(브라우저 초기화 등) 알아듣기 쉬운 해결 방법으로 바꿔서 던진다.
+function friendlyWriteError(e: unknown): Error {
+  if ((e as { code?: string })?.code === "permission-denied")
+    return new Error("기기 인증이 풀렸어요 — 로그아웃 후 다시 로그인하면 바로 해결돼요!");
+  return e instanceof Error ? e : new Error(String(e));
+}
+
 // ── 모둠 내 평가: evaluations/{date}/entries/{evaluatorId} ──────
 export function useMyEvaluation(date: string, myId: number | null) {
   return useQuery({
@@ -27,6 +35,8 @@ export function useSaveEvaluation(date: string, myId: number | null) {
     if (myId == null) return;
     await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), scores, {
       merge: true,
+    }).catch((e) => {
+      throw friendlyWriteError(e);
     });
     qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
       ...prev,
@@ -42,6 +52,8 @@ export function useSaveMvp(date: string, myId: number | null) {
     if (myId == null) return;
     await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), { _mvp: mvpId }, {
       merge: true,
+    }).catch((e) => {
+      throw friendlyWriteError(e);
     });
     qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
       ...prev,
@@ -66,7 +78,9 @@ export function useSavePeerNotes(date: string, myId: number | null) {
       doc(db(), "evaluations", date, "entries", String(myId)),
       { _compliments: compliments, _peerSuggestions: suggestions },
       { merge: true }
-    );
+    ).catch((e) => {
+      throw friendlyWriteError(e);
+    });
     qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => {
       const p = (prev ?? {}) as Record<string, unknown>;
       return {
@@ -91,7 +105,9 @@ export function useSaveToTeacher(date: string, myId: number | null) {
       doc(db(), "evaluations", date, "entries", String(myId)),
       { _toTeacher: text.trim() },
       { merge: true }
-    );
+    ).catch((e) => {
+      throw friendlyWriteError(e);
+    });
     qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
       ...prev,
       _toTeacher: text.trim(),

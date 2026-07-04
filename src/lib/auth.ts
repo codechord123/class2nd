@@ -1,13 +1,16 @@
-// 인증 계층 (1학기 방식 계승):
+// 인증 계층:
 //  - 교사: Firebase 이메일/비밀번호 로그인 → 규칙에서 email로 교사 판별
-//  - 학생: 익명 Firebase Auth + 본인 비밀번호(SHA-256 해시)를 studentAuth/{id}에 저장
-//    첫 로그인 시 입력한 비밀번호가 그대로 등록된다.
+//  - 학생: 익명 Firebase Auth + 비밀번호(SHA-256 해시)를 studentAuth/{id}에 저장.
+//    로그인 = verify(입력 해시)를 실어 update → 규칙이 저장된 hash와 대조해 검증하고,
+//    성공하면 이 기기 uid로 바인딩까지 한 번에 처리(기기 바꿔도 재로그인이면 끝).
+//    학생은 studentAuth를 읽을 수 없어 해시 유출·무차별 대입이 차단된다.
+//  - 호환: 구버전 규칙(읽기 허용)이 아직 게시돼 있으면 기존 방식(클라이언트 대조)으로 검증.
 import {
   signInWithEmailAndPassword,
   signInAnonymously,
   signOut,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { firebaseAuth, db } from "./firebase";
 
 export async function sha256(text: string): Promise<string> {
@@ -17,6 +20,8 @@ export async function sha256(text: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+const codeOf = (e: unknown): string => (e as { code?: string })?.code ?? "";
 
 export async function teacherLogin(email: string, password: string): Promise<void> {
   await signInWithEmailAndPassword(firebaseAuth(), email, password);
@@ -30,34 +35,140 @@ export async function studentLogin(
   if (!password.trim()) throw new Error("비밀번호를 입력해주세요.");
   const auth = firebaseAuth();
   if (!auth.currentUser) await signInAnonymously(auth);
+  const uid = auth.currentUser?.uid ?? null;
 
   const ref = doc(db(), "studentAuth", String(studentId));
-  const snap = await getDoc(ref); // 로그인 시 1회 읽기 — 이후 재조회 없음
-  const hash = await sha256(password);
+  const verify = await sha256(password);
 
-  if (!snap.exists()) {
-    // 계정 최초 등록: 이 익명 uid에 바인딩 → 규칙이 타인의 덮어쓰기를 차단
-    await setDoc(ref, { hash, updatedAt: Date.now(), uid: auth.currentUser?.uid ?? null });
-    return { firstTime: true };
+  // 구버전 규칙 호환: 읽을 수 있으면 클라이언트에서 먼저 대조 (신규 규칙이면 읽기 거부 → 규칙 검증)
+  let verifiedLocally = false;
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      // 계정 최초 등록: 이 익명 uid에 바인딩 → 규칙이 타인의 덮어쓰기를 차단
+      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+      return { firstTime: true };
+    }
+    if (snap.data().hash !== verify) throw new Error("비밀번호가 올바르지 않습니다.");
+    verifiedLocally = true;
+  } catch (e) {
+    if (codeOf(e) !== "permission-denied") throw e;
+    // 신규 규칙: 읽기 금지 — 아래 update에서 규칙이 비밀번호를 검증한다
   }
-  if (snap.data().hash !== hash) {
-    throw new Error("비밀번호가 올바르지 않습니다.");
-  }
-  // 선생님이 발급한 비밀번호(uid 미바인딩)로 첫 로그인 → 이 기기 uid로 바인딩 (best-effort).
-  // 이미 다른 uid에 바인딩돼 있으면 규칙이 거부 — 조용히 넘어가고 로그인은 유지.
-  if (snap.data().uid !== auth.currentUser?.uid) {
-    await setDoc(
-      ref,
-      { uid: auth.currentUser?.uid ?? null, updatedAt: Date.now() },
-      { merge: true }
-    ).catch(() => {});
+
+  // 로그인 확정 + 이 기기 uid로 바인딩 (verify가 틀리면 규칙이 거부)
+  try {
+    await updateDoc(ref, { verify, uid, updatedAt: Date.now() });
+  } catch (e) {
+    if (codeOf(e) === "not-found") {
+      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+      return { firstTime: true };
+    }
+    if (codeOf(e) === "permission-denied") {
+      // 이미 클라이언트 대조를 통과했다면(구버전 규칙) 다른 기기 바인딩 잔존일 뿐 —
+      // 로그인은 유지 (신규 규칙 게시 후엔 재로그인만으로 자동 해결)
+      if (verifiedLocally) return { firstTime: false };
+      throw new Error("비밀번호가 올바르지 않습니다.");
+    }
+    throw e;
   }
   return { firstTime: false };
 }
 
+/** 학생 본인: 비밀번호 변경 (+ 힌트 동시 설정 가능) */
+export async function changeStudentPassword(
+  studentId: number,
+  oldPassword: string,
+  newPassword: string,
+  hint?: string
+): Promise<void> {
+  if (newPassword.trim().length < 4) throw new Error("새 비밀번호는 4자 이상으로 해주세요.");
+  const auth = firebaseAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  const uid = auth.currentUser?.uid ?? null;
+  const ref = doc(db(), "studentAuth", String(studentId));
+  const verify = await sha256(oldPassword);
+  const newHash = await sha256(newPassword);
+
+  try {
+    await updateDoc(ref, { verify, hash: newHash, updatedAt: Date.now(), uid });
+  } catch (e) {
+    if (codeOf(e) === "not-found") {
+      await setDoc(ref, { hash: newHash, updatedAt: Date.now(), uid });
+    } else if (codeOf(e) === "permission-denied") {
+      throw new Error("현재 비밀번호가 올바르지 않습니다.");
+    } else {
+      throw e;
+    }
+  }
+  if (hint !== undefined) await setStudentHintDoc(studentId, hint);
+}
+
+/** 힌트 저장 — 로그인 전에 보여줘야 해서 별도 컬렉션(studentHints) */
+async function setStudentHintDoc(studentId: number, hint: string): Promise<void> {
+  await setDoc(doc(db(), "studentHints", String(studentId)), {
+    hint: hint.trim(),
+    updatedAt: Date.now(),
+  }).catch(() => {});
+}
+
+/** 학생 본인: 힌트만 변경 (비밀번호 확인 후) */
+export async function setStudentHint(
+  studentId: number,
+  password: string,
+  hint: string
+): Promise<void> {
+  const ref = doc(db(), "studentAuth", String(studentId));
+  const verify = await sha256(password);
+  const uid = firebaseAuth().currentUser?.uid ?? null;
+  try {
+    await updateDoc(ref, { verify, updatedAt: Date.now(), uid });
+  } catch (e) {
+    if (codeOf(e) === "permission-denied") throw new Error("비밀번호가 올바르지 않습니다.");
+    throw e;
+  }
+  await setStudentHintDoc(studentId, hint);
+}
+
+/** 비밀번호 찾기 — 저장된 힌트를 조회 (없으면 null) */
+export async function getStudentHint(studentId: number): Promise<string | null> {
+  const auth = firebaseAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  // 신규: studentHints 컬렉션
+  const snap = await getDoc(doc(db(), "studentHints", String(studentId)));
+  if (snap.exists() && typeof snap.data().hint === "string") {
+    return (snap.data().hint as string).trim() || null;
+  }
+  // 레거시: 구버전 규칙에서 studentAuth에 저장된 힌트 (신규 규칙이면 읽기 거부 → null)
+  try {
+    const old = await getDoc(doc(db(), "studentAuth", String(studentId)));
+    const hint = old.exists() ? old.data().hint : null;
+    return typeof hint === "string" && hint.trim() ? hint : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 학생: 선생님께 비밀번호 초기화 요청 (힌트로도 못 찾을 때) */
+export async function requestPasswordReset(studentId: number): Promise<void> {
+  const auth = firebaseAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  await setDoc(doc(db(), "resetRequests", String(studentId)), {
+    studentId,
+    requestedAt: Date.now(),
+  });
+}
+
+/** 교사: 학생 비밀번호 초기화 — 문서 삭제 후 다음 로그인 시 재등록되게 함 */
+export async function resetStudentPassword(studentId: number): Promise<void> {
+  await deleteDoc(doc(db(), "studentAuth", String(studentId)));
+  await deleteDoc(doc(db(), "studentHints", String(studentId))).catch(() => {});
+  await deleteDoc(doc(db(), "resetRequests", String(studentId))).catch(() => {});
+}
+
 /**
  * 교사: 전체 학생 비밀번호 일괄 초기화 + 새 비밀번호(4자리 숫자) 발급.
- * 발급 즉시 각 학생은 새 번호로만 로그인 가능. uid 바인딩·힌트는 해제(새 기기에서 재바인딩).
+ * 발급 즉시 각 학생은 새 번호로만 로그인 가능. 기기 바인딩·힌트는 해제(로그인 시 재바인딩).
  * 반환된 목록은 저장되지 않으니(해시만 저장) 화면에서 인쇄/기록해야 한다.
  */
 export async function issueAllPasswords(
@@ -84,78 +195,14 @@ export async function issueAllPasswords(
         issuedAt: Date.now(),
         uid: deleteField(),
         hint: deleteField(),
+        verify: deleteField(),
       },
       { merge: true }
     );
+    await deleteDoc(doc(db(), "studentHints", String(sid))).catch(() => {});
     issued.push({ studentId: sid, code });
   }
   return issued;
-}
-
-/** 학생 본인: 비밀번호 변경 (+ 힌트 동시 설정 가능) */
-export async function changeStudentPassword(
-  studentId: number,
-  oldPassword: string,
-  newPassword: string,
-  hint?: string
-): Promise<void> {
-  if (newPassword.trim().length < 4) throw new Error("새 비밀번호는 4자 이상으로 해주세요.");
-  const ref = doc(db(), "studentAuth", String(studentId));
-  const snap = await getDoc(ref);
-  if (snap.exists() && snap.data().hash !== (await sha256(oldPassword))) {
-    throw new Error("현재 비밀번호가 올바르지 않습니다.");
-  }
-  await setDoc(
-    ref,
-    {
-      hash: await sha256(newPassword),
-      updatedAt: Date.now(),
-      uid: firebaseAuth().currentUser?.uid ?? null,
-      ...(hint !== undefined ? { hint: hint.trim() } : {}),
-    },
-    { merge: true }
-  );
-}
-
-/** 학생 본인: 힌트만 변경 (비밀번호 확인 후) */
-export async function setStudentHint(
-  studentId: number,
-  password: string,
-  hint: string
-): Promise<void> {
-  const ref = doc(db(), "studentAuth", String(studentId));
-  const snap = await getDoc(ref);
-  if (snap.exists() && snap.data().hash !== (await sha256(password))) {
-    throw new Error("비밀번호가 올바르지 않습니다.");
-  }
-  await setDoc(ref, { hint: hint.trim(), updatedAt: Date.now() }, { merge: true });
-}
-
-/** 비밀번호 찾기 — 저장된 힌트를 조회 (없으면 null) */
-export async function getStudentHint(studentId: number): Promise<string | null> {
-  const auth = firebaseAuth();
-  if (!auth.currentUser) await signInAnonymously(auth);
-  const snap = await getDoc(doc(db(), "studentAuth", String(studentId)));
-  if (!snap.exists()) return null; // 아직 비번 미등록
-  const hint = snap.data().hint;
-  return typeof hint === "string" && hint.trim() ? hint : "";
-}
-
-/** 학생: 선생님께 비밀번호 초기화 요청 (힌트로도 못 찾을 때) */
-export async function requestPasswordReset(studentId: number): Promise<void> {
-  const auth = firebaseAuth();
-  if (!auth.currentUser) await signInAnonymously(auth);
-  await setDoc(doc(db(), "resetRequests", String(studentId)), {
-    studentId,
-    requestedAt: Date.now(),
-  });
-}
-
-/** 교사: 학생 비밀번호 초기화 — 문서 삭제 후 다음 로그인 시 재등록되게 함 */
-export async function resetStudentPassword(studentId: number): Promise<void> {
-  const { deleteDoc } = await import("firebase/firestore");
-  await deleteDoc(doc(db(), "studentAuth", String(studentId)));
-  await deleteDoc(doc(db(), "resetRequests", String(studentId))).catch(() => {});
 }
 
 export async function logout(): Promise<void> {

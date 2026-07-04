@@ -69,17 +69,23 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
 
-    // 학생 비밀번호 해시 — 계정 선점/탈취 방지:
-    //  create는 uid를 본인 것으로 바인딩(교사는 일괄 발급용 예외), update는 그 uid 소유자 또는 교사만.
-    //  (uid 없는 문서 = 교사 발급/레거시 — 다음 로그인에서 그 기기 uid로 바인딩됨)
+    // 학생 비밀번호 해시 — 학생은 읽기 금지(해시 노출 → 4자리 무차별 대입 방지).
+    //  로그인 = verify(입력 비밀번호 해시)가 저장된 hash와 일치하는 update.
+    //  성공하면 그 기기 uid로 바인딩까지 한 번에 — 기기를 바꿔도 재로그인만 하면 됨.
     match /studentAuth/{studentId} {
-      allow read: if isAuthed();
+      allow read: if isTeacher();
       allow create: if isTeacher() || (isAuthed() && request.resource.data.uid == request.auth.uid);
-      allow update: if isAuthed() && (
-        !("uid" in resource.data) ||
-        resource.data.uid == request.auth.uid ||
-        isTeacher()
+      allow update: if isTeacher() || (
+        isAuthed() &&
+        request.resource.data.verify == resource.data.hash &&
+        request.resource.data.uid == request.auth.uid
       );
+      allow delete: if isTeacher();
+    }
+
+    // 비밀번호 힌트 — 로그인 전에 봐야 하므로 별도 컬렉션(민감도 낮음)
+    match /studentHints/{studentId} {
+      allow read, create, update: if isAuthed();
       allow delete: if isTeacher();
     }
 
