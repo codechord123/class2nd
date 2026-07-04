@@ -139,6 +139,12 @@ function ReportBody({
   );
 }
 
+// 작성일 라벨 (월.일)
+function dateLabel(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}.${d.getDate()}`;
+}
+
 // 책 종류 태그 칩
 function Tags({ r }: { r: ReadingReport2 }) {
   if (!(r.tags?.length ?? 0)) return null;
@@ -225,7 +231,7 @@ export default function ReadingPage() {
             </div>
             <div className="mt-1 flex items-center justify-between gap-2">
               <p className="text-xs text-ink-400">
-                {studentById.get(r.studentId)?.name} · {r.week}주차
+                {studentById.get(r.studentId)?.name} · {r.week}주차 · {dateLabel(r.createdAt)}
               </p>
               <Tags r={r} />
             </div>
@@ -385,7 +391,7 @@ export default function ReadingPage() {
                   <div className="flex w-full items-center justify-between gap-2 px-4 py-2.5">
                     <span className="text-sm font-bold text-ink-400">🔒 비공개 글</span>
                     <span className="shrink-0 text-xs text-ink-400">
-                      {studentById.get(r.studentId)?.name} · {r.week}주차
+                      {studentById.get(r.studentId)?.name} · {dateLabel(r.createdAt)}
                     </span>
                   </div>
                 </li>
@@ -393,21 +399,29 @@ export default function ReadingPage() {
                 <li key={r.id}>
                   <button
                     onClick={() => setSelectedId(r.id)}
-                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-ink-50"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-ink-50"
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
-                      <b className="truncate text-sm">{r.title}</b>
-                      <Tags r={r} />
-                      {(r.comments?.length ?? 0) > 0 && (
-                        <span className="shrink-0 text-xs font-bold text-indigo-400">
-                          💬{r.comments!.length}
-                        </span>
-                      )}
+                    <span className="min-w-0 flex-1">
+                      {/* 1줄: 책 제목 + 태그 + 댓글수 */}
+                      <span className="flex items-center gap-1.5">
+                        {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
+                        <b className="truncate text-sm text-ink-800">{r.title}</b>
+                        <Tags r={r} />
+                        {(r.comments?.length ?? 0) > 0 && (
+                          <span className="shrink-0 text-xs font-bold text-indigo-400">
+                            💬{r.comments!.length}
+                          </span>
+                        )}
+                      </span>
+                      {/* 2줄: 작가 · 작성자 · 작성일 */}
+                      <span className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-400">
+                        {r.author && <span className="max-w-[8rem] truncate">✍️ {r.author}</span>}
+                        <span className="truncate">{studentById.get(r.studentId)?.name}</span>
+                        <span>·</span>
+                        <span className="shrink-0 tnum">{dateLabel(r.createdAt)}</span>
+                      </span>
                     </span>
-                    <span className="shrink-0 text-xs text-ink-400">
-                      {studentById.get(r.studentId)?.name} · {r.week}주차 ›
-                    </span>
+                    <span className="shrink-0 self-center text-sm text-ink-300">›</span>
                   </button>
                 </li>
               )

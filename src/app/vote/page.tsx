@@ -17,7 +17,7 @@ import {
   type Poll,
 } from "@/lib/query/board";
 
-function PollCard({ poll }: { poll: Poll }) {
+function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
   const { role, studentId } = useSession();
   const vote = useVote(studentId);
   const closePoll = useClosePoll();
@@ -127,6 +127,17 @@ function PollCard({ poll }: { poll: Poll }) {
           );
         })}
       </ul>
+
+      {/* 투표 후 완료 — 선택하면 활성화, 누르면 목록으로 */}
+      {onDone && role === "student" && !closed && (
+        <button
+          onClick={onDone}
+          disabled={myVotes.length === 0}
+          className="press mt-3 w-full rounded-btn bg-success py-2.5 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {myVotes.length > 0 ? "✓ 투표 완료" : "먼저 선택지를 골라주세요"}
+        </button>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span>
@@ -341,7 +352,7 @@ export default function VotePage() {
         >
           ← 목록으로
         </button>
-        <PollCard poll={selected} />
+        <PollCard poll={selected} onDone={() => setSelectedId(null)} />
       </div>
     );
   }
