@@ -13,7 +13,7 @@ import {
   s1BooksByStudent,
 } from "@/lib/staticData";
 import { todayKST, weekOfDate } from "@/lib/date";
-import { countedWeekBooks } from "@/lib/readingStreak";
+import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
 
@@ -67,8 +67,7 @@ export default function MyStatus() {
   if (role !== "student" || !studentId) return classBoard;
 
   // 내 현황 (학생)
-  // 주간 목표 표시는 '인정 권수'(하루 최대 2권) — 스트릭·정산과 동일 기준
-  const myWeekRead = countedWeekBooks(stats, studentId, week);
+  const myWeekRead = weekBooks(stats, studentId, week);
   const mySilver = s2Bal?.[String(studentId)] ?? 0;
   const myCarry =
     (getS1WalletOf(studentId)?.silverRemaining ?? 0) -

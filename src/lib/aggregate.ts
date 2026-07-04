@@ -19,7 +19,7 @@ import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
-import { countedWeekBooks, streakAtWeek } from "@/lib/readingStreak";
+import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow } from "@/types";
 
@@ -35,7 +35,7 @@ export async function aggregateDate(
 ): Promise<AggregateResult> {
   const d = db();
 
-  // 그날 감상문 제출자 (독서 자동 +1점) — createdAt 하루 범위 쿼리 (교사 1회)
+  // 그날 감상문 (편수만큼 독서 점수 — 쓴 만큼) — createdAt 하루 범위 쿼리 (교사 1회)
   const dayStartMs = new Date(date + "T00:00:00+09:00").getTime();
   const dayEndMs = dayStartMs + 86400000;
 
@@ -112,11 +112,11 @@ export async function aggregateDate(
     for (const m of g.members) groupOfStudent[m.studentId] = g.groupId;
   }
 
-  // 4-0) 그날 감상문 제출자 집합 (독서 자동 +1점)
-  const readToday = new Set<number>();
+  // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로)
+  const readCount: Record<number, number> = {};
   reportSnap.forEach((r) => {
     const sid = r.data().studentId as number | undefined;
-    if (typeof sid === "number") readToday.add(sid);
+    if (typeof sid === "number") readCount[sid] = (readCount[sid] ?? 0) + 1;
   });
 
   // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
@@ -154,7 +154,7 @@ export async function aggregateDate(
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
     const mvp = mvpSet.has(s.id) ? 1 : 0;
-    const read = readToday.has(s.id) ? 1 : 0;
+    const read = readCount[s.id] ?? 0;
     rows[s.id] = {
       peer: p,
       groupRank: gr,
@@ -231,7 +231,7 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
 // · 최다 MVP(투표 최다) → 실버 1개
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
-// · 최다 거북이독서(두 주 합산 '인정 권수' 최다 — 하루 2권 캡) → 실버 1개
+// · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
 // · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 보너스 점수(누적 가산) (1주=1, 2주=2, 3주+=3 상한)
 // 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 세션 종료 후 월요일에 실행.
@@ -321,9 +321,8 @@ export async function settleSession(period: number): Promise<SessionSettleResult
   const bestGroupMembers = bestGroups.flatMap(membersOf);
   const missionTopMembers = missionTopGroups.flatMap(membersOf);
 
-  // 독서: 최다 독서(두 주 합산 최다) + 스트릭 보상(주간 목표 달성 주마다 연속 주수만큼)
-  // 파밍 방지: 권수는 '인정 권수'(하루 최대 2권 캡, countedWeekBooks) 기준 —
-  // 하루에 몰아 쓴 감상문으로 목표·최다독서를 채울 수 없다 (학생 화면 표시와 동일 판정).
+  // 독서: 최다 독서(두 주 합산 권수 최다) + 스트릭 보상(주간 목표 달성 주마다 연속 주수만큼)
+  // 권수는 쓴 만큼 그대로 — 성의 없는 글은 교사가 삭제하면 통계·판정에서 자동 제외된다.
   const quota =
     (settingsSnap.exists() ? (settingsSnap.data().weeklyReadingQuota as number) : undefined) ?? 3;
   const stats = (statsSnap.exists() ? statsSnap.data() : {}) as ReadingStats;
@@ -332,8 +331,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
 
   const readSum: Record<number, number> = {};
   for (const s of students)
-    readSum[s.id] =
-      countedWeekBooks(stats, s.id, w1) + (w2 !== w1 ? countedWeekBooks(stats, s.id, w2) : 0);
+    readSum[s.id] = weekBooks(stats, s.id, w1) + (w2 !== w1 ? weekBooks(stats, s.id, w2) : 0);
   const readingTop = topKeys(readSum);
 
   // 스트릭 보상은 실버가 아닌 '보너스 점수'(누적 점수 가산) — 1주=1, 2주 연속=2, 상한 STREAK_CAP

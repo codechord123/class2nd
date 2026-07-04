@@ -35,15 +35,12 @@ export default function ReadingAdjustPanel() {
         const curTotal = data.total?.[key] ?? 0;
         if (delta === -1 && curTotal <= 0) throw new Error("이미 0권이라 더 뺄 수 없어요.");
         const curWeek = data.byWeek?.[week]?.[key] ?? 0;
-        const curAdj = data.byWeekAdj?.[week]?.[key] ?? 0;
         tx.set(
           doc(d, "readingStats", "main"),
           {
             total: { [key]: curTotal + delta },
             // 주간 카운트는 0 밑으로 내려가지 않게 클램프 (주간 의무 권수 표시 보호)
             byWeek: { [week]: { [key]: Math.max(curWeek + delta, 0) } },
-            // 교사 보정분은 따로 기록 — '하루 2권 캡'과 무관하게 인정 권수에 반영
-            byWeekAdj: { [week]: { [key]: curAdj + delta } },
           },
           { merge: true }
         );

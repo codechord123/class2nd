@@ -9,7 +9,7 @@ import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { useClassBanner } from "@/lib/query/classMeta";
 import { weekOfDate } from "@/lib/date";
-import { countedWeekBooks } from "@/lib/readingStreak";
+import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { openPrintWindow, openRangePrintDoc, esc } from "@/lib/exportDoc";
@@ -45,10 +45,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const w2 = Math.min(sessionNo * 2, TOTAL_WEEKS);
   const { data: rep } = useRangeReport(sessionStart, sessionEnd, period === "week");
 
-  // 세션 독서 합산 (readingStats 캐시 — 추가 읽기 0): 두 주 '인정 권수' 합
-  // (하루 2권 캡 — 정산의 최다 독서 판정과 동일 기준)
+  // 세션 독서 합산 (readingStats 캐시 — 추가 읽기 0): 두 주 권수 합 (정산과 동일 기준)
   const sessionReadOf = (sid: number) =>
-    countedWeekBooks(stats, sid, w1) + (w2 !== w1 ? countedWeekBooks(stats, sid, w2) : 0);
+    weekBooks(stats, sid, w1) + (w2 !== w1 ? weekBooks(stats, sid, w2) : 0);
 
   // 최다 집계(동점 모두) — [명단, 최댓값]
   function topOf(counts: Record<string, number>): [number[], number] {
@@ -62,10 +61,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
     ];
   }
 
-  // 주간 목표 판정은 '인정 권수' 기준 (스트릭·정산과 동일)
-  const weekRead = (sid: number) => countedWeekBooks(stats, sid, week);
+  const weekRead = (sid: number) => weekBooks(stats, sid, week);
   const classTotal = s1TotalBooks + Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
-  const weekBooks = students.reduce((a, s) => a + weekRead(s.id), 0);
+  const weekBooksTotal = students.reduce((a, s) => a + weekRead(s.id), 0);
   const notMet = students.filter((s) => weekRead(s.id) < quota);
   const metCount = students.length - notMet.length;
 
@@ -108,7 +106,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         `📖 거북이 독서 현황 (${week}주차)`,
         `<div class="stats">
           <div><div class="l">학급 누적</div><div class="v green">${classTotal}</div></div>
-          <div><div class="l">이번 주</div><div class="v">${weekBooks}권</div></div>
+          <div><div class="l">이번 주</div><div class="v">${weekBooksTotal}권</div></div>
           <div><div class="l">목표 달성</div><div class="v blue">${metCount}/${students.length}</div></div>
         </div>${
           notMet.length
@@ -359,7 +357,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
             </div>
             <div className="flex-1">
               <p className="text-[11px] text-ink-400">이번 주</p>
-              <p className="tnum text-lg font-extrabold text-ink-900">{weekBooks}권</p>
+              <p className="tnum text-lg font-extrabold text-ink-900">{weekBooksTotal}권</p>
             </div>
             <div className="flex-1">
               <p className="text-[11px] text-ink-400">목표 달성</p>
@@ -549,7 +547,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
                   {/* 📖 독서 목표 달성률 — 주별 달성 인원 + 세션 학급 권수 */}
                   {(() => {
                     const metOf = (w: number) =>
-                      students.filter((s) => countedWeekBooks(stats, s.id, w) >= quota).length;
+                      students.filter((s) => weekBooks(stats, s.id, w) >= quota).length;
                     const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
                     return (
                       <div className="rounded-btn bg-ink-50 p-3">

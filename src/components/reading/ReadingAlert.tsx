@@ -6,7 +6,7 @@ import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { countedWeekBooks, readingStreaks } from "@/lib/readingStreak";
+import { readingStreaks, weekBooks } from "@/lib/readingStreak";
 import { BETA_END } from "@/components/BetaBanner";
 
 export default function ReadingAlert() {
@@ -21,10 +21,7 @@ export default function ReadingAlert() {
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings.weeklyReadingQuota;
-  // 목표 판정은 '인정 권수'(하루 최대 2권) — 몰아쓰기 방지, 정산과 동일 기준
-  const read = countedWeekBooks(stats, studentId, week);
-  const rawRead = stats.byWeek?.[String(week)]?.[String(studentId)] ?? 0;
-  const capNote = rawRead > read ? " (하루 최대 2권까지 목표로 인정돼요)" : "";
+  const read = weekBooks(stats, studentId, week);
   const shortfall = quota - read;
   const { current, best } = readingStreaks(stats, studentId, quota, week);
 
@@ -58,7 +55,6 @@ export default function ReadingAlert() {
     return (
       <div className="rounded-card border border-danger/40 bg-danger-weak p-4 text-sm font-bold text-danger">
         ⏰ 주간 마감 D-{daysLeft}! 아직 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권)
-        {capNote}
         {current >= 1 && ` — 지금 안 읽으면 🔥${current}주 연속 기록이 끊겨요!`}
         {streakChip}
       </div>
@@ -66,8 +62,8 @@ export default function ReadingAlert() {
   }
   return (
     <div className="rounded-card border border-warn/30 bg-warn-weak p-4 text-sm font-medium text-warn">
-      🐢 이번 주 거북이 독서가 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권){capNote} — 매주
-      채우면 연속 보너스 점수가 커져요! 🔥
+      🐢 이번 주 거북이 독서가 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권) — 매주 채우면
+      연속 보너스 점수가 커져요! 🔥
       {streakChip}
     </div>
   );

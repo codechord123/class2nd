@@ -92,7 +92,7 @@ export async function generateSampleDay(
     { merge: true }
   );
 
-  // 샘플 감상문: 무작위 8명이 그날 1권씩 — 집계의 '독서 +1점'과 스트릭·리포트 미리보기용.
+  // 샘플 감상문: 무작위 8명이 그날 1권씩 — 집계의 독서 점수와 스트릭·리포트 미리보기용.
   // _sample 플래그로 표시해 지우기에서 진짜 감상문과 절대 섞이지 않게 한다.
   const dayStartMs = new Date(date + "T09:00:00+09:00").getTime();
   const readers = [...students].sort(() => Math.random() - 0.5).slice(0, 8);
@@ -119,9 +119,6 @@ export async function generateSampleDay(
     const statsPatch: Record<string, unknown> = {
       total: Object.fromEntries(readers.map((s) => [String(s.id), increment(1)])),
       byWeek: { [week]: Object.fromEntries(readers.map((s) => [String(s.id), increment(1)])) },
-      byDay: {
-        [week]: Object.fromEntries(readers.map((s) => [String(s.id), { [date]: increment(1) }])),
-      },
     };
     await setDoc(doc(d, "readingStats", "main"), statsPatch, { merge: true });
   }
@@ -158,7 +155,6 @@ export async function clearSampleDay(date: string, settings: ClassSettings): Pro
       {
         total: { [sid]: increment(-1) },
         byWeek: { [week]: { [sid]: increment(-1) } },
-        byDay: { [week]: { [sid]: { [date]: increment(-1) } } },
       },
       { merge: true }
     );

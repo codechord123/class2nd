@@ -19,7 +19,6 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { kstDateOf, todayKST } from "@/lib/date";
 
 export interface ReadingReport2 {
   id: string;
@@ -61,16 +60,10 @@ export function reportBodyLength(f: ReportForm): number {
   return (f.scene + f.quote + f.summary + f.thoughts).length;
 }
 
-/**
- * { total: {sid: n}, byWeek: { [week]: {sid: n} }, byDay: { [week]: { [sid]: { [날짜]: n } } } }
- * byDay는 제출일별 권수 — 주간 목표 판정에 '하루 최대 2권' 캡을 적용하기 위한 기록.
- * byWeekAdj는 교사 ± 보정분(종이 감상문 인정 등) — 캡 없이 인정 권수에 그대로 더해진다.
- */
+/** { total: {sid: n}, byWeek: { [week]: {sid: n} } } — 권수는 쓴 만큼 그대로 (교사 ± 보정 포함) */
 export interface ReadingStats {
   total?: Record<string, number>;
   byWeek?: Record<string, Record<string, number>>;
-  byDay?: Record<string, Record<string, Record<string, number>>>;
-  byWeekAdj?: Record<string, Record<string, number>>;
 }
 
 const STATS_KEY = ["readingStats"];
@@ -173,9 +166,6 @@ export function useDeleteReport() {
       {
         total: { [report.studentId]: increment(-1) },
         byWeek: { [report.week]: { [report.studentId]: increment(-1) } },
-        byDay: {
-          [report.week]: { [report.studentId]: { [kstDateOf(report.createdAt)]: increment(-1) } },
-        },
       },
       { merge: true }
     );
@@ -251,32 +241,19 @@ export function useSaveReport(myId: number | null, week: number) {
     });
     if (opts.draftId) await deleteDoc(doc(d, "readingDrafts", opts.draftId));
 
-    const day = todayKST();
     await setDoc(
       doc(d, "readingStats", "main"),
-      {
-        total: { [myId]: increment(1) },
-        byWeek: { [week]: { [myId]: increment(1) } },
-        byDay: { [week]: { [myId]: { [day]: increment(1) } } },
-      },
+      { total: { [myId]: increment(1) }, byWeek: { [week]: { [myId]: increment(1) } } },
       { merge: true }
     );
     qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
       const p = prev ?? {};
-      const dayMap = p.byDay?.[week]?.[myId] ?? {};
       return {
         ...p,
         total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
         byWeek: {
           ...p.byWeek,
           [week]: { ...p.byWeek?.[week], [myId]: (p.byWeek?.[week]?.[myId] ?? 0) + 1 },
-        },
-        byDay: {
-          ...p.byDay,
-          [week]: {
-            ...p.byDay?.[week],
-            [myId]: { ...dayMap, [day]: (dayMap[day] ?? 0) + 1 },
-          },
         },
       };
     });
