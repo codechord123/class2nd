@@ -8,11 +8,12 @@ import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { weekOfDate } from "@/lib/date";
-import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import SubTabs from "@/components/ui/SubTabs";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -22,8 +23,10 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const { data: settings } = useSettings();
   const { toast } = useFeedback();
   const [printing, setPrinting] = useState(false);
+  const [view, setView] = useState<"all" | "groups">("all");
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+  const schedule = scheduleOfWeek(week);
   const quota = settings?.weeklyReadingQuota ?? 3;
 
   const weekMap = stats?.byWeek?.[String(week)] ?? {};
@@ -77,7 +80,83 @@ ${
 
   return (
     <Card title="🗒️ 데일리 리포트" desc={`${date} · ${week}주차 — 오늘 한눈에 보고 인쇄까지`}>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3">
+        <SubTabs<"all" | "groups">
+          tabs={[
+            { key: "all", label: "📊 전체" },
+            { key: "groups", label: "👥 모둠별" },
+          ]}
+          active={view}
+          onChange={setView}
+        />
+      </div>
+
+      {/* 👥 모둠별 — 1~5모둠 각자의 오늘 팀 기록 */}
+      {view === "groups" &&
+        (meta ? (
+          <div className="mt-2 space-y-2">
+            {schedule.groups.map((g) => {
+              const memberIds = [g.chair, ...g.members.map((m) => m.studentId)];
+              const memberSet = new Set(memberIds);
+              const gRank = meta.ranks?.[String(g.groupId)];
+              const gComps = compliments.filter((c) => memberSet.has(c.to));
+              const gSugs = peerSug.filter((c) => memberSet.has(c.to));
+              const mvpSet = new Set(meta.mvpWinners ?? []);
+              return (
+                <div key={g.groupId} className="rounded-btn bg-ink-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <p className="text-sm font-bold text-ink-800">
+                      {gRank === 1 && "👑 "}
+                      {g.groupId}모둠
+                      {gRank ? (
+                        <span className="ml-1.5 rounded-full bg-warn-weak px-2 py-0.5 text-[10px] font-bold text-warn">
+                          {gRank}위
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-ink-500">
+                      {memberIds.map((id) => (
+                        <span key={id} className="mr-1.5">
+                          {mvpSet.has(id) && "⭐"}
+                          {nm(id)}
+                          <b className="tnum ml-0.5 text-ink-700">
+                            {(today?.[id] as { total?: number } | undefined)?.total ?? 0}
+                          </b>
+                        </span>
+                      ))}
+                    </p>
+                  </div>
+                  {gComps.length > 0 && (
+                    <ul className="mt-2 space-y-0.5 text-xs text-ink-700">
+                      {gComps.map((c, i) => (
+                        <li key={i}>
+                          💌 <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {gSugs.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-xs text-ink-600">
+                      {gSugs.map((c, i) => (
+                        <li key={i}>
+                          🙋 <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {gComps.length === 0 && gSugs.length === 0 && (
+                    <p className="mt-1.5 text-xs text-ink-400">오늘 기록이 없어요.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-ink-400">집계 후 모둠별 기록이 표시돼요.</p>
+        ))}
+
+      {view === "all" && (<>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {/* 독서 현황 */}
         <div className="rounded-btn bg-ink-50 p-3">
           <p className="text-sm font-bold text-ink-800">📖 거북이 독서 ({week}주차)</p>
@@ -154,39 +233,22 @@ ${
             </div>
           </div>
 
+          {/* 칭찬·건의 요약 — 상세는 모둠별 탭에서 */}
           <div className="rounded-btn bg-ink-50 p-3">
-            <p className="text-sm font-bold text-ink-800">💌 모둠원 칭찬 ({compliments.length})</p>
-            {compliments.length ? (
-              <ul className="mt-1 space-y-0.5 text-sm text-ink-700">
-                {compliments.map((c, i) => (
-                  <li key={i}>
-                    <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
-            )}
+            <p className="text-sm font-bold text-ink-800">
+              💌 칭찬 {compliments.length}건 · 🙋 건의 {peerSug.length}건
+              <button
+                onClick={() => setView("groups")}
+                className="ml-2 text-xs font-medium text-brand underline underline-offset-2"
+              >
+                모둠별로 보기 →
+              </button>
+            </p>
             {compliments.length > 0 && notPraised.length > 0 && (
               <p className="mt-1.5 text-xs font-medium text-warn">
                 💌 오늘 칭찬 못 받은 친구({notPraised.length}):{" "}
                 {notPraised.map((s) => s.name).join(", ")}
               </p>
-            )}
-          </div>
-
-          <div className="rounded-btn bg-ink-50 p-3">
-            <p className="text-sm font-bold text-ink-800">🙋 모둠원 건의 ({peerSug.length})</p>
-            {peerSug.length ? (
-              <ul className="mt-1 space-y-0.5 text-sm text-ink-700">
-                {peerSug.map((c, i) => (
-                  <li key={i}>
-                    <b>{nm(c.from)}</b> → <b>{nm(c.to)}</b>: {c.text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-xs text-ink-400">아직 없어요.</p>
             )}
           </div>
 
@@ -210,6 +272,7 @@ ${
           집계 후 MVP·모둠 순위·칭찬·건의·바라는 점이 여기에 표시돼요.
         </p>
       )}
+      </>)}
 
       <Button onClick={() => void print()} disabled={printing} className="mt-3">
         {printing ? "여는 중…" : "🖨️ 리포트 인쇄 / PDF 저장"}
