@@ -36,7 +36,7 @@ export const studentById = new Map(students.map((s) => [s.id, s]));
 
 export const ROLE_INFO = [
   { key: "소통", emoji: "👑", dept: "의장", desc: "모둠 토의 주재 / 말차례 배분 / 소외 챙기기" },
-  { key: "질서", emoji: "⚖️", dept: "법무부", desc: "바른 자세 / 이동 시 질서 / 규칙 준수 점검" },
+  { key: "질서", emoji: "👮", dept: "법무부", desc: "바른 자세 / 이동 시 질서 / 규칙 준수 점검" },
   { key: "학습", emoji: "📖", dept: "교육부", desc: "아침 플래너·숙제 확인 / 학습 활동 돕기" },
   { key: "건강", emoji: "🍃", dept: "보건환경부", desc: "우유 점검 / 바른 생활 / 자리 정리" },
   { key: "행정", emoji: "📁", dept: "행정안전부", desc: "과제·준비물 취합 / 유인물 배부 / 청소 담당" },

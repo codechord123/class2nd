@@ -15,7 +15,7 @@ import { useFeedback } from "@/components/ui/Feedback";
 
 const SUBTABS = [
   { key: "articles", label: "📜 헌법" },
-  { key: "laws", label: "⚖️ 법률" },
+  { key: "laws", label: "📜 법률" },
   { key: "roles", label: "🎭 역할" },
 ] as const;
 type SubKey = (typeof SUBTABS)[number]["key"];
