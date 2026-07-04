@@ -111,67 +111,73 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       </p>
 
       {/* 댓글 스레드 */}
-      <div className="mt-4 rounded-lg bg-ink-50 p-3">
+      <div className="mt-4">
         <p className="text-xs font-bold text-ink-500">💬 댓글 {comments.length}</p>
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 space-y-3">
           {parents.map((c) => {
             const replies = comments.filter((r) => r.replyTo === c.id);
             const canDelete =
               role === "teacher" || (role === "student" && c.studentId === studentId);
             return (
               <li key={c.id} className="text-sm">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span>
-                    <b className="text-xs text-ink-500">{authorName(c.studentId)}</b>{" "}
-                    <span className="text-ink-700">
-                      <Linkify text={c.text} />
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 gap-1.5 text-[10px]">
-                    <button
-                      onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
-                      className="text-indigo-400 hover:text-indigo-600"
-                    >
-                      답글
-                    </button>
-                    {canDelete && (
+                <div className="rounded-card bg-ink-50 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <b className="text-xs font-bold text-ink-600">{authorName(c.studentId)}</b>
+                    <span className="flex shrink-0 gap-2 text-xs">
                       <button
-                        onClick={() =>
-                          void confirmDelete("댓글을 삭제할까요?", () => deleteComment(sug, c.id))
-                        }
-                        className="text-rose-300 hover:text-rose-500"
+                        onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+                        className="font-medium text-brand hover:text-brand-strong"
                       >
-                        삭제
+                        답글
                       </button>
-                    )}
-                  </span>
-                </div>
-                {replies.map((r) => (
-                  <div key={r.id} className="mt-1 flex items-baseline justify-between gap-2 pl-4">
-                    <span>
-                      <span className="text-ink-300">↳</span>{" "}
-                      <b className="text-xs text-ink-500">{authorName(r.studentId)}</b>{" "}
-                      <span className="text-ink-600">
-                        <Linkify text={r.text} />
-                      </span>
+                      {canDelete && (
+                        <button
+                          onClick={() =>
+                            void confirmDelete("댓글을 삭제할까요?", () => deleteComment(sug, c.id))
+                          }
+                          className="text-ink-400 hover:text-danger"
+                        >
+                          삭제
+                        </button>
+                      )}
                     </span>
-                    {(role === "teacher" || (role === "student" && r.studentId === studentId)) && (
-                      <button
-                        onClick={() =>
-                          void confirmDelete("답글을 삭제할까요?", () => deleteComment(sug, r.id))
-                        }
-                        className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
-                      >
-                        삭제
-                      </button>
-                    )}
                   </div>
-                ))}
+                  <p className="mt-0.5 text-ink-800">
+                    <Linkify text={c.text} />
+                  </p>
+                </div>
+                {/* 답글 — 왼쪽 레일로 중첩 표현 */}
+                {replies.length > 0 && (
+                  <div className="mt-1.5 ml-3 space-y-1.5 border-l-2 border-ink-200 pl-3">
+                    {replies.map((r) => (
+                      <div key={r.id} className="flex items-start justify-between gap-2">
+                        <p className="text-ink-700">
+                          <b className="mr-1 text-xs font-bold text-ink-500">
+                            {authorName(r.studentId)}
+                          </b>
+                          <Linkify text={r.text} />
+                        </p>
+                        {(role === "teacher" ||
+                          (role === "student" && r.studentId === studentId)) && (
+                          <button
+                            onClick={() =>
+                              void confirmDelete("답글을 삭제할까요?", () => deleteComment(sug, r.id))
+                            }
+                            className="shrink-0 text-xs text-ink-400 hover:text-danger"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
 
+        {/* 댓글 입력 — 하단 고정감 */}
         <div className="mt-3 flex items-center gap-1.5">
           <input
             value={text}
@@ -184,11 +190,11 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 ? `↳ ${authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}님에게 답글…`
                 : "댓글 달기…"
             }
-            className="min-w-0 flex-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded-btn bg-ink-100 px-3 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-brand/40"
           />
           <button
             onClick={() => void submitComment()}
-            className="shrink-0 rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white"
+            className="press shrink-0 rounded-btn bg-brand px-4 py-2.5 text-sm font-bold text-white"
           >
             등록
           </button>

@@ -83,7 +83,7 @@ export default function SeatsPage() {
           </span>
         </div>
         {myGroup && (
-          <p className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
+          <p className="mt-2 rounded-btn bg-brand-weak px-3 py-2 text-sm text-brand-strong">
             {week}주차의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 지킴이</b>
           </p>
         )}

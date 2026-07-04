@@ -121,28 +121,36 @@ export default function TeamPage() {
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold">
-            🤝 Team — {week}주차 · {myGroup.groupId}모둠
+          <h2 className="font-bold text-ink-900">
+            🤝 Team · {myGroup.groupId}모둠
           </h2>
-          <span className="text-xs text-ink-400">{date}</span>
+          <span className="text-xs text-ink-400">{week}주차 · {date}</span>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-          <span>
-            오늘 점수: <b>{myRow ? myRow.total : "집계 전"}</b>
-          </span>
-          {myRow && (
-            <span className="flex gap-1 text-xs">
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600">🏆 순위 +{myRow.groupRank}</span>
-              {myRow.bonus !== 0 && (
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
-              )}
-            </span>
-          )}
-          <span>
-            누적 점수: <b>{myCum ?? 0}</b>
-          </span>
+        {/* 큰 숫자 2개를 앵커로 */}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-card bg-ink-50 p-3 text-center">
+            <p className="text-xs text-ink-500">오늘 점수</p>
+            <p className="tnum mt-0.5 text-2xl font-extrabold text-ink-900">
+              {myRow ? myRow.total : "–"}
+            </p>
+          </div>
+          <div className="rounded-card bg-brand-weak p-3 text-center">
+            <p className="text-xs text-brand">누적 점수</p>
+            <p className="tnum mt-0.5 text-2xl font-extrabold text-brand-strong">{myCum ?? 0}</p>
+          </div>
         </div>
+        {/* 오늘 점수 출처 — 별도 줄 */}
+        {myRow ? (
+          <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
+            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600">🏆 순위 +{myRow.groupRank}</span>
+            {myRow.bonus !== 0 && (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-center text-xs text-ink-400">아직 오늘 점수는 집계 전이에요</p>
+        )}
       </section>
 
       <SubTabs

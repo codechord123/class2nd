@@ -12,7 +12,7 @@ export default function SeatGrid({
   myStudentId?: number | null;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {schedule.groups.map((g) => {
         const mine =
           myStudentId != null &&
@@ -20,32 +20,40 @@ export default function SeatGrid({
         return (
           <div
             key={g.groupId}
-            className={`rounded-xl border p-4 ${
-              mine
-                ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-200"
-                : "border-ink-200 bg-white"
+            className={`rounded-card border p-4 ${
+              mine ? "border-brand bg-brand-weak ring-2 ring-brand/30" : "border-ink-200 bg-white"
             }`}
           >
-            <div className="flex items-baseline justify-between">
-              <h3 className="font-bold">
-                {g.groupId}모둠 {mine && <span className="text-xs text-indigo-600">★ 우리 모둠</span>}
-              </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-ink-900">{g.groupId}모둠</h3>
+              {mine && (
+                <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">
+                  우리 모둠
+                </span>
+              )}
             </div>
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-2.5 space-y-1.5 text-sm">
               <li className="flex items-center gap-2">
-                <span>👑</span>
-                <b>{studentById.get(g.chair)?.name}</b>
-                <span className="text-xs text-ink-400">소통 지킴이 (의장)</span>
+                <span className="w-5 shrink-0 text-center">👑</span>
+                <span className="min-w-0 flex-1 truncate font-bold text-ink-900">
+                  {studentById.get(g.chair)?.name}
+                </span>
+                <span className="shrink-0 text-xs text-ink-400">소통 (의장)</span>
               </li>
-              {g.members.map((m) => (
-                <li key={m.studentId} className="flex items-center gap-2">
-                  <span>{roleEmoji[m.role]}</span>
-                  <span className={m.studentId === myStudentId ? "font-bold text-indigo-700" : ""}>
-                    {studentById.get(m.studentId)?.name}
-                  </span>
-                  <span className="text-xs text-ink-400">{m.role} 지킴이</span>
-                </li>
-              ))}
+              {g.members.map((m) => {
+                const isMe = m.studentId === myStudentId;
+                return (
+                  <li key={m.studentId} className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-center">{roleEmoji[m.role]}</span>
+                    <span
+                      className={`min-w-0 flex-1 truncate ${isMe ? "font-bold text-brand-strong" : "text-ink-800"}`}
+                    >
+                      {studentById.get(m.studentId)?.name}
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-400">{m.role}</span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         );
