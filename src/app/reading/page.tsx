@@ -72,7 +72,7 @@ function ReportBody({
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
         <div className="mt-2.5 overflow-hidden rounded-btn border border-emerald-200 border-l-4 border-l-emerald-500">
-          <p className="border-b border-emerald-100 bg-emerald-50/70 px-3.5 py-2 text-[13px] font-extrabold text-emerald-800">
+          <p className="border-b border-emerald-100 bg-emerald-100/80 px-3.5 py-2 text-[13px] font-extrabold text-emerald-900">
             마음에 남는 문장
           </p>
           <p className="whitespace-pre-wrap bg-emerald-50/30 px-3.5 py-3 text-base italic leading-7 text-ink-700 [overflow-wrap:anywhere]">
@@ -163,7 +163,7 @@ function dateLabel(ms: number): string {
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
     <div className="mt-2.5 overflow-hidden rounded-btn border border-ink-200 border-l-4 border-l-emerald-500">
-      <p className="border-b border-ink-100 bg-emerald-50/70 px-3.5 py-2 text-[13px] font-extrabold text-emerald-800">
+      <p className="border-b border-emerald-100 bg-emerald-100/80 px-3.5 py-2 text-[13px] font-extrabold text-emerald-900">
         {label}
       </p>
       <p className="whitespace-pre-wrap px-3.5 py-3 text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
