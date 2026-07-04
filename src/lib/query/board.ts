@@ -6,6 +6,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   limit,
@@ -26,6 +27,10 @@ export interface BoardComment {
   createdAt: number;
 }
 
+// 안건 상태 — 아이들이 안건을 내고 토론 → 교사가 결정 표시
+export type AgendaStatus = "논의중" | "채택" | "보류";
+export const AGENDA_STATUS: AgendaStatus[] = ["논의중", "채택", "보류"];
+
 export interface Suggestion {
   id: string;
   studentId: number;
@@ -33,8 +38,19 @@ export interface Suggestion {
   content: string;
   isAnonymous: boolean;
   isAnnouncement?: boolean; // 공지 고정 (교사)
+  status?: AgendaStatus; // 안건 상태 (기본 논의중)
+  agree?: Record<string, boolean>; // studentId → 찬성
+  disagree?: Record<string, boolean>; // studentId → 반대
   comments?: BoardComment[];
   createdAt: number;
+}
+
+/** 찬성/반대 집계 */
+export function reactionCounts(s: Suggestion): { up: number; down: number } {
+  return {
+    up: Object.values(s.agree ?? {}).filter(Boolean).length,
+    down: Object.values(s.disagree ?? {}).filter(Boolean).length,
+  };
 }
 
 const PAGE = 10;
@@ -150,6 +166,47 @@ export function useDeleteSuggestion() {
     await deleteDoc(doc(db(), "suggestions", id));
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
     void qc.invalidateQueries({ queryKey: ["announcements"] });
+  };
+}
+
+/** 찬성/반대 토글 — 같은 것 다시 누르면 취소, 반대편은 해제 (상호배타) */
+export function useReactSuggestion(myId: number | null) {
+  const qc = useQueryClient();
+  return async (sug: Suggestion, kind: "agree" | "disagree") => {
+    if (myId == null) throw new Error("로그인이 필요해요.");
+    const sid = String(myId);
+    const other = kind === "agree" ? "disagree" : "agree";
+    const mine = Boolean((sug[kind] ?? {})[sid]);
+    await updateDoc(doc(db(), "suggestions", sug.id), {
+      [`${kind}.${sid}`]: mine ? deleteField() : true,
+      [`${other}.${sid}`]: deleteField(),
+    });
+    const patch = (prev: Suggestion[] | undefined) =>
+      prev?.map((s) => {
+        if (s.id !== sug.id) return s;
+        const agree = { ...(s.agree ?? {}) };
+        const disagree = { ...(s.disagree ?? {}) };
+        const mymap = kind === "agree" ? agree : disagree;
+        const othermap = kind === "agree" ? disagree : agree;
+        if (mine) delete mymap[sid];
+        else mymap[sid] = true;
+        delete othermap[sid];
+        return { ...s, agree, disagree };
+      });
+    qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
+    qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+  };
+}
+
+/** 교사: 안건 상태 변경 (논의중/채택/보류) */
+export function useSetAgendaStatus() {
+  const qc = useQueryClient();
+  return async (sug: Suggestion, status: AgendaStatus) => {
+    await updateDoc(doc(db(), "suggestions", sug.id), { status });
+    const patch = (prev: Suggestion[] | undefined) =>
+      prev?.map((s) => (s.id === sug.id ? { ...s, status } : s));
+    qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
+    qc.setQueriesData({ queryKey: ["announcements"] }, patch);
   };
 }
 

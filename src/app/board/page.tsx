@@ -16,7 +16,12 @@ import {
   useAddComment,
   useDeleteComment,
   useToggleAnnouncement,
+  useReactSuggestion,
+  useSetAgendaStatus,
+  reactionCounts,
   titleOf,
+  AGENDA_STATUS,
+  type AgendaStatus,
   type Suggestion,
 } from "@/lib/query/board";
 
@@ -28,6 +33,21 @@ function dateLabel(ms: number): string {
   return new Date(ms).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
 }
 
+const STATUS_STYLE: Record<AgendaStatus, string> = {
+  논의중: "bg-brand-weak text-brand-strong",
+  채택: "bg-success-weak text-success",
+  보류: "bg-ink-100 text-ink-500",
+};
+
+function StatusBadge({ sug }: { sug: Suggestion }) {
+  const st = sug.status ?? "논의중";
+  return (
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_STYLE[st]}`}>
+      {st}
+    </span>
+  );
+}
+
 // ── 상세 화면 (본문 + 댓글 스레드) ────────────────────────────────
 function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const { role, studentId } = useSession();
@@ -35,7 +55,19 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const deleteComment = useDeleteComment();
   const toggleAnnouncement = useToggleAnnouncement();
   const removeSuggestion = useDeleteSuggestion();
+  const react = useReactSuggestion(studentId);
+  const setStatus = useSetAgendaStatus();
   const { toast, confirm } = useFeedback();
+
+  const { up, down } = reactionCounts(sug);
+  const myReaction =
+    studentId == null
+      ? null
+      : sug.agree?.[studentId]
+        ? "agree"
+        : sug.disagree?.[studentId]
+          ? "disagree"
+          : null;
 
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
@@ -75,10 +107,13 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       </button>
 
       <div className="mt-3 border-b border-ink-100 pb-3">
-        <h3 className="text-lg font-bold">
-          {sug.isAnnouncement && <span className="mr-1 text-amber-500">📌</span>}
-          {titleOf(sug)}
-        </h3>
+        <div className="flex items-start gap-2">
+          <StatusBadge sug={sug} />
+          <h3 className="text-lg font-bold leading-snug">
+            {sug.isAnnouncement && <span className="mr-1 text-amber-500">📌</span>}
+            {titleOf(sug)}
+          </h3>
+        </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
           <span>
             {sug.isAnonymous ? "익명" : authorName(sug.studentId)} ·{" "}
@@ -121,6 +156,64 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
         <Linkify text={sug.content} />
       </p>
+
+      {/* 찬성/반대 — 안건에 대한 의사 표시 */}
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={() =>
+            role === "student" &&
+            void react(sug, "agree").catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
+          }
+          disabled={role !== "student"}
+          className={`press flex items-center gap-1.5 rounded-btn border px-4 py-2 text-sm font-bold transition-colors ${
+            myReaction === "agree"
+              ? "border-success bg-success text-white"
+              : "border-ink-200 bg-white text-ink-600"
+          }`}
+        >
+          👍 찬성 <span className="tnum">{up}</span>
+        </button>
+        <button
+          onClick={() =>
+            role === "student" &&
+            void react(sug, "disagree").catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
+          }
+          disabled={role !== "student"}
+          className={`press flex items-center gap-1.5 rounded-btn border px-4 py-2 text-sm font-bold transition-colors ${
+            myReaction === "disagree"
+              ? "border-danger bg-danger text-white"
+              : "border-ink-200 bg-white text-ink-600"
+          }`}
+        >
+          👎 반대 <span className="tnum">{down}</span>
+        </button>
+      </div>
+
+      {/* 교사: 안건 상태 결정 */}
+      {role === "teacher" && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-ink-100 pt-3">
+          <span className="text-xs text-ink-400">안건 상태:</span>
+          {AGENDA_STATUS.map((st) => {
+            const active = (sug.status ?? "논의중") === st;
+            return (
+              <button
+                key={st}
+                onClick={() =>
+                  void setStatus(sug, st).then(
+                    () => toast(`상태를 '${st}'(으)로 바꿨어요.`),
+                    (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                  )
+                }
+                className={`press rounded-full px-3 py-1 text-xs font-bold ${
+                  active ? STATUS_STYLE[st] : "bg-ink-100 text-ink-400"
+                }`}
+              >
+                {st}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 댓글 스레드 */}
       <div className="mt-4">
@@ -266,33 +359,40 @@ export default function BoardPage() {
   const pinned = (announcements ?? []).filter(matches);
   const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
 
-  const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => (
-    <button
-      onClick={() => setSelectedId(p.id)}
-      className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-ink-50 ${
-        pin ? "bg-amber-50/60" : ""
-      }`}
-    >
-      <span className="flex min-w-0 items-center gap-1.5">
-        {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
-        <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
-        {(p.comments?.length ?? 0) > 0 && (
-          <span className="shrink-0 text-xs font-bold text-brand">
-            💬{p.comments!.length}
-          </span>
-        )}
-      </span>
-      <span className="shrink-0 text-xs text-ink-400">
-        {p.isAnonymous ? "익명" : authorName(p.studentId)} · {dateLabel(p.createdAt)}
-      </span>
-    </button>
-  );
+  const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => {
+    const { up, down } = reactionCounts(p);
+    return (
+      <button
+        onClick={() => setSelectedId(p.id)}
+        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-ink-50 ${
+          pin ? "bg-amber-50/60" : ""
+        }`}
+      >
+        <StatusBadge sug={p} />
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
+          <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
+          {up + down > 0 && (
+            <span className="shrink-0 text-[11px] text-ink-400">
+              👍{up} 👎{down}
+            </span>
+          )}
+          {(p.comments?.length ?? 0) > 0 && (
+            <span className="shrink-0 text-xs font-bold text-brand">💬{p.comments!.length}</span>
+          )}
+        </span>
+        <span className="shrink-0 text-xs text-ink-400">
+          {p.isAnonymous ? "익명" : authorName(p.studentId)} · {dateLabel(p.createdAt)}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-          <h3 className="font-bold">📬 건의 게시판</h3>
+          <h3 className="font-bold">📬 안건·토론</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
@@ -303,9 +403,9 @@ export default function BoardPage() {
             {role === "student" && (
               <button
                 onClick={() => setWriting((v) => !v)}
-                className="rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
+                className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
               >
-                {writing ? "닫기" : "✏️ 글쓰기"}
+                {writing ? "닫기" : "✏️ 안건 올리기"}
               </button>
             )}
           </div>
@@ -316,13 +416,13 @@ export default function BoardPage() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="제목"
+              placeholder="안건 제목 (예: 사물함 정리 규칙을 정하자)"
               className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="우리 반을 위한 의견을 남겨주세요"
+              placeholder="어떤 점을 바꾸면 좋을지, 왜 그런지 적어주세요. 친구들이 댓글로 토론하고 👍👎로 의견을 모아요."
               rows={4}
               className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
             />
@@ -334,7 +434,7 @@ export default function BoardPage() {
               <button
                 onClick={() => void submit()}
                 disabled={busy}
-                className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 등록
               </button>
@@ -349,7 +449,7 @@ export default function BoardPage() {
           search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />
           ) : (
-            <EmptyState emoji="📭" title="아직 글이 없어요" desc="첫 글을 남겨보세요!" />
+            <EmptyState emoji="📭" title="아직 안건이 없어요" desc="첫 안건을 올려보세요!" />
           )
         ) : (
           <ul className="divide-y divide-ink-100">
