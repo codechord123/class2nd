@@ -15,7 +15,7 @@ import {
   useDailyScores,
   useCumulativeScores,
   useSaveMvp,
-  useSaveCompliment,
+  useSavePeerNotes,
   useSaveToTeacher,
 } from "@/lib/query/evaluation";
 import { useBestGroups } from "@/lib/query/classMeta";
@@ -69,15 +69,15 @@ export default function TeamPage() {
   const { data: myEval } = useMyEvaluation(date, studentId);
   const saveEval = useSaveEvaluation(date, studentId);
   const saveMvp = useSaveMvp(date, studentId);
-  const saveCompliment = useSaveCompliment(date, studentId);
+  const savePeer = useSavePeerNotes(date, studentId);
   const saveToTeacher = useSaveToTeacher(date, studentId);
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
   const { data: bestGroups } = useBestGroups();
 
   const [tab, setTab] = useState<"eval" | "stats">("eval");
-  const [complimentTo, setComplimentTo] = useState<number | null>(null);
-  const [complimentText, setComplimentText] = useState("");
+  const [editComp, setEditComp] = useState<Record<number, string>>({});
+  const [editSug, setEditSug] = useState<Record<number, string>>({});
   const [toTeacherText, setToTeacherText] = useState("");
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const { toast } = useFeedback();
@@ -111,6 +111,34 @@ export default function TeamPage() {
 
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
+
+  // 모둠원 칭찬·건의 — 저장값(서버) 위에 편집값을 얹어 표시
+  const evalRec = (myEval ?? {}) as Record<string, unknown>;
+  const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
+  const savedSug = (evalRec._peerSuggestions as Record<string, string>) ?? {};
+  const compVal = (tid: number) => editComp[tid] ?? savedComp[tid] ?? "";
+  const sugVal = (tid: number) => editSug[tid] ?? savedSug[tid] ?? "";
+
+  async function submitPeerNotes() {
+    if (sending) return;
+    setSending(true);
+    const compliments: Record<string, string> = {};
+    const suggestions: Record<string, string> = {};
+    for (const t of targets) {
+      compliments[t.studentId] = compVal(t.studentId).trim();
+      suggestions[t.studentId] = sugVal(t.studentId).trim();
+    }
+    try {
+      await savePeer(compliments, suggestions);
+      setEditComp({});
+      setEditSug({});
+      toast("칭찬·건의를 저장했어요!", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -222,80 +250,41 @@ export default function TeamPage() {
         </div>
       </section>
 
-      {/* 오늘의 칭찬 (1인 1명) */}
+      {/* 모둠원 칭찬 & 건의 — 모두가 받을 수 있게 친구별로 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">💌 오늘의 칭찬</h3>
+        <h3 className="font-bold">💌 모둠원 칭찬 &amp; 건의</h3>
         <p className="mt-1 text-xs text-ink-500">
-          모둠 친구 1명을 골라 칭찬 한마디! 친구들이 골고루 칭찬받도록 해주세요.
+          친구마다 칭찬 한마디와 바라는 점(건의)을 남길 수 있어요. 빈칸은 안 보내도 돼요.
         </p>
-        {(() => {
-          const saved = (myEval as Record<string, unknown> | undefined)?._compliment as
-            | { to: number; text: string }
-            | undefined;
-          return saved ? (
-            <p className="mt-3 rounded-btn bg-pink-50 px-3 py-2 text-sm text-pink-700">
-              💌 <b>{studentById.get(saved.to)?.name}</b>에게: {saved.text}
-              <button
-                onClick={() => {
-                  setComplimentTo(saved.to);
-                  setComplimentText(saved.text);
-                }}
-                className="ml-2 text-xs text-pink-400 underline"
-              >
-                고치기
-              </button>
-            </p>
-          ) : null;
-        })()}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select
-            value={complimentTo ?? ""}
-            onChange={(e) => setComplimentTo(Number(e.target.value) || null)}
-            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          >
-            <option value="">누구에게?</option>
-            {targets.map((t) => (
-              <option key={t.studentId} value={t.studentId}>
-                {studentById.get(t.studentId)?.name}
-              </option>
-            ))}
-          </select>
-          <input
-            value={complimentText}
-            onChange={(e) => setComplimentText(e.target.value)}
-            placeholder="칭찬 한마디"
-            className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          />
-          <button
-            onClick={() =>
-              void (async () => {
-                if (!complimentTo) {
-                  toast("칭찬할 친구를 골라주세요.", "warn");
-                  return;
-                }
-                if (!complimentText.trim()) {
-                  toast("칭찬 내용을 적어주세요.", "warn");
-                  return;
-                }
-                if (sending) return;
-                setSending(true);
-                try {
-                  await saveCompliment(complimentTo, complimentText);
-                  toast("칭찬이 전달됐어요!", "success");
-                  setComplimentText("");
-                } catch (e) {
-                  toast(e instanceof Error ? e.message : "칭찬 보내기에 실패했어요.", "error");
-                } finally {
-                  setSending(false);
-                }
-              })()
-            }
-            disabled={sending}
-            className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-          >
-            보내기
-          </button>
+        <div className="mt-3 space-y-2">
+          {targets.map((t) => (
+            <div key={t.studentId} className="rounded-btn bg-ink-50 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
+                <b>{studentById.get(t.studentId)?.name}</b>
+              </div>
+              <input
+                value={compVal(t.studentId)}
+                onChange={(e) => setEditComp({ ...editComp, [t.studentId]: e.target.value })}
+                placeholder="💌 칭찬 한마디"
+                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-1.5 text-sm"
+              />
+              <input
+                value={sugVal(t.studentId)}
+                onChange={(e) => setEditSug({ ...editSug, [t.studentId]: e.target.value })}
+                placeholder="🙋 이렇게 하면 좋겠어 (건의)"
+                className="mt-1.5 w-full rounded-btn border border-ink-200 bg-white px-3 py-1.5 text-sm"
+              />
+            </div>
+          ))}
         </div>
+        <button
+          onClick={() => void submitPeerNotes()}
+          disabled={sending}
+          className="press mt-3 rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+        >
+          {sending ? "저장 중…" : "칭찬·건의 저장"}
+        </button>
       </section>
 
       {/* 선생님에게 바라는 점 */}

@@ -63,21 +63,32 @@ export async function aggregateDate(
   //    "_"로 시작하는 키는 점수가 아닌 부가 필드(_mvp, _compliment)
   const peer: Record<number, number> = {};
   const mvpVotes: Record<number, number> = {};
-  // 칭찬·바라는 점도 _meta에 보관 → 기간 인쇄(일/주/월)가 집계 문서만 읽으면 되게 함
+  // 칭찬·건의·바라는 점도 _meta에 보관 → 기간 인쇄(일/주/월)가 집계 문서만 읽으면 되게 함
   const compliments: { from: number; to: number; text: string }[] = [];
+  const peerSuggestions: { from: number; to: number; text: string }[] = [];
   const toTeacher: { from: number; text: string }[] = [];
   evalSnap.forEach((entry) => {
     const data = entry.data();
+    const from = Number(entry.id);
     for (const [targetId, v] of Object.entries(data)) {
       if (targetId.startsWith("_")) continue;
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
     if (typeof data._mvp === "number" && data._mvp > 0)
       mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 선택 취소
-    const c = data._compliment as { to: number; text: string } | undefined;
-    if (c?.text) compliments.push({ from: Number(entry.id), to: c.to, text: c.text });
+    // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments)
+    const legacy = data._compliment as { to: number; text: string } | undefined;
+    if (legacy?.text) compliments.push({ from, to: legacy.to, text: legacy.text });
+    const cmap = data._compliments as Record<string, string> | undefined;
+    if (cmap)
+      for (const [to, text] of Object.entries(cmap))
+        if (text?.trim()) compliments.push({ from, to: Number(to), text });
+    const smap = data._peerSuggestions as Record<string, string> | undefined;
+    if (smap)
+      for (const [to, text] of Object.entries(smap))
+        if (text?.trim()) peerSuggestions.push({ from, to: Number(to), text });
     if (typeof data._toTeacher === "string" && data._toTeacher)
-      toTeacher.push({ from: Number(entry.id), text: data._toTeacher });
+      toTeacher.push({ from, text: data._toTeacher });
   });
 
   // 3) 모둠 간: 모둠별 득점 합 → Dense Ranking → 순위 점수
@@ -170,6 +181,7 @@ export async function aggregateDate(
         mvpVotes,
         mvpWinners,
         compliments,
+        peerSuggestions,
         toTeacher,
       },
     }),

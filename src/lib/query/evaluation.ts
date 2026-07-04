@@ -49,21 +49,34 @@ export function useSaveMvp(date: string, myId: number | null) {
   };
 }
 
-export function useSaveCompliment(date: string, myId: number | null) {
+/**
+ * 모둠원 칭찬 & 건의 — 친구별로(모두가 받을 수 있게) 저장.
+ *   _compliments: { targetId: 칭찬글 }  ·  _peerSuggestions: { targetId: 건의글 }
+ * 빈 문자열은 집계·리포트에서 '없음'으로 처리(지우기 가능). 추가 읽기 0.
+ */
+export function useSavePeerNotes(date: string, myId: number | null) {
   const qc = useQueryClient();
-  return async (to: number, text: string) => {
+  return async (
+    compliments: Record<string, string>,
+    suggestions: Record<string, string>
+  ) => {
     if (myId == null) return;
-    if (!text.trim()) throw new Error("칭찬 내용을 적어주세요.");
-    const compliment = { to, text: text.trim() };
     await setDoc(
       doc(db(), "evaluations", date, "entries", String(myId)),
-      { _compliment: compliment },
+      { _compliments: compliments, _peerSuggestions: suggestions },
       { merge: true }
     );
-    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
-      ...prev,
-      _compliment: compliment,
-    }));
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => {
+      const p = (prev ?? {}) as Record<string, unknown>;
+      return {
+        ...p,
+        _compliments: { ...((p._compliments as Record<string, string>) ?? {}), ...compliments },
+        _peerSuggestions: {
+          ...((p._peerSuggestions as Record<string, string>) ?? {}),
+          ...suggestions,
+        },
+      } as unknown as PeerEvaluation;
+    });
   };
 }
 
