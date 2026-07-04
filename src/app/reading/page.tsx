@@ -277,7 +277,7 @@ export default function ReadingPage() {
   return (
     <div className="space-y-4">
       {/* 히어로: 목표 + 경고 + 마라톤 (항상 표시, 컴팩트) */}
-      <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-5 py-3 text-white shadow">
+      <div className="rounded-card bg-gradient-to-r from-amber-400 to-orange-500 px-5 py-3 text-white shadow">
         <p className="text-lg font-extrabold">🍜 짜파게티 파티까지 달린다!</p>
       </div>
       <ReadingAlert />

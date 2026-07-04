@@ -91,7 +91,7 @@ ${
           <p className="text-sm font-bold text-ink-800">🏅 오늘 점수 (상위)</p>
           {scoreRows.length === 0 ? (
             <p className="mt-2 text-xs text-ink-400">
-              아직 집계 전이에요. 위 '일일 평가 집계'를 실행하면 반영돼요.
+              아직 집계 전이에요. 위쪽 일일 평가 집계를 실행하면 반영돼요.
             </p>
           ) : (
             <ol className="mt-2 space-y-0.5 text-sm">
