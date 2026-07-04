@@ -101,9 +101,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
       const card = (t: string, inner: string) =>
         `<div class="card"><div class="t">${t}</div>${inner}</div>`;
 
-      // 독서 현황
+      // 독서 현황 (인쇄물은 이모지 대신 텍스트 제목 — 프린터에서 이모지가 깨지는 문제)
       const readingCard = card(
-        `📖 거북이 독서 현황 (${week}주차)`,
+        `거북이 독서 현황 (${week}주차)`,
         `<div class="stats">
           <div><div class="l">학급 누적</div><div class="v green">${classTotal}</div></div>
           <div><div class="l">이번 주</div><div class="v">${weekBooksTotal}권</div></div>
@@ -111,7 +111,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         </div>${
           notMet.length
             ? `<p class="muted">미달(${notMet.length}): ${notMet.map((s) => esc(s.name)).join(", ")}</p>`
-            : `<p class="muted">전원 목표 달성! 🎉</p>`
+            : `<p class="muted">전원 목표 달성!</p>`
         }`
       );
 
@@ -121,13 +121,13 @@ export default function DailyReportPanel({ date }: { date: string }) {
         // MVP + 순위
         sections.push(
           `<div class="grid2">${card(
-            "⭐ 오늘의 MVP",
+            "오늘의 MVP",
             `<p>${mvpNames.length ? mvpNames.map(esc).join(", ") : '<span class="muted">없음</span>'}</p>`
           )}${card(
-            "🥇 오늘의 모둠 순위",
+            "오늘의 모둠 순위",
             rankPairs.length
-              ? `<p>${rankPairs.map(([g, r]) => `${r === 1 ? "👑 " : ""}${r}위 ${g}모둠`).join(" · ")}</p>`
-              : `<p class="warn">⚠️ 순위 미선정</p>`
+              ? `<p>${rankPairs.map(([g, r]) => (r === 1 ? `<b>1위 ${g}모둠</b>` : `${r}위 ${g}모둠`)).join(" · ")}</p>`
+              : `<p class="warn">순위 미선정</p>`
           )}</div>`
         );
 
@@ -139,7 +139,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
         const half = Math.ceil(ranked.length / 2);
         const scoreTbl = (rows: typeof ranked, offset: number) =>
-          `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th><th>📖오늘</th><th>📖누적</th></tr></thead><tbody>${rows
+          `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows
             .map(
               (s, i) =>
                 `<tr><td>${offset + i + 1}</td><td>${esc(s.name)}</td><td><b>${totalOf(s.id)}</b></td><td>${
@@ -149,7 +149,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
             .join("")}</tbody></table>`;
         sections.push(
           card(
-            "🏅 오늘 점수 · 📖 거북이 독서 (오늘 쓴 권수 / 1·2학기 누적)",
+            "오늘 점수 · 거북이 독서 (오늘 쓴 권수 / 1·2학기 누적 권수)",
             `<div class="cols">${scoreTbl(ranked.slice(0, half), 0)}${scoreTbl(ranked.slice(half), half)}</div>`
           )
         );
@@ -165,28 +165,30 @@ export default function DailyReportPanel({ date }: { date: string }) {
             const gSugs = peerSug.filter((c) => set.has(c.to));
             const memHtml = ids
               .map(
-                (id) => `${mvpSet.has(id) ? "⭐" : ""}${esc(nm(id))} <b>${totalOf(id)}</b>`
+                (id) => `${mvpSet.has(id) ? "★" : ""}${esc(nm(id))} <b>${totalOf(id)}</b>`
               )
               .join(" · ");
             const lines =
               [
                 ...gComps.map(
-                  (c) => `<li>💌 <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
+                  (c) => `<li>[칭찬] <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
                 ),
                 ...gSugs.map(
-                  (c) => `<li>🙋 <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
+                  (c) => `<li>[건의] <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
                 ),
               ].join("") || `<li class="muted">오늘 기록이 없어요.</li>`;
-            const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">🎯 미션 +1</span>` : "";
-            return `<div class="grp"><div class="h"><span class="gname">${gRank === 1 ? "👑 " : ""}${g.groupId}모둠${gRank ? `<span class="badge">${gRank}위</span>` : ""}${missionBadge}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
+            const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
+            return `<div class="grp"><div class="h"><span class="gname">${g.groupId}모둠${gRank ? `<span class="badge">${gRank === 1 ? "오늘의 모둠 · 1위" : `${gRank}위`}</span>` : ""}${missionBadge}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
           })
           .join("");
-        sections.push(card("👥 모둠별 오늘 기록", `<div class="grps">${groupsHtml}</div>`));
+        sections.push(
+          card("모둠별 오늘 기록 (★=MVP)", `<div class="grps">${groupsHtml}</div>`)
+        );
 
         // 바라는 점
         sections.push(
           card(
-            `📨 선생님에게 바라는 점 (${wishes.length})`,
+            `선생님에게 바라는 점 (${wishes.length})`,
             wishes.length
               ? `<ul>${wishes.map((t) => `<li><b>${esc(nm(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
               : `<p class="muted">없음</p>`
@@ -194,7 +196,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         );
         if (notPraised.length) {
           sections.push(
-            `<p class="muted warn">📌 오늘 칭찬 못 받은 친구: ${notPraised.map((s) => esc(s.name)).join(", ")}</p>`
+            `<p class="muted warn">※ 오늘 칭찬 못 받은 친구: ${notPraised.map((s) => esc(s.name)).join(", ")}</p>`
           );
         }
       } else {
@@ -203,8 +205,8 @@ export default function DailyReportPanel({ date }: { date: string }) {
 
       openPrintWindow(
         `${date} 데일리 리포트`,
-        `<h1>🗒️ ${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치${
-          goalLine ? ` · 🎯 ${esc(goalLine)}` : ""
+        `<h1>${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치${
+          goalLine ? ` · 학급 목표: ${esc(goalLine)}` : ""
         }</div>${sections.join("")}`
       );
     } catch (e) {
@@ -235,12 +237,12 @@ export default function DailyReportPanel({ date }: { date: string }) {
       const names = (ids: number[]) => ids.map((id) => esc(nm(id))).join(", ");
       const hi = (label: string, v: string) => `<li><b>${label}</b>: ${v}</li>`;
       const highlightHtml = `${
-        goalLine ? `<p class="muted">🎯 학급 목표: ${esc(goalLine)}</p>` : ""
-      }<div class="t">🏆 ${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
-        readTop ? hi("🐢 독서 MVP", `${names(readTop.ids)} (${readTop.max}권)`) : "",
-        bestTop ? hi("👑 오늘의 모둠 최다", `${bestTop.ids.map((g) => `${g}모둠`).join(", ")} (1위 ${bestTop.max}회)`) : "",
-        mvpTop ? hi("⭐ MVP 최다", `${names(mvpTop.ids)} (${mvpTop.max}회)`) : "",
-        rep ? hi("🎯 미션 달성", `${rep.missionAchievements}회`) : "",
+        goalLine ? `<p class="muted">학급 목표: ${esc(goalLine)}</p>` : ""
+      }<div class="t">${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
+        readTop ? hi("독서 MVP", `${names(readTop.ids)} (${readTop.max}권)`) : "",
+        bestTop ? hi("오늘의 모둠 최다", `${bestTop.ids.map((g) => `${g}모둠`).join(", ")} (1위 ${bestTop.max}회)`) : "",
+        mvpTop ? hi("MVP 최다", `${names(mvpTop.ids)} (${mvpTop.max}회)`) : "",
+        rep ? hi("칭찬 미션 달성", `${rep.missionAchievements}회`) : "",
       ]
         .filter(Boolean)
         .join("")}</ul>`;

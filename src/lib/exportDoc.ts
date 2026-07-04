@@ -31,7 +31,7 @@ const PRINT_CSS = `
   h1 { font-size: 17px; margin: 0 0 1px; }
   .sub { color: #8b95a1; font-size: 11px; margin-bottom: 8px; }
   .card { border: 1px solid #e5e8eb; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; page-break-inside: avoid; }
-  .card > .t { font-size: 12.5px; font-weight: 800; margin: 0 0 5px; }
+  .card > .t { font-size: 12.5px; font-weight: 800; margin: 0 0 5px; border-left: 3px solid #2272eb; padding-left: 7px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .stats { display: flex; gap: 8px; text-align: center; }
   .stats > div { flex: 1; }
@@ -197,7 +197,7 @@ export async function openRangePrintDoc(
         .join("")}</tbody></table>`;
     sections.push(
       card(
-        `🏅 점수 요약 (집계된 ${daySnap.size}일 합산)`,
+        `점수 요약 (집계된 ${daySnap.size}일 합산)`,
         `<div class="cols">${tbl(scoreRows.slice(0, half), 0)}${tbl(scoreRows.slice(half), half)}</div>`
       )
     );
@@ -205,7 +205,7 @@ export async function openRangePrintDoc(
 
   sections.push(
     card(
-      `💌 칭찬 (${allCompliments.length}건)`,
+      `칭찬 (${allCompliments.length}건)`,
       (allCompliments.length
         ? dates
             .map((dt) => {
@@ -221,7 +221,7 @@ export async function openRangePrintDoc(
             .join("")
         : `<p class="muted">칭찬 기록이 없습니다.</p>`) +
         (allCompliments.length && notPraised.length
-          ? `<p class="muted warn">📌 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>`
+          ? `<p class="muted warn">※ 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>`
           : "")
     )
   );
@@ -231,7 +231,7 @@ export async function openRangePrintDoc(
   );
   sections.push(
     card(
-      `🙋 모둠원 건의 (${allPeerSug.length}건)`,
+      `모둠원 건의 (${allPeerSug.length}건)`,
       allPeerSug.length
         ? `<ul>${allPeerSug
             .map(
@@ -246,7 +246,7 @@ export async function openRangePrintDoc(
   const allToTeacher = dates.flatMap((dt) => byDate.get(dt)!.toTeacher.map((t) => ({ ...t, date: dt })));
   sections.push(
     card(
-      `📨 선생님에게 바라는 점 (${allToTeacher.length}건)`,
+      `선생님에게 바라는 점 (${allToTeacher.length}건)`,
       allToTeacher.length
         ? `<ul>${allToTeacher.map((t) => `<li><b>${esc(name(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
         : `<p class="muted">기록이 없습니다.</p>`
@@ -255,7 +255,7 @@ export async function openRangePrintDoc(
 
   sections.push(
     card(
-      `📬 건의 게시판 (${suggestions.length}건)`,
+      `건의 게시판 (${suggestions.length}건)`,
       suggestions.length
         ? `<ul>${suggestions.map((s) => `<li>[${s.date}] <b>${esc(s.name)}</b>: ${esc(s.content)}</li>`).join("")}</ul>`
         : `<p class="muted">건의 기록이 없습니다.</p>`
@@ -264,7 +264,7 @@ export async function openRangePrintDoc(
 
   openPrintWindow(
     `${label} 학급 기록 (${start} ~ ${end})`,
-    `<h1>📋 ${esc(label)} 학급 기록</h1><div class="sub">${start} ~ ${end}</div>${sections.join("\n")}`
+    `<h1>${esc(label)} 학급 기록</h1><div class="sub">${start} ~ ${end}</div>${sections.join("\n")}`
   );
   return { days: byDate.size, compliments: allCompliments.length, suggestions: suggestions.length };
 }

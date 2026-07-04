@@ -73,7 +73,7 @@ export default function PasswordResetPanel() {
       .join("");
     openPrintWindow(
       "학생 비밀번호 발급표",
-      `<div class="card"><div class="t">🔑 새 비밀번호 발급표 — 잘라서 한 장씩 나눠주세요</div>
+      `<div class="card"><div class="t">새 비밀번호 발급표 — 잘라서 한 장씩 나눠주세요</div>
        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">${slips}</div></div>`
     );
   }
