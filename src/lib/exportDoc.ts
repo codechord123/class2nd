@@ -18,10 +18,53 @@ interface ToTeacher {
   text: string;
 }
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const name = (id: number | string) => studentById.get(Number(id))?.name ?? `?${id}`;
+
+// 화면 리포트와 결을 맞춘 카드형 인쇄 스타일 (배경색은 print-color-adjust로 강제)
+const PRINT_CSS = `
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+  body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif; margin: 24px; color: #191f28; background:#fff; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: #8b95a1; font-size: 12px; margin-bottom: 16px; }
+  .card { border: 1px solid #e5e8eb; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; page-break-inside: avoid; }
+  .card > .t { font-size: 14px; font-weight: 800; margin: 0 0 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats { display: flex; gap: 10px; text-align: center; }
+  .stats > div { flex: 1; }
+  .stats .l { font-size: 11px; color: #8b95a1; }
+  .stats .v { font-size: 20px; font-weight: 800; }
+  .green { color: #12b886; } .blue { color: #2272eb; } .amber { color: #ff9f1c; }
+  ul { margin: 6px 0 0; padding-left: 18px; }
+  li { margin: 3px 0; line-height: 1.5; font-size: 13px; }
+  table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+  th, td { border: 1px solid #e5e8eb; padding: 3px 8px; font-size: 12px; text-align: center; }
+  th { background: #f2f4f6; }
+  .muted { color: #8b95a1; font-size: 12px; margin: 6px 0 0; }
+  .warn { color: #f76707; font-weight: 600; }
+  .grp { border: 1px solid #e5e8eb; border-radius: 10px; padding: 9px 11px; margin-bottom: 7px; page-break-inside: avoid; }
+  .grp .h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .grp .gname { font-weight: 800; font-size: 13px; }
+  .grp .mem { font-size: 11px; color: #4e5968; }
+  .grp .mem b { color: #191f28; }
+  .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; background: #fff4e6; color: #f76707; margin-left: 4px; }
+  @media print { .noprint { display: none; } }
+`;
+
+/** 인쇄 문서를 새 창에 연다 (공용 래퍼). body는 카드형 HTML. */
+export function openPrintWindow(title: string, bodyHtml: string): void {
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>
+<button class="noprint" onclick="window.print()" style="padding:8px 16px;font-weight:bold;border-radius:8px;border:1px solid #d1d6db;background:#fff;cursor:pointer;margin-bottom:12px">🖨️ 인쇄 / PDF 저장</button>
+${bodyHtml}
+</body></html>`;
+  const win = window.open("", "_blank");
+  if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
+  win.document.write(html);
+  win.document.close();
+}
 
 /** 아직 집계 전인 날짜의 칭찬/건의/바라는점을 원시 평가에서 직접 수집 */
 async function liveDayExtras(date: string) {
@@ -132,83 +175,85 @@ export async function openRangePrintDoc(
     .sort((a, b) => b.sum - a.sum);
   const hasScores = scoreRows.some((r) => r.sum !== 0);
 
+  const card = (title: string, inner: string) =>
+    `<div class="card"><div class="t">${title}</div>${inner}</div>`;
   const sections: string[] = [];
 
-  if (extraHtml) sections.push(extraHtml);
+  if (extraHtml) sections.push(`<div class="card">${extraHtml}</div>`);
 
   if (hasScores) {
-    sections.push(`<h2>점수 요약 (집계된 ${daySnap.size}일 합산)</h2>
-<table><thead><tr><th>순위</th><th>이름</th><th>합계</th></tr></thead><tbody>
-${scoreRows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td>${r.sum}점</td></tr>`).join("")}
-</tbody></table>`);
+    sections.push(
+      card(
+        `🏅 점수 요약 (집계된 ${daySnap.size}일 합산)`,
+        `<table><thead><tr><th>순위</th><th>이름</th><th>합계</th></tr></thead><tbody>${scoreRows
+          .map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td>${r.sum}점</td></tr>`)
+          .join("")}</tbody></table>`
+      )
+    );
   }
 
-  sections.push(`<h2>💌 칭찬 (${allCompliments.length}건)</h2>
-${
-  allCompliments.length
-    ? dates
-        .map((dt) => {
-          const cs = byDate.get(dt)!.compliments;
-          if (!cs.length) return "";
-          return `<h3>${dt}</h3><ul>${cs
-            .map((c) => `<li><b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`)
-            .join("")}</ul>`;
-        })
-        .join("")
-    : `<p class="muted">칭찬 기록이 없습니다.</p>`
-}
-${allCompliments.length && notPraised.length ? `<p class="muted">📌 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>` : ""}`);
+  sections.push(
+    card(
+      `💌 칭찬 (${allCompliments.length}건)`,
+      (allCompliments.length
+        ? dates
+            .map((dt) => {
+              const cs = byDate.get(dt)!.compliments;
+              if (!cs.length) return "";
+              return `<ul>${cs
+                .map(
+                  (c) =>
+                    `<li><b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
+                )
+                .join("")}</ul>`;
+            })
+            .join("")
+        : `<p class="muted">칭찬 기록이 없습니다.</p>`) +
+        (allCompliments.length && notPraised.length
+          ? `<p class="muted warn">📌 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>`
+          : "")
+    )
+  );
 
   const allPeerSug = dates.flatMap((dt) =>
     byDate.get(dt)!.peerSuggestions.map((c) => ({ ...c, date: dt }))
   );
-  sections.push(`<h2>🙋 모둠원 건의 (${allPeerSug.length}건)</h2>
-${
-    allPeerSug.length
-      ? `<ul>${allPeerSug
-          .map(
-            (c) =>
-              `<li>[${c.date}] <b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
-          )
-          .join("")}</ul>`
-      : `<p class="muted">모둠원 건의 기록이 없습니다.</p>`
-  }`);
+  sections.push(
+    card(
+      `🙋 모둠원 건의 (${allPeerSug.length}건)`,
+      allPeerSug.length
+        ? `<ul>${allPeerSug
+            .map(
+              (c) =>
+                `<li><b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
+            )
+            .join("")}</ul>`
+        : `<p class="muted">모둠원 건의 기록이 없습니다.</p>`
+    )
+  );
 
   const allToTeacher = dates.flatMap((dt) => byDate.get(dt)!.toTeacher.map((t) => ({ ...t, date: dt })));
-  sections.push(`<h2>🙏 선생님에게 바라는 점 (${allToTeacher.length}건)</h2>
-${
-  allToTeacher.length
-    ? `<ul>${allToTeacher.map((t) => `<li>[${t.date}] <b>${esc(name(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
-    : `<p class="muted">기록이 없습니다.</p>`
-}`);
+  sections.push(
+    card(
+      `📨 선생님에게 바라는 점 (${allToTeacher.length}건)`,
+      allToTeacher.length
+        ? `<ul>${allToTeacher.map((t) => `<li><b>${esc(name(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
+        : `<p class="muted">기록이 없습니다.</p>`
+    )
+  );
 
-  sections.push(`<h2>📬 건의 (${suggestions.length}건)</h2>
-${
-  suggestions.length
-    ? `<ul>${suggestions.map((s) => `<li>[${s.date}] <b>${esc(s.name)}</b>: ${esc(s.content)}</li>`).join("")}</ul>`
-    : `<p class="muted">건의 기록이 없습니다.</p>`
-}`);
+  sections.push(
+    card(
+      `📬 건의 게시판 (${suggestions.length}건)`,
+      suggestions.length
+        ? `<ul>${suggestions.map((s) => `<li>[${s.date}] <b>${esc(s.name)}</b>: ${esc(s.content)}</li>`).join("")}</ul>`
+        : `<p class="muted">건의 기록이 없습니다.</p>`
+    )
+  );
 
-  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
-<title>${esc(label)} 학급 기록 (${start} ~ ${end})</title>
-<style>
-  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; margin: 32px; color: #222; }
-  h1 { font-size: 20px; } h2 { font-size: 16px; margin-top: 24px; border-bottom: 2px solid #eee; padding-bottom: 4px; }
-  h3 { font-size: 13px; color: #555; margin: 12px 0 4px; }
-  li { margin: 5px 0; line-height: 1.5; }
-  table { border-collapse: collapse; margin-top: 8px; }
-  th, td { border: 1px solid #ddd; padding: 4px 12px; font-size: 13px; text-align: center; }
-  .muted { color: #888; font-size: 13px; }
-  @media print { .noprint { display: none; } }
-</style></head><body>
-<button class="noprint" onclick="window.print()" style="padding:8px 16px;font-weight:bold">🖨️ 인쇄 / PDF 저장</button>
-<h1>📋 ${esc(label)} 학급 기록 <span style="font-size:13px;color:#888">(${start} ~ ${end})</span></h1>
-${sections.join("\n")}
-</body></html>`;
-
-  const win = window.open("", "_blank");
-  if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
-  win.document.write(html);
-  win.document.close();
+  openPrintWindow(
+    `${label} 학급 기록 (${start} ~ ${end})`,
+    `<h1>📋 ${esc(label)} 학급 기록</h1><div class="sub">${start} ~ ${end}</div>${sections.join("\n")}`
+  );
   return { days: byDate.size, compliments: allCompliments.length, suggestions: suggestions.length };
 }

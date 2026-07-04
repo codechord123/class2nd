@@ -9,7 +9,7 @@ import { useDailyScores } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
-import { openRangePrintDoc } from "@/lib/exportDoc";
+import { openPrintWindow, esc } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -59,18 +59,109 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const praisedIds = new Set(compliments.map((c) => c.to));
   const notPraised = students.filter((s) => !praisedIds.has(s.id));
 
-  async function print() {
+  function print() {
     if (printing) return;
     setPrinting(true);
     try {
-      const readingHtml = `<h2>📖 거북이 독서 현황 (${week}주차)</h2>
-<p>학급 누적 <b>${classTotal}권</b> · 이번 주 반 제출 <b>${weekBooks}권</b> · 의무(${quota}권) 달성 ${metCount}명 / 미달 ${notMet.length}명</p>
-${
-        notMet.length
-          ? `<p class="muted">미달(${notMet.length}): ${notMet.map((s) => s.name).join(", ")}</p>`
-          : `<p class="muted">전원 목표 달성! 🎉</p>`
-      }`;
-      await openRangePrintDoc(date, date, `${date} 데일리 리포트`, readingHtml);
+      const totalOf = (id: number) =>
+        (today?.[id] as { total?: number } | undefined)?.total ?? 0;
+      const card = (t: string, inner: string) =>
+        `<div class="card"><div class="t">${t}</div>${inner}</div>`;
+
+      // 독서 현황
+      const readingCard = card(
+        `📖 거북이 독서 현황 (${week}주차)`,
+        `<div class="stats">
+          <div><div class="l">학급 누적</div><div class="v green">${classTotal}</div></div>
+          <div><div class="l">이번 주</div><div class="v">${weekBooks}권</div></div>
+          <div><div class="l">목표 달성</div><div class="v blue">${metCount}/${students.length}</div></div>
+        </div>${
+          notMet.length
+            ? `<p class="muted">미달(${notMet.length}): ${notMet.map((s) => esc(s.name)).join(", ")}</p>`
+            : `<p class="muted">전원 목표 달성! 🎉</p>`
+        }`
+      );
+
+      const sections = [readingCard];
+
+      if (meta) {
+        // MVP + 순위
+        sections.push(
+          `<div class="grid2">${card(
+            "⭐ 오늘의 MVP",
+            `<p>${mvpNames.length ? mvpNames.map(esc).join(", ") : '<span class="muted">없음</span>'}</p>`
+          )}${card(
+            "🥇 오늘의 모둠 순위",
+            rankPairs.length
+              ? `<p>${rankPairs.map(([g, r]) => `${r === 1 ? "👑 " : ""}${r}위 ${g}모둠`).join(" · ")}</p>`
+              : `<p class="warn">⚠️ 순위 미선정</p>`
+          )}</div>`
+        );
+
+        // 오늘 점수 (전원)
+        const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
+        sections.push(
+          card(
+            "🏅 오늘 점수",
+            `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th></tr></thead><tbody>${ranked
+              .map(
+                (s, i) =>
+                  `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${totalOf(s.id)}점</td></tr>`
+              )
+              .join("")}</tbody></table>`
+          )
+        );
+
+        // 모둠별
+        const mvpSet = new Set(meta.mvpWinners ?? []);
+        const groupsHtml = schedule.groups
+          .map((g) => {
+            const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+            const set = new Set(ids);
+            const gRank = meta.ranks?.[String(g.groupId)];
+            const gComps = compliments.filter((c) => set.has(c.to));
+            const gSugs = peerSug.filter((c) => set.has(c.to));
+            const memHtml = ids
+              .map(
+                (id) => `${mvpSet.has(id) ? "⭐" : ""}${esc(nm(id))} <b>${totalOf(id)}</b>`
+              )
+              .join(" · ");
+            const lines =
+              [
+                ...gComps.map(
+                  (c) => `<li>💌 <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
+                ),
+                ...gSugs.map(
+                  (c) => `<li>🙋 <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
+                ),
+              ].join("") || `<li class="muted">오늘 기록이 없어요.</li>`;
+            return `<div class="grp"><div class="h"><span class="gname">${gRank === 1 ? "👑 " : ""}${g.groupId}모둠${gRank ? `<span class="badge">${gRank}위</span>` : ""}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
+          })
+          .join("");
+        sections.push(card("👥 모둠별 오늘 기록", groupsHtml));
+
+        // 바라는 점
+        sections.push(
+          card(
+            `📨 선생님에게 바라는 점 (${wishes.length})`,
+            wishes.length
+              ? `<ul>${wishes.map((t) => `<li><b>${esc(nm(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
+              : `<p class="muted">없음</p>`
+          )
+        );
+        if (notPraised.length) {
+          sections.push(
+            `<p class="muted warn">📌 오늘 칭찬 못 받은 친구: ${notPraised.map((s) => esc(s.name)).join(", ")}</p>`
+          );
+        }
+      } else {
+        sections.push('<p class="muted">아직 집계 전이에요. 집계 후 인쇄하면 점수·모둠별 기록이 담겨요.</p>');
+      }
+
+      openPrintWindow(
+        `${date} 데일리 리포트`,
+        `<h1>🗒️ ${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치</div>${sections.join("")}`
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
     } finally {
@@ -274,11 +365,11 @@ ${
       )}
       </>)}
 
-      <Button onClick={() => void print()} disabled={printing} className="mt-3">
-        {printing ? "여는 중…" : "🖨️ 리포트 인쇄 / PDF 저장"}
+      <Button onClick={() => print()} disabled={printing} className="mt-3">
+        🖨️ 리포트 인쇄 / PDF 저장
       </Button>
       <p className="mt-1.5 text-xs text-ink-400">
-        인쇄본에는 독서 현황·점수 요약·칭찬·바라는 점·안건이 함께 담겨요.
+        인쇄본도 화면처럼 독서·점수·MVP·순위·모둠별 칭찬/건의·바라는 점 카드로 담겨요.
       </p>
     </Card>
   );
