@@ -265,12 +265,14 @@ export async function openRangePrintDoc(
   if (extraHtml) sections.push(`<div class="card">${extraHtml}</div>`);
 
   if (hasScores) {
-    // 25명 표를 2단으로 나눠 세로 공간 절약
+    // 25명 표를 2단으로 나눠 세로 공간 절약 + 점수 미니 바 (분포 시각화)
+    const maxSum = Math.max(1, ...scoreRows.map((r) => r.sum));
     const half = Math.ceil(scoreRows.length / 2);
     const tbl = (rows: typeof scoreRows, offset: number) =>
       `<table><thead><tr><th>순위</th><th>이름</th><th>합계</th></tr></thead><tbody>${rows
         .map(
-          (r, i) => `<tr><td>${offset + i + 1}</td><td>${esc(r.name)}</td><td><b>${r.sum}</b>점</td></tr>`
+          (r, i) =>
+            `<tr><td>${offset + i + 1}</td><td>${esc(r.name)}</td><td class="score"><span class="sbar" style="width:${Math.round((Math.max(r.sum, 0) / maxSum) * 100)}%"></span><b>${r.sum}</b></td></tr>`
         )
         .join("")}</tbody></table>`;
     sections.push(
@@ -281,22 +283,25 @@ export async function openRangePrintDoc(
     );
   }
 
+  // ── 2페이지: 마음 기록 (정성) — 말풍선 문법으로 일간 리포트와 통일 ──
+  sections.push(
+    `<div class="pagebreak"></div>` +
+      brandHeader(`${esc(label)} 마음 기록`, "기간 동안 주고받은 칭찬 · 건의 · 바라는 점")
+  );
+  const dLabel = (dt: string) => `${Number(dt.slice(5, 7))}/${Number(dt.slice(8, 10))}`;
+  const bub = (cls: string, inner: string) => `<li class="bub ${cls}">${inner}</li>`;
   sections.push(
     card(
       `칭찬 (${allCompliments.length}건)`,
       (allCompliments.length
-        ? dates
-            .map((dt) => {
-              const cs = byDate.get(dt)!.compliments;
-              if (!cs.length) return "";
-              return `<ul>${cs
-                .map(
-                  (c) =>
-                    `<li><b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
-                )
-                .join("")}</ul>`;
-            })
-            .join("")
+        ? `<ul class="bubs">${allCompliments
+            .map((c) =>
+              bub(
+                "",
+                `<b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b> · ${esc(c.text)} <span class="muted">(${dLabel(c.date)})</span>`
+              )
+            )
+            .join("")}</ul>`
         : `<p class="muted">칭찬 기록이 없습니다.</p>`) +
         (allCompliments.length && notPraised.length
           ? `<p class="muted warn">※ 이 기간에 칭찬을 못 받은 친구: ${notPraised.join(", ")}</p>`
@@ -311,10 +316,12 @@ export async function openRangePrintDoc(
     card(
       `모둠원 건의 (${allPeerSug.length}건)`,
       allPeerSug.length
-        ? `<ul>${allPeerSug
-            .map(
-              (c) =>
-                `<li><b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b>: ${esc(c.text)}</li>`
+        ? `<ul class="bubs">${allPeerSug
+            .map((c) =>
+              bub(
+                "sug",
+                `<b>${esc(name(c.from))}</b> → <b>${esc(name(c.to))}</b> · ${esc(c.text)} <span class="muted">(${dLabel(c.date)})</span>`
+              )
             )
             .join("")}</ul>`
         : `<p class="muted">모둠원 건의 기록이 없습니다.</p>`
@@ -326,7 +333,11 @@ export async function openRangePrintDoc(
     card(
       `선생님에게 바라는 점 (${allToTeacher.length}건)`,
       allToTeacher.length
-        ? `<ul>${allToTeacher.map((t) => `<li><b>${esc(name(t.from))}</b>: ${esc(t.text)}</li>`).join("")}</ul>`
+        ? `<ul class="bubs">${allToTeacher
+            .map((t) =>
+              bub("", `<b>${esc(name(t.from))}</b> · ${esc(t.text)} <span class="muted">(${dLabel(t.date)})</span>`)
+            )
+            .join("")}</ul>`
         : `<p class="muted">기록이 없습니다.</p>`
     )
   );
@@ -335,14 +346,19 @@ export async function openRangePrintDoc(
     card(
       `건의 게시판 (${suggestions.length}건)`,
       suggestions.length
-        ? `<ul>${suggestions.map((s) => `<li>[${s.date}] <b>${esc(s.name)}</b>: ${esc(s.content)}</li>`).join("")}</ul>`
+        ? `<ul class="bubs">${suggestions
+            .map((s) => bub("sug", `<b>${esc(s.name)}</b> · ${esc(s.content)} <span class="muted">(${dLabel(s.date)})</span>`))
+            .join("")}</ul>`
         : `<p class="muted">건의 기록이 없습니다.</p>`
     )
   );
 
   openPrintWindow(
     `${label} 학급 기록 (${start} ~ ${end})`,
-    `<h1>${esc(label)} 학급 기록</h1><div class="sub">${start} ~ ${end}</div>${sections.join("\n")}`
+    brandHeader(
+      `${esc(label)} 학급 기록`,
+      `${dateTitle(start)} ~ ${dateTitle(end)} · 2학기 학급 자치`
+    ) + sections.join("\n")
   );
   return { days: byDate.size, compliments: allCompliments.length, suggestions: suggestions.length };
 }
