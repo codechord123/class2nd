@@ -13,6 +13,7 @@ import {
 import SeatGrid from "@/components/seats/SeatGrid";
 import { chairsProvisional, studentById, ROLE_INFO } from "@/lib/roster";
 import { useSettings } from "@/lib/query/settings";
+import { useFeedback } from "@/components/ui/Feedback";
 import {
   useWeekSwaps,
   applySwaps,
@@ -49,14 +50,23 @@ export default function SeatsPage() {
   const [showRequest, setShowRequest] = useState(false);
   const [targetGroup, setTargetGroup] = useState(1);
   const [targetRole, setTargetRole] = useState<RoleKey>("질서");
-  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { toast, confirm } = useFeedback();
 
   const weekMeta = schedules.weeks[week - 1];
   const deadline = seatChangeDeadline(weekMeta.weekStart);
   const deadlinePassed = new Date() > deadline;
 
   async function submitRequest() {
-    setMsg("");
+    if (busy) return;
+    const cost = settings?.seatChangeCost ?? 1;
+    const ok = await confirm({
+      title: "자리를 바꿀까요?",
+      body: `${targetGroup}모둠 · ${targetRole} 지킴이로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,
+      confirmLabel: "신청",
+    });
+    if (!ok) return;
+    setBusy(true);
     try {
       await createRequest({
         week,
@@ -65,10 +75,12 @@ export default function SeatsPage() {
         targetRole,
         existing: weekRequests ?? [],
       });
-      setMsg("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.");
+      toast("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.", "success");
       setShowRequest(false);
     } catch (e) {
-      setMsg(`⚠️ ${e instanceof Error ? e.message : "신청 실패"}`);
+      toast(`⚠️ ${e instanceof Error ? e.message : "신청 실패"}`, "error");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -88,7 +100,7 @@ export default function SeatsPage() {
           </p>
         )}
         {chairsProvisional && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="mt-2 rounded-btn bg-amber-50 px-3 py-2 text-xs text-amber-700">
             ⚠️ 지금 의장(소통 지킴이)은 1학기 회장단 기준 임시 배치예요. 2학기 회장단 선거
             후 새 명단으로 자리표가 다시 만들어집니다.
           </p>
@@ -102,7 +114,7 @@ export default function SeatsPage() {
             <button
               key={w.week}
               onClick={() => setWeek(w.week)}
-              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
+              className={`shrink-0 rounded-btn px-2.5 py-1.5 text-xs font-medium ${
                 w.week === week
                   ? "bg-brand text-white"
                   : w.week === nowWeek && !beforeSemester
@@ -137,7 +149,7 @@ export default function SeatsPage() {
             <>
               <button
                 onClick={() => setShowRequest((v) => !v)}
-                className="mt-2 rounded-lg border border-ink-300 px-3 py-1.5 text-sm text-ink-600 hover:bg-ink-50"
+                className="mt-2 rounded-btn border border-ink-300 px-3 py-1.5 text-sm text-ink-600 hover:bg-ink-50"
               >
                 {showRequest ? "닫기" : "+ 자리 변경 신청"}
               </button>
@@ -146,7 +158,7 @@ export default function SeatsPage() {
                   <select
                     value={targetGroup}
                     onChange={(e) => setTargetGroup(Number(e.target.value))}
-                    className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+                    className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
                   >
                     {[1, 2, 3, 4, 5].map((g) => (
                       <option key={g} value={g}>
@@ -157,7 +169,7 @@ export default function SeatsPage() {
                   <select
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value as RoleKey)}
-                    className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+                    className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
                   >
                     {ROLE_INFO.filter((r) => r.key !== "소통").map((r) => (
                       <option key={r.key} value={r.key}>
@@ -167,15 +179,15 @@ export default function SeatsPage() {
                   </select>
                   <button
                     onClick={() => void submitRequest()}
-                    className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+                    disabled={busy}
+                    className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   >
-                    신청하기
+                    {busy ? "신청 중…" : "신청하기"}
                   </button>
                 </div>
               )}
             </>
           )}
-          {msg && <p className="mt-2 text-sm">{msg}</p>}
 
           {(weekRequests?.length ?? 0) > 0 && (
             <ul className="mt-3 space-y-1 text-sm">

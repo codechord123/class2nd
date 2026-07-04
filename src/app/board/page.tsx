@@ -85,8 +85,15 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           {role === "teacher" && (
             <span className="flex gap-2">
               <button
-                onClick={() => void toggleAnnouncement(sug)}
-                className="text-amber-500 hover:text-amber-700"
+                onClick={async () => {
+                  try {
+                    await toggleAnnouncement(sug);
+                    toast(sug.isAnnouncement ? "공지를 내렸어요." : "📌 공지로 올렸어요.");
+                  } catch (e) {
+                    toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+                  }
+                }}
+                className="text-warn hover:opacity-80"
               >
                 {sug.isAnnouncement ? "공지 내리기" : "공지 올리기"}
               </button>
@@ -97,7 +104,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     onBack();
                   })
                 }
-                className="text-rose-400 hover:text-rose-600"
+                className="text-danger hover:opacity-80"
               >
                 삭제
               </button>
@@ -265,7 +272,7 @@ export default function BoardPage() {
         {pin && <span className="shrink-0 text-xs text-amber-500">📌</span>}
         <span className="truncate text-sm font-medium text-ink-700">{titleOf(p)}</span>
         {(p.comments?.length ?? 0) > 0 && (
-          <span className="shrink-0 text-xs font-bold text-indigo-400">
+          <span className="shrink-0 text-xs font-bold text-brand">
             💬{p.comments!.length}
           </span>
         )}
@@ -286,12 +293,12 @@ export default function BoardPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 검색"
-              className="w-32 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
+              className="w-32 rounded-btn border border-ink-200 px-3 py-1.5 text-sm"
             />
             {role === "student" && (
               <button
                 onClick={() => setWriting((v) => !v)}
-                className="rounded-lg bg-brand px-3 py-1.5 text-sm font-bold text-white"
+                className="rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
               >
                 {writing ? "닫기" : "✏️ 글쓰기"}
               </button>
@@ -305,14 +312,14 @@ export default function BoardPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="제목"
-              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
+              className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
             />
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="우리 반을 위한 의견을 남겨주세요"
               rows={4}
-              className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
+              className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
             />
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 text-sm text-ink-500">
@@ -322,7 +329,7 @@ export default function BoardPage() {
               <button
                 onClick={() => void submit()}
                 disabled={busy}
-                className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 등록
               </button>
@@ -331,7 +338,9 @@ export default function BoardPage() {
         )}
 
         {/* 목록 */}
-        {!pinned.length && !normal.length ? (
+        {!posts && !announcements ? (
+          <p className="px-4 py-8 text-center text-sm text-ink-400">불러오는 중…</p>
+        ) : !pinned.length && !normal.length ? (
           search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />
           ) : (

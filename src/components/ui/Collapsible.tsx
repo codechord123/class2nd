@@ -15,13 +15,13 @@ export default function Collapsible({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}>
+    <section className={`rounded-card border border-ink-200 bg-white p-4 shadow-card ${className}`}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between font-bold"
       >
         <span>{title}</span>
-        <span className="text-sm text-slate-400">{open ? "접기 ▲" : "펼치기 ▼"}</span>
+        <span className="text-sm text-ink-400">{open ? "접기 ▲" : "펼치기 ▼"}</span>
       </button>
       {open && <div className="mt-3">{children}</div>}
     </section>

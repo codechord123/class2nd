@@ -44,12 +44,12 @@ function ScaleButtons({
         <button
           key={v}
           onClick={() => onSelect(v)}
-          className={`min-w-10 rounded-lg border px-2 py-1.5 text-sm font-bold transition-colors ${
+          className={`min-w-10 rounded-btn border px-2 py-1.5 text-sm font-bold transition-colors ${
             value === v
               ? v > 0
-                ? "border-emerald-500 bg-emerald-500 text-white"
+                ? "border-success bg-success text-white"
                 : v < 0
-                  ? "border-rose-500 bg-rose-500 text-white"
+                  ? "border-danger bg-danger text-white"
                   : "border-ink-400 bg-ink-400 text-white"
               : "border-ink-200 bg-white text-ink-500 hover:border-ink-400"
           }`}
@@ -142,8 +142,10 @@ export default function TeamPage() {
         {/* 오늘 점수 출처 — 별도 줄 */}
         {myRow ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-600">🏆 순위 +{myRow.groupRank}</span>
+            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+            {myRow.groupRank !== 0 && (
+              <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">🏆 순위 +{myRow.groupRank}</span>
+            )}
             {myRow.bonus !== 0 && (
               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
             )}
@@ -175,7 +177,7 @@ export default function TeamPage() {
           {targets.map((t) => (
             <li
               key={t.studentId}
-              className="flex items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
             >
               <div className="flex items-center gap-2 text-sm">
                 <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
@@ -185,7 +187,11 @@ export default function TeamPage() {
               <ScaleButtons
                 scale={settings.peerScale}
                 value={myEval?.[t.studentId]}
-                onSelect={(v) => void saveEval({ [t.studentId]: v })}
+                onSelect={(v) =>
+                  void saveEval({ [t.studentId]: v }).catch((e: Error) =>
+                    toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                  )
+                }
               />
             </li>
           ))}
@@ -203,7 +209,7 @@ export default function TeamPage() {
           {otherGroups.map((g) => (
             <li
               key={g.groupId}
-              className="flex items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
             >
               <div className="text-sm">
                 <b>{g.groupId}모둠</b>
@@ -214,7 +220,11 @@ export default function TeamPage() {
               <ScaleButtons
                 scale={settings.groupScale}
                 value={myVotes?.[g.groupId]}
-                onSelect={(v) => void saveVotes({ [g.groupId]: v })}
+                onSelect={(v) =>
+                  void saveVotes({ [g.groupId]: v }).catch((e: Error) =>
+                    toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                  )
+                }
               />
             </li>
           ))}
@@ -234,11 +244,16 @@ export default function TeamPage() {
             return (
               <button
                 key={t.studentId}
-                onClick={() => void saveMvp(t.studentId)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+                onClick={() =>
+                  void saveMvp(selected ? 0 : t.studentId).then(
+                    () => toast(selected ? "MVP 선택을 취소했어요." : "⭐ MVP를 뽑았어요!"),
+                    (e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                  )
+                }
+                className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
                   selected
-                    ? "border-amber-500 bg-amber-400 text-white"
-                    : "border-ink-200 bg-white text-ink-600 hover:border-amber-300"
+                    ? "border-warn bg-warn text-white"
+                    : "border-ink-200 bg-white text-ink-600 hover:border-warn/40"
                 }`}
               >
                 {selected && "⭐ "}
@@ -260,7 +275,7 @@ export default function TeamPage() {
             | { to: number; text: string }
             | undefined;
           return saved ? (
-            <p className="mt-3 rounded-lg bg-pink-50 px-3 py-2 text-sm text-pink-700">
+            <p className="mt-3 rounded-btn bg-pink-50 px-3 py-2 text-sm text-pink-700">
               💌 <b>{studentById.get(saved.to)?.name}</b>에게: {saved.text}
               <button
                 onClick={() => {
@@ -278,7 +293,7 @@ export default function TeamPage() {
           <select
             value={complimentTo ?? ""}
             onChange={(e) => setComplimentTo(Number(e.target.value) || null)}
-            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
           >
             <option value="">누구에게?</option>
             {targets.map((t) => (
@@ -291,7 +306,7 @@ export default function TeamPage() {
             value={complimentText}
             onChange={(e) => setComplimentText(e.target.value)}
             placeholder="칭찬 한마디"
-            className="min-w-40 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() =>
@@ -318,7 +333,7 @@ export default function TeamPage() {
               })()
             }
             disabled={sending}
-            className="rounded-lg bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             보내기
           </button>
@@ -336,7 +351,7 @@ export default function TeamPage() {
             | string
             | undefined;
           return saved ? (
-            <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700">
+            <p className="mt-3 rounded-btn bg-sky-50 px-3 py-2 text-sm text-sky-700">
               💬 {saved}
               <button
                 onClick={() => setToTeacherText(saved)}
@@ -352,7 +367,7 @@ export default function TeamPage() {
             value={toTeacherText}
             onChange={(e) => setToTeacherText(e.target.value)}
             placeholder="예: 체육 시간이 더 있었으면 좋겠어요"
-            className="min-w-0 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() =>
@@ -375,7 +390,7 @@ export default function TeamPage() {
               })()
             }
             disabled={sending}
-            className="shrink-0 rounded-lg bg-sky-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            className="press shrink-0 rounded-btn bg-sky-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             보내기
           </button>

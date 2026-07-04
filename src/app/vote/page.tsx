@@ -44,13 +44,13 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
             {poll.title}{" "}
             <span
               className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                closed ? "bg-ink-200 text-ink-500" : "bg-emerald-100 text-emerald-700"
+                closed ? "bg-ink-200 text-ink-500" : "bg-success-weak text-success"
               }`}
             >
               {closed ? "마감" : "진행 중"}
             </span>
             {poll.multi && (
-              <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
+              <span className="ml-1 rounded-full bg-brand-weak px-2 py-0.5 text-[10px] font-bold text-brand-strong">
                 복수선택
               </span>
             )}
@@ -98,17 +98,17 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                   void vote(poll, i).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
                 }
                 disabled={role !== "student" || closed}
-                className={`relative w-full overflow-hidden rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
+                className={`relative w-full overflow-hidden rounded-btn border px-3 py-2.5 text-left text-sm transition-colors ${
                   chosen
-                    ? "border-indigo-400 font-bold"
+                    ? "border-brand font-bold"
                     : winner
-                      ? "border-amber-400 font-bold"
+                      ? "border-warn font-bold"
                       : "border-ink-200"
-                } ${!closed && role === "student" ? "hover:border-indigo-300" : ""}`}
+                } ${!closed && role === "student" ? "hover:border-brand/50" : ""}`}
               >
                 <span
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ${
-                    winner ? "bg-amber-100" : chosen ? "bg-indigo-100" : "bg-ink-100"
+                    winner ? "bg-warn-weak" : chosen ? "bg-brand-weak" : "bg-ink-100"
                   }`}
                   style={{ width: `${pct}%` }}
                 />
@@ -162,7 +162,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                 )
                   void closePoll(poll).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
               }}
-              className="text-amber-500 hover:text-amber-700"
+              className="text-warn hover:opacity-80"
             >
               {poll.closed ? "재개" : "마감하기"}
             </button>
@@ -171,7 +171,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                 if (await confirm({ title: "이 투표를 삭제할까요?", danger: true }))
                   void removePoll(poll.id).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
               }}
-              className="text-rose-400 hover:text-rose-600"
+              className="text-danger hover:opacity-80"
             >
               삭제
             </button>
@@ -180,7 +180,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
       </div>
 
       {showVoters && !poll.anonymous && (
-        <div className="mt-2 space-y-1 rounded-lg bg-ink-50 p-2 text-xs text-ink-500">
+        <div className="mt-2 space-y-1 rounded-btn bg-ink-50 p-2 text-xs text-ink-500">
           {poll.options.map((opt, i) => {
             const names = allVoterIds
               .filter((sid) => votesOf(poll, sid).includes(i))
@@ -206,9 +206,12 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
   const [multi, setMulti] = useState(false);
   const [anonymous, setAnonymous] = useState(false);
   const [deadline, setDeadline] = useState("");
+  const [busy, setBusy] = useState(false);
   const { toast } = useFeedback();
 
   async function submit() {
+    if (busy) return;
+    setBusy(true);
     try {
       await createPoll({
         title,
@@ -222,6 +225,8 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "생성 실패"}`, "error");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -231,13 +236,13 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="투표 제목 (예: 학급 파티 날 뭐 할까?)"
-        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
+        className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
       />
       <input
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
         placeholder="설명 (선택)"
-        className="w-full rounded-lg border border-ink-300 px-3 py-2 text-sm"
+        className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
       />
       {options.map((opt, i) => (
         <div key={i} className="flex items-center gap-1.5">
@@ -247,12 +252,12 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
               setOptions(options.map((o, j) => (j === i ? e.target.value : o)))
             }
             placeholder={`선택지 ${i + 1}`}
-            className="min-w-0 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           {options.length > 2 && (
             <button
               onClick={() => setOptions(options.filter((_, j) => j !== i))}
-              className="shrink-0 text-ink-300 hover:text-rose-400"
+              className="shrink-0 text-ink-300 hover:text-danger"
             >
               ✕
             </button>
@@ -261,7 +266,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       ))}
       <button
         onClick={() => setOptions([...options, ""])}
-        className="rounded-lg border border-dashed border-ink-300 px-3 py-1.5 text-xs text-ink-500 hover:border-ink-400"
+        className="rounded-btn border border-dashed border-ink-300 px-3 py-1.5 text-xs text-ink-500 hover:border-ink-400"
       >
         + 선택지 추가
       </button>
@@ -284,15 +289,16 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
             type="date"
             value={deadline}
             onChange={(e) => setDeadline(e.target.value)}
-            className="rounded-lg border border-ink-300 px-2 py-1 text-xs"
+            className="rounded-btn border border-ink-300 px-2 py-1 text-xs"
           />
         </label>
       </div>
       <button
         onClick={() => void submit()}
-        className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+        disabled={busy}
+        className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
       >
-        투표 만들기
+        {busy ? "만드는 중…" : "투표 만들기"}
       </button>
     </div>
   );
@@ -391,7 +397,9 @@ export default function VotePage() {
         )}
 
         {/* 목록 */}
-        {!sorted.length ? (
+        {!polls ? (
+          <p className="px-4 py-8 text-center text-sm text-ink-400">불러오는 중…</p>
+        ) : !sorted.length ? (
           search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />
           ) : (

@@ -79,12 +79,12 @@ function ReportBody({
       {(onEdit || onDelete) && (
         <div className="mt-2 flex gap-2 text-xs">
           {onEdit && (
-            <button onClick={onEdit} className="text-indigo-500 underline">
+            <button onClick={onEdit} className="text-brand underline">
               ✏️ 수정
             </button>
           )}
           {onDelete && (
-            <button onClick={onDelete} className="text-rose-400 underline">
+            <button onClick={onDelete} className="text-danger underline">
               🗑️ 삭제
             </button>
           )}
@@ -106,7 +106,7 @@ function ReportBody({
                     (ok) => ok && void deleteComment(r, c.id)
                   )
                 }
-                className="shrink-0 text-[10px] text-rose-300 hover:text-rose-500"
+                className="shrink-0 text-[10px] text-ink-400 hover:text-danger"
               >
                 삭제
               </button>
@@ -123,13 +123,15 @@ function ReportBody({
               }
             }}
             placeholder="💬 응원 댓글 달기…"
-            className="min-w-0 flex-1 rounded-lg border border-ink-200 px-2.5 py-1 text-xs"
+            className="min-w-0 flex-1 rounded-btn border border-ink-200 px-2.5 py-1 text-xs"
           />
           <button
-            onClick={() =>
-              void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"))
-            }
-            className="shrink-0 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white"
+            onClick={() => {
+              if (!text.trim()) return;
+              void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
+            }}
+            disabled={!text.trim()}
+            className="press shrink-0 rounded-btn bg-success px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40"
           >
             등록
           </button>
@@ -327,7 +329,7 @@ export default function ReadingPage() {
                           });
                           if (ok) void deleteDraft(r.id).catch((e: Error) => toast(e.message, "error"));
                         }}
-                        className="text-xs text-rose-300 underline"
+                        className="text-xs text-danger underline"
                       >
                         삭제
                       </button>
@@ -352,7 +354,7 @@ export default function ReadingPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="🔍 제목·내용·이름 검색"
-              className="w-44 rounded-lg border border-ink-200 px-3 py-1.5 text-sm"
+              className="w-44 rounded-btn border border-ink-200 px-3 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-wrap gap-1.5 border-b border-ink-100 p-3">
@@ -369,7 +371,7 @@ export default function ReadingPage() {
                 key={t}
                 onClick={() => setTagFilter(tagFilter === t ? null : t)}
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  tagFilter === t ? "bg-emerald-600 text-white" : "bg-ink-100 text-ink-500"
+                  tagFilter === t ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
                 }`}
               >
                 {t}
@@ -377,12 +379,16 @@ export default function ReadingPage() {
             ))}
           </div>
 
-          {!visible.length &&
+          {!reports ? (
+            <p className="px-4 py-8 text-center text-sm text-ink-400">불러오는 중…</p>
+          ) : (
+            !visible.length &&
             (search || tagFilter ? (
               <EmptyState emoji="🔍" title="조건에 맞는 감상문이 없어요" />
             ) : (
               <EmptyState emoji="🐢" title="아직 감상문이 없어요" desc="첫 번째 주인공이 되어보세요!" />
-            ))}
+            ))
+          )}
           <ul className="divide-y divide-ink-100">
             {visible.map((r) =>
               isLocked(r) ? (
@@ -408,7 +414,7 @@ export default function ReadingPage() {
                         <b className="truncate text-sm text-ink-800">{r.title}</b>
                         <Tags r={r} />
                         {(r.comments?.length ?? 0) > 0 && (
-                          <span className="shrink-0 text-xs font-bold text-indigo-400">
+                          <span className="shrink-0 text-xs font-bold text-brand">
                             💬{r.comments!.length}
                           </span>
                         )}

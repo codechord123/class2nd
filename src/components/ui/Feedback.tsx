@@ -32,9 +32,9 @@ export function useFeedback(): FeedbackApi {
 }
 
 const TONE: Record<ToastKind, string> = {
-  success: "border-emerald-300 bg-emerald-50 text-emerald-800",
-  warn: "border-amber-300 bg-amber-50 text-amber-800",
-  error: "border-rose-300 bg-rose-50 text-rose-800",
+  success: "border-success/30 bg-success-weak text-success",
+  warn: "border-warn/30 bg-warn-weak text-warn",
+  error: "border-danger/30 bg-danger-weak text-danger",
 };
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
@@ -74,7 +74,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto max-w-md rounded-xl border px-4 py-2 text-sm font-medium shadow-lg ${TONE[t.kind]}`}
+            className={`pointer-events-auto max-w-md rounded-btn border px-4 py-2 text-sm font-medium shadow-lg ${TONE[t.kind]}`}
           >
             {t.text}
           </div>
@@ -88,24 +88,24 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           onClick={() => closeConfirm(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl"
+            className="w-full max-w-sm rounded-card bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="font-bold text-slate-800">{confirmState.title}</p>
+            <p className="font-bold text-ink-900">{confirmState.title}</p>
             {confirmState.body && (
-              <p className="mt-1.5 whitespace-pre-wrap text-sm text-slate-500">{confirmState.body}</p>
+              <p className="mt-1.5 whitespace-pre-wrap text-sm text-ink-600">{confirmState.body}</p>
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => closeConfirm(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50"
+                className="press rounded-btn border border-ink-200 px-4 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50"
               >
                 취소
               </button>
               <button
                 onClick={() => closeConfirm(true)}
-                className={`rounded-lg px-4 py-2 text-sm font-bold text-white ${
-                  confirmState.danger ? "bg-rose-500 hover:bg-rose-600" : "bg-slate-800 hover:bg-slate-700"
+                className={`press rounded-btn px-4 py-2 text-sm font-bold text-white ${
+                  confirmState.danger ? "bg-danger hover:opacity-90" : "bg-ink-800 hover:opacity-90"
                 }`}
               >
                 {confirmState.confirmLabel ?? "확인"}
