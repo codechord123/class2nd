@@ -28,6 +28,7 @@ import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
+import TodaySubmissionsPanel from "@/components/teacher/TodaySubmissionsPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
 import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import BannerEditor from "@/components/teacher/BannerEditor";
@@ -179,6 +180,9 @@ export default function TeacherPage() {
       />
 
       {tTab === "score" && (<>
+      {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
+      <TodaySubmissionsPanel date={date} />
+
       {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
       <DailyReportPanel date={date} />
 

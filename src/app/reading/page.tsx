@@ -62,24 +62,30 @@ function ReportBody({
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-2 rounded-btn border-l-[3px] border-emerald-400 bg-emerald-50/70 p-3">
-          <p className="text-xs font-bold text-emerald-700">마음에 남는 문장</p>
-          <p className="mt-1 whitespace-pre-wrap text-[15px] italic leading-7 text-ink-600 [overflow-wrap:anywhere]">
+        <div className="mt-2.5 rounded-btn border-l-4 border-emerald-500 bg-emerald-50/70 p-3.5">
+          <p className="text-[13px] font-extrabold text-emerald-700">마음에 남는 문장</p>
+          <p className="mt-1.5 whitespace-pre-wrap text-base italic leading-7 text-ink-700 [overflow-wrap:anywhere]">
             “{r.quote}”
           </p>
         </div>
       )}
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
       {(onEdit || onDelete) && (
-        <div className="mt-2 flex gap-2 text-xs">
+        <div className="mt-3 flex gap-2">
           {onEdit && (
-            <button onClick={onEdit} className="text-brand underline">
-              ✏️ 수정
+            <button
+              onClick={onEdit}
+              className="press rounded-btn bg-brand-weak px-3.5 py-1.5 text-[13px] font-bold text-brand-strong"
+            >
+              수정
             </button>
           )}
           {onDelete && (
-            <button onClick={onDelete} className="text-danger underline">
-              🗑️ 삭제
+            <button
+              onClick={onDelete}
+              className="press rounded-btn bg-danger-weak px-3.5 py-1.5 text-[13px] font-bold text-danger"
+            >
+              삭제
             </button>
           )}
         </div>
@@ -116,8 +122,8 @@ function ReportBody({
                 void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
               }
             }}
-            placeholder="💬 응원 댓글 달기…"
-            className="min-w-0 flex-1 rounded-btn border border-ink-200 px-2.5 py-1 text-xs"
+            placeholder="응원 댓글 달기…"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
           />
           <button
             onClick={() => {
@@ -125,7 +131,7 @@ function ReportBody({
               void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
             }}
             disabled={!text.trim()}
-            className="press shrink-0 rounded-btn bg-success px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40"
+            className="press shrink-0 rounded-btn bg-success px-3.5 py-2 text-sm font-bold text-white disabled:opacity-40"
           >
             등록
           </button>
@@ -145,9 +151,9 @@ function dateLabel(ms: number): string {
 // [overflow-wrap:anywhere]: 띄어쓰기 없는 긴 글이 카드 밖으로 넘치지 않게
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-2 rounded-btn border-l-[3px] border-emerald-400 bg-ink-50 p-3">
-      <p className="text-xs font-bold text-emerald-700">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap text-[15px] leading-7 text-ink-700 [overflow-wrap:anywhere]">
+    <div className="mt-2.5 rounded-btn border-l-4 border-emerald-500 bg-ink-50 p-3.5">
+      <p className="text-[13px] font-extrabold text-emerald-700">{label}</p>
+      <p className="mt-1.5 whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
         <Linkify text={text} />
       </p>
     </div>

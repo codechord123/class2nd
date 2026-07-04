@@ -304,11 +304,9 @@ export default function TeamPage() {
                 onClick={() => {
                   if (mvpBusy || !firstClick(`mvp-${t.studentId}`)) return;
                   setMvpBusy(true);
+                  // 선택 결과는 칩 색으로 충분 — 토스트를 띄우지 않는다 (연타 시 화면을 가리는 문제)
                   void saveMvp(selected ? 0 : t.studentId)
-                    .then(
-                      () => toast(selected ? "MVP 선택을 취소했어요." : "⭐ MVP를 뽑았어요!"),
-                      (e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                    )
+                    .catch((e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error"))
                     .finally(() => setMvpBusy(false));
                 }}
                 className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${

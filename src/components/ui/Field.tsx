@@ -1,12 +1,13 @@
-// 공용 입력 필드 — 라벨+입력 통일 스타일 (토스식 필드: ink-100 배경, 포커스 링).
+// 공용 입력 필드 — 라벨+입력 통일 스타일.
+// 흰 배경 + 또렷한 테두리: 회색 배경·투명 테두리는 "입력하는 곳"이라는 인지가 약했다(시인성).
 import { forwardRef } from "react";
 
 const base =
-  "w-full rounded-btn bg-ink-100 px-3.5 text-sm text-ink-900 placeholder:text-ink-400 " +
-  "outline-none transition focus:bg-white focus:ring-2 focus:ring-brand/40 border border-transparent focus:border-brand/30";
+  "w-full rounded-btn bg-white px-3.5 text-[15px] text-ink-900 placeholder:text-ink-400 " +
+  "outline-none transition border border-ink-300 focus:border-brand focus:ring-2 focus:ring-brand/25";
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1.5 block text-xs font-bold text-ink-600">{children}</span>;
+  return <span className="mb-1.5 block text-[13px] font-bold text-ink-700">{children}</span>;
 }
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(

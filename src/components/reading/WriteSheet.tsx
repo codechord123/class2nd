@@ -1,5 +1,6 @@
 "use client";
 // 감상문 전용 전체화면 쓰기 시트 — 긴 글도 편하게. 넓은 입력 + 고정 상/하단 바.
+// 시인성: placeholder에만 의존하지 않고 항목마다 진한 라벨, 흰 입력칸 + 또렷한 테두리.
 import { useState } from "react";
 import {
   useSaveReport,
@@ -10,6 +11,7 @@ import {
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
 import Button from "@/components/ui/Button";
+import { Field, Input, Textarea } from "@/components/ui/Field";
 
 const EMPTY: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "",
@@ -21,11 +23,6 @@ export interface WriteInitial {
   draftId?: string;
   reportId?: string;
 }
-
-const ta =
-  "w-full rounded-btn bg-ink-100 px-3.5 py-3 text-[15px] leading-relaxed text-ink-900 " +
-  "placeholder:text-ink-400 outline-none focus:bg-white focus:ring-2 focus:ring-brand/40 " +
-  "border border-transparent focus:border-brand/30";
 
 export default function WriteSheet({
   studentId,
@@ -92,78 +89,111 @@ export default function WriteSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+    <div className="fixed inset-0 z-50 flex flex-col bg-ink-50">
       {/* 상단 고정 */}
-      <header className="flex items-center justify-between border-b border-ink-200 px-4 py-3">
-        <button onClick={() => void handleClose()} className="text-sm font-medium text-ink-500">
+      <header className="flex items-center justify-between border-b border-ink-200 bg-white px-4 py-3">
+        <button onClick={() => void handleClose()} className="press text-sm font-bold text-ink-600">
           ← 닫기
         </button>
-        <span className="text-sm font-bold text-ink-900">
-          ✍️ 감상문 {editingReport ? "수정" : "쓰기"}
+        <span className="text-base font-extrabold text-ink-900">
+          감상문 {editingReport ? "수정" : "쓰기"} · {week}주차
         </span>
         <button
           onClick={() => void submit(true)}
           disabled={busy}
-          className="text-sm font-bold text-brand disabled:opacity-40"
+          className="press rounded-btn bg-brand-weak px-3 py-1.5 text-sm font-bold text-brand-strong disabled:opacity-40"
         >
           임시저장
         </button>
       </header>
 
-      {/* 본문 (스크롤) */}
-      <div className="mx-auto w-full max-w-2xl flex-1 space-y-3 overflow-y-auto p-4">
-        <div className="grid gap-2 sm:grid-cols-3">
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="책 제목 (필수)" className={ta} />
-          <input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} placeholder="지은이" className={ta} />
-          <input value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} placeholder="출판사" className={ta} />
-        </div>
-        <textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="줄거리 — 어떤 이야기였나요?" rows={5} className={ta} />
-        <textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder="인상 깊은 장면" rows={4} className={ta} />
-        <textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder="마음에 남는 문장 (인용)" rows={3} className={ta} />
-        <textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder="읽고 나서 든 생각과 느낌" rows={6} className={ta} />
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-ink-400">책 종류:</span>
-          {BOOK_TAGS.map((t) => (
-            <button
-              key={t}
-              onClick={() =>
-                setForm({
-                  ...form,
-                  tags: form.tags.includes(t) ? form.tags.filter((x) => x !== t) : [...form.tags, t],
-                })
+      {/* 본문 (스크롤) — 카드 2장: 책 정보 / 감상 */}
+      <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 overflow-y-auto p-4">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <h3 className="text-base font-extrabold text-ink-900">1. 어떤 책인가요?</h3>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Field
+              label={
+                <>
+                  책 제목 <span className="text-danger">*</span>
+                </>
               }
-              className={`press rounded-full px-2.5 py-1 text-xs font-bold ${
-                form.tags.includes(t) ? "bg-success text-white" : "bg-ink-100 text-ink-500"
-              }`}
             >
-              {t}
-            </button>
-          ))}
-        </div>
-        <label className="flex w-fit cursor-pointer items-center gap-1.5 text-xs text-ink-500">
-          <input
-            type="checkbox"
-            checked={form.isPrivate ?? false}
-            onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
-            className="h-3.5 w-3.5 accent-[var(--color-brand)]"
-          />
-          🔒 선생님만 보기 (친구들에게는 내용이 보이지 않아요)
-        </label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="예: 마당을 나온 암탉" className="h-12" />
+            </Field>
+            <Field label="지은이">
+              <Input value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} placeholder="예: 황선미" className="h-12" />
+            </Field>
+            <Field label="출판사">
+              <Input value={form.publisher} onChange={(e) => setForm({ ...form, publisher: e.target.value })} placeholder="(선택)" className="h-12" />
+            </Field>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[13px] font-bold text-ink-700">책 종류:</span>
+            {BOOK_TAGS.map((t) => (
+              <button
+                key={t}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    tags: form.tags.includes(t) ? form.tags.filter((x) => x !== t) : [...form.tags, t],
+                  })
+                }
+                className={`press rounded-full border px-2.5 py-1 text-xs font-bold ${
+                  form.tags.includes(t)
+                    ? "border-success bg-success text-white"
+                    : "border-ink-200 bg-white text-ink-600 hover:border-ink-400"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <div className="flex flex-wrap items-baseline justify-between gap-1">
+            <h3 className="text-base font-extrabold text-ink-900">2. 감상을 남겨요</h3>
+            <span className="text-xs text-ink-500">네 칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
+          </div>
+          <div className="mt-3 space-y-3">
+            <Field label="줄거리">
+              <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="어떤 이야기였나요?" rows={5} />
+            </Field>
+            <Field label="인상 깊은 장면">
+              <Textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder="가장 기억에 남는 장면을 써요" rows={4} />
+            </Field>
+            <Field label="마음에 남는 문장 (인용)">
+              <Textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder="책 속 문장을 그대로 옮겨 적어요" rows={3} />
+            </Field>
+            <Field label="읽고 나서 든 생각과 느낌">
+              <Textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder="나라면 어떻게 했을까? 무엇을 배웠나요?" rows={6} />
+            </Field>
+          </div>
+          <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-600">
+            <input
+              type="checkbox"
+              checked={form.isPrivate ?? false}
+              onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
+              className="h-4 w-4 accent-[var(--color-brand)]"
+            />
+            🔒 선생님만 보기 (친구들에게는 내용이 보이지 않아요)
+          </label>
+        </section>
       </div>
 
       {/* 하단 고정 저장 바 */}
       <footer className="border-t border-ink-200 bg-white px-4 py-3">
-        <div className="mx-auto w-full max-w-2xl">
-          <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-100">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-ink-100">
             <div
               className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-success" : pct >= 50 ? "bg-warn" : "bg-ink-300"}`}
               style={{ width: `${pct}%` }}
             />
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className={`tnum text-xs font-bold ${pct >= 100 ? "text-success" : "text-ink-400"}`}>
-              {bodyLen} / {charLimit}자 {pct >= 100 && "✅"}
+            <span className={`tnum text-sm font-extrabold ${pct >= 100 ? "text-success" : "text-ink-600"}`}>
+              {bodyLen} / {charLimit}자 {pct >= 100 ? "✅ 등록 가능!" : ""}
             </span>
             <Button size="lg" variant="success" onClick={() => void submit(false)} disabled={busy}>
               {busy ? "저장 중…" : editingReport ? "수정 저장" : "정식 등록 (+1권)"}
