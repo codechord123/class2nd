@@ -60,6 +60,9 @@ export default function TabNav() {
     return () => window.removeEventListener("resize", updateFade);
   }, [updateFade, tabCount]);
 
+  // 로그인 전에는 탭 숨김 — 이동 가능한 곳이 없어 인지부하만 됨
+  if (!mounted || !role) return null;
+
   return (
     <nav className="relative -mx-4">
       <div

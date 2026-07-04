@@ -12,7 +12,8 @@ import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth"
 import { firebaseAuth } from "@/lib/firebase";
 import { useSession } from "@/stores/session";
 import { students } from "@/lib/roster";
-import { studentLogin, teacherLogin } from "@/lib/auth";
+import { studentLogin, teacherLogin, getStudentHint, requestPasswordReset } from "@/lib/auth";
+import { studentById } from "@/lib/roster";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 
@@ -67,6 +68,38 @@ function LoginScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [findState, setFindState] = useState<null | { hint: string | null; requested: boolean }>(null);
+
+  async function findPassword() {
+    setError("");
+    setNotice("");
+    if (!selectedId) {
+      setError("먼저 이름을 선택해주세요.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const hint = await getStudentHint(selectedId);
+      setFindState({ hint, requested: false });
+    } catch {
+      setError("힌트를 불러오지 못했어요.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function askReset() {
+    if (!selectedId) return;
+    setBusy(true);
+    try {
+      await requestPasswordReset(selectedId);
+      setFindState((s) => (s ? { ...s, requested: true } : s));
+    } catch {
+      setError("요청을 보내지 못했어요.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     setError("");
@@ -142,6 +175,40 @@ function LoginScreen({
             }}
             placeholder="비밀번호 (처음이면 새로 정하는 비밀번호)"
           />
+          <div className="text-right">
+            <button
+              onClick={() => void findPassword()}
+              className="text-xs font-medium text-ink-400 underline underline-offset-2 hover:text-ink-600"
+            >
+              비밀번호를 잊었어요
+            </button>
+          </div>
+          {findState && (
+            <div className="rounded-card bg-ink-50 p-3 text-sm">
+              {findState.hint ? (
+                <p className="text-ink-700">
+                  💡 <b>{studentById.get(selectedId ?? 0)?.name}</b> 힌트: {findState.hint}
+                </p>
+              ) : findState.hint === "" ? (
+                <p className="text-ink-500">힌트를 정해두지 않았어요.</p>
+              ) : (
+                <p className="text-ink-500">아직 비밀번호를 등록하지 않은 이름이에요.</p>
+              )}
+              {findState.requested ? (
+                <p className="mt-2 font-medium text-success">
+                  ✅ 선생님께 초기화 요청을 보냈어요. 선생님이 처리하면 다시 로그인할 수 있어요.
+                </p>
+              ) : (
+                <button
+                  onClick={() => void askReset()}
+                  disabled={busy}
+                  className="press mt-2 rounded-btn bg-ink-200 px-3 py-1.5 text-xs font-bold text-ink-700 disabled:opacity-50"
+                >
+                  🙋 선생님께 초기화 요청하기
+                </button>
+              )}
+            </div>
+          )}
         </>
       ) : (
         <>

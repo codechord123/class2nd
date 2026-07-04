@@ -78,6 +78,13 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 비밀번호 초기화 요청 — 학생(익명)이 생성, 교사가 조회·삭제
+    match /resetRequests/{studentId} {
+      allow read: if isAuthed();
+      allow create, update: if isAuthed();
+      allow delete: if isTeacher();
+    }
+
     // 2학기 거북이 독서: 정식 감상문 + 임시저장(초안) + 권수 통계
     match /readingReports/{reportId} {
       allow read, create, update, delete: if isAuthed();

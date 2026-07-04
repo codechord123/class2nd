@@ -46,10 +46,12 @@ export async function studentLogin(
   return { firstTime: false };
 }
 
+/** 학생 본인: 비밀번호 변경 (+ 힌트 동시 설정 가능) */
 export async function changeStudentPassword(
   studentId: number,
   oldPassword: string,
-  newPassword: string
+  newPassword: string,
+  hint?: string
 ): Promise<void> {
   if (newPassword.trim().length < 4) throw new Error("새 비밀번호는 4자 이상으로 해주세요.");
   const ref = doc(db(), "studentAuth", String(studentId));
@@ -59,15 +61,55 @@ export async function changeStudentPassword(
   }
   await setDoc(
     ref,
-    { hash: await sha256(newPassword), updatedAt: Date.now(), uid: firebaseAuth().currentUser?.uid ?? null },
+    {
+      hash: await sha256(newPassword),
+      updatedAt: Date.now(),
+      uid: firebaseAuth().currentUser?.uid ?? null,
+      ...(hint !== undefined ? { hint: hint.trim() } : {}),
+    },
     { merge: true }
   );
+}
+
+/** 학생 본인: 힌트만 변경 (비밀번호 확인 후) */
+export async function setStudentHint(
+  studentId: number,
+  password: string,
+  hint: string
+): Promise<void> {
+  const ref = doc(db(), "studentAuth", String(studentId));
+  const snap = await getDoc(ref);
+  if (snap.exists() && snap.data().hash !== (await sha256(password))) {
+    throw new Error("비밀번호가 올바르지 않습니다.");
+  }
+  await setDoc(ref, { hint: hint.trim(), updatedAt: Date.now() }, { merge: true });
+}
+
+/** 비밀번호 찾기 — 저장된 힌트를 조회 (없으면 null) */
+export async function getStudentHint(studentId: number): Promise<string | null> {
+  const auth = firebaseAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  const snap = await getDoc(doc(db(), "studentAuth", String(studentId)));
+  if (!snap.exists()) return null; // 아직 비번 미등록
+  const hint = snap.data().hint;
+  return typeof hint === "string" && hint.trim() ? hint : "";
+}
+
+/** 학생: 선생님께 비밀번호 초기화 요청 (힌트로도 못 찾을 때) */
+export async function requestPasswordReset(studentId: number): Promise<void> {
+  const auth = firebaseAuth();
+  if (!auth.currentUser) await signInAnonymously(auth);
+  await setDoc(doc(db(), "resetRequests", String(studentId)), {
+    studentId,
+    requestedAt: Date.now(),
+  });
 }
 
 /** 교사: 학생 비밀번호 초기화 — 문서 삭제 후 다음 로그인 시 재등록되게 함 */
 export async function resetStudentPassword(studentId: number): Promise<void> {
   const { deleteDoc } = await import("firebase/firestore");
   await deleteDoc(doc(db(), "studentAuth", String(studentId)));
+  await deleteDoc(doc(db(), "resetRequests", String(studentId))).catch(() => {});
 }
 
 export async function logout(): Promise<void> {
