@@ -31,8 +31,9 @@ export interface AggregateResult {
 
 export async function aggregateDate(
   date: string,
-  settings: ClassSettings
-): Promise<AggregateResult> {
+  settings: ClassSettings,
+  opts?: { skipIfEmpty?: boolean } // 자동 집계용: 기록이 전혀 없는 날(주말 등)은 문서를 만들지 않음
+): Promise<AggregateResult | null> {
   const d = db();
 
   // 그날 감상문 (편수만큼 독서 점수 — 쓴 만큼) — createdAt 하루 범위 쿼리 (교사 1회)
@@ -102,6 +103,11 @@ export async function aggregateDate(
     : bestEntry?.groupId
       ? { [bestEntry.groupId]: 1 }
       : {};
+
+  // 기록이 전혀 없는 날(평가·감상문·순위 없음, 기존 집계도 없음)은 건너뛴다 —
+  // 자동 집계가 주말·방학 날짜마다 빈 문서를 쌓지 않게 (기존 집계가 있으면 재집계해 0으로 보정)
+  if (opts?.skipIfEmpty && evalSnap.empty && reportSnap.empty && !prevSnap.exists() && !bestEntry)
+    return null;
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);

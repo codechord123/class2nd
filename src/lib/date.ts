@@ -18,6 +18,13 @@ export function kstDateOf(ms: number): string {
   }).format(new Date(ms));
 }
 
+/** 날짜 문자열("YYYY-MM-DD")에 일수를 더한 날짜 문자열 */
+export function shiftDate(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** 임의 날짜 문자열("YYYY-MM-DD")이 학기 몇 주차인지 (1~21 클램프) */
 export function weekOfDate(date: string, semesterStart: string, totalWeeks: number): number {
   const d = new Date(date + "T00:00:00+09:00");

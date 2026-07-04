@@ -1,11 +1,12 @@
 "use client";
 // 교사 탭 — 평가 척도 설정(요구사항 Q3: 교사가 수정 가능) + 일일 집계 실행.
 // 집계는 교사만 원시 평가(하루 최대 50문서)를 읽고, 학생들은 결과 문서만 읽는다.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, type AggregateResult } from "@/lib/aggregate";
+import { runAutoTasks } from "@/lib/autoRun";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
 import {
@@ -82,6 +83,37 @@ export default function TeacherPage() {
   const setBestGroup = useSetBestGroup();
   const [bestRanking, setBestRanking] = useState<number[]>([]); // 누른 순서 = 1위→5위
 
+  // 자동 집계·정산: 교사 화면이 열리면 밀린 하루 집계(자정 기준)와 끝난 세션 정산을 자동 처리
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!settings || role !== "teacher" || autoRan.current) return;
+    autoRan.current = true;
+    runAutoTasks(settings)
+      .then((r) => {
+        if (!r) return;
+        if (r.aggregatedDates.length) {
+          for (const dt of r.aggregatedDates)
+            void qc.invalidateQueries({ queryKey: ["dailyScores", dt] });
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          toast(
+            `🤖 밀린 일일 집계 자동 완료: ${r.aggregatedDates.map((dt) => dt.slice(5)).join(", ")}`,
+            "success"
+          );
+        }
+        if (r.settledPeriods.length) {
+          void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          toast(
+            `🏆 ${r.settledPeriods.map((p) => `${p}기`).join("·")} 세션 보상 자동 정산 완료!`,
+            "success"
+          );
+        }
+      })
+      .catch(() => {
+        /* 자동 작업 실패는 조용히 — 아래 수동 버튼으로 언제든 가능 */
+      });
+  }, [settings, role, qc, toast]);
+
   if (role !== "teacher") {
     return (
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -95,7 +127,7 @@ export default function TeacherPage() {
     setBusy(true);
     setMsg("");
     try {
-      const r = await aggregateDate(date, settings!);
+      const r = (await aggregateDate(date, settings!))!; // 수동 실행은 skipIfEmpty 없음 — 항상 결과 반환
       setResult(r);
       // 집계 결과 캐시 무효화 — 다음 조회 때 새 문서를 읽는다
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
@@ -232,6 +264,9 @@ export default function TeacherPage() {
           <br />
           순서: ① 위 👑에서 모둠 순위 저장 → ② 종회 때 이 버튼 1번. 다시 눌러도 안전해요(누적
           자동 보정).
+          <br />
+          🤖 <b>어제까지 밀린 집계는 자동</b>이에요 — 깜빡해도 다음 날 교사 화면이 열리면 자정
+          기준으로 자동 처리돼요. (오늘 것만 종회 때 직접!)
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input

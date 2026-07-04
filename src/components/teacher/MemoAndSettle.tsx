@@ -101,9 +101,10 @@ export function BiweeklySettlePanel() {
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
         실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 1개. 보너스 점수:
-        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점. 주말 독서까지 반영되도록{" "}
-        <b>세션이 끝난 다음 주 월요일 아침에 실행</b>하세요. 같은 기를 다시 눌러도 이중
-        지급되지 않아요.
+        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점.
+        <br />
+        🤖 <b>자동 정산</b>: 세션이 끝나면(일요일 자정 기준) 다음 접속 때 자동으로 지급돼요.
+        이 버튼은 수동 실행·결과 다시 보기용 — 같은 기를 다시 눌러도 이중 지급되지 않아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
