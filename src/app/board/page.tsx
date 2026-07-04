@@ -122,29 +122,26 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       <div className="mt-3 border-b border-ink-100 pb-3">
         <div className="flex items-start gap-2">
           <StatusBadge sug={sug} />
-          <h3 className="text-lg font-bold leading-snug">
+          <h3 className="text-xl font-bold leading-snug [overflow-wrap:anywhere]">
             {sug.isAnnouncement && <span className="mr-1 text-amber-500">📌</span>}
             {titleOf(sug)}
           </h3>
         </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-400">
-          <span>
-            {sug.isAnonymous ? (
-              role === "teacher" ? (
-                <span>
-                  익명 <span className="font-bold text-danger">({authorName(sug.studentId)})</span>
-                </span>
-              ) : (
-                "익명"
-              )
-            ) : (
-              authorName(sug.studentId)
-            )}{" "}
-            ·{" "}
-            {new Date(sug.createdAt).toLocaleString("ko-KR", {
-              month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
-            })}{" "}
-            · 💬 {comments.length}
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500">
+          <span className="flex items-center gap-1.5">
+            <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+              {sug.isAnonymous
+                ? role === "teacher"
+                  ? `익명(${authorName(sug.studentId)})`
+                  : "익명"
+                : authorName(sug.studentId)}
+            </span>
+            <span className="tnum">
+              {new Date(sug.createdAt).toLocaleString("ko-KR", {
+                month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+              })}
+            </span>
+            <span>· 💬 {comments.length}</span>
           </span>
           {isMine && (
             <span className="flex gap-2">
@@ -207,13 +204,13 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           <input
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm font-bold"
+            className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-bold focus:border-brand focus:outline-none"
           />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             rows={4}
-            className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm"
+            className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
           />
           <div className="flex gap-2">
             <button
@@ -239,7 +236,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           </div>
         </div>
       ) : (
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
+        <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
           <Linkify text={sug.content} />
         </p>
       )}
@@ -302,7 +299,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           {sug.status === "채택" &&
             (sug.enactedAsLaw ? (
               <span className="rounded-full bg-success-weak px-3 py-1 text-xs font-bold text-success">
-                ⚖️ 법률 등록됨
+                📜 법률 등록됨
               </span>
             ) : (
               <button
@@ -317,14 +314,14 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     return;
                   try {
                     const n = await enactLaw(sug);
-                    toast(`⚖️ 법률 제${n}조로 등록됐어요!`, "success");
+                    toast(`📜 법률 제${n}조로 등록됐어요!`, "success");
                   } catch (e) {
                     toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
                   }
                 }}
                 className="press rounded-full bg-ink-800 px-3 py-1 text-xs font-bold text-white"
               >
-                ⚖️ 법률로 올리기
+                📜 법률로 올리기
               </button>
             ))}
         </div>
