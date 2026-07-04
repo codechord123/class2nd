@@ -7,7 +7,6 @@ import {
   schedules,
   scheduleOfWeek,
   currentWeekNum,
-  TOTAL_WEEKS,
   SEMESTER_START,
 } from "@/lib/schedule";
 import SeatGrid from "@/components/seats/SeatGrid";

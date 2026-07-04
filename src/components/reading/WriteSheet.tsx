@@ -6,7 +6,6 @@ import {
   reportBodyLength,
   BOOK_TAGS,
   type ReportForm,
-  type ReadingReport2,
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
