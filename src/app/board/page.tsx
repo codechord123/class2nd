@@ -74,9 +74,14 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
+  const [showAllComments, setShowAllComments] = useState(false);
 
   const comments = sug.comments ?? [];
   const parents = comments.filter((c) => c.replyTo == null);
+  // 토론이 길어지면 최근 8개만 — 이전 것은 버튼으로 펼치기
+  const VISIBLE = 8;
+  const hiddenCount = showAllComments ? 0 : Math.max(0, parents.length - VISIBLE);
+  const visibleParents = showAllComments ? parents : parents.slice(-VISIBLE);
 
   async function submitComment() {
     if (posting || !text.trim()) return;
@@ -248,8 +253,16 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       {/* 댓글 스레드 */}
       <div className="mt-4">
         <p className="text-xs font-bold text-ink-500">💬 댓글 {comments.length}</p>
+        {hiddenCount > 0 && (
+          <button
+            onClick={() => setShowAllComments(true)}
+            className="mt-2 w-full rounded-btn bg-ink-100 py-2 text-xs font-medium text-ink-500 hover:bg-ink-200"
+          >
+            ↑ 이전 댓글 {hiddenCount}개 보기
+          </button>
+        )}
         <ul className="mt-2 space-y-3">
-          {parents.map((c) => {
+          {visibleParents.map((c) => {
             const replies = comments.filter((r) => r.replyTo === c.id);
             const canDelete =
               role === "teacher" || (role === "student" && c.studentId === studentId);

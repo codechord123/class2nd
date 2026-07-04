@@ -2,7 +2,7 @@
 // 투표 게시판 v2 — 설명·복수선택·익명·마감일·투표자 보기·검색.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
-import { studentById } from "@/lib/roster";
+import { studentById, students } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
 import EmptyState from "@/components/ui/EmptyState";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -141,12 +141,16 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span>
-          {!poll.anonymous && allVoterIds.length > 0 && (
+          {(!poll.anonymous || role === "teacher") && allVoterIds.length > 0 && (
             <button
               onClick={() => setShowVoters((v) => !v)}
               className="text-ink-400 underline hover:text-ink-600"
             >
-              {showVoters ? "투표자 숨기기" : "누가 투표했는지 보기"}
+              {showVoters
+                ? "투표자 숨기기"
+                : poll.anonymous
+                  ? "🔍 투표자 보기 (선생님만)"
+                  : "누가 투표했는지 보기"}
             </button>
           )}
         </span>
@@ -179,8 +183,11 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
         )}
       </div>
 
-      {showVoters && !poll.anonymous && (
+      {showVoters && (!poll.anonymous || role === "teacher") && (
         <div className="mt-2 space-y-1 rounded-btn bg-ink-50 p-2 text-xs text-ink-500">
+          {poll.anonymous && (
+            <p className="font-bold text-warn">🔒 익명 투표 — 이 목록은 선생님에게만 보여요</p>
+          )}
           {poll.options.map((opt, i) => {
             const names = allVoterIds
               .filter((sid) => votesOf(poll, sid).includes(i))
@@ -191,6 +198,21 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
               </p>
             ) : null;
           })}
+          {/* 교사: 아직 투표 안 한 친구 — 참여 독려용 */}
+          {role === "teacher" &&
+            (() => {
+              const voted = new Set(allVoterIds.map(Number));
+              const notVoted = students.filter((s) => !voted.has(s.id));
+              return notVoted.length ? (
+                <p className="border-t border-ink-200 pt-1 text-ink-400">
+                  ⏳ 미참여({notVoted.length}): {notVoted.map((s) => s.name).join(", ")}
+                </p>
+              ) : (
+                <p className="border-t border-ink-200 pt-1 font-bold text-success">
+                  🎉 전원 참여 완료!
+                </p>
+              );
+            })()}
         </div>
       )}
     </section>

@@ -61,9 +61,9 @@ function ReportBody({
       {r.summary && <ReportSection label="📖 줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="🎬 인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-3">
-          <p className="text-xs font-bold text-ink-500">💬 마음에 남는 문장</p>
-          <p className="mt-0.5 whitespace-pre-wrap border-l-2 border-emerald-200 pl-2.5 text-sm italic text-ink-500">
+        <div className="mt-2 rounded-btn bg-emerald-50/70 p-3">
+          <p className="text-xs font-bold text-emerald-700">💬 마음에 남는 문장</p>
+          <p className="mt-1 whitespace-pre-wrap border-l-2 border-emerald-300 pl-2.5 text-[15px] italic leading-7 text-ink-600">
             “{r.quote}”
           </p>
         </div>
@@ -140,12 +140,12 @@ function dateLabel(ms: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-// 감상문 본문 섹션 — 라벨 + 내용으로 구분해 가독성↑
+// 감상문 본문 섹션 — 라벨 달린 박스로 긴 글을 덩어리째 분리 (벽글 방지)
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-3">
+    <div className="mt-2 rounded-btn bg-ink-50 p-3">
       <p className="text-xs font-bold text-ink-500">{label}</p>
-      <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">
+      <p className="mt-1 whitespace-pre-wrap text-[15px] leading-7 text-ink-700">
         <Linkify text={text} />
       </p>
     </div>
