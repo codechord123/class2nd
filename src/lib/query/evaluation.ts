@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { PeerEvaluation, GroupVote } from "@/types";
+import type { PeerEvaluation } from "@/types";
 
 // ── 모둠 내 평가: evaluations/{date}/entries/{evaluatorId} ──────
 export function useMyEvaluation(date: string, myId: number | null) {
@@ -85,32 +85,7 @@ export function useSaveToTeacher(date: string, myId: number | null) {
   };
 }
 
-// ── 모둠 간 평가: groupVotes/{date}/entries/{evaluatorId} ───────
-export function useMyGroupVotes(date: string, myId: number | null) {
-  return useQuery({
-    queryKey: ["groupVotes", date, myId],
-    enabled: myId != null,
-    queryFn: async (): Promise<GroupVote> => {
-      const snap = await getDoc(doc(db(), "groupVotes", date, "entries", String(myId)));
-      return snap.exists() ? (snap.data() as GroupVote) : {};
-    },
-    staleTime: Infinity,
-  });
-}
-
-export function useSaveGroupVotes(date: string, myId: number | null) {
-  const qc = useQueryClient();
-  return async (votes: GroupVote) => {
-    if (myId == null) return;
-    await setDoc(doc(db(), "groupVotes", date, "entries", String(myId)), votes, {
-      merge: true,
-    });
-    qc.setQueryData(["groupVotes", date, myId], (prev: GroupVote | undefined) => ({
-      ...prev,
-      ...votes,
-    }));
-  };
-}
+// (모둠 간 평가 폐지 — 순위 점수는 교사 '오늘의 모둠'으로 대체. 관련 훅 제거)
 
 // ── 집계 결과 조회 (학생·교사 공용) ─────────────────────────────
 // dailyScores/{date} 문서 하나에 전원 점수 — 1일 1문서 읽기.

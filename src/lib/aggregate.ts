@@ -72,7 +72,8 @@ export async function aggregateDate(
       if (targetId.startsWith("_")) continue;
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
-    if (typeof data._mvp === "number") mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1;
+    if (typeof data._mvp === "number" && data._mvp > 0)
+      mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 선택 취소
     const c = data._compliment as { to: number; text: string } | undefined;
     if (c?.text) compliments.push({ from: Number(entry.id), to: c.to, text: c.text });
     if (typeof data._toTeacher === "string" && data._toTeacher)
