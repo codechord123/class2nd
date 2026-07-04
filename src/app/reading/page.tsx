@@ -56,11 +56,13 @@ function ReportBody({
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
-        <div className="mt-6 rounded-card bg-emerald-50 p-4">
-          <p className="text-[13px] font-extrabold text-emerald-700">❝ 마음에 남는 문장</p>
-          <p className="mt-1.5 whitespace-pre-wrap text-lg font-medium italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
-            {r.quote}
-          </p>
+        <div className="mt-4">
+          <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남는 문장 (인용)</p>
+          <div className="rounded-btn border border-emerald-200 bg-emerald-50 px-3.5 py-3">
+            <p className="whitespace-pre-wrap text-base italic leading-7 text-emerald-900 [overflow-wrap:anywhere]">
+              ❝ {r.quote}
+            </p>
+          </div>
         </div>
       )}
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
@@ -147,19 +149,17 @@ function dateLabel(ms: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-// 감상문 본문 섹션 — 문서형: 초록 마커 소제목 + 넉넉한 줄간격 본문
-// (상자 나열 대신 읽는 문서의 흐름 — 색은 헤더가 담당, 본문은 깨끗하게)
+// 감상문 본문 섹션 — 쓰기 화면과 같은 문법: 진한 라벨 + 테두리 상자 (읽기 전용판)
 // [overflow-wrap:anywhere]: 띄어쓰기 없는 긴 글이 카드 밖으로 넘치지 않게
 function ReportSection({ label, text }: { label: string; text: string }) {
   return (
-    <div className="mt-6 first:mt-0">
-      <p className="flex items-center gap-2 text-[15px] font-extrabold text-emerald-700">
-        <span className="inline-block h-4 w-1.5 rounded-full bg-emerald-500" />
-        {label}
-      </p>
-      <p className="mt-2 whitespace-pre-wrap text-base leading-8 text-ink-800 [overflow-wrap:anywhere]">
-        <Linkify text={text} />
-      </p>
+    <div className="mt-4 first:mt-0">
+      <p className="mb-1.5 text-[13px] font-bold text-ink-700">{label}</p>
+      <div className="rounded-btn border border-ink-200 bg-ink-50/40 px-3.5 py-3">
+        <p className="whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
+          <Linkify text={text} />
+        </p>
+      </div>
     </div>
   );
 }
@@ -250,50 +250,60 @@ export default function ReadingPage() {
         >
           ← 목록으로
         </button>
-        <section className="overflow-hidden rounded-card border border-ink-200 bg-white shadow-card">
-          {/* 책 표지형 헤더 — 제목·지은이·작성자를 초록 그라데이션 위에 */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(r.tags?.length ?? 0) > 0 ? (
-                r.tags!.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold"
-                  >
-                    {t}
-                  </span>
-                ))
-              ) : (
-                <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white/80">
-                  미분류
+        {/* 책 정보 카드 — 쓰기 화면 '1. 어떤 책인가요?'와 같은 문법 */}
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(r.tags?.length ?? 0) > 0 ? (
+              r.tags!.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
+                >
+                  {t}
                 </span>
-              )}
-              {r.isPrivate && (
-                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold">
-                  🔒 선생님만 보기
-                </span>
-              )}
-            </div>
-            <h3 className="mt-2 text-2xl font-extrabold leading-snug [overflow-wrap:anywhere]">
-              {r.title}
-            </h3>
-            {(r.author || r.publisher) && (
-              <p className="mt-1 text-sm font-medium text-white/90 [overflow-wrap:anywhere]">
-                {r.author}
-                {r.author && r.publisher && " · "}
-                {r.publisher}
-              </p>
+              ))
+            ) : (
+              <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-bold text-ink-400">
+                미분류
+              </span>
             )}
-            <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-white/90">
-              <span className="rounded-full bg-white/25 px-2 py-0.5 font-bold">
+            {r.isPrivate && (
+              <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
+                🔒 선생님만 보기
+              </span>
+            )}
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-ink-500">
+              <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                 {studentById.get(r.studentId)?.name}
               </span>
               <span>{r.week}주차</span>
               <span>·</span>
               <span className="tnum">{dateLabel(r.createdAt)}</span>
-            </p>
+            </span>
           </div>
-          <div className="p-5">
+          <h3 className="mt-2.5 text-2xl font-extrabold leading-snug text-ink-900 [overflow-wrap:anywhere]">
+            {r.title}
+          </h3>
+          {(r.author || r.publisher) && (
+            <p className="mt-1 text-[15px] text-ink-600 [overflow-wrap:anywhere]">
+              {r.author && (
+                <>
+                  지은이 <b>{r.author}</b>
+                </>
+              )}
+              {r.author && r.publisher && " · "}
+              {r.publisher && (
+                <>
+                  출판사 <b>{r.publisher}</b>
+                </>
+              )}
+            </p>
+          )}
+        </section>
+
+        {/* 감상 카드 — 쓰기 화면 '2. 감상을 남겨요'와 같은 라벨+상자 구조 */}
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
+          <div>
             <ReportBody
               r={r}
               onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
