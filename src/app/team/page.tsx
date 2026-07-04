@@ -76,8 +76,11 @@ export default function TeamPage() {
   const { data: bestGroups } = useBestGroups();
 
   const [tab, setTab] = useState<"eval" | "stats">("eval");
-  const [editComp, setEditComp] = useState<Record<number, string>>({});
-  const [editSug, setEditSug] = useState<Record<number, string>>({});
+  const [compTo, setCompTo] = useState<number | null>(null);
+  const [compText, setCompText] = useState("");
+  const [sugTo, setSugTo] = useState<number | null>(null);
+  const [sugText, setSugText] = useState("");
+  const [sugOpen, setSugOpen] = useState(false);
   const [toTeacherText, setToTeacherText] = useState("");
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const { toast } = useFeedback();
@@ -112,45 +115,56 @@ export default function TeamPage() {
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
 
-  // ── 칭찬·건의 배정 (순환 배정) ────────────────────────────────
-  // 모둠 전원을 학번순으로 놓고 나로부터 k칸 뒤 친구에게 배정 → 전원이 정확히 1개씩
-  // 주고받아(빠짐없이), 매일 k가 돌아가며 대상이 바뀐다. 칭찬·건의는 서로 다른 친구.
-  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].sort(
-    (a, b) => a - b
-  );
-  const N = allMembers.length;
-  const myIdx = allMembers.indexOf(studentId);
-  const dayIndex = Math.floor(
-    (new Date(date + "T00:00:00+09:00").getTime() -
-      new Date(SEMESTER_START + "T00:00:00+09:00").getTime()) /
-      86400000
-  );
-  const shiftFor = (base: number) => (N > 1 ? (((base % (N - 1)) + (N - 1)) % (N - 1)) + 1 : 0);
-  const kComp = shiftFor(dayIndex);
-  const kSug = N > 2 ? shiftFor(dayIndex + 1) : kComp;
-  const complimentTarget = N > 1 && myIdx >= 0 ? allMembers[(myIdx + kComp) % N] : null;
-  const suggestTarget = N > 1 && myIdx >= 0 ? allMembers[(myIdx + kSug) % N] : null;
-
-  // 저장값(서버) 위에 편집값을 얹어 표시
+  // ── 칭찬(필수·자유 선택 + 골고루 넛지) / 건의(필요할 때만) ─────
+  // 시기성 보존: 오늘 실제 고마웠던 친구를 직접 고른다. 대신 '내가 최근에 칭찬 안 한
+  // 친구'를 앞에 세우고 🌱 배지로 표시해 골고루를 유도(강제 배정 아님).
+  // 받는 커버리지는 교사 데일리 리포트의 '칭찬 못 받은 친구' 목록이 보완한다.
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
-  const savedSug = (evalRec._peerSuggestions as Record<string, string>) ?? {};
-  const compVal = (tid: number) => editComp[tid] ?? savedComp[tid] ?? "";
-  const sugVal = (tid: number) => editSug[tid] ?? savedSug[tid] ?? "";
   const name = (tid: number) => studentById.get(tid)?.name ?? "?";
+
+  // 내 칭찬 이력(localStorage, 읽기 0) — 최근에 칭찬한 날짜 기록 → 오래된/없는 친구 우선
+  const praiseLogKey = `praiseLog-${studentId}`;
+  const praiseLog: Record<string, string> =
+    typeof window === "undefined" ? {} : JSON.parse(localStorage.getItem(praiseLogKey) ?? "{}");
+  const sortedTargets = [...targets].sort((a, b) => {
+    const la = praiseLog[a.studentId] ?? "";
+    const lb = praiseLog[b.studentId] ?? "";
+    return la === lb ? a.studentId - b.studentId : la < lb ? -1 : 1; // 안 한(빈)·오래된 순
+  });
+  const neverPraised = (tid: number) => !praiseLog[tid];
+
+  // 오늘 평가 완성 체크 — 정량 전원 + MVP + 칭찬 1건 (건의는 선택이라 미포함)
+  const doneScores = targets.every((t) => typeof evalRec[t.studentId] === "number");
+  const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
+  const doneComp = Object.values(savedComp).some((v) => v?.trim());
 
   async function submitPeerNotes() {
     if (sending) return;
+    if (compTo == null) {
+      toast("칭찬할 친구를 골라주세요.", "warn");
+      return;
+    }
+    if (!compText.trim()) {
+      toast("칭찬 내용을 적어주세요.", "warn");
+      return;
+    }
+    if (sugOpen && sugText.trim() && sugTo == null) {
+      toast("건의를 전할 친구를 골라주세요.", "warn");
+      return;
+    }
     setSending(true);
-    const compliments: Record<string, string> = {};
+    const compliments: Record<string, string> = { [compTo]: compText.trim() };
     const suggestions: Record<string, string> = {};
-    if (complimentTarget != null) compliments[complimentTarget] = compVal(complimentTarget).trim();
-    if (suggestTarget != null) suggestions[suggestTarget] = sugVal(suggestTarget).trim();
+    if (sugOpen && sugTo != null && sugText.trim()) suggestions[sugTo] = sugText.trim();
     try {
       await savePeer(compliments, suggestions);
-      setEditComp({});
-      setEditSug({});
-      toast("칭찬·건의를 저장했어요!", "success");
+      // 칭찬 이력 갱신 → 다음부터 다른 친구가 앞에 옴
+      localStorage.setItem(praiseLogKey, JSON.stringify({ ...praiseLog, [compTo]: date }));
+      setCompText("");
+      setSugText("");
+      setSugOpen(false);
+      toast("💌 전달됐어요!", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
@@ -268,48 +282,106 @@ export default function TeamPage() {
         </div>
       </section>
 
-      {/* 오늘의 칭찬 & 건의 — 순환 배정(모두가 빠짐없이 주고받게) */}
+      {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">💌 오늘의 칭찬 &amp; 건의</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-bold">💌 오늘의 칭찬</h3>
+          {/* 오늘 평가 완성 체크리스트 */}
+          <span className="flex gap-1.5 text-[11px]">
+            <span className={doneScores ? "text-success" : "text-ink-300"}>
+              {doneScores ? "✅" : "○"} 평가
+            </span>
+            <span className={doneMvp ? "text-success" : "text-ink-300"}>
+              {doneMvp ? "✅" : "○"} MVP
+            </span>
+            <span className={doneComp ? "text-success" : "text-ink-300"}>
+              {doneComp ? "✅" : "○"} 칭찬
+            </span>
+          </span>
+        </div>
         <p className="mt-1 text-xs text-ink-500">
-          오늘은 아래 친구에게 남겨요. 매일 대상이 바뀌어서 모두가 빠짐없이 주고받아요.
+          오늘 고마웠던 친구를 골라 칭찬해요. 🌱 붙은 친구는 아직 내가 칭찬 안 한 친구예요 —
+          골고루 칭찬해 주세요!
         </p>
-        {complimentTarget != null ? (
-          <div className="mt-3 space-y-3">
-            <div className="rounded-btn bg-pink-50 p-3">
-              <p className="text-sm text-pink-700">
-                💌 <b>{name(complimentTarget)}</b>에게 칭찬 한마디
-              </p>
-              <input
-                value={compVal(complimentTarget)}
-                onChange={(e) =>
-                  setEditComp({ ...editComp, [complimentTarget]: e.target.value })
-                }
-                placeholder="예: 발표할 때 목소리가 또렷해서 좋았어!"
-                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="rounded-btn bg-sky-50 p-3">
-              <p className="text-sm text-sky-700">
-                🙋 <b>{name(suggestTarget!)}</b>에게 건의(바라는 점)
-              </p>
-              <input
-                value={sugVal(suggestTarget!)}
-                onChange={(e) => setEditSug({ ...editSug, [suggestTarget!]: e.target.value })}
-                placeholder="예: 준비물을 미리 챙겨오면 더 좋을 것 같아"
-                className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
-              />
-            </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {sortedTargets.map((t) => (
             <button
-              onClick={() => void submitPeerNotes()}
-              disabled={sending}
-              className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              key={t.studentId}
+              onClick={() => setCompTo(compTo === t.studentId ? null : t.studentId)}
+              className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
+                compTo === t.studentId
+                  ? "border-pink-400 bg-pink-500 text-white"
+                  : "border-ink-200 bg-white text-ink-600 hover:border-pink-300"
+              }`}
             >
-              {sending ? "저장 중…" : "칭찬·건의 저장"}
+              {neverPraised(t.studentId) && "🌱 "}
+              {name(t.studentId)}
             </button>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={compText}
+            onChange={(e) => setCompText(e.target.value)}
+            placeholder={
+              compTo != null
+                ? `${name(compTo)}에게 칭찬 한마디`
+                : "먼저 위에서 친구를 골라주세요"
+            }
+            className="min-w-0 flex-1 rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => void submitPeerNotes()}
+            disabled={sending}
+            className="press shrink-0 rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {sending ? "저장 중…" : "보내기"}
+          </button>
+        </div>
+        {doneComp && (
+          <p className="mt-2 text-xs text-ink-500">
+            오늘 보낸 칭찬:{" "}
+            {Object.entries(savedComp)
+              .filter(([, v]) => v?.trim())
+              .map(([tid, v]) => `${name(Number(tid))}(${v})`)
+              .join(" · ")}
+          </p>
+        )}
+
+        {/* 건의 — 필요할 때만 */}
+        <button
+          onClick={() => setSugOpen((v) => !v)}
+          className="mt-3 text-xs font-medium text-ink-400 underline-offset-2 hover:text-ink-600 hover:underline"
+        >
+          {sugOpen ? "건의 접기 ▲" : "🙋 친구에게 건의할 게 있어요 (선택) ▼"}
+        </button>
+        {sugOpen && (
+          <div className="mt-2 rounded-btn bg-sky-50 p-3">
+            <div className="flex flex-wrap gap-1.5">
+              {targets.map((t) => (
+                <button
+                  key={t.studentId}
+                  onClick={() => setSugTo(sugTo === t.studentId ? null : t.studentId)}
+                  className={`press rounded-full border px-2.5 py-1 text-xs font-medium ${
+                    sugTo === t.studentId
+                      ? "border-sky-400 bg-sky-500 text-white"
+                      : "border-ink-200 bg-white text-ink-600"
+                  }`}
+                >
+                  {name(t.studentId)}
+                </button>
+              ))}
+            </div>
+            <input
+              value={sugText}
+              onChange={(e) => setSugText(e.target.value)}
+              placeholder="예: 준비물을 미리 챙겨오면 더 좋을 것 같아"
+              className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-ink-400">
+              건의는 칭찬 보내기를 누를 때 함께 전달돼요. 비워두면 안 보내져요.
+            </p>
           </div>
-        ) : (
-          <p className="mt-3 text-sm text-ink-400">모둠원이 없어 대상이 없어요.</p>
         )}
       </section>
 
