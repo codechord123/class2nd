@@ -19,6 +19,8 @@ import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
+import { countedWeekBooks, streakAtWeek } from "@/lib/readingStreak";
+import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow } from "@/types";
 
 export interface AggregateResult {
@@ -65,17 +67,19 @@ export async function aggregateDate(
     const from = Number(entry.id);
     for (const [targetId, v] of Object.entries(data)) {
       if (targetId.startsWith("_")) continue;
+      if (Number(targetId) === from) continue; // 자기 점수 무효 (조작 방지)
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
-    if (typeof data._mvp === "number" && data._mvp > 0)
-      mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 선택 취소
-    // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments)
+    if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from)
+      mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 취소, 자기 투표 무효
+    // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments) — 자기 칭찬 무효
     const legacy = data._compliment as { to: number; text: string } | undefined;
-    if (legacy?.text) compliments.push({ from, to: legacy.to, text: legacy.text });
+    if (legacy?.text && legacy.to !== from)
+      compliments.push({ from, to: legacy.to, text: legacy.text });
     const cmap = data._compliments as Record<string, string> | undefined;
     if (cmap)
       for (const [to, text] of Object.entries(cmap))
-        if (text?.trim()) compliments.push({ from, to: Number(to), text });
+        if (text?.trim() && Number(to) !== from) compliments.push({ from, to: Number(to), text });
     const smap = data._peerSuggestions as Record<string, string> | undefined;
     if (smap)
       for (const [to, text] of Object.entries(smap))
@@ -227,10 +231,10 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
 // · 최다 MVP(투표 최다) → 실버 1개
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
-// · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
+// · 최다 거북이독서(두 주 합산 '인정 권수' 최다 — 하루 2권 캡) → 실버 1개
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
-// · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 상점(누적 점수) (1주=1, 2주=2, 3주+=3 상한)
-// 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 금요일에 실행.
+// · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 보너스 점수(누적 가산) (1주=1, 2주=2, 3주+=3 상한)
+// 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 세션 종료 후 월요일에 실행.
 export interface SessionSettleResult {
   period: number;
   range: [string, string];
@@ -240,11 +244,11 @@ export interface SessionSettleResult {
   readingTop: number[]; // 최다 독서
   missionTopGroups: number[]; // 최다 미션 모둠
   missionTopMembers: number[];
-  streakPoints: Record<string, number>; // studentId → 스트릭 상점(누적 점수 가산)
+  streakPoints: Record<string, number>; // studentId → 스트릭 보너스(누적 점수 가산)
   alreadySettled: boolean;
 }
 
-const STREAK_CAP = 3; // 스트릭 보상 상한 (주당 최대 실버)
+const STREAK_CAP = 3; // 스트릭 보상 상한 (주당 최대 보너스 점수)
 
 /** 최댓값(>0)을 가진 키들 (동점 모두, 전부 0이면 빈 배열) */
 function topKeys(counts: Record<number, number>): number[] {
@@ -318,37 +322,27 @@ export async function settleSession(period: number): Promise<SessionSettleResult
   const missionTopMembers = missionTopGroups.flatMap(membersOf);
 
   // 독서: 최다 독서(두 주 합산 최다) + 스트릭 보상(주간 목표 달성 주마다 연속 주수만큼)
+  // 파밍 방지: 권수는 '인정 권수'(하루 최대 2권 캡, countedWeekBooks) 기준 —
+  // 하루에 몰아 쓴 감상문으로 목표·최다독서를 채울 수 없다 (학생 화면 표시와 동일 판정).
   const quota =
     (settingsSnap.exists() ? (settingsSnap.data().weeklyReadingQuota as number) : undefined) ?? 3;
-  const byWeek = (statsSnap.exists()
-    ? ((statsSnap.data().byWeek as Record<string, Record<string, number>>) ?? {})
-    : {}) as Record<string, Record<string, number>>;
+  const stats = (statsSnap.exists() ? statsSnap.data() : {}) as ReadingStats;
   const w1 = period * 2 - 1;
   const w2 = Math.min(period * 2, TOTAL_WEEKS);
 
   const readSum: Record<number, number> = {};
   for (const s of students)
     readSum[s.id] =
-      (byWeek[String(w1)]?.[String(s.id)] ?? 0) +
-      (w2 !== w1 ? (byWeek[String(w2)]?.[String(s.id)] ?? 0) : 0);
+      countedWeekBooks(stats, s.id, w1) + (w2 !== w1 ? countedWeekBooks(stats, s.id, w2) : 0);
   const readingTop = topKeys(readSum);
 
-  // 스트릭: 주 w까지의 연속 목표 달성 주수 (1주=1, 2주 연속=2, 상한 STREAK_CAP)
-  const streakAt = (sid: number, w: number): number => {
-    let n = 0;
-    for (let k = w; k >= 1; k--) {
-      if ((byWeek[String(k)]?.[String(sid)] ?? 0) >= quota) n++;
-      else break;
-    }
-    return n;
-  };
-  // 스트릭 보상은 실버가 아닌 '상점'(누적 점수 가산)
+  // 스트릭 보상은 실버가 아닌 '보너스 점수'(누적 점수 가산) — 1주=1, 2주 연속=2, 상한 STREAK_CAP
   const streakPoints: Record<string, number> = {};
   if (quota > 0) {
     for (const s of students) {
       let award = 0;
       for (const w of w2 !== w1 ? [w1, w2] : [w1]) {
-        const st = streakAt(s.id, w);
+        const st = streakAtWeek(stats, s.id, quota, w);
         if (st > 0) award += Math.min(st, STREAK_CAP);
       }
       if (award > 0) streakPoints[String(s.id)] = award;
@@ -396,7 +390,7 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       { merge: true }
     );
   }
-  // 스트릭 상점 → 누적 점수에 가산 (일일 재집계는 델타 방식이라 이 가산은 보존됨)
+  // 스트릭 보너스 → 누적 점수에 가산 (일일 재집계는 델타 방식이라 이 가산은 보존됨)
   if (hasStreak) {
     await setDoc(
       doc(d, "dailyScores", "_cumulative"),

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
   useReadingStats,
@@ -262,7 +262,9 @@ export default function ReadingPage() {
               r={r}
               onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
               onDelete={
-                role === "teacher" || r.studentId === studentId
+                // 학생 본인 삭제는 작성 당일만 — 지난 주 권수·스트릭이 몰래 줄어드는 것 방지 (교사는 무제한)
+                role === "teacher" ||
+                (r.studentId === studentId && kstDateOf(r.createdAt) === todayKST())
                   ? async () => {
                       const ok = await confirm({
                         title: "이 감상문을 삭제할까요?",

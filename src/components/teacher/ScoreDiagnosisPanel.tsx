@@ -1,7 +1,7 @@
 "use client";
 // 점수 진단 — 점수가 이상할 때 원인을 찾고 바로잡는 교사 도구.
 // ① 그날 점수 분해(정량/순위/미션/MVP/독서/보너스) ② 원시 평가(누가 몇 점 줬나)
-// ③ 누적 검증: Σ일별 총점 + Σ스트릭 상점 vs 누적 문서 → 어긋나면 한 번에 보정.
+// ③ 누적 검증: Σ일별 총점 + Σ스트릭 보너스 vs 누적 문서 → 어긋나면 한 번에 보정.
 import { useState } from "react";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,7 +52,7 @@ export default function ScoreDiagnosisPanel() {
         if (typeof v === "number") received.push({ from: Number(e.id), v });
       });
 
-      // 누적 검증: 일별 총점 합 + 세션 스트릭 상점 합 = 누적이어야 함
+      // 누적 검증: 일별 총점 합 + 세션 스트릭 보너스 합 = 누적이어야 함
       let sum = 0;
       let daysCounted = 0;
       let actualCum = 0;
@@ -116,6 +116,7 @@ export default function ScoreDiagnosisPanel() {
         <input
           type="date"
           value={date}
+          max={todayKST()}
           onChange={(e) => setDate(e.target.value)}
           className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
@@ -180,7 +181,7 @@ export default function ScoreDiagnosisPanel() {
               {mismatch ? "⚠️ 누적 점수 불일치 발견" : "✅ 누적 점수 정상"}
             </p>
             <p className="mt-1 text-xs text-ink-700">
-              일별 합계({diag.daysCounted}일) + 스트릭 상점({diag.streakSum}) ={" "}
+              일별 합계({diag.daysCounted}일) + 스트릭 보너스({diag.streakSum}) ={" "}
               <b className="tnum">{diag.expectedCum}점</b> · 현재 누적:{" "}
               <b className="tnum">{diag.actualCum}점</b>
             </p>

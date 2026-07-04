@@ -20,9 +20,14 @@ service cloud.firestore {
     // (교사만 쓰기 — 위 classData 규칙으로 커버됨)
 
     // 모둠 내 평가: evaluations/{date}/entries/{evaluatorId}
+    // 대리 작성 차단: 본인 studentAuth에 바인딩된 uid로만 자기 평가 문서를 쓸 수 있다.
+    // (교사는 샘플 생성·정리를 위해 예외)
     match /evaluations/{date}/entries/{evaluatorId} {
       allow read: if isAuthed();
-      allow create, update: if isAuthed();
+      allow create, update: if isTeacher() || (
+        isAuthed() &&
+        get(/databases/$(database)/documents/studentAuth/$(evaluatorId)).data.uid == request.auth.uid
+      );
       allow delete: if isTeacher();
     }
 
@@ -43,17 +48,17 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
-    // 코인/실버 원장 (2학기)
+    // 코인/실버 원장 (2학기) — 잔액 문서(0_balances)는 학생이 생성도 못 하게 (리셋 직후 탈취 방지)
     match /coinTxns/{txnId} {
       allow read: if isAuthed();
-      allow create: if isAuthed();
+      allow create: if isTeacher() || (isAuthed() && txnId != "0_balances");
       allow update, delete: if isTeacher();
     }
 
     // 1학기 이월 지갑 차감 원장 (원본은 GitHub 정적 JSON — 불변)
     match /s1Spends/{spendId} {
       allow read: if isAuthed();
-      allow create: if isAuthed();
+      allow create: if isTeacher() || (isAuthed() && spendId != "0_balances");
       allow update, delete: if isTeacher();
     }
 

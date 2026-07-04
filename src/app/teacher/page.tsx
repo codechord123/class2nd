@@ -30,6 +30,7 @@ import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
 import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import BannerEditor from "@/components/teacher/BannerEditor";
+import { BETA_END } from "@/components/BetaBanner";
 import ScoreDiagnosisPanel from "@/components/teacher/ScoreDiagnosisPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import Card from "@/components/ui/Card";
@@ -152,47 +153,12 @@ export default function TeacherPage() {
       {/* 샘플 데이터 — 개학 전 미리보기 */}
       <SampleDataPanel date={date} />
 
-      {/* 일일 집계 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
-        <p className="mt-1 text-xs text-ink-500">
-          학생들이 낸 평가(모둠 친구 점수·MVP·칭찬)를 모아 <b>오늘 점수를 계산</b>해서 반영해요.
-          <br />
-          순서: ① 아래 👑에서 모둠 순위 저장 → ② 종회 때 이 버튼 1번. 다시 눌러도 안전해요(누적
-          자동 보정).
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          />
-          <button
-            onClick={() => void runAggregate()}
-            disabled={busy}
-            className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-          >
-            {busy ? "집계 중…" : "집계 실행"}
-          </button>
-        </div>
-        {result && (
-          <p className="mt-2 text-sm text-ink-600">
-            모둠 순위:{" "}
-            {Object.entries(result.groupRanks)
-              .sort((a, b) => a[1] - b[1])
-              .map(([g, r]) => `${g}모둠 ${r}위`)
-              .join(" · ")}
-          </p>
-        )}
-      </section>
-
       {/* 오늘의 모둠 순위(1~5위) 선정 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
         <p className="mt-1 text-xs text-ink-500">
           잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점 + <b>오늘의 모둠(1위)은
-          +1점 더</b> 받아요. 세션 통계(최고 모둠)는 1위만 집계. <b>순위 저장 후 위에서 집계
+          +1점 더</b> 받아요. 세션 통계(최고 모둠)는 1위만 집계. <b>순위 저장 후 아래에서 집계
           실행</b>하면 반영돼요.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -254,6 +220,42 @@ export default function TeacherPage() {
                 .join(" · ")}
             </b>{" "}
             (오늘의 모둠 의장 {studentById.get(bestGroups[date].chairId)?.name})
+          </p>
+        )}
+      </section>
+
+      {/* 일일 집계 */}
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
+        <p className="mt-1 text-xs text-ink-500">
+          학생들이 낸 평가(모둠 친구 점수·MVP·칭찬)를 모아 <b>오늘 점수를 계산</b>해서 반영해요.
+          <br />
+          순서: ① 위 👑에서 모둠 순위 저장 → ② 종회 때 이 버튼 1번. 다시 눌러도 안전해요(누적
+          자동 보정).
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            max={todayKST()}
+            onChange={(e) => setDate(e.target.value)}
+            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+          />
+          <button
+            onClick={() => void runAggregate()}
+            disabled={busy}
+            className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {busy ? "집계 중…" : "집계 실행"}
+          </button>
+        </div>
+        {result && (
+          <p className="mt-2 text-sm text-ink-600">
+            모둠 순위:{" "}
+            {Object.entries(result.groupRanks)
+              .sort((a, b) => a[1] - b[1])
+              .map(([g, r]) => `${g}모둠 ${r}위`)
+              .join(" · ")}
           </p>
         )}
       </section>
@@ -365,8 +367,8 @@ export default function TeacherPage() {
         </>
       )}
 
-      {/* 베타 테스트 초기화 — 개학 전 새 출발용 */}
-      <BetaResetPanel />
+      {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}
+      {todayKST() <= BETA_END && <BetaResetPanel />}
       </>)}
 
       {tTab === "approve" && (<>

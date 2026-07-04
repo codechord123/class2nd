@@ -150,7 +150,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             <span className="flex gap-2">
               <button
                 onClick={() => {
-                  setEditTitle(titleOf(sug));
+                  setEditTitle(sug.title ?? ""); // 표시용 fallback(잘린 본문)이 아닌 원본 제목
                   setEditContent(sug.content);
                   setEditing(true);
                 }}

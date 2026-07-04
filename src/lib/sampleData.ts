@@ -1,8 +1,19 @@
 "use client";
 // 샘플 평가 데이터 생성/삭제 — 개학 전 리포트·집계 화면을 실제 모습으로 미리보기.
-// 생성: 오늘 날짜의 evaluations 25건 + 모둠 순위 저장 + 즉시 집계.
-// 삭제: 해당 날짜 평가 전부 삭제 + 순위 제거 + 재집계(멱등이라 누적도 원상복구).
-import { collection, deleteDoc, deleteField, doc, getDocs, setDoc } from "firebase/firestore";
+// 생성: 오늘 날짜의 evaluations 25건 + 감상문 몇 편(독서 +1점 미리보기) + 모둠 순위 저장 + 즉시 집계.
+// 삭제: 해당 날짜 평가·샘플 감상문 전부 삭제 + 순위 제거 + 재집계(멱등이라 누적도 원상복구).
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  getDocs,
+  increment,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -33,8 +44,18 @@ const WISHES = [
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 
+const SAMPLE_BOOKS = [
+  { title: "마당을 나온 암탉", author: "황선미", tag: "동화" },
+  { title: "샬롯의 거미줄", author: "E.B. 화이트", tag: "동화" },
+  { title: "푸른 사자 와니니", author: "이현", tag: "동화" },
+  { title: "어린이를 위한 과학 이야기", author: "김과학", tag: "과학" },
+  { title: "장영실, 시대를 앞서간 발명가", author: "역사연구회", tag: "인물" },
+  { title: "시가 좋아지는 시집", author: "여러 시인", tag: "시" },
+];
+
 export interface SampleResult {
   entries: number;
+  reports: number;
   ranking: number[];
 }
 
@@ -71,11 +92,45 @@ export async function generateSampleDay(
     { merge: true }
   );
 
+  // 샘플 감상문: 무작위 8명이 그날 1권씩 — 집계의 '독서 +1점'과 스트릭·리포트 미리보기용.
+  // _sample 플래그로 표시해 지우기에서 진짜 감상문과 절대 섞이지 않게 한다.
+  const dayStartMs = new Date(date + "T09:00:00+09:00").getTime();
+  const readers = [...students].sort(() => Math.random() - 0.5).slice(0, 8);
+  for (const s of readers) {
+    const book = pick(SAMPLE_BOOKS);
+    await addDoc(collection(d, "readingReports"), {
+      studentId: s.id,
+      week,
+      isDraft: false,
+      isPrivate: false,
+      _sample: true,
+      title: `(샘플) ${book.title}`,
+      author: book.author,
+      publisher: "",
+      summary: "샘플 감상문이에요. 리포트·점수 미리보기용으로 자동 생성됐어요.",
+      scene: "가장 인상 깊었던 장면을 여기에 써요.",
+      quote: "기억에 남는 문장을 여기에 옮겨 적어요.",
+      thoughts: "읽고 난 생각을 여기에 써요.",
+      tags: [book.tag],
+      createdAt: dayStartMs + Math.floor(Math.random() * 6 * 3600000), // 9시~15시 사이
+    });
+  }
+  if (readers.length) {
+    const statsPatch: Record<string, unknown> = {
+      total: Object.fromEntries(readers.map((s) => [String(s.id), increment(1)])),
+      byWeek: { [week]: Object.fromEntries(readers.map((s) => [String(s.id), increment(1)])) },
+      byDay: {
+        [week]: Object.fromEntries(readers.map((s) => [String(s.id), { [date]: increment(1) }])),
+      },
+    };
+    await setDoc(doc(d, "readingStats", "main"), statsPatch, { merge: true });
+  }
+
   await aggregateDate(date, settings);
-  return { entries: students.length, ranking };
+  return { entries: students.length, reports: readers.length, ranking };
 }
 
-/** 샘플 삭제 — 평가 전부 삭제 + 순위 제거 + 재집계(누적 점수 원상복구) */
+/** 샘플 삭제 — 평가·샘플 감상문 전부 삭제 + 순위 제거 + 재집계(누적 점수 원상복구) */
 export async function clearSampleDay(date: string, settings: ClassSettings): Promise<number> {
   const d = db();
   const snap = await getDocs(collection(d, "evaluations", date, "entries"));
@@ -83,6 +138,32 @@ export async function clearSampleDay(date: string, settings: ClassSettings): Pro
     await deleteDoc(doc(d, "evaluations", date, "entries", entry.id));
   }
   await setDoc(doc(d, "classData", "bestGroups"), { [date]: deleteField() }, { merge: true });
+
+  // 그날 생성된 '샘플' 감상문만 삭제 (_sample 플래그) + 권수 통계 원상복구
+  const dayStartMs = new Date(date + "T00:00:00+09:00").getTime();
+  const repSnap = await getDocs(
+    query(
+      collection(d, "readingReports"),
+      where("createdAt", ">=", dayStartMs),
+      where("createdAt", "<", dayStartMs + 86400000)
+    )
+  );
+  const samples = repSnap.docs.filter((r) => r.data()._sample === true);
+  const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+  for (const r of samples) {
+    const sid = String(r.data().studentId);
+    await deleteDoc(r.ref);
+    await setDoc(
+      doc(d, "readingStats", "main"),
+      {
+        total: { [sid]: increment(-1) },
+        byWeek: { [week]: { [sid]: increment(-1) } },
+        byDay: { [week]: { [sid]: { [date]: increment(-1) } } },
+      },
+      { merge: true }
+    );
+  }
+
   await aggregateDate(date, settings); // 빈 평가로 재집계 → 그날 0점, 누적 자동 보정
-  return snap.size;
+  return snap.size + samples.length;
 }

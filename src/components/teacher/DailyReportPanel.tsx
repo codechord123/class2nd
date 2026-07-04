@@ -9,6 +9,7 @@ import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { useClassBanner } from "@/lib/query/classMeta";
 import { weekOfDate } from "@/lib/date";
+import { countedWeekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { openPrintWindow, openRangePrintDoc, esc } from "@/lib/exportDoc";
@@ -44,10 +45,10 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const w2 = Math.min(sessionNo * 2, TOTAL_WEEKS);
   const { data: rep } = useRangeReport(sessionStart, sessionEnd, period === "week");
 
-  // 세션 독서 합산 (readingStats 캐시 — 추가 읽기 0): 두 주 byWeek 합
+  // 세션 독서 합산 (readingStats 캐시 — 추가 읽기 0): 두 주 '인정 권수' 합
+  // (하루 2권 캡 — 정산의 최다 독서 판정과 동일 기준)
   const sessionReadOf = (sid: number) =>
-    (stats?.byWeek?.[String(w1)]?.[String(sid)] ?? 0) +
-    (w2 !== w1 ? (stats?.byWeek?.[String(w2)]?.[String(sid)] ?? 0) : 0);
+    countedWeekBooks(stats, sid, w1) + (w2 !== w1 ? countedWeekBooks(stats, sid, w2) : 0);
 
   // 최다 집계(동점 모두) — [명단, 최댓값]
   function topOf(counts: Record<string, number>): [number[], number] {
@@ -61,8 +62,8 @@ export default function DailyReportPanel({ date }: { date: string }) {
     ];
   }
 
-  const weekMap = stats?.byWeek?.[String(week)] ?? {};
-  const weekRead = (sid: number) => weekMap[String(sid)] ?? 0;
+  // 주간 목표 판정은 '인정 권수' 기준 (스트릭·정산과 동일)
+  const weekRead = (sid: number) => countedWeekBooks(stats, sid, week);
   const classTotal = s1TotalBooks + Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
   const weekBooks = students.reduce((a, s) => a + weekRead(s.id), 0);
   const notMet = students.filter((s) => weekRead(s.id) < quota);
@@ -548,9 +549,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
                   {/* 📖 독서 목표 달성률 — 주별 달성 인원 + 세션 학급 권수 */}
                   {(() => {
                     const metOf = (w: number) =>
-                      students.filter(
-                        (s) => (stats?.byWeek?.[String(w)]?.[String(s.id)] ?? 0) >= quota
-                      ).length;
+                      students.filter((s) => countedWeekBooks(stats, s.id, w) >= quota).length;
                     const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
                     return (
                       <div className="rounded-btn bg-ink-50 p-3">

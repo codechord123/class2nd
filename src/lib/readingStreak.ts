@@ -1,17 +1,41 @@
-// 거북이 독서 스트릭(주간 목표 연속 달성) — readingStats.byWeek만으로 계산 (추가 읽기 0).
-// 성공 주 = 그 주 권수 ≥ 주간 목표(quota). 스트릭 = 연속 성공 주 수.
+// 거북이 독서 스트릭(주간 목표 연속 달성) — readingStats 문서 하나로 계산 (추가 읽기 0).
+// 성공 주 = 그 주 '인정 권수' ≥ 주간 목표(quota). 스트릭 = 연속 성공 주 수.
+// 파밍 방지: 하루에 몰아 쓴 감상문은 하루 최대 DAILY_READ_CAP권까지만 목표로 인정
+//   (byDay 제출일별 권수 기준 — byDay가 없는 옛 주는 byWeek 총권수로 판정해 호환).
 import type { ReadingStats } from "@/lib/query/reading";
+
+/** 하루에 주간 목표로 인정되는 최대 권수 (몰아쓰기 차단) */
+export const DAILY_READ_CAP = 2;
+
+/**
+ * 주 w의 '인정 권수' — 하루 최대 2권 캡 적용 (byDay 없으면 byWeek 총권수로 호환 판정).
+ * 교사 ± 보정분(byWeekAdj)은 캡 없이 그대로 더한다 (종이 감상문 인정 등).
+ */
+export function countedWeekBooks(
+  stats: ReadingStats | undefined,
+  sid: number,
+  w: number
+): number {
+  const days = stats?.byDay?.[String(w)]?.[String(sid)];
+  if (!days) return stats?.byWeek?.[String(w)]?.[String(sid)] ?? 0; // byWeek에는 보정분 포함
+  const capped = Object.values(days).reduce(
+    (a, n) => a + Math.min(Math.max(n, 0), DAILY_READ_CAP),
+    0
+  );
+  const adj = stats?.byWeekAdj?.[String(w)]?.[String(sid)] ?? 0;
+  return Math.max(capped + adj, 0);
+}
 
 /** 특정 주(w)까지의 연속 성공 스트릭 — w가 성공이 아니면 0 */
 export function streakAtWeek(
-  byWeek: NonNullable<ReadingStats["byWeek"]>,
+  stats: ReadingStats | undefined,
   sid: number,
   quota: number,
   w: number
 ): number {
   let streak = 0;
   for (let k = w; k >= 1; k--) {
-    if ((byWeek[String(k)]?.[String(sid)] ?? 0) >= quota) streak++;
+    if (countedWeekBooks(stats, sid, k) >= quota) streak++;
     else break;
   }
   return streak;
@@ -28,17 +52,16 @@ export function readingStreaks(
   quota: number,
   currentWeek: number
 ): { current: number; best: number } {
-  const byWeek = stats?.byWeek ?? {};
   if (quota <= 0) return { current: 0, best: 0 };
 
-  const metThisWeek = (byWeek[String(currentWeek)]?.[String(sid)] ?? 0) >= quota;
+  const metThisWeek = countedWeekBooks(stats, sid, currentWeek) >= quota;
   const current = metThisWeek
-    ? streakAtWeek(byWeek, sid, quota, currentWeek)
-    : streakAtWeek(byWeek, sid, quota, currentWeek - 1);
+    ? streakAtWeek(stats, sid, quota, currentWeek)
+    : streakAtWeek(stats, sid, quota, currentWeek - 1);
 
   let best = 0;
   for (let w = 1; w <= currentWeek; w++) {
-    best = Math.max(best, streakAtWeek(byWeek, sid, quota, w));
+    best = Math.max(best, streakAtWeek(stats, sid, quota, w));
   }
   return { current, best };
 }

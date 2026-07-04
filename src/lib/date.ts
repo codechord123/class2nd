@@ -8,6 +8,16 @@ export function todayKST(): string {
   }).format(new Date()); // "YYYY-MM-DD"
 }
 
+/** 타임스탬프(ms) → KST 날짜 문자열("YYYY-MM-DD") */
+export function kstDateOf(ms: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
 /** 임의 날짜 문자열("YYYY-MM-DD")이 학기 몇 주차인지 (1~21 클램프) */
 export function weekOfDate(date: string, semesterStart: string, totalWeeks: number): number {
   const d = new Date(date + "T00:00:00+09:00");

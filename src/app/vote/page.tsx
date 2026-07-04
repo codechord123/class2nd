@@ -225,6 +225,16 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
         {role === "teacher" && (
           <span className="flex gap-2">
             <button
+              onClick={() => {
+                setEditTitle(poll.title);
+                setEditDesc(poll.desc ?? "");
+                setEditing(true);
+              }}
+              className="text-brand hover:opacity-80"
+            >
+              수정
+            </button>
+            <button
               onClick={async () => {
                 if (
                   await confirm({

@@ -61,7 +61,8 @@ export function TeacherMemoWidget() {
 
 export function BiweeklySettlePanel() {
   const qc = useQueryClient();
-  const [period, setPeriod] = useState(periodOfWeek(currentWeekNum()));
+  // 기본값: 지난주가 속한 기 — 정산은 세션이 끝난 다음 주 월요일에 하므로
+  const [period, setPeriod] = useState(periodOfWeek(Math.max(1, currentWeekNum() - 1)));
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SessionSettleResult | null>(null);
   const [msg, setMsg] = useState("");
@@ -82,7 +83,7 @@ export function BiweeklySettlePanel() {
           ...r.missionTopMembers,
         ]).size;
         const streakPaid = Object.keys(r.streakPoints).length;
-        setMsg(`✅ ${period}기 정산 완료 — 실버 ${silverPaid}명 · 스트릭 상점 ${streakPaid}명!`);
+        setMsg(`✅ ${period}기 정산 완료 — 실버 ${silverPaid}명 · 스트릭 보너스 ${streakPaid}명!`);
         void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
         void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       }
@@ -99,9 +100,10 @@ export function BiweeklySettlePanel() {
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
-        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 1개. 상점(누적 점수):
-        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점. <b>금요일 밤에 실행</b>하세요. 같은 기를
-        다시 눌러도 이중 지급되지 않아요.
+        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 1개. 보너스 점수:
+        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점. 주말 독서까지 반영되도록{" "}
+        <b>세션이 끝난 다음 주 월요일 아침에 실행</b>하세요. 같은 기를 다시 눌러도 이중
+        지급되지 않아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
@@ -152,7 +154,7 @@ export function BiweeklySettlePanel() {
             )}
           </p>
           <p>
-            🔥 독서 스트릭 상점(누적 점수):{" "}
+            🔥 독서 스트릭 보너스(누적 점수):{" "}
             {Object.keys(result.streakPoints).length ? (
               <b>
                 {Object.entries(result.streakPoints)
