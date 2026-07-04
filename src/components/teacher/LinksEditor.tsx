@@ -52,26 +52,26 @@ export default function LinksEditor() {
         <input
           value={form.emoji}
           onChange={(e) => setForm({ ...form, emoji: e.target.value })}
-          className="w-14 rounded-lg border border-ink-300 px-2 py-2 text-center text-sm"
+          className="w-14 rounded-btn border border-ink-300 px-2 py-2 text-center text-sm"
           title="이모지"
         />
         <input
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
           placeholder="이름 (예: 오늘의 패들렛)"
-          className="min-w-32 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="min-w-32 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <input
           value={form.url}
           onChange={(e) => setForm({ ...form, url: e.target.value })}
           placeholder="주소 (URL)"
-          className="min-w-40 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <input
           value={form.desc}
           onChange={(e) => setForm({ ...form, desc: e.target.value })}
           placeholder="설명 (선택)"
-          className="min-w-28 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="min-w-28 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <label className="flex items-center gap-1 text-xs text-ink-500">
           <input
@@ -83,7 +83,7 @@ export default function LinksEditor() {
         </label>
         <button
           onClick={() => void add()}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+          className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           추가
         </button>

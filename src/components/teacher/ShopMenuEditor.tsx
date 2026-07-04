@@ -43,19 +43,19 @@ export default function ShopMenuEditor() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="메뉴 이름 (예: 간식 1개)"
-          className="min-w-36 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="min-w-36 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <input
           type="number"
           min={1}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="w-16 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="w-16 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <select
           value={wallet}
           onChange={(e) => setWallet(e.target.value as "silver" | "gold")}
-          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
         >
           <option value="silver">실버 (개인)</option>
           <option value="gold">골드 (학급 공용)</option>
@@ -64,11 +64,11 @@ export default function ShopMenuEditor() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="설명 (선택)"
-          className="min-w-28 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="min-w-28 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <button
           onClick={() => void add()}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+          className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           추가
         </button>

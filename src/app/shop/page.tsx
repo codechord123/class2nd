@@ -195,6 +195,19 @@ export default function ShopPage() {
         </div>
       )}
 
+      {/* 메뉴판 — 로딩/빈 상태 안내 */}
+      {tab === "shop" && role === "student" && studentId && !menu && (
+        <p className="rounded-card border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-400 shadow-card">
+          메뉴판 불러오는 중…
+        </p>
+      )}
+      {tab === "shop" && role === "student" && studentId && menu && menu.length === 0 && (
+        <p className="rounded-card border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-400 shadow-card">
+          📋 아직 메뉴가 없어요. 선생님이 메뉴를 올리면 여기에 보여요. 그동안은 아래에서 직접 신청할
+          수 있어요!
+        </p>
+      )}
+
       {/* 메뉴판 (아이들과 토의해 그때그때 추가) */}
       {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -206,7 +219,7 @@ export default function ShopPage() {
             {menu!.map((m) => (
               <div
                 key={m.id}
-                className={`flex items-center justify-between gap-2 rounded-lg border p-3 ${
+                className={`flex items-center justify-between gap-2 rounded-btn border p-3 ${
                   m.wallet === "gold" ? "border-amber-200 bg-amber-50/60" : "border-ink-200 bg-ink-50"
                 }`}
               >

@@ -9,7 +9,7 @@ import type { S1ReadingReport } from "@/types";
 
 function ReportCard({ r }: { r: S1ReadingReport }) {
   return (
-    <article className="rounded-lg bg-white p-4 shadow-card">
+    <article className="rounded-card bg-white p-4 shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-1">
         <b className="text-sm">
           {r.title}
@@ -127,7 +127,7 @@ export default function S1Archive() {
                 setFilterId(Number(e.target.value));
                 setShown(10);
               }}
-              className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm"
+              className="rounded-btn border border-emerald-200 bg-white px-3 py-2 text-sm"
             >
               <option value={0}>전체 학생</option>
               {students.map((s) => (
@@ -143,7 +143,7 @@ export default function S1Archive() {
                 setShown(10);
               }}
               placeholder="🔍 제목·지은이·내용·이름 검색"
-              className="min-w-40 flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm"
+              className="min-w-40 flex-1 rounded-btn border border-emerald-200 bg-white px-3 py-2 text-sm"
             />
             <span className="text-xs text-ink-500">{filtered.length}건</span>
           </div>
@@ -155,7 +155,7 @@ export default function S1Archive() {
               const total = s1BooksReadOf(turtle, filterId);
               const manual = total - reportCount;
               return (
-                <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs text-ink-500">
+                <p className="mt-2 rounded-btn bg-white px-3 py-2 text-xs text-ink-500">
                   📖 {studentById.get(filterId)?.name}: 총 <b>{total}권</b> = 감상문{" "}
                   <b>{reportCount}건</b>
                   {manual > 0 && (
@@ -180,7 +180,7 @@ export default function S1Archive() {
           {filtered.length > shown && (
             <button
               onClick={() => setShown((n) => n + 10)}
-              className="mt-3 w-full rounded-lg border border-emerald-200 bg-white py-2 text-sm text-ink-500 hover:bg-emerald-50"
+              className="mt-3 w-full rounded-btn border border-emerald-200 bg-white py-2 text-sm text-ink-500 hover:bg-emerald-50"
             >
               더 보기 ({shown}/{filtered.length})
             </button>

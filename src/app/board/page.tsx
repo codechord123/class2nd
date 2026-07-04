@@ -39,17 +39,22 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
 
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
+  const [posting, setPosting] = useState(false);
 
   const comments = sug.comments ?? [];
   const parents = comments.filter((c) => c.replyTo == null);
 
   async function submitComment() {
+    if (posting || !text.trim()) return;
+    setPosting(true);
     try {
       await addComment(sug.id, text, replyTo ?? undefined);
       setText("");
       setReplyTo(null);
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+    } finally {
+      setPosting(false);
     }
   }
 

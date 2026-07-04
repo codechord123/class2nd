@@ -48,7 +48,7 @@ export function ScaleEditor({
           {value.map((v) => (
             <span
               key={v}
-              className={`tnum min-w-9 rounded-lg px-2 py-1 text-center text-sm font-bold ${
+              className={`tnum min-w-9 rounded-btn px-2 py-1 text-center text-sm font-bold ${
                 v > 0
                   ? "bg-success-weak text-success"
                   : v < 0

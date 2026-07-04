@@ -41,10 +41,27 @@ export default function WriteSheet({
 }) {
   const { data: settings } = useSettings();
   const saveReport = useSaveReport(studentId, week);
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
 
-  const [form, setForm] = useState<ReportForm>(initial?.form ?? EMPTY);
+  const initialForm = initial?.form ?? EMPTY;
+  const [form, setForm] = useState<ReportForm>(initialForm);
   const [busy, setBusy] = useState(false);
+
+  // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+  async function handleClose() {
+    if (
+      dirty &&
+      !(await confirm({
+        title: "쓰던 내용을 닫을까요?",
+        body: "저장하지 않은 내용은 사라져요. 아래 '임시저장'을 누르면 나중에 이어 쓸 수 있어요.",
+        confirmLabel: "닫기",
+        danger: true,
+      }))
+    )
+      return;
+    onClose();
+  }
   const draftId = initial?.draftId;
   const reportId = initial?.reportId;
   const editingReport = Boolean(reportId);
@@ -79,7 +96,7 @@ export default function WriteSheet({
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
       {/* 상단 고정 */}
       <header className="flex items-center justify-between border-b border-ink-200 px-4 py-3">
-        <button onClick={onClose} className="text-sm font-medium text-ink-500">
+        <button onClick={() => void handleClose()} className="text-sm font-medium text-ink-500">
           ← 닫기
         </button>
         <span className="text-sm font-bold text-ink-900">

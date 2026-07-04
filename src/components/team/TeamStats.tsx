@@ -29,7 +29,7 @@ function TopList({
     .sort((a, b) => b.n - a.n)
     .slice(0, 5);
   return (
-    <div className="rounded-lg bg-ink-50 p-3">
+    <div className="rounded-btn bg-ink-50 p-3">
       <p className="text-xs font-bold text-ink-600">{title}</p>
       <p className="text-[10px] text-ink-400">{desc}</p>
       {ranked.length === 0 ? (

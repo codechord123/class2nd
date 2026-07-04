@@ -57,7 +57,7 @@ export default function CsvExportPanel() {
       <button
         onClick={exportCsv}
         disabled={loading}
-        className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+        className="mt-3 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
       >
         {loading ? "자료 불러오는 중…" : "CSV 내려받기"}
       </button>

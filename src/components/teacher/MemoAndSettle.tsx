@@ -39,7 +39,7 @@ export function TeacherMemoWidget() {
         rows={5}
         style={{ fontSize: fs }}
         placeholder="수업 준비, 전달 사항 등을 자유롭게…"
-        className="mt-2 w-full rounded-lg border border-ink-300 px-3 py-2"
+        className="mt-2 w-full rounded-btn border border-ink-300 px-3 py-2"
       />
       <div className="mt-2 flex items-center gap-2">
         <button
@@ -49,7 +49,7 @@ export function TeacherMemoWidget() {
               (e) => setMsg(`⚠️ ${e.message}`)
             )
           }
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+          className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           메모 저장
         </button>
@@ -96,7 +96,7 @@ export function BiweeklySettlePanel() {
         <select
           value={period}
           onChange={(e) => setPeriod(Number(e.target.value))}
-          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
         >
           {Array.from({ length: 11 }, (_, i) => i + 1).map((p) => (
             <option key={p} value={p}>
@@ -107,7 +107,7 @@ export function BiweeklySettlePanel() {
         <button
           onClick={() => void run()}
           disabled={busy}
-          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          className="rounded-btn bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
         >
           {busy ? "정산 중…" : "MVP 정산 실행"}
         </button>
@@ -143,12 +143,12 @@ export function BonusPanel() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <select
           value={sid}
           onChange={(e) => setSid(Number(e.target.value))}
-          className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
         >
           {students.map((s) => (
             <option key={s.id} value={s.id}>
@@ -160,7 +160,7 @@ export function BonusPanel() {
           type="number"
           value={bonus}
           onChange={(e) => setBonusVal(e.target.value)}
-          className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+          className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <button
           onClick={() =>
@@ -173,7 +173,7 @@ export function BonusPanel() {
               (e: Error) => setMsg(`⚠️ ${e.message}`)
             )
           }
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+          className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           반영
         </button>

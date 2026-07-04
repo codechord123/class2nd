@@ -20,7 +20,7 @@ export default function CustomLinks() {
             href={l.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-2.5 rounded-lg border border-ink-200 bg-ink-50 p-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50"
+            className="flex items-start gap-2.5 rounded-btn border border-ink-200 bg-ink-50 p-3 transition-colors hover:border-brand/40 hover:bg-brand-weak"
           >
             <span className="text-xl">{l.emoji || "🔗"}</span>
             <span className="min-w-0">

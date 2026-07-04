@@ -32,6 +32,7 @@ import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
 import { ScaleEditor, RankPointsEditor } from "@/components/teacher/SettingsEditors";
 import { requestWindowLabel } from "@/lib/requestWindow";
+import { useFeedback } from "@/components/ui/Feedback";
 import { openRangePrintDoc } from "@/lib/exportDoc";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
@@ -48,6 +49,7 @@ export default function TeacherPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
   const [msg, setMsg] = useState("");
+  const { toast } = useFeedback();
 
   // 설정 드래프트 — null이면 서버값 사용, 편집 시 모듈형 컨트롤이 직접 값 조작
   const [dPeer, setDPeer] = useState<number[] | null>(null);
@@ -148,12 +150,12 @@ export default function TeacherPage() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() => void runAggregate()}
             disabled={busy}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             {busy ? "집계 중…" : "집계 실행"}
           </button>
@@ -176,7 +178,7 @@ export default function TeacherPage() {
           <select
             value={bestGroupId}
             onChange={(e) => setBestGroupId(Number(e.target.value))}
-            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
           >
             {[1, 2, 3, 4, 5].map((g) => (
               <option key={g} value={g}>
@@ -198,7 +200,7 @@ export default function TeacherPage() {
                 }
               })()
             }
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-white"
+            className="rounded-btn bg-amber-500 px-4 py-2 text-sm font-bold text-white"
           >
             오늘의 모둠으로 선정
           </button>
@@ -228,7 +230,7 @@ export default function TeacherPage() {
                     }
                   })()
                 }
-                className="rounded-lg border border-ink-300 px-3 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50"
+                className="rounded-btn border border-ink-300 px-3 py-2 text-sm font-bold text-ink-600 hover:bg-ink-50"
               >
                 🖨️ {label}
               </button>
@@ -354,7 +356,7 @@ export default function TeacherPage() {
           ]).map(({ r, kind }) => (
             <li
               key={`${kind}-${r.id}`}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
             >
               <span>
                 <b>{studentById.get(r.studentId)?.name}</b> · {r.item}{" "}
@@ -364,14 +366,24 @@ export default function TeacherPage() {
               </span>
               <span className="flex gap-1">
                 <button
-                  onClick={() => void (kind === "s2" ? decideSpend : decideSpendS1)(r, true)}
-                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                  onClick={() =>
+                    void (kind === "s2" ? decideSpend : decideSpendS1)(r, true).then(
+                      () => toast(`✅ 승인: ${studentById.get(r.studentId)?.name} · ${r.item}`),
+                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                    )
+                  }
+                  className="press rounded-btn bg-success px-3 py-1 text-xs font-bold text-white"
                 >
                   승인
                 </button>
                 <button
-                  onClick={() => void (kind === "s2" ? decideSpend : decideSpendS1)(r, false)}
-                  className="rounded-lg bg-rose-500 px-3 py-1 text-xs font-bold text-white"
+                  onClick={() =>
+                    void (kind === "s2" ? decideSpend : decideSpendS1)(r, false).then(
+                      () => toast(`반려 처리했어요: ${r.item}`),
+                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                    )
+                  }
+                  className="press rounded-btn bg-danger px-3 py-1 text-xs font-bold text-white"
                 >
                   반려
                 </button>
@@ -394,7 +406,7 @@ export default function TeacherPage() {
           {pendSeat?.map((r) => (
             <li
               key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
             >
               <span>
                 <b>{studentById.get(r.studentId)?.name}</b> → {r.week}주차 {r.targetGroup}모둠{" "}
@@ -408,21 +420,26 @@ export default function TeacherPage() {
                         const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
                         const cost = settings!.seatChangeCost;
                         await decideSeat(r, true, occ ?? undefined, cost);
-                        setMsg(
-                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감 완료`
+                        toast(
+                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
                         );
                       } catch (e) {
-                        setMsg(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`);
+                        toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
                       }
                     })()
                   }
-                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                  className="press rounded-btn bg-success px-3 py-1 text-xs font-bold text-white"
                 >
                   승인(자리 교환)
                 </button>
                 <button
-                  onClick={() => void decideSeat(r, false)}
-                  className="rounded-lg bg-rose-500 px-3 py-1 text-xs font-bold text-white"
+                  onClick={() =>
+                    void decideSeat(r, false).then(
+                      () => toast("반려 처리했어요."),
+                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                    )
+                  }
+                  className="press rounded-btn bg-danger px-3 py-1 text-xs font-bold text-white"
                 >
                   반려
                 </button>
@@ -443,7 +460,7 @@ export default function TeacherPage() {
           <select
             value={grantSid}
             onChange={(e) => setGrantSid(Number(e.target.value))}
-            className="rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
           >
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -453,29 +470,35 @@ export default function TeacherPage() {
           </select>
           <input
             type="number"
+            min={1}
             value={grantAmt}
             onChange={(e) => setGrantAmt(e.target.value)}
-            className="w-20 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <input
             value={grantNote}
             onChange={(e) => setGrantNote(e.target.value)}
             placeholder="사유 (예: 격주 MVP)"
-            className="min-w-40 flex-1 rounded-lg border border-ink-300 px-3 py-2 text-sm"
+            className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <button
             onClick={() =>
               void (async () => {
+                const n = Number(grantAmt);
+                if (!Number.isInteger(n) || n <= 0) {
+                  toast("지급 개수는 1 이상의 정수여야 해요.", "warn");
+                  return;
+                }
                 try {
-                  await grantSilver(grantSid, Number(grantAmt) || 0, grantNote);
-                  setMsg(`✅ ${studentById.get(grantSid)?.name}에게 실버 ${grantAmt}개 지급`);
+                  await grantSilver(grantSid, n, grantNote);
+                  toast(`✅ ${studentById.get(grantSid)?.name}에게 실버 ${n}개 지급`);
                   setGrantNote("");
                 } catch (e) {
-                  setMsg(`⚠️ 지급 실패: ${e instanceof Error ? e.message : String(e)}`);
+                  toast(`⚠️ 지급 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
                 }
               })()
             }
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+            className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
           >
             지급
           </button>
