@@ -240,7 +240,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           </div>
         </div>
       ) : (
-        <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
+        <p className="mt-3 whitespace-pre-wrap text-[17px] leading-8 text-ink-800 [overflow-wrap:anywhere]">
           <Linkify text={sug.content} />
         </p>
       )}

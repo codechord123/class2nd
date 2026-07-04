@@ -5,7 +5,7 @@ import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { s1TotalBooks } from "@/lib/staticData";
 
-export default function TurtleMarathon() {
+export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const { data: settings } = useSettings();
   const { data: stats } = useReadingStats();
 
@@ -16,7 +16,10 @@ export default function TurtleMarathon() {
   const s1Progress = Math.min((s1TotalBooks / goal) * 100, 100);
 
   return (
-    <div className="rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card">
+    // bare: 다른 카드 안에 합쳐 넣을 때 (독서 탭 상단 압축 — 카드 개수 줄이기)
+    <div
+      className={bare ? "" : "rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card"}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-extrabold text-emerald-900">🐢 거북이 독서 마라톤</h3>
         {/* 성취 숫자가 이 블록의 주인공 — 크게, 진하게 */}

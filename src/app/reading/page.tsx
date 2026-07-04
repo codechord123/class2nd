@@ -59,7 +59,7 @@ function ReportBody({
         <div className="mt-4">
           <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남는 문장 (인용)</p>
           <div className="rounded-btn border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-            <p className="whitespace-pre-wrap text-base italic leading-7 text-emerald-900 [overflow-wrap:anywhere]">
+            <p className="whitespace-pre-wrap text-[17px] italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
               ❝ {r.quote}
             </p>
           </div>
@@ -156,7 +156,7 @@ function ReportSection({ label, text }: { label: string; text: string }) {
     <div className="mt-4 first:mt-0">
       <p className="mb-1.5 text-[13px] font-bold text-ink-700">{label}</p>
       <div className="rounded-btn border border-ink-200 bg-ink-50/40 px-3.5 py-3">
-        <p className="whitespace-pre-wrap text-base leading-7 text-ink-800 [overflow-wrap:anywhere]">
+        <p className="whitespace-pre-wrap text-[17px] leading-8 text-ink-800 [overflow-wrap:anywhere]">
           <Linkify text={text} />
         </p>
       </div>
@@ -272,8 +272,10 @@ export default function ReadingPage() {
   if (selectedId && selectedReport) {
     const r = selectedReport;
     return (
-      // 상세는 읽기용 — 데스크탑에서 글줄이 너무 길어지지 않게 폭 제한
-      <div className="mx-auto w-full max-w-3xl space-y-3">
+      // 긴 글 대응 — 데스크탑 2단: 왼쪽 책 카드가 고정(sticky)되어 아무리 긴 글을
+      // 스크롤해도 "무슨 책, 누구 글"이라는 맥락이 화면에서 사라지지 않는다
+      <div className="mx-auto w-full max-w-3xl space-y-3 lg:grid lg:max-w-none lg:grid-cols-[300px_1fr] lg:items-start lg:gap-4 lg:space-y-0">
+        <div className="space-y-3 lg:sticky lg:top-32">
         <button
           onClick={() => setSelectedId(null)}
           className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
@@ -335,6 +337,7 @@ export default function ReadingPage() {
             </div>
           </div>
         </section>
+        </div>
 
         {/* 감상 카드 — 쓰기 화면 '2. 감상을 남겨요'와 같은 라벨+상자 구조 */}
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
@@ -378,16 +381,16 @@ export default function ReadingPage() {
 
   return (
     <div className="space-y-4">
-      {/* 히어로: 학급 목표(교사 편집) + 경고 + 마라톤 (항상 표시, 컴팩트) */}
+      {/* 히어로: 학급 목표(교사 편집) + 경고 + [마라톤·순위 한 카드] — 상단 다이어트 */}
       <ClassBanner compact />
       <ReadingAlert />
-      <TurtleMarathon />
-
-      {/* 🏁 독서 순위 — 목표 블록 바로 아래 상시 노출 (탭 아님) */}
-      <section className="rounded-card border border-ink-200 bg-white px-4 py-3 shadow-card">
-        <h3 className="text-sm font-bold text-ink-800">🏁 독서 순위 (1·2학기 합산)</h3>
-        <div className="mt-1">
-          <RankCarousel totals={stats?.total ?? {}} />
+      <section className="rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card">
+        <TurtleMarathon bare />
+        <div className="mt-3 border-t border-emerald-200/70 pt-2.5">
+          <h3 className="text-sm font-bold text-emerald-900">🏁 독서 순위 (1·2학기 합산)</h3>
+          <div className="mt-1">
+            <RankCarousel totals={stats?.total ?? {}} />
+          </div>
         </div>
       </section>
 

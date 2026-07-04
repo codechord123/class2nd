@@ -7,15 +7,16 @@ import { useSession } from "@/stores/session";
 // 학생 화면 탭 구성 (요구사항 §2): 개요·Team·독서·건의·투표·자리·상점·헌법
 // 모바일 가로 스크롤을 줄이기 위해 라벨은 짧게 유지 (레드팀 결론)
 // 내비게이션은 텍스트만 — 이모지는 콘텐츠 영역에만 써서 정식 프로그램의 인상을 만든다
+// 탭별 시그니처 컬러 — "지금 어디에 있는지"를 색으로 인지 (독서=에메랄드, 투표=보라…)
 const TABS = [
-  { href: "/", label: "개요" },
-  { href: "/team", label: "Team" },
-  { href: "/reading", label: "독서" },
-  { href: "/board", label: "건의" },
-  { href: "/vote", label: "투표" },
-  { href: "/seats", label: "자리" },
-  { href: "/shop", label: "상점" },
-  { href: "/rules", label: "헌법" },
+  { href: "/", label: "개요", accent: "bg-brand" },
+  { href: "/team", label: "Team", accent: "bg-orange-500" },
+  { href: "/reading", label: "독서", accent: "bg-emerald-500" },
+  { href: "/board", label: "건의", accent: "bg-sky-500" },
+  { href: "/vote", label: "투표", accent: "bg-violet-500" },
+  { href: "/seats", label: "자리", accent: "bg-amber-500" },
+  { href: "/shop", label: "상점", accent: "bg-pink-500" },
+  { href: "/rules", label: "헌법", accent: "bg-slate-600" },
 ] as const;
 
 export default function TabNav() {
@@ -38,7 +39,7 @@ export default function TabNav() {
 
   const tabs =
     mounted && role === "teacher"
-      ? [...TABS, { href: "/teacher", label: "교사" } as const]
+      ? [...TABS, { href: "/teacher", label: "교사", accent: "bg-ink-800" } as const]
       : TABS;
   const tabCount = tabs.length;
 
@@ -83,7 +84,7 @@ export default function TabNav() {
                   aria-current={active ? "page" : undefined}
                   className={`press inline-flex min-h-11 items-center rounded-full px-3.5 py-2.5 font-bold transition-colors ${
                     active
-                      ? "bg-brand text-white shadow-card"
+                      ? `${t.accent} text-white shadow-card`
                       : "bg-ink-100 text-ink-600 hover:bg-ink-200 hover:text-ink-800"
                   }`}
                 >
