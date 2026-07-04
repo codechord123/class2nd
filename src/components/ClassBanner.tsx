@@ -5,18 +5,17 @@ import { useClassBanner } from "@/lib/query/classMeta";
 export default function ClassBanner({ compact = false }: { compact?: boolean }) {
   const { data: banner } = useClassBanner();
   if (!banner || !banner.active || !banner.title.trim()) return null;
+  // 한 줄 정보(목표 문구)가 화면을 크게 차지하지 않게 — 홈도 컴팩트 비율로 통일
   return (
     <div
-      className={`rounded-card bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow ${
-        compact ? "px-5 py-3" : "p-4"
+      className={`rounded-card bg-gradient-to-r from-amber-400 to-orange-500 px-5 text-white shadow ${
+        compact ? "py-3" : "py-3.5"
       }`}
     >
       {!compact && banner.sub?.trim() && (
-        <p className="text-sm font-medium opacity-90">{banner.sub}</p>
+        <p className="text-xs font-medium opacity-90">{banner.sub}</p>
       )}
-      <p className={compact ? "text-lg font-extrabold" : "mt-1 text-2xl font-extrabold"}>
-        {banner.title}
-      </p>
+      <p className={`font-extrabold ${compact ? "text-lg" : "mt-0.5 text-xl"}`}>{banner.title}</p>
     </div>
   );
 }

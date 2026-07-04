@@ -102,13 +102,15 @@ export default function DailyReportPanel({ date }: { date: string }) {
         `<div class="card"><div class="t">${t}</div>${inner}</div>`;
 
       // 독서 현황 (인쇄물은 이모지 대신 텍스트 제목 — 프린터에서 이모지가 깨지는 문제)
+      const metPct = Math.round((metCount / students.length) * 100);
       const readingCard = card(
         `거북이 독서 현황 (${week}주차)`,
         `<div class="stats">
           <div><div class="l">학급 누적</div><div class="v green">${classTotal}</div></div>
           <div><div class="l">이번 주</div><div class="v">${weekBooksTotal}권</div></div>
           <div><div class="l">목표 달성</div><div class="v blue">${metCount}/${students.length}</div></div>
-        </div>${
+        </div>
+        <div class="gauge"><i style="width:${metPct}%"></i><span>주간 목표 달성 ${metCount}/${students.length}명 (${metPct}%)</span></div>${
           notMet.length
             ? `<p class="muted">미달(${notMet.length}): ${notMet.map((s) => esc(s.name)).join(", ")}</p>`
             : `<p class="muted">전원 목표 달성!</p>`
@@ -138,11 +140,15 @@ export default function DailyReportPanel({ date }: { date: string }) {
           s1BooksOf(stats, id) + (stats?.total?.[String(id)] ?? 0);
         const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
         const half = Math.ceil(ranked.length / 2);
+        // 점수 칸에 미니 바 — 표가 숫자 나열이 아니라 분포로 읽히게 (시각화)
+        const maxScore = Math.max(1, ...students.map((s) => totalOf(s.id)));
+        const scoreCell = (n: number) =>
+          `<td class="score"><span class="sbar" style="width:${Math.round((Math.max(n, 0) / maxScore) * 100)}%"></span><b>${n}</b></td>`;
         const scoreTbl = (rows: typeof ranked, offset: number) =>
           `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows
             .map(
               (s, i) =>
-                `<tr><td>${offset + i + 1}</td><td>${esc(s.name)}</td><td><b>${totalOf(s.id)}</b></td><td>${
+                `<tr><td>${offset + i + 1}</td><td>${esc(s.name)}</td>${scoreCell(totalOf(s.id))}<td>${
                   readTodayOf(s.id) || "·"
                 }</td><td>${cumBooksOf(s.id)}</td></tr>`
             )

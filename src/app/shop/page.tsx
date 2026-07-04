@@ -31,7 +31,7 @@ export default function ShopPage() {
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
 
-  const [tab, setTab] = useState<"shop" | "carry">("shop");
+  const [tab, setTab] = useState<"shop" | "history">("shop");
   const [wallet, setWallet] = useState<WalletKind>("s2");
   const [amount, setAmount] = useState("1");
   const [item, setItem] = useState("");
@@ -56,7 +56,9 @@ export default function ShopPage() {
   const myS1Remaining = studentId
     ? (getS1WalletOf(studentId)?.silverRemaining ?? 0) - (s1Used?.[String(studentId)] ?? 0)
     : 0;
-  const classGoldLeft = s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0);
+  // 골드 = 1학기 이월분 − 사용 + 실버 마일스톤 적립(실버 25개 벌 때마다 +1)
+  const classGoldLeft =
+    s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0);
 
   // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청
   async function submit() {
@@ -166,11 +168,17 @@ export default function ShopPage() {
               💰 실버는 어떻게 벌어요?
             </summary>
             <ul className="mt-1.5 space-y-0.5 text-xs text-ink-500">
+              <li>
+                🏅 <b>누적 점수 25점</b>이 모일 때마다 실버 1개 (자동!)
+              </li>
               <li>⭐ 최다 MVP — 2주 동안 MVP에 가장 많이 뽑힌 친구</li>
               <li>👑 최고 모둠 — 오늘의 모둠에 가장 많이 뽑힌 모둠 전원</li>
               <li>🐢 최다 독서 — 2주 동안 가장 많이 읽은 친구</li>
               <li>🎯 최다 미션 모둠 — 칭찬 미션을 가장 많이 성공한 모둠 전원</li>
               <li>🎁 선생님 지급 — 특별히 잘한 일</li>
+              <li>
+                🥇 <b>실버 25개</b>를 벌 때마다 학급 골드토큰 +1 (자동!)
+              </li>
             </ul>
           </details>
           {tab === "shop" && (
@@ -195,17 +203,17 @@ export default function ShopPage() {
       <SubTabs
         tabs={[
           { key: "shop" as const, label: "🛒 상점" },
-          { key: "carry" as const, label: "🎒 이월 지갑" },
+          { key: "history" as const, label: "📜 내 사용 내역" },
         ]}
         active={tab}
         onChange={setTab}
       />
 
-      {/* 신청 시간창 안내 — 닫혀 있으면 구경만 가능 */}
+      {/* 신청 시간창 안내 — 토큰은 사용 전날 신청 (당일 신청 불가 시스템) */}
       {tab === "shop" && role === "student" && studentId && !requestOpen && (
         <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm text-warn">
-          🕓 토큰 신청은 <b>{windowLabel}</b>에만 할 수 있어요. 지금은 구경만! 신청은 저녁에,
-          승인은 다음 날 아침에 해요.
+          🕓 토큰은 <b>쓰기 전날 {windowLabel}</b>에 신청해요 — 당일 신청은 안 돼요. 지금은
+          구경만! 승인은 다음 날 아침에 나요.
         </div>
       )}
 
@@ -297,15 +305,16 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 내 신청 내역 — 항상 노출 (승인 대기 확인용) */}
-      {tab === "shop" && role === "student" && studentId && myRequests.length > 0 && (
+      {/* 상점 탭에는 대기 중인 신청만 짧게 — 전체 이력은 '내 사용 내역' 탭 */}
+      {tab === "shop" && role === "student" && studentId &&
+        myRequests.some((r) => r.status === "pending") && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-          <p className="text-[15px] font-bold text-ink-800">📜 내 신청 내역</p>
+          <p className="text-[15px] font-bold text-ink-800">⏳ 승인 기다리는 신청</p>
           <ul className="mt-2 space-y-1.5 text-sm">
-            {myRequests.slice(0, 8).map((r) => (
+            {myRequests.filter((r) => r.status === "pending").map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3 py-2.5"
+                className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2.5"
               >
                 <span className="min-w-0 truncate">
                   <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
@@ -313,10 +322,8 @@ export default function ShopPage() {
                     · {r.wallet === "s2" ? "2학기" : "이월"} 실버 {r.amount}개
                   </span>
                 </span>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
-                >
-                  {STATUS_LABEL[r.status]}
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE.pending}`}>
+                  {STATUS_LABEL.pending}
                 </span>
               </li>
             ))}
@@ -324,8 +331,55 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 반 전체 이월 지갑 현황 (표시 전용) */}
-      {tab === "carry" && (
+      {/* 📜 내 사용 내역 — 내가 신청·사용한 토큰 전체 (이월 지갑 탭 대체) */}
+      {tab === "history" && role === "student" && studentId && (
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-bold">📜 내 사용 내역</h2>
+            <span className="text-xs text-ink-500">
+              이월 실버 <b className="text-brand-strong">{myS1Remaining}개</b> 남음 (2학기와 안 섞여요)
+            </span>
+          </div>
+          {myRequests.length === 0 ? (
+            <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+              아직 사용한 토큰이 없어요. 상점에서 첫 신청을 해보세요!
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-1.5 text-sm">
+              {myRequests.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2.5"
+                >
+                  <span className="min-w-0 truncate">
+                    <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
+                    <span className="text-xs text-ink-500">
+                      · {r.wallet === "s2" ? "2학기" : "이월"}
+                      <span className="tnum">
+                        {" "}· {new Date(r.createdAt).getMonth() + 1}월 {new Date(r.createdAt).getDate()}일
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {/* 받은 실버(+)는 초록, 쓴 실버(−)는 빨강 — 방향이 한눈에 */}
+                    <b className={`tnum text-sm ${r.amount > 0 ? "text-success" : "text-danger"}`}>
+                      {r.amount > 0 ? `+${r.amount}` : r.amount}
+                    </b>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
+                    >
+                      {STATUS_LABEL[r.status]}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* 교사: 반 전체 이월 지갑 현황 (내역 탭에서 — 학생에겐 본인 것만) */}
+      {tab === "history" && role === "teacher" && (
       <section className="rounded-card border border-indigo-200 bg-indigo-50/50 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold">🎒 1학기 이월 지갑</h2>

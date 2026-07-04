@@ -52,7 +52,10 @@ export default function MyStatus() {
   // 학급 스코어보드 (전원 공통)
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
   const classTotalBooks = s1TotalOf(stats) + s2Total;
-  const goldLeft = s1ClassGoldRemaining - ((s1Used?.classGoldUsed as number | undefined) ?? 0);
+  const goldLeft =
+    s1ClassGoldRemaining -
+    ((s1Used?.classGoldUsed as number | undefined) ?? 0) +
+    ((s1Used?.classGoldEarned as number | undefined) ?? 0);
   const classScore = Object.entries((cum ?? {}) as Record<string, unknown>)
     .filter(([k, v]) => /^\d+$/.test(k) && typeof v === "number")
     .reduce((a, [, v]) => a + (v as number), 0);

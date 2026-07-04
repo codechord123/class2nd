@@ -40,7 +40,7 @@ export default function S1Archive() {
       </ul>
       <p className="mt-2 text-xs text-ink-500">
         ※ 권수는 <b>실제 작성한 감상문 수</b> 기준이에요 (선생님이 종이 감상문 등을 인정하면
-        보정으로 더해져요). 감상문 전문은 <b>📖 감상문</b> 탭에서 1·2학기 모두 볼 수 있어요.
+        보정으로 더해져요).
       </p>
     </section>
   );

@@ -27,6 +27,92 @@ export interface AggregateResult {
   date: string;
   evaluatorCount: number;
   groupRanks: Record<number, number>;
+  /** 이번 집계로 지급된 마일스톤 실버 (studentId → 개수) */
+  milestoneSilver?: Record<string, number>;
+  /** 이번 집계로 적립된 학급 골드 */
+  milestoneGold?: number;
+}
+
+// ── 마일스톤 보상 (사용자 확정 규칙) ─────────────────────────────
+// · 누적 점수 25점이 모일 때마다 → 실버 1개 (자동 지급, 점수는 소모되지 않음)
+// · 실버를 25개 벌 때마다(자동 지급분 누적) → 학급 골드토큰 1개 적립
+// 지급 이력은 _cumulative에 저장(scoreSilverPaid·silverEarned·goldPaid) —
+// 재집계로 점수가 내려가도 이미 준 것은 회수하지 않는다(멱등·단조 증가).
+const SILVER_PER_SCORE = 25;
+const GOLD_PER_SILVER = 25;
+
+async function grantMilestones(
+  cum: Record<string, unknown>,
+  extraSilver: Record<string, number>, // 이번에 다른 자동 경로로 지급된 실버(세션 보상)
+  reason: string
+): Promise<{ silver: Record<string, number>; gold: number }> {
+  const d = db();
+  const scorePaid = { ...((cum.scoreSilverPaid as Record<string, number>) ?? {}) };
+  const earned = { ...((cum.silverEarned as Record<string, number>) ?? {}) };
+  const goldPaid = { ...((cum.goldPaid as Record<string, number>) ?? {}) };
+  const silverGrant: Record<string, number> = {};
+  let goldDelta = 0;
+
+  for (const s of students) {
+    const sid = String(s.id);
+    // ① 누적 점수 25점 단위 → 실버
+    const score = typeof cum[sid] === "number" ? (cum[sid] as number) : 0;
+    const entitled = Math.floor(Math.max(score, 0) / SILVER_PER_SCORE);
+    const delta = entitled - (scorePaid[sid] ?? 0);
+    if (delta > 0) {
+      silverGrant[sid] = delta;
+      scorePaid[sid] = entitled;
+    }
+    // ② 자동 지급 실버 누적 25개 단위 → 학급 골드 적립
+    const gained = (silverGrant[sid] ?? 0) + (extraSilver[sid] ?? 0);
+    if (gained > 0) earned[sid] = (earned[sid] ?? 0) + gained;
+    const goldEntitled = Math.floor((earned[sid] ?? 0) / GOLD_PER_SILVER);
+    const gDelta = goldEntitled - (goldPaid[sid] ?? 0);
+    if (gDelta > 0) {
+      goldPaid[sid] = goldEntitled;
+      goldDelta += gDelta;
+    }
+  }
+
+  const writes: Promise<unknown>[] = [];
+  const silverEntries = Object.entries(silverGrant);
+  if (silverEntries.length) {
+    writes.push(
+      setDoc(
+        doc(d, "coinTxns", "0_balances"),
+        Object.fromEntries(silverEntries.map(([sid, n]) => [sid, increment(n)])),
+        { merge: true }
+      )
+    );
+    for (const [sid, n] of silverEntries)
+      writes.push(
+        addDoc(collection(d, "coinTxns"), {
+          studentId: Number(sid),
+          amount: n,
+          item: reason,
+          type: "milestone",
+          status: "approved",
+          createdAt: Date.now(),
+        })
+      );
+  }
+  // 학급 골드 적립 — 골드 잔량 문서(s1Spends/0_balances)의 earned 필드에 누적
+  if (goldDelta > 0) {
+    writes.push(
+      setDoc(doc(d, "s1Spends", "0_balances"), { classGoldEarned: increment(goldDelta) }, { merge: true })
+    );
+  }
+  if (silverEntries.length || goldDelta > 0) {
+    writes.push(
+      setDoc(
+        doc(d, "dailyScores", "_cumulative"),
+        { scoreSilverPaid: scorePaid, silverEarned: earned, goldPaid },
+        { merge: true }
+      )
+    );
+  }
+  await Promise.all(writes);
+  return { silver: silverGrant, gold: goldDelta };
 }
 
 export async function aggregateDate(
@@ -214,10 +300,15 @@ export async function aggregateDate(
     setDoc(doc(d, "dailyScores", "_cumulative"), { ...cum, mvpWins, mvpVotesTotal }),
   ]);
 
+  // 마일스톤 보상 — 누적 점수 25점 단위 실버 자동 지급 (+실버 25개 단위 학급 골드)
+  const ms = await grantMilestones(cum, {}, "🏅 점수 25점 달성 보상");
+
   return {
     date,
     evaluatorCount: evalSnap.size,
     groupRanks: ranks,
+    milestoneSilver: ms.silver,
+    milestoneGold: ms.gold,
   };
 }
 
@@ -400,6 +491,15 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       doc(d, "dailyScores", "_cumulative"),
       Object.fromEntries(Object.entries(streakPoints).map(([sid, n]) => [sid, increment(n)])),
       { merge: true }
+    );
+  }
+  // 세션 보상 실버도 '실버 25개 → 골드' 마일스톤에 누적 (문서 1회 재읽기 — 교사 경로)
+  if (entries.length) {
+    const cumSnap = await getDoc(doc(d, "dailyScores", "_cumulative"));
+    await grantMilestones(
+      cumSnap.exists() ? cumSnap.data() : {},
+      Object.fromEntries(entries.map(([sid, n]) => [sid, n])),
+      "🏅 점수 25점 달성 보상"
     );
   }
   await setDoc(marker, {

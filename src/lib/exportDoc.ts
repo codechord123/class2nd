@@ -71,6 +71,15 @@ const PRINT_CSS = `
            font-weight: 700; background: #fff4e6; color: #e8590c; margin-left: 3px; }
   .docfoot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e5e8eb;
              text-align: center; color: #b0b8c1; font-size: 10.5px; }
+  /* 시각화 — 점수 칸 미니 바 · 달성 게이지 */
+  .score { position: relative; }
+  .score .sbar { position: absolute; left: 0; top: 0; bottom: 0; background: #dbeafe; }
+  .score b { position: relative; }
+  .gauge { position: relative; height: 18px; margin-top: 10px; border-radius: 9px;
+           background: #f2f4f6; overflow: hidden; }
+  .gauge i { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #0ca678); }
+  .gauge span { position: absolute; inset: 0; display: flex; align-items: center;
+                justify-content: center; font-size: 10.5px; font-weight: 700; color: #065f46; }
   @media print { .noprint { display: none; } }
 `;
 

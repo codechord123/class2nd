@@ -3,10 +3,8 @@
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
-import { loadS1TurtleReading } from "@/lib/staticData";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
@@ -255,41 +253,9 @@ export default function ReadingPage() {
   const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id });
   const editReport = (r: ReadingReport2) => openSheet({ form: toForm(r), reportId: r.id });
 
-  // 📚 1학기 감상문 통합 — 정적 백업(313KB)은 감상문 탭을 열 때만 동적 로드 (읽기 0회)
-  const { data: s1Data } = useQuery({
-    queryKey: ["s1-turtle"],
-    queryFn: loadS1TurtleReading,
-    staleTime: Infinity,
-    enabled: tab === "list",
-  });
-  const s1Items: ListReport[] = useMemo(
-    () =>
-      (s1Data?.readingReports ?? [])
-        .filter((r) => !(r as { isDraft?: boolean }).isDraft)
-        .map((r) => ({
-          id: `s1-${r.docId}`,
-          studentId: r.studentId,
-          title: r.title,
-          author: r.author ?? "",
-          publisher: r.publisher ?? "",
-          summary: r.summary ?? "",
-          scene: r.scene ?? "",
-          quote: r.quote ?? "",
-          thoughts: r.thoughts ?? "",
-          isDraft: false,
-          week: 0,
-          createdAt: Number(r.docId.split("_")[0]) || 0,
-          s1: true,
-          s1Date: r.date.split(" ").slice(0, 2).join(" "), // "6월 11일 오후 10:13" → "6월 11일"
-        }))
-        .sort((a, b) => b.createdAt - a.createdAt),
-    [s1Data]
-  );
-  // 2학기(최신)가 앞, 1학기가 뒤 — 최신순 게시판이 자연히 학기 역순이 된다
-  const allReports: ListReport[] = useMemo(
-    () => [...(reports ?? []), ...s1Items],
-    [reports, s1Items]
-  );
+  // 감상문 게시판은 2학기 글만 (사용자 결정 — 1학기 글은 게시판에서 제외,
+  // 전문은 교사의 '감상문 모음집(출판용)'에서만 함께 엮인다)
+  const allReports: ListReport[] = useMemo(() => reports ?? [], [reports]);
 
   // 🔒 비공개 글: 작성자 본인·교사만 내용 열람 가능
   const isLocked = (r: ListReport) =>
@@ -310,7 +276,7 @@ export default function ReadingPage() {
 
   // 페이지네이션: 검색·태그 필터 중에는 결과 전체를 그대로 (페이지 개념이 헷갈리지 않게)
   const filtering = Boolean(search.trim() || tagFilter);
-  const knownPages = Math.max(1, Math.ceil(((reports?.length ?? 0) + s1Items.length) / pageSize));
+  const knownPages = Math.max(1, Math.ceil((reports?.length ?? 0) / pageSize));
   const pageItems = filtering ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
 
   // ── 상세 화면 (제목 클릭 진입) — 잠긴 글은 진입 불가 ──────────────
@@ -520,9 +486,7 @@ export default function ReadingPage() {
       {tab === "list" && (
         <section className="rounded-card border border-ink-200 bg-white shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-            <h3 className="text-lg font-bold">
-              📖 친구들의 감상문 <span className="text-xs font-medium text-ink-400">1·2학기 전체</span>
-            </h3>
+            <h3 className="text-lg font-bold">📖 친구들의 감상문</h3>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
