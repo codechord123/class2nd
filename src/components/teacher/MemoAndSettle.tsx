@@ -23,7 +23,7 @@ export function TeacherMemoWidget() {
   const fs = fontSize ?? memo?.fontSize ?? 14;
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">📝 선생님 메모장</h2>
         <div className="flex items-center gap-1 text-xs text-ink-400">
@@ -86,7 +86,7 @@ export function BiweeklySettlePanel() {
   }
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 격주 MVP 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
         2주 누적 점수 상위 5명(동점 포함)에게 실버 1개 자동 지급. 격주 금요일에 실행하세요.
@@ -133,7 +133,7 @@ export function BonusPanel() {
   const [msg, setMsg] = useState("");
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">➕ 교사 보너스 점수</h2>
       <p className="mt-1 text-xs text-ink-500">
         특정 날짜의 학생 점수에 보너스를 더하거나 뺍니다 (누적 자동 반영).

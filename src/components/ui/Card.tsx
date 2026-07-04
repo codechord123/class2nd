@@ -16,10 +16,10 @@ export default function Card({
 }) {
   return (
     <section
-      className={`rise rounded-card border border-ink-200 bg-white shadow-card ${pad ? "p-5" : ""} ${className}`}
+      className={`rise rounded-card border border-ink-200 bg-white shadow-card ${pad ? "p-4" : ""} ${className}`}
     >
       {(title || action) && (
-        <div className={`flex items-start justify-between gap-3 ${pad ? "" : "p-5 pb-0"}`}>
+        <div className={`flex items-start justify-between gap-3 ${pad ? "" : "p-4 pb-0"}`}>
           <div>
             {title && <h2 className="text-base font-bold text-ink-900">{title}</h2>}
             {desc && <p className="mt-1 text-xs text-ink-500">{desc}</p>}

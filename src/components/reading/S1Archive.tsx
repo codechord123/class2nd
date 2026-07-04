@@ -83,7 +83,7 @@ export default function S1Archive() {
   }, [turtle, filterId, search]);
 
   return (
-    <section className="rounded-card border border-emerald-200 bg-emerald-50/50 p-5">
+    <section className="rounded-card border border-emerald-200 bg-emerald-50/50 p-4">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between font-bold"

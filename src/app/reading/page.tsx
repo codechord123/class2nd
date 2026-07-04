@@ -217,7 +217,7 @@ export default function ReadingPage() {
         >
           ← 목록으로
         </button>
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="border-b border-ink-100 pb-3">
             <div className="flex items-center gap-2">
               {r.isPrivate && <span className="shrink-0 text-sm">🔒</span>}
@@ -288,7 +288,7 @@ export default function ReadingPage() {
 
       {/* ✍️ 쓰기 — 런처(버튼) + 내 임시저장. 실제 작성은 전체화면 시트 */}
       {tab === "write" && studentId && (
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <button
             onClick={openNew}
             className="press flex w-full items-center justify-center gap-2 rounded-card bg-success py-6 text-base font-extrabold text-white shadow-card"

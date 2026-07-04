@@ -89,7 +89,7 @@ export default function TeamPage() {
   if (role === "teacher") {
     return (
       <div className="space-y-4">
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <h2 className="text-lg font-bold">🤝 Team</h2>
           <p className="mt-1 text-sm text-ink-500">
             선생님은 <b>교사</b> 탭에서 집계·오늘의 모둠 선정·칭찬 인쇄를 관리할 수 있어요.
@@ -119,7 +119,7 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-bold text-ink-900">
             🤝 Team · {myGroup.groupId}모둠
@@ -166,7 +166,7 @@ export default function TeamPage() {
       {tab === "eval" && (<>
 
       {/* 모둠 내 상호평가 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">🫂 우리 모둠 평가</h3>
         <p className="mt-1 text-xs text-ink-500">
           친구가 역할을 얼마나 잘 수행했는지 점수를 주세요. 누르면 바로 저장돼요.
@@ -193,7 +193,7 @@ export default function TeamPage() {
       </section>
 
       {/* 모둠 간 평가 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">🏆 다른 모둠 평가</h3>
         <p className="mt-1 text-xs text-ink-500">
           오늘 잘한 모둠에게 점수를 주세요. 집계 후 순위에 따라 그 모둠 전원이 점수를
@@ -225,7 +225,7 @@ export default function TeamPage() {
 
       {tab === "mvp" && (<>
       {/* 오늘의 모둠 MVP 투표 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
         <p className="mt-1 text-xs text-ink-500">오늘 가장 빛난 모둠 친구 1명을 뽑아주세요.</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -250,7 +250,7 @@ export default function TeamPage() {
       </section>
 
       {/* 오늘의 칭찬 (1인 1명) */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">💌 오늘의 칭찬</h3>
         <p className="mt-1 text-xs text-ink-500">
           모둠 친구 1명을 골라 칭찬 한마디! 친구들이 골고루 칭찬받도록 해주세요.
@@ -326,7 +326,7 @@ export default function TeamPage() {
       </section>
 
       {/* 선생님에게 바라는 점 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">🙏 선생님에게 바라는 점</h3>
         <p className="mt-1 text-xs text-ink-500">
           오늘 선생님께 하고 싶은 말이나 바라는 점을 남겨주세요. 선생님만 볼 수 있어요.

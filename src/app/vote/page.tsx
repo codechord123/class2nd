@@ -36,7 +36,7 @@ function PollCard({ poll }: { poll: Poll }) {
 
   return (
     <section
-      className={`rounded-card border bg-white p-5 shadow-card ${closed ? "border-ink-300 opacity-90" : "border-brand/30"}`}
+      className={`rounded-card border bg-white p-4 shadow-card ${closed ? "border-ink-300 opacity-90" : "border-brand/30"}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">

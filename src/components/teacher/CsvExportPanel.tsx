@@ -48,7 +48,7 @@ export default function CsvExportPanel() {
   }
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">📥 학급 현황 CSV 내보내기</h2>
       <p className="mt-1 text-xs text-ink-500">
         번호·이름·누적점수·실버(2학기/이월)·독서 권수(1·2학기/합계)를 엑셀용 CSV로 저장해요.

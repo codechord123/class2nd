@@ -78,7 +78,7 @@ export default function TeacherPage() {
 
   if (role !== "teacher") {
     return (
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <p className="text-sm text-ink-500">🔒 선생님만 들어올 수 있는 곳이에요.</p>
       </section>
     );
@@ -138,7 +138,7 @@ export default function TeacherPage() {
 
       {tTab === "score" && (<>
       {/* 일일 집계 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
         <p className="mt-1 text-xs text-ink-500">
           종회 후 하루 1번 실행하세요. 다시 실행해도 안전해요(누적 자동 보정).
@@ -170,7 +170,7 @@ export default function TeacherPage() {
       </section>
 
       {/* 오늘의 모둠 선정 + 칭찬/건의 인쇄 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 & 칭찬 인쇄</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
@@ -337,7 +337,7 @@ export default function TeacherPage() {
 
       {tTab === "approve" && (<>
       {/* 실버 사용 승인 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">
           🛒 실버 사용 승인 대기{" "}
           <span className="text-sm font-normal text-ink-400">
@@ -382,7 +382,7 @@ export default function TeacherPage() {
       </section>
 
       {/* 자리 변경 승인 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">
           🎫 자리 변경 승인 대기{" "}
           <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
@@ -437,7 +437,7 @@ export default function TeacherPage() {
       {tTab === "shop" && (<>
       <ShopMenuEditor />
       {/* 실버 지급 */}
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">🪙 실버 지급 (2학기)</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select

@@ -64,7 +64,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   }
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <button onClick={onBack} className="text-sm text-ink-400 hover:text-ink-600">
         ← 목록으로
       </button>

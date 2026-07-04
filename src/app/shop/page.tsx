@@ -303,7 +303,7 @@ export default function ShopPage() {
 
       {/* 반 전체 이월 지갑 현황 (표시 전용) */}
       {tab === "carry" && (
-      <section className="rounded-card border border-indigo-200 bg-indigo-50/50 p-5">
+      <section className="rounded-card border border-indigo-200 bg-indigo-50/50 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold">🎒 1학기 이월 지갑</h2>
           <p className="text-sm text-ink-600">

@@ -88,7 +88,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           onClick={() => closeConfirm(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+            className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="font-bold text-slate-800">{confirmState.title}</p>

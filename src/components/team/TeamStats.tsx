@@ -81,7 +81,7 @@ export default function TeamStats({
   }
 
   return (
-    <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h3 className="font-bold">📈 우리 반 통계</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <TopList

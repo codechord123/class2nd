@@ -74,7 +74,7 @@ export default function SeatsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">🪑 자리 배치 및 일정</h2>
           <span className="text-xs text-ink-400">
@@ -121,7 +121,7 @@ export default function SeatsPage() {
 
       {/* 실버 자리변경 신청 */}
       {role === "student" && (
-        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({week}주차)</h3>
             <span className="text-xs text-ink-400">

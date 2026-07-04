@@ -9,7 +9,7 @@ export default function HomePage() {
   return (
     <div className="space-y-4">
       {/* 최종 목표 배너 — 상단 고정 */}
-      <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-5 text-white shadow">
+      <div className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-4 text-white shadow">
         <p className="text-sm font-medium opacity-90">🐢 거북이 독서 최종 미션</p>
         <p className="mt-1 text-2xl font-extrabold">🍜 짜파게티 파티까지 달린다!</p>
       </div>

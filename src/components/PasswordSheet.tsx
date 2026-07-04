@@ -40,7 +40,7 @@ export default function PasswordSheet({ onClose }: { onClose: () => void }) {
         <span className="text-sm font-bold text-ink-900">🔑 비밀번호 관리</span>
         <span className="w-10" />
       </header>
-      <div className="mx-auto w-full max-w-sm flex-1 space-y-4 overflow-y-auto p-5">
+      <div className="mx-auto w-full max-w-sm flex-1 space-y-4 overflow-y-auto p-4">
         <p className="text-sm text-ink-500">
           {studentById.get(studentId ?? 0)?.name} 학생의 비밀번호를 바꿔요.
         </p>
