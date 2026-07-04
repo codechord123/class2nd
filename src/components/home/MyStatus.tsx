@@ -9,8 +9,8 @@ import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
 import {
   getS1WalletOf,
   s1ClassGoldRemaining,
-  s1TotalBooks,
-  s1BooksByStudent,
+  s1TotalOf,
+  s1BooksOf,
 } from "@/lib/staticData";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
@@ -51,7 +51,7 @@ export default function MyStatus() {
 
   // 학급 스코어보드 (전원 공통)
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
-  const classTotalBooks = s1TotalBooks + s2Total;
+  const classTotalBooks = s1TotalOf(stats) + s2Total;
   const goldLeft = s1ClassGoldRemaining - ((s1Used?.classGoldUsed as number | undefined) ?? 0);
   const classScore = Object.entries((cum ?? {}) as Record<string, unknown>)
     .filter(([k, v]) => /^\d+$/.test(k) && typeof v === "number")
@@ -77,7 +77,7 @@ export default function MyStatus() {
   const nowWeek = currentWeekNum();
   const myGroup = groupOf(nowWeek, studentId);
   const myRole = roleOf(nowWeek, studentId);
-  const myTotalBooks = (s1BooksByStudent[String(studentId)] ?? 0) + (stats?.total?.[String(studentId)] ?? 0);
+  const myTotalBooks = s1BooksOf(stats, studentId) + (stats?.total?.[String(studentId)] ?? 0);
 
   // 오늘 할 일 — Team 탭과 같은 판정 (내 평가 문서 하나, 캐시 공유라 추가 읽기 0)
   const evalRec = (myEval ?? {}) as Record<string, unknown>;

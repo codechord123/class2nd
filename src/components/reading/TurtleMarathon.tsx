@@ -3,7 +3,7 @@
 //   학급 누적 = 1학기(정적) + 2학기(readingStats). 바에 1학기 구간을 진하게 표시.
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
-import { s1TotalBooks } from "@/lib/staticData";
+import { s1TotalOf } from "@/lib/staticData";
 
 export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const { data: settings } = useSettings();
@@ -11,9 +11,10 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
 
   const goal = settings?.readingGoal ?? 1250;
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
-  const total = s1TotalBooks + s2Total;
+  const s1Total = s1TotalOf(stats);
+  const total = s1Total + s2Total;
   const progress = Math.min((total / goal) * 100, 100);
-  const s1Progress = Math.min((s1TotalBooks / goal) * 100, 100);
+  const s1Progress = Math.min((s1Total / goal) * 100, 100);
 
   return (
     // bare: 다른 카드 안에 합쳐 넣을 때 (독서 탭 상단 압축 — 카드 개수 줄이기)
@@ -55,7 +56,7 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
         </div>
       </div>
       <p className="mt-1.5 text-right text-[11px] font-medium text-emerald-700">
-        1학기 <b className="tnum">{s1TotalBooks}권</b> + 2학기 <b className="tnum">{s2Total}권</b>{" "}
+        1학기 <b className="tnum">{s1Total}권</b> + 2학기 <b className="tnum">{s2Total}권</b>{" "}
         — 이어서 달려요!
       </p>
     </div>

@@ -3,7 +3,7 @@
 // 읽기 예산: 이미 캐시된 문서만 사용(readingStats·dailyScores·settings). 인쇄 시에만 그날 문서 추가 조회.
 import { useState } from "react";
 import { students, studentById } from "@/lib/roster";
-import { s1TotalBooks, s1BooksByStudent } from "@/lib/staticData";
+import { s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
@@ -62,7 +62,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
   }
 
   const weekRead = (sid: number) => weekBooks(stats, sid, week);
-  const classTotal = s1TotalBooks + Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
+  const classTotal = s1TotalOf(stats) + Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
   const weekBooksTotal = students.reduce((a, s) => a + weekRead(s.id), 0);
   const notMet = students.filter((s) => weekRead(s.id) < quota);
   const metCount = students.length - notMet.length;
@@ -135,7 +135,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
         const readTodayOf = (id: number) =>
           (today?.[id] as { read?: number } | undefined)?.read ?? 0;
         const cumBooksOf = (id: number) =>
-          (s1BooksByStudent[String(id)] ?? 0) + (stats?.total?.[String(id)] ?? 0);
+          s1BooksOf(stats, id) + (stats?.total?.[String(id)] ?? 0);
         const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
         const half = Math.ceil(ranked.length / 2);
         const scoreTbl = (rows: typeof ranked, offset: number) =>

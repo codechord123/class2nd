@@ -2,9 +2,11 @@
 // 거북이 독서 — 하위탭 구조 리빌드:
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
+import { loadS1TurtleReading } from "@/lib/staticData";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
@@ -32,15 +34,20 @@ import { useFeedback } from "@/components/ui/Feedback";
 
 type Tab = "write" | "list" | "s1";
 
+// 게시판 통합용 — 1학기 정적 감상문을 2학기 형태에 얹은 것 (s1=true면 수정·삭제·댓글 없음)
+type ListReport = ReadingReport2 & { s1?: boolean; s1Date?: string };
+
 // ── 감상문 본문 + 댓글 ───────────────────────────────────────────
 function ReportBody({
   r,
   onEdit,
   onDelete,
+  noComments,
 }: {
   r: ReadingReport2;
   onEdit?: () => void;
   onDelete?: () => void;
+  noComments?: boolean; // 1학기 기록은 보관용 — 댓글 없음
 }) {
   const { role, studentId } = useSession();
   const { toast, confirm } = useFeedback();
@@ -59,7 +66,7 @@ function ReportBody({
         <div className="mt-4">
           <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남는 문장 (인용)</p>
           <div className="rounded-btn border border-emerald-200 bg-emerald-50 px-3.5 py-3">
-            <p className="whitespace-pre-wrap text-base italic leading-8 text-emerald-900 [overflow-wrap:anywhere]">
+            <p className="whitespace-pre-wrap text-[15px] italic leading-[1.9] text-emerald-900 [overflow-wrap:anywhere]">
               ❝ {r.quote}
             </p>
           </div>
@@ -88,6 +95,7 @@ function ReportBody({
       )}
 
       {/* 친구 댓글 — 말풍선 */}
+      {!noComments && (
       <div className="mt-5 border-t border-ink-100 pt-3">
         <p className="text-[13px] font-bold text-ink-500">
           응원 댓글 {(r.comments?.length ?? 0) > 0 && `${r.comments!.length}개`}
@@ -139,6 +147,7 @@ function ReportBody({
           </button>
         </div>
       </div>
+      )}
     </>
   );
 }
@@ -156,7 +165,7 @@ function ReportSection({ label, text }: { label: string; text: string }) {
     <div className="mt-4 first:mt-0">
       <p className="mb-1.5 text-[13px] font-bold text-ink-700">{label}</p>
       <div className="rounded-btn border border-ink-200 bg-ink-50/40 px-3.5 py-3">
-        <p className="whitespace-pre-wrap text-base leading-8 text-ink-800 [overflow-wrap:anywhere]">
+        <p className="whitespace-pre-wrap text-[15px] leading-[1.9] text-ink-800 [overflow-wrap:anywhere]">
           <Linkify text={text} />
         </p>
       </div>
@@ -245,11 +254,47 @@ export default function ReadingPage() {
   const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id });
   const editReport = (r: ReadingReport2) => openSheet({ form: toForm(r), reportId: r.id });
 
+  // 📚 1학기 감상문 통합 — 정적 백업(313KB)은 감상문 탭을 열 때만 동적 로드 (읽기 0회)
+  const { data: s1Data } = useQuery({
+    queryKey: ["s1-turtle"],
+    queryFn: loadS1TurtleReading,
+    staleTime: Infinity,
+    enabled: tab === "list",
+  });
+  const s1Items: ListReport[] = useMemo(
+    () =>
+      (s1Data?.readingReports ?? [])
+        .filter((r) => !(r as { isDraft?: boolean }).isDraft)
+        .map((r) => ({
+          id: `s1-${r.docId}`,
+          studentId: r.studentId,
+          title: r.title,
+          author: r.author ?? "",
+          publisher: r.publisher ?? "",
+          summary: r.summary ?? "",
+          scene: r.scene ?? "",
+          quote: r.quote ?? "",
+          thoughts: r.thoughts ?? "",
+          isDraft: false,
+          week: 0,
+          createdAt: Number(r.docId.split("_")[0]) || 0,
+          s1: true,
+          s1Date: r.date.split(" ").slice(0, 2).join(" "), // "6월 11일 오후 10:13" → "6월 11일"
+        }))
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [s1Data]
+  );
+  // 2학기(최신)가 앞, 1학기가 뒤 — 최신순 게시판이 자연히 학기 역순이 된다
+  const allReports: ListReport[] = useMemo(
+    () => [...(reports ?? []), ...s1Items],
+    [reports, s1Items]
+  );
+
   // 🔒 비공개 글: 작성자 본인·교사만 내용 열람 가능
-  const isLocked = (r: ReadingReport2) =>
+  const isLocked = (r: ListReport) =>
     !!r.isPrivate && role !== "teacher" && r.studentId !== studentId;
 
-  const visible = (reports ?? [])
+  const visible = allReports
     // 잠긴 글은 태그 필터 결과에서 제외 — 장르 메타데이터도 새지 않게
     .filter((r) => (tagFilter ? !isLocked(r) && (r.tags ?? []).includes(tagFilter) : true))
     .filter((r) => {
@@ -264,11 +309,11 @@ export default function ReadingPage() {
 
   // 페이지네이션: 검색·태그 필터 중에는 결과 전체를 그대로 (페이지 개념이 헷갈리지 않게)
   const filtering = Boolean(search.trim() || tagFilter);
-  const knownPages = Math.max(1, Math.ceil((reports?.length ?? 0) / pageSize));
+  const knownPages = Math.max(1, Math.ceil(((reports?.length ?? 0) + s1Items.length) / pageSize));
   const pageItems = filtering ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
 
   // ── 상세 화면 (제목 클릭 진입) — 잠긴 글은 진입 불가 ──────────────
-  const selectedReport = (reports ?? []).find((r) => r.id === selectedId && !isLocked(r));
+  const selectedReport = allReports.find((r) => r.id === selectedId && !isLocked(r));
   if (selectedId && selectedReport) {
     const r = selectedReport;
     return (
@@ -289,7 +334,11 @@ export default function ReadingPage() {
             <BookCover r={r} size="lg" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5 lg:justify-center">
-                {(r.tags?.length ?? 0) > 0 ? (
+                {r.s1 ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                    📚 1학기 기록
+                  </span>
+                ) : (r.tags?.length ?? 0) > 0 ? (
                   r.tags!.map((t) => (
                     <span
                       key={t}
@@ -331,9 +380,15 @@ export default function ReadingPage() {
                 <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                   {studentById.get(r.studentId)?.name}
                 </span>
-                <span>{r.week}주차</span>
-                <span>·</span>
-                <span className="tnum">{dateLabel(r.createdAt)}</span>
+                {r.s1 ? (
+                  <span className="tnum">1학기 · {r.s1Date}</span>
+                ) : (
+                  <>
+                    <span>{r.week}주차</span>
+                    <span>·</span>
+                    <span className="tnum">{dateLabel(r.createdAt)}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -345,11 +400,14 @@ export default function ReadingPage() {
           <div>
             <ReportBody
               r={r}
-              onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
+              noComments={!!r.s1}
+              onEdit={!r.s1 && r.studentId === studentId ? () => editReport(r) : undefined}
               onDelete={
-                // 학생 본인 삭제는 작성 당일만 — 지난 주 권수·스트릭이 몰래 줄어드는 것 방지 (교사는 무제한)
-                role === "teacher" ||
-                (r.studentId === studentId && kstDateOf(r.createdAt) === todayKST())
+                // 1학기 기록은 보관용(수정·삭제 불가). 학생 본인 삭제는 작성 당일만 —
+                // 지난 주 권수·스트릭이 몰래 줄어드는 것 방지 (교사는 무제한)
+                !r.s1 &&
+                (role === "teacher" ||
+                  (r.studentId === studentId && kstDateOf(r.createdAt) === todayKST()))
                   ? async () => {
                       const ok = await confirm({
                         title: "이 감상문을 삭제할까요?",
@@ -390,7 +448,7 @@ export default function ReadingPage() {
         <div className="mt-3 border-t border-emerald-200/70 pt-2.5">
           <h3 className="text-sm font-bold text-emerald-900">🏁 독서 순위 (1·2학기 합산)</h3>
           <div className="mt-1">
-            <RankCarousel totals={stats?.total ?? {}} />
+            <RankCarousel stats={stats} />
           </div>
         </div>
       </section>
@@ -460,7 +518,9 @@ export default function ReadingPage() {
       {tab === "list" && (
         <section className="rounded-card border border-ink-200 bg-white shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-            <h3 className="text-lg font-bold">📖 친구들의 감상문</h3>
+            <h3 className="text-lg font-bold">
+              📖 친구들의 감상문 <span className="text-xs font-medium text-ink-400">1·2학기 전체</span>
+            </h3>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -530,14 +590,20 @@ export default function ReadingPage() {
                         {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
                         <b className="truncate text-[15px] text-ink-900">{r.title}</b>
                       </span>
-                      {/* 2줄: 작가 · 작성자 칩 · 작성일 */}
+                      {/* 2줄: 작가 · 작성자 칩 · 작성일 (1학기 기록은 학기 배지) */}
                       <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
                         {r.author && <span className="max-w-[9rem] truncate">{r.author}</span>}
                         {r.author && <span>·</span>}
                         <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                           {studentById.get(r.studentId)?.name}
                         </span>
-                        <span className="shrink-0 tnum">{dateLabel(r.createdAt)}</span>
+                        {r.s1 ? (
+                          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
+                            1학기
+                          </span>
+                        ) : (
+                          <span className="shrink-0 tnum">{dateLabel(r.createdAt)}</span>
+                        )}
                       </span>
                     </span>
                     {(r.comments?.length ?? 0) > 0 && (
@@ -553,7 +619,7 @@ export default function ReadingPage() {
           </ul>
 
           {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색·필터 중에는 숨김) */}
-          {!filtering && (reports?.length ?? 0) > 0 && (
+          {!filtering && allReports.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5">
               <div className="flex items-center gap-1">
                 {[10, 20].map((n) => (

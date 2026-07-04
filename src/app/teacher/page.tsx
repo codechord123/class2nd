@@ -26,6 +26,7 @@ import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
+import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import TodaySubmissionsPanel from "@/components/teacher/TodaySubmissionsPanel";
@@ -389,7 +390,7 @@ export default function TeacherPage() {
         <span className="text-sm font-bold text-ink-800">
           🧰 기타 관리 도구
           <span className="ml-1 font-normal text-ink-400">
-            비밀번호·독서 보정·CSV·바로가기·메모
+            비밀번호·독서 보정·감상문집·CSV·바로가기·메모
           </span>
         </span>
         <span className="shrink-0 text-xs text-ink-400">
@@ -400,6 +401,7 @@ export default function TeacherPage() {
         <>
           <PasswordResetPanel />
           <ReadingAdjustPanel />
+          <BookletExportPanel />
           <CsvExportPanel />
           <LinksEditor />
           <TeacherMemoWidget />

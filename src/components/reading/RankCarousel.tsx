@@ -3,13 +3,14 @@
 // TOP 10만 순위 배지로 노출, 나머지는 비노출(하위권 공개 낙인 방지).
 // 항상 흐르고, 마우스를 올리면 멈춘다 (사용자 결정 — OS 애니메이션 설정과 무관하게 동작).
 import { students } from "@/lib/roster";
-import { s1BooksByStudent } from "@/lib/staticData";
+import { s1BooksOf } from "@/lib/staticData";
+import type { ReadingStats } from "@/lib/query/reading";
 
-export default function RankCarousel({ totals }: { totals: Record<string, number> }) {
+export default function RankCarousel({ stats }: { stats: ReadingStats | undefined }) {
   const ranked = students
     .map((s) => {
-      const s1 = s1BooksByStudent[String(s.id)] ?? 0;
-      const s2 = totals[String(s.id)] ?? 0;
+      const s1 = s1BooksOf(stats, s.id);
+      const s2 = stats?.total?.[String(s.id)] ?? 0;
       return { ...s, count: s1 + s2, s2 };
     })
     .filter((s) => s.count > 0)

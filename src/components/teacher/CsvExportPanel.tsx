@@ -5,7 +5,7 @@ import { useReadingStats } from "@/lib/query/reading";
 import { useBalances } from "@/lib/query/wallet";
 import { useCumulativeScores } from "@/lib/query/evaluation";
 import { students } from "@/lib/roster";
-import { getS1WalletOf, s1BooksByStudent } from "@/lib/staticData";
+import { getS1WalletOf, s1BooksOf } from "@/lib/staticData";
 import { useFeedback } from "@/components/ui/Feedback";
 import { todayKST } from "@/lib/date";
 
@@ -26,7 +26,7 @@ export default function CsvExportPanel() {
         const s2Silver = (s2Bal?.[key] as number | undefined) ?? 0;
         const s1Carry =
           (getS1WalletOf(s.id)?.silverRemaining ?? 0) - ((s1Bal?.[key] as number | undefined) ?? 0);
-        const booksS1 = s1BooksByStudent[key] ?? 0;
+        const booksS1 = s1BooksOf(stats, s.id);
         const booksS2 = stats?.total?.[key] ?? 0;
         return [s.id, s.name, cumScore, s2Silver, s1Carry, booksS1, booksS2, booksS1 + booksS2];
       });

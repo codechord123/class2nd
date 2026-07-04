@@ -68,7 +68,16 @@ export async function studentLogin(
       // 이미 클라이언트 대조를 통과했다면(구버전 규칙) 다른 기기 바인딩 잔존일 뿐 —
       // 로그인은 유지 (신규 규칙 게시 후엔 재로그인만으로 자동 해결)
       if (verifiedLocally) return { firstTime: false };
-      throw new Error("비밀번호가 올바르지 않습니다.");
+      // 신규 규칙에서는 문서가 없어도 not-found 대신 permission-denied가 온다
+      // (update 규칙이 resource 없이 평가 실패). 최초 등록을 create 규칙으로 재시도:
+      //   문서 없음 → uid 바인딩 create 허용(최초 등록 성공)
+      //   문서 있음 → create가 update로 취급되어 거부 → 비밀번호 오류가 맞다
+      try {
+        await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+        return { firstTime: true };
+      } catch {
+        throw new Error("비밀번호가 올바르지 않습니다.");
+      }
     }
     throw e;
   }
@@ -96,7 +105,12 @@ export async function changeStudentPassword(
     if (codeOf(e) === "not-found") {
       await setDoc(ref, { hash: newHash, updatedAt: Date.now(), uid });
     } else if (codeOf(e) === "permission-denied") {
-      throw new Error("현재 비밀번호가 올바르지 않습니다.");
+      // 신규 규칙: 문서가 없으면 update가 permission-denied로 떨어진다 → create로 재시도
+      try {
+        await setDoc(ref, { hash: newHash, updatedAt: Date.now(), uid });
+      } catch {
+        throw new Error("현재 비밀번호가 올바르지 않습니다.");
+      }
     } else {
       throw e;
     }

@@ -60,10 +60,12 @@ export function reportBodyLength(f: ReportForm): number {
   return (f.scene + f.quote + f.summary + f.thoughts).length;
 }
 
-/** { total: {sid: n}, byWeek: { [week]: {sid: n} } } — 권수는 쓴 만큼 그대로 (교사 ± 보정 포함) */
+/** { total: {sid: n}, byWeek: { [week]: {sid: n} } } — 권수는 쓴 만큼 그대로 (교사 ± 보정 포함)
+ *  s1Adj: 1학기 권수 교사 보정(±). 1학기 기본값은 정적 감상문 수 — staticData.s1BooksOf에서 합산 */
 export interface ReadingStats {
   total?: Record<string, number>;
   byWeek?: Record<string, Record<string, number>>;
+  s1Adj?: Record<string, number>;
 }
 
 const STATS_KEY = ["readingStats"];
