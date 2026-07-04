@@ -448,9 +448,9 @@ export default function ReadingPage() {
       {/* 히어로: 학급 목표(교사 편집) + 경고 + [마라톤·순위 한 카드] — 상단 다이어트 */}
       <ClassBanner compact />
       <ReadingAlert />
-      <section className="rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <TurtleMarathon bare />
-        <div className="mt-3 border-t border-emerald-200/70 pt-2.5">
+        <div className="mt-3 border-t border-ink-100 pt-2.5">
           <h3 className="text-sm font-bold text-emerald-900">🏁 독서 순위 (1·2학기 합산)</h3>
           <div className="mt-1">
             <RankCarousel stats={stats} />

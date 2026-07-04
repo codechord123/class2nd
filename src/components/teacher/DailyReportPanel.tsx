@@ -12,7 +12,7 @@ import { weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
-import { openPrintWindow, openRangePrintDoc, esc } from "@/lib/exportDoc";
+import { openPrintWindow, openRangePrintDoc, esc, brandHeader, dateTitle } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -120,20 +120,8 @@ export default function DailyReportPanel({ date }: { date: string }) {
       const sections = [readingCard];
 
       if (meta) {
-        // MVP + 순위
-        sections.push(
-          `<div class="grid2">${card(
-            "오늘의 MVP",
-            `<p>${mvpNames.length ? mvpNames.map(esc).join(", ") : '<span class="muted">없음</span>'}</p>`
-          )}${card(
-            "오늘의 모둠 순위",
-            rankPairs.length
-              ? `<p>${rankPairs.map(([g, r]) => (r === 1 ? `<b>1위 ${g}모둠</b>` : `${r}위 ${g}모둠`)).join(" · ")}</p>`
-              : `<p class="warn">순위 미선정</p>`
-          )}</div>`
-        );
-
         // ── 1페이지: 정량 — 모둠별 통합 (순위·MVP·점수·독서를 모둠 카드 하나에) ──
+        // MVP·모둠 순위 별도 카드는 제거 (사용자 결정 — 모둠 카드에 배지·★로 담김)
         const readTodayOf = (id: number) =>
           (today?.[id] as { read?: number } | undefined)?.read ?? 0;
         const cumBooksOf = (id: number) =>
@@ -170,28 +158,38 @@ export default function DailyReportPanel({ date }: { date: string }) {
           card("모둠별 오늘 기록 — 점수·독서 (★=오늘의 MVP)", `<div class="grps">${groupsHtml}</div>`)
         );
 
-        // ── 2페이지: 정성 — 칭찬·건의·바라는 점 ──
+        // ── 2페이지: 정성 — 모둠별 칭찬·건의 (말풍선) + 바라는 점 ──
         sections.push(
-          `<div class="pagebreak"></div><h1>${date} 마음 기록</h1><div class="sub">오늘 주고받은 칭찬 · 건의 · 선생님에게 바라는 점</div>`
+          `<div class="pagebreak"></div>` +
+            brandHeader(
+              `${dateTitle(date)} 마음 기록`,
+              "오늘 주고받은 칭찬 · 건의 (모둠별) · 선생님에게 바라는 점"
+            )
         );
+        const heartHtml = schedule.groups
+          .map((g) => {
+            const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+            const set = new Set(ids);
+            const gComps = compliments.filter((c) => set.has(c.to));
+            const gSugs = peerSug.filter((c) => set.has(c.to));
+            const bubbles =
+              [
+                ...gComps.map(
+                  (c) =>
+                    `<li class="bub"><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b> · ${esc(c.text)}</li>`
+                ),
+                ...gSugs.map(
+                  (c) =>
+                    `<li class="bub sug"><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b> · 건의: ${esc(c.text)}</li>`
+                ),
+              ].join("") || `<li class="bub none">오늘 기록이 없어요.</li>`;
+            return `<div class="grp"><div class="h"><span class="gname">${g.groupId}모둠</span><span class="gsum">칭찬 ${gComps.length} · 건의 ${gSugs.length}</span></div><ul class="bubs">${bubbles}</ul></div>`;
+          })
+          .join("");
         sections.push(
           card(
-            `오늘의 칭찬 (${compliments.length}건)`,
-            compliments.length
-              ? `<ul>${compliments
-                  .map((c) => `<li><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`)
-                  .join("")}</ul>`
-              : `<p class="muted">기록이 없어요.</p>`
-          )
-        );
-        sections.push(
-          card(
-            `모둠원 건의 (${peerSug.length}건)`,
-            peerSug.length
-              ? `<ul>${peerSug
-                  .map((c) => `<li><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`)
-                  .join("")}</ul>`
-              : `<p class="muted">기록이 없어요.</p>`
+            `모둠별 칭찬·건의 (칭찬 ${compliments.length} · 건의 ${peerSug.length})`,
+            `<div class="grps">${heartHtml}</div>`
           )
         );
         sections.push(
@@ -213,9 +211,10 @@ export default function DailyReportPanel({ date }: { date: string }) {
 
       openPrintWindow(
         `${date} 데일리 리포트`,
-        `<h1>${date} 데일리 리포트</h1><div class="sub">${week}주차 · 2학기 학급 자치${
-          goalLine ? ` · 학급 목표: ${esc(goalLine)}` : ""
-        }</div>${sections.join("")}`
+        brandHeader(
+          `${dateTitle(date)} 데일리 리포트`,
+          `2학기 학급 자치 · ${week}주차${goalLine ? ` · 목표: ${esc(goalLine)}` : ""}`
+        ) + sections.join("")
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");

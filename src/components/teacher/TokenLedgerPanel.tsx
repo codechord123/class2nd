@@ -64,7 +64,10 @@ export default function TokenLedgerPanel() {
   const { data: ledger, isLoading, refetch, isFetching } = useLedger();
   const [filterSid, setFilterSid] = useState(0); // 0 = 전체
 
-  const filtered = (ledger ?? []).filter((e) => filterSid === 0 || e.studentId === filterSid);
+  const filtered = (ledger ?? [])
+    // 사용 기록만 — 지급(+)은 여기서 보여줄 필요 없음 (사용자 결정)
+    .filter((e) => signedAmount(e.type, e.amount) < 0)
+    .filter((e) => filterSid === 0 || e.studentId === filterSid);
   // 날짜별 그룹 (최신 날짜 먼저 — 정렬돼 있으므로 순서대로 묶기만)
   const byDate: [string, LedgerEntry[]][] = [];
   for (const e of filtered) {
@@ -102,21 +105,26 @@ export default function TokenLedgerPanel() {
         </div>
       </div>
       <p className="mt-1 text-xs text-ink-500">
-        지급·사용·신청이 날짜별로 쌓여요 (최근 90건). <b className="text-success">+는 받은 것</b>,{" "}
-        <b className="text-danger">−는 쓴 것</b>.
+        학생들이 토큰을 쓴 기록이 날짜별로 쌓여요 — 날짜를 누르면 그날 내역이 펼쳐져요.
       </p>
 
       {isLoading && <p className="mt-3 text-sm text-ink-400">불러오는 중…</p>}
       {!isLoading && byDate.length === 0 && (
         <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
-          기록이 없어요.
+          사용 기록이 없어요.
         </p>
       )}
-      <div className="mt-3 space-y-3">
+      <div className="mt-3 space-y-1.5">
         {byDate.map(([date, entries]) => (
-          <div key={date}>
-            <p className="tnum text-xs font-bold text-ink-500">{dateLabel(date)}</p>
-            <ul className="mt-1 space-y-1">
+          <details key={date} className="group rounded-btn border border-ink-200">
+            <summary className="flex cursor-pointer items-center justify-between px-3 py-2.5 text-sm font-bold text-ink-700 hover:bg-ink-50">
+              <span className="tnum">{dateLabel(date)}</span>
+              <span className="text-xs font-medium text-ink-400">
+                {entries.length}건 <span className="group-open:hidden">▼</span>
+                <span className="hidden group-open:inline">▲</span>
+              </span>
+            </summary>
+            <ul className="space-y-1 border-t border-ink-100 p-2">
               {entries.map((e) => (
                 <li
                   key={e.id}
@@ -132,16 +140,7 @@ export default function TokenLedgerPanel() {
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
-                    <b
-                      className={`tnum text-sm ${
-                        signedAmount(e.type, e.amount) > 0 ? "text-success" : "text-danger"
-                      }`}
-                    >
-                      {(() => {
-                        const v = signedAmount(e.type, e.amount);
-                        return v > 0 ? `+${v}` : `${v}`;
-                      })()}
-                    </b>
+                    <b className="tnum text-sm text-ink-700">{Math.abs(e.amount)}개</b>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLE[e.status]}`}
                     >
@@ -151,7 +150,7 @@ export default function TokenLedgerPanel() {
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
         ))}
       </div>
     </section>

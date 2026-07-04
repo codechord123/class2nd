@@ -21,74 +21,112 @@ interface ToTeacher {
 export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** "2026-07-05" → "7월 5일 (일)" */
+export function dateTitle(date: string): string {
+  const dow = ["일", "월", "화", "수", "목", "금", "토"][
+    new Date(date + "T00:00:00+09:00").getDay()
+  ];
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}월 ${d}일 (${dow})`;
+}
+
+/** 앱 헤더를 닮은 인쇄 문서 머리 — 파란 로고 칩 + 제목/서브 (인자는 이미 escape된 문자열) */
+export function brandHeader(titleHtml: string, subHtml: string): string {
+  return `<div class="brand"><span class="logo">학</span><div class="bt"><p class="app">${subHtml}</p><h1>${titleHtml}</h1></div></div>`;
+}
+
 const name = (id: number | string) => studentById.get(Number(id))?.name ?? `?${id}`;
 
-// 학부모 공유용 인쇄 스타일 — "가정 통신문" 문법으로 전면 개편:
-//   또렷한 문서 헤더(제목 + 진한 밑줄) · 섹션 카드(파란 왼줄 제목) · 큰 숫자 타일 ·
-//   지브라 표(이름은 왼쪽 정렬) · 본문 12.5px/행간 1.6. A4 1~2장에 담기는 밀도는 유지.
+// 인쇄 스타일 — 앱 화면과 같은 결(토스 문법)의 인쇄판:
+//   브랜드 헤더(파란 로고 칩) · 둥근 카드 · 옅은 톤 스탯 타일 · 세로선 없는 미니멀 표 ·
+//   점수 미니 바 · 말풍선 정성 기록. A4 밀도 유지 + print-color-adjust로 색 보존.
 const PRINT_CSS = `
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
   body { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
-         margin: 0; color: #191f28; background: #fff; }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 18px 22px 24px; }
-  /* 문서 헤더 — 공문서처럼 제목이 문서의 주인 */
-  h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
-  .sub { color: #6b7684; font-size: 12.5px; padding: 4px 0 12px;
-         border-bottom: 3px solid #191f28; margin-bottom: 16px; }
-  /* 섹션 카드 */
-  .card { border: 1px solid #d1d6db; border-radius: 12px; padding: 12px 14px;
-          margin-bottom: 10px; page-break-inside: avoid; }
-  .card > .t { font-size: 14px; font-weight: 800; margin: 0 0 8px;
-               border-left: 4px solid #3182f6; padding-left: 8px; }
+         margin: 0; color: #191f28; background: #fff; letter-spacing: -0.01em; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 20px 24px 28px; }
+  /* 브랜드 헤더 — 앱 상단과 같은 문법 */
+  .brand { display: flex; align-items: center; gap: 12px; padding-bottom: 14px;
+           margin-bottom: 14px; border-bottom: 2px solid #f2f4f6; }
+  .brand .logo { width: 40px; height: 40px; border-radius: 12px; background: #3182f6;
+                 color: #fff; font-weight: 800; font-size: 18px; display: flex;
+                 align-items: center; justify-content: center; flex: none; }
+  .brand .app { margin: 0; font-size: 11.5px; font-weight: 700; color: #8b95a1; }
+  .brand h1 { margin: 1px 0 0; font-size: 21px; letter-spacing: -0.02em; }
+  /* 일반 헤더 (주간·세션 리포트 호환) */
+  h1 { font-size: 21px; margin: 0; letter-spacing: -0.02em; }
+  .sub { color: #6b7684; font-size: 12px; padding: 4px 0 12px;
+         border-bottom: 2px solid #f2f4f6; margin-bottom: 14px; }
+  /* 카드 */
+  .card { border: 1px solid #eceef1; border-radius: 16px; padding: 14px 16px;
+          margin-bottom: 12px; page-break-inside: avoid; }
+  .card > .t { font-size: 14.5px; font-weight: 800; margin: 0 0 10px; }
+  .card > .t::before { content: ""; display: inline-block; width: 4px; height: 13px;
+                       border-radius: 2px; background: #3182f6; margin-right: 8px;
+                       vertical-align: -1px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  /* 큰 숫자 타일 */
+  /* 스탯 타일 — 앱의 옅은 톤 배경 + 컬러 숫자 */
   .stats { display: flex; gap: 10px; text-align: center; }
-  .stats > div { flex: 1; background: #f9fafb; border-radius: 10px; padding: 8px 4px; }
+  .stats > div { flex: 1; border-radius: 12px; padding: 10px 4px; background: #f9fafb; }
+  .stats > div:nth-child(1) { background: #e6f7f1; }
+  .stats > div:nth-child(1) .v { color: #0ca678; }
+  .stats > div:nth-child(2) { background: #e8f2fe; }
+  .stats > div:nth-child(2) .v { color: #2272eb; }
+  .stats > div:nth-child(3) { background: #fff4e0; }
+  .stats > div:nth-child(3) .v { color: #f08c00; }
   .stats .l { font-size: 11px; color: #6b7684; }
   .stats .v { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
   .green { color: #0ca678; } .blue { color: #2272eb; } .amber { color: #f08c00; }
-  /* 목록 — 학부모가 읽는 본문이므로 넉넉한 행간 */
   ul { margin: 4px 0 0; padding-left: 18px; }
   li { margin: 3px 0; line-height: 1.6; font-size: 12.5px; }
-  /* 표 — 지브라 + 이름 왼쪽 정렬 (숫자만 가운데) */
+  /* 표 — 세로선 없는 미니멀 (가로 헤어라인만) */
   table { border-collapse: collapse; margin-top: 4px; width: 100%; }
-  th, td { border: 1px solid #e5e8eb; padding: 4px 8px; font-size: 12px; text-align: center; }
-  th { background: #f2f4f6; font-size: 11.5px; color: #4e5968; }
-  td:nth-child(2) { text-align: left; }
-  tbody tr:nth-child(even) td { background: #f9fafb; }
+  th { font-size: 10.5px; color: #8b95a1; font-weight: 700; text-align: center;
+       padding: 3px 8px; border-bottom: 1.5px solid #e5e8eb; }
+  td { font-size: 12px; text-align: center; padding: 4.5px 8px; border-bottom: 1px solid #f2f4f6; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child, th:first-child { text-align: left; }
   td b { font-size: 12.5px; }
-  .cols { display: flex; gap: 10px; align-items: flex-start; }
+  .cols { display: flex; gap: 12px; align-items: flex-start; }
   .cols > table { flex: 1; }
-  .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .muted { color: #6b7684; font-size: 11.5px; margin: 6px 0 0; line-height: 1.5; }
-  .warn { color: #e8590c; font-weight: 600; }
-  .grp { border: 1px solid #e5e8eb; border-radius: 10px; padding: 8px 10px; page-break-inside: avoid; }
-  .grp .h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-  .grp .gname { font-weight: 800; font-size: 13px; }
-  .grp .mem { font-size: 11.5px; color: #4e5968; line-height: 1.5; }
-  .grp .mem b { color: #191f28; }
-  .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px;
-           font-weight: 700; background: #fff4e6; color: #e8590c; margin-left: 3px; }
+  /* 모둠 카드 — 1위(오늘의 모둠)는 금테 */
+  .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grp { border: 1px solid #eceef1; border-radius: 14px; padding: 10px 12px;
+         page-break-inside: avoid; }
+  .grp.win { border: 1.5px solid #f59f00; background: #fffdf5; }
+  .grp .h { display: flex; justify-content: space-between; align-items: center; gap: 6px;
+            flex-wrap: wrap; }
+  .grp .gname { font-weight: 800; font-size: 13.5px; }
+  .grp .gsum { font-size: 11px; color: #8b95a1; }
+  .grp .gsum b { color: #191f28; font-size: 12.5px; }
+  .grp table { margin-top: 4px; }
+  .grp th { font-size: 10px; padding: 2px 6px; }
+  .grp td { font-size: 11.5px; padding: 3px 6px; }
+  .badge { display: inline-block; border-radius: 999px; padding: 1.5px 8px; font-size: 10px;
+           font-weight: 700; background: #e8f2fe; color: #2272eb; margin-left: 4px; }
   .badge.gold { background: #f59f00; color: #fff; }
-  /* 모둠 카드 — 1위(오늘의 모둠)는 금색 테두리로 돋보이게 */
-  .grp.win { border-color: #f59f00; background: #fffdf5; }
-  .grp .gsum { font-size: 11.5px; color: #4e5968; }
-  .grp table { margin-top: 6px; }
-  .grp th { font-size: 10.5px; padding: 2.5px 6px; }
-  .grp td { font-size: 11.5px; padding: 2.5px 6px; }
-  .grp td:first-child { text-align: left; }
-  .pagebreak { page-break-before: always; margin-top: 24px; }
-  .docfoot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e5e8eb;
-             text-align: center; color: #b0b8c1; font-size: 10.5px; }
-  /* 시각화 — 점수 칸 미니 바 · 달성 게이지 */
+  /* 점수 미니 바 */
   .score { position: relative; }
-  .score .sbar { position: absolute; left: 0; top: 0; bottom: 0; background: #dbeafe; }
+  .score .sbar { position: absolute; left: 4px; top: 22%; bottom: 22%; border-radius: 4px;
+                 background: #dbeafe; max-width: calc(100% - 8px); }
   .score b { position: relative; }
-  .gauge { position: relative; height: 18px; margin-top: 10px; border-radius: 9px;
+  /* 달성 게이지 */
+  .gauge { position: relative; height: 18px; margin-top: 10px; border-radius: 10px;
            background: #f2f4f6; overflow: hidden; }
   .gauge i { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #0ca678); }
   .gauge span { position: absolute; inset: 0; display: flex; align-items: center;
                 justify-content: center; font-size: 10.5px; font-weight: 700; color: #065f46; }
+  /* 말풍선 — 2페이지 정성 기록 */
+  ul.bubs { list-style: none; padding: 0; margin: 6px 0 0; }
+  .bub { background: #f2f4f6; border-radius: 10px; padding: 6px 10px; margin: 4px 0;
+         font-size: 12px; line-height: 1.55; }
+  .bub.sug { background: #e8f4fd; }
+  .bub.none { color: #8b95a1; background: #f9fafb; }
+  .muted { color: #6b7684; font-size: 11.5px; margin: 6px 0 0; line-height: 1.5; }
+  .warn { color: #e8590c; font-weight: 600; }
+  .pagebreak { page-break-before: always; margin-top: 26px; }
+  .docfoot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #eceef1;
+             text-align: center; color: #b0b8c1; font-size: 10.5px; }
   @media print { .noprint { display: none; } }
 `;
 

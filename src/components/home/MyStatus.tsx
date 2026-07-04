@@ -156,7 +156,7 @@ export default function MyStatus() {
       {/* 🐢 거북이 독서 — 이번 주 + 누적 + 감상문 쓰기 */}
       <a
         href="/reading"
-        className="flex items-center justify-between gap-2 rounded-card border border-emerald-200 bg-emerald-50/60 p-3 shadow-card"
+        className="flex items-center justify-between gap-2 rounded-card border border-ink-200 bg-white p-3 shadow-card"
       >
         <span className="flex items-center gap-3">
           <span className="text-2xl">🐢</span>

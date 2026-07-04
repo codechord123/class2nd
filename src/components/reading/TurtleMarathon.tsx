@@ -18,8 +18,9 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
 
   return (
     // bare: 다른 카드 안에 합쳐 넣을 때 (독서 탭 상단 압축 — 카드 개수 줄이기)
+    // 흰 카드 + 에메랄드 액센트 — 다른 탭과 같은 카드 문법 (배경색 블록은 컨셉이 튐)
     <div
-      className={bare ? "" : "rounded-card border border-emerald-300 bg-emerald-50/70 p-4 shadow-card"}
+      className={bare ? "" : "rounded-card border border-ink-200 bg-white p-4 shadow-card"}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-extrabold text-emerald-900">🐢 거북이 독서 마라톤</h3>
