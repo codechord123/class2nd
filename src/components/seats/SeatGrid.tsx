@@ -12,7 +12,8 @@ export default function SeatGrid({
   myStudentId?: number | null;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+    // 교실 TV에 띄워놓고 보는 화면 — 대화면(lg)에서는 글자를 한 단계 키운다
+    <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3">
       {schedule.groups.map((g) => {
         const mine =
           myStudentId != null &&
@@ -20,25 +21,25 @@ export default function SeatGrid({
         return (
           <div
             key={g.groupId}
-            className={`rounded-card border p-3 ${
+            className={`rounded-card border p-3.5 shadow-card ${
               mine ? "border-brand bg-brand-weak ring-2 ring-brand/30" : "border-ink-200 bg-white"
             }`}
           >
             <div className="flex items-center justify-between gap-1">
-              <h3 className="text-sm font-bold text-ink-900">{g.groupId}모둠</h3>
+              <h3 className="text-base font-extrabold text-ink-900">{g.groupId}모둠</h3>
               {mine && (
-                <span className="shrink-0 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  우리
+                <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">
+                  우리 모둠
                 </span>
               )}
             </div>
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-2 space-y-1.5 text-sm lg:text-[15px]">
               <li className="flex items-baseline gap-1.5">
                 <span className="shrink-0">👑</span>
                 <span className="min-w-0 flex-1 truncate font-bold text-ink-900">
                   {studentById.get(g.chair)?.name}
                 </span>
-                <span className="shrink-0 text-[10px] text-ink-400">소통</span>
+                <span className="shrink-0 text-[11px] font-medium text-ink-500">소통</span>
               </li>
               {g.members.map((m) => {
                 const isMe = m.studentId === myStudentId;
@@ -50,7 +51,7 @@ export default function SeatGrid({
                     >
                       {studentById.get(m.studentId)?.name}
                     </span>
-                    <span className="shrink-0 text-[10px] text-ink-400">{m.role}</span>
+                    <span className="shrink-0 text-[11px] font-medium text-ink-500">{m.role}</span>
                   </li>
                 );
               })}

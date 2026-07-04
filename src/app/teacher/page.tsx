@@ -429,15 +429,18 @@ export default function TeacherPage() {
           ]).map(({ r, kind }) => (
             <li
               key={`${kind}-${r.id}`}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
             >
-              <span>
-                <b>{studentById.get(r.studentId)?.name}</b> · {r.item}{" "}
-                <span className="text-xs text-ink-400">
-                  ({kind === "s2" ? "2학기" : "이월"} 실버 {r.amount}개)
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                  {studentById.get(r.studentId)?.name}
+                </span>
+                <b className="truncate text-[15px] text-ink-900">{r.item}</b>
+                <span className="shrink-0 rounded-full bg-warn-weak px-2 py-0.5 text-xs font-bold text-warn">
+                  {kind === "s2" ? "2학기" : "이월"} {r.amount}개
                 </span>
               </span>
-              <span className="flex gap-1">
+              <span className="flex gap-1.5">
                 <button
                   onClick={() =>
                     void (kind === "s2" ? decideSpend : decideSpendS1)(r, true).then(
@@ -445,7 +448,7 @@ export default function TeacherPage() {
                       (e: Error) => toast(`⚠️ ${e.message}`, "error")
                     )
                   }
-                  className="press rounded-btn bg-success px-3 py-1 text-xs font-bold text-white"
+                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
                 >
                   승인
                 </button>
@@ -456,7 +459,7 @@ export default function TeacherPage() {
                       (e: Error) => toast(`⚠️ ${e.message}`, "error")
                     )
                   }
-                  className="press rounded-btn bg-danger px-3 py-1 text-xs font-bold text-white"
+                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
                 >
                   반려
                 </button>
@@ -479,13 +482,17 @@ export default function TeacherPage() {
           {pendSeat?.map((r) => (
             <li
               key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
             >
-              <span>
-                <b>{studentById.get(r.studentId)?.name}</b> → {r.week}주차 {r.targetGroup}모둠{" "}
-                {r.targetRole} 지킴이
+              <span className="flex min-w-0 items-center gap-2 text-[15px]">
+                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                  {studentById.get(r.studentId)?.name}
+                </span>
+                <span className="truncate text-ink-800">
+                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
+                </span>
               </span>
-              <span className="flex gap-1">
+              <span className="flex gap-1.5">
                 <button
                   onClick={() =>
                     void (async () => {
@@ -501,7 +508,7 @@ export default function TeacherPage() {
                       }
                     })()
                   }
-                  className="press rounded-btn bg-success px-3 py-1 text-xs font-bold text-white"
+                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
                 >
                   승인(자리 교환)
                 </button>
@@ -512,7 +519,7 @@ export default function TeacherPage() {
                       (e: Error) => toast(`⚠️ ${e.message}`, "error")
                     )
                   }
-                  className="press rounded-btn bg-danger px-3 py-1 text-xs font-bold text-white"
+                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
                 >
                   반려
                 </button>
