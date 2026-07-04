@@ -349,35 +349,41 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               role === "teacher" || (role === "student" && c.studentId === studentId);
             return (
               <li key={c.id} className="text-sm">
-                <div className="rounded-card bg-ink-50 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <b className="text-xs font-bold text-ink-600">{authorName(c.studentId)}</b>
-                    <span className="flex shrink-0 gap-2 text-xs">
-                      <button
-                        onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
-                        className="font-medium text-brand hover:text-brand-strong"
-                      >
-                        답글
-                      </button>
-                      {canDelete && (
+                {/* 아바타 + 말풍선 — 감상문 댓글과 동일 문법 (앱 전체 일관성) */}
+                <div className="flex items-start gap-2">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-weak text-xs font-extrabold text-brand-strong">
+                    {authorName(c.studentId).charAt(0)}
+                  </span>
+                  <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-ink-100 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <b className="text-xs font-bold text-ink-500">{authorName(c.studentId)}</b>
+                      <span className="flex shrink-0 gap-2 text-xs">
                         <button
-                          onClick={() =>
-                            void confirmDelete("댓글을 삭제할까요?", () => deleteComment(sug, c.id))
-                          }
-                          className="text-ink-400 hover:text-danger"
+                          onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+                          className="font-medium text-brand hover:text-brand-strong"
                         >
-                          삭제
+                          답글
                         </button>
-                      )}
-                    </span>
+                        {canDelete && (
+                          <button
+                            onClick={() =>
+                              void confirmDelete("댓글을 삭제할까요?", () => deleteComment(sug, c.id))
+                            }
+                            className="text-ink-400 hover:text-danger"
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 leading-6 text-ink-800 [overflow-wrap:anywhere]">
+                      <Linkify text={c.text} />
+                    </p>
                   </div>
-                  <p className="mt-0.5 text-ink-800">
-                    <Linkify text={c.text} />
-                  </p>
                 </div>
                 {/* 답글 — 왼쪽 레일로 중첩 표현 */}
                 {replies.length > 0 && (
-                  <div className="mt-1.5 ml-3 space-y-1.5 border-l-2 border-ink-200 pl-3">
+                  <div className="mt-1.5 ml-11 space-y-1.5 border-l-2 border-ink-200 pl-3">
                     {replies.map((r) => (
                       <div key={r.id} className="flex items-start justify-between gap-2">
                         <p className="text-ink-700">

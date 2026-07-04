@@ -3,8 +3,8 @@
 // 실제 보안은 Firestore 규칙(firestore.rules)이 담당한다.
 // 환경변수(NEXT_PUBLIC_FIREBASE_*)가 있으면 그 값이 우선한다.
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "AIzaSyCgNcebghb1SZK_7UjgnuwF20_p2TxSHXI",
@@ -26,10 +26,27 @@ function getApp(): FirebaseApp {
   return app;
 }
 
+// 로컬 디자인 프리뷰·개발용 — NEXT_PUBLIC_FIREBASE_EMULATOR=1로 빌드하면
+// 실서버 대신 로컬 에뮬레이터(auth 9099 / firestore 8080)에 붙는다.
+// 프로덕션 빌드(Vercel)에는 이 env가 없으므로 영향 없음.
+const useEmulator = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "1";
+let authEmuConnected = false;
+let fsEmuConnected = false;
+
 export function firebaseAuth(): Auth {
-  return getAuth(getApp());
+  const auth = getAuth(getApp());
+  if (useEmulator && !authEmuConnected) {
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    authEmuConnected = true;
+  }
+  return auth;
 }
 
 export function db(): Firestore {
-  return getFirestore(getApp());
+  const fs = getFirestore(getApp());
+  if (useEmulator && !fsEmuConnected) {
+    connectFirestoreEmulator(fs, "127.0.0.1", 8080);
+    fsEmuConnected = true;
+  }
+  return fs;
 }

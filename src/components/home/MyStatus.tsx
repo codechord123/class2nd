@@ -134,10 +134,13 @@ export default function MyStatus() {
           <Stat label="누적 점수" value={typeof myScore === "number" ? myScore : 0} tone="indigo" />
           <Stat label="2학기 실버" value={mySilver} />
           <Stat label="이월 실버" value={myCarry} tone="amber" />
-          <a href="/shop" className="rounded-btn bg-ink-50 px-2 py-2 text-center hover:bg-ink-100">
-            <p className="text-[11px] leading-tight text-ink-400">상점</p>
-            <p className="text-base font-extrabold leading-tight text-ink-700">🛒</p>
-            <p className="text-[10px] leading-tight text-ink-300">쓰러 가기</p>
+          <a
+            href="/shop"
+            className="press rounded-btn border border-brand/30 bg-brand-weak px-2 py-2 text-center hover:bg-brand/15"
+          >
+            <p className="text-[11px] leading-tight text-brand-strong">상점</p>
+            <p className="text-base font-extrabold leading-tight">🛒</p>
+            <p className="text-[10px] font-bold leading-tight text-brand-strong">쓰러 가기 →</p>
           </a>
         </div>
       </section>

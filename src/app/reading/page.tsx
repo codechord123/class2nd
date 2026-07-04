@@ -143,10 +143,10 @@ function ReportBody({
   );
 }
 
-// 작성일 라벨 (월.일)
+// 작성일 라벨 — "7.4"는 평점처럼 읽혀서 "7월 4일"로 (실화면 검수에서 발견)
 function dateLabel(ms: number): string {
   const d = new Date(ms);
-  return `${d.getMonth() + 1}.${d.getDate()}`;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
 // 감상문 본문 섹션 — 쓰기 화면과 같은 문법: 진한 라벨 + 테두리 상자 (읽기 전용판)
