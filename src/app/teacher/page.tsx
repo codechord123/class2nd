@@ -76,7 +76,7 @@ export default function TeacherPage() {
 
   const { data: bestGroups } = useBestGroups();
   const setBestGroup = useSetBestGroup();
-  const [bestGroupId, setBestGroupId] = useState(1);
+  const [bestRanking, setBestRanking] = useState<number[]>([]); // 누른 순서 = 1위→5위
 
   if (role !== "teacher") {
     return (
@@ -178,39 +178,64 @@ export default function TeacherPage() {
         )}
       </section>
 
-      {/* 오늘의 모둠 선정 + 칭찬/건의 인쇄 */}
+      {/* 오늘의 모둠 순위(1~5위) 선정 + 칭찬/건의 인쇄 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">👑 오늘의 모둠 & 칭찬 인쇄</h2>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select
-            value={bestGroupId}
-            onChange={(e) => setBestGroupId(Number(e.target.value))}
-            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          >
-            {[1, 2, 3, 4, 5].map((g) => (
-              <option key={g} value={g}>
+        <h2 className="text-lg font-bold">👑 오늘의 모둠 순위 & 칭찬 인쇄</h2>
+        <p className="mt-1 text-xs text-ink-500">
+          잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점이 배분되고, 세션
+          통계(최고 모둠)는 1위만 집계돼요.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {[1, 2, 3, 4, 5].map((g) => {
+            const pos = bestRanking.indexOf(g);
+            return (
+              <button
+                key={g}
+                onClick={() =>
+                  setBestRanking(
+                    pos >= 0 ? bestRanking.filter((x) => x !== g) : [...bestRanking, g]
+                  )
+                }
+                className={`press rounded-btn border px-3 py-2 text-sm font-bold ${
+                  pos === 0
+                    ? "border-warn bg-warn text-white"
+                    : pos > 0
+                      ? "border-brand bg-brand text-white"
+                      : "border-ink-200 bg-white text-ink-600"
+                }`}
+              >
+                {pos >= 0 && `${pos + 1}위 · `}
                 {g}모둠
-              </option>
-            ))}
-          </select>
+              </button>
+            );
+          })}
           <button
             onClick={() =>
               void (async () => {
+                if (bestRanking.length === 0) {
+                  toast("먼저 모둠을 순서대로 눌러주세요.", "warn");
+                  return;
+                }
                 try {
                   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
                   const chairId =
-                    scheduleOfWeek(week).groups.find((g) => g.groupId === bestGroupId)?.chair ?? 0;
-                  await setBestGroup(date, bestGroupId, chairId);
-                  setMsg(`✅ ${date} 오늘의 모둠: ${bestGroupId}모둠 (의장 ${studentById.get(chairId)?.name})`);
+                    scheduleOfWeek(week).groups.find((g) => g.groupId === bestRanking[0])?.chair ??
+                    0;
+                  await setBestGroup(date, bestRanking, chairId);
+                  toast(
+                    `✅ ${date} 순위 저장: ${bestRanking.map((g, i) => `${i + 1}위 ${g}모둠`).join(" · ")} — 집계 실행 시 반영돼요`
+                  );
                 } catch (e) {
-                  setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+                  toast(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
                 }
               })()
             }
-            className="rounded-btn bg-amber-500 px-4 py-2 text-sm font-bold text-white"
+            className="press rounded-btn bg-warn px-4 py-2 text-sm font-bold text-white"
           >
-            오늘의 모둠으로 선정
+            순위 저장
           </button>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="flex gap-1">
             {(["일간", "주간", "월간"] as const).map((label) => (
               <button
@@ -246,8 +271,13 @@ export default function TeacherPage() {
         </div>
         {bestGroups?.[date] && (
           <p className="mt-2 text-sm text-ink-600">
-            {date} 오늘의 모둠: <b>{bestGroups[date].groupId}모둠</b> (의장{" "}
-            {studentById.get(bestGroups[date].chairId)?.name})
+            {date} 저장된 순위:{" "}
+            <b>
+              {(bestGroups[date].ranking ?? [bestGroups[date].groupId])
+                .map((g, i) => `${i + 1}위 ${g}모둠`)
+                .join(" · ")}
+            </b>{" "}
+            (오늘의 모둠 의장 {studentById.get(bestGroups[date].chairId)?.name})
           </p>
         )}
       </section>

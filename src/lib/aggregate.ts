@@ -73,14 +73,20 @@ export async function aggregateDate(
       toTeacher.push({ from, text: data._toTeacher });
   });
 
-  // 3) 순위 산정: 교사가 고른 '오늘의 모둠'만 1위 → 그 모둠 전원 rankPoints[0]점.
-  //    미선정이면 순위 점수 0 (호출부에서 경고 표시).
+  // 3) 순위 산정: 교사가 매긴 1~5위(ranking)에 rankPoints(기본 5·4·3·2·1) 배분.
+  //    구버전(단일 groupId)은 1위만, 미선정이면 순위 점수 0 (호출부에서 경고 표시).
   const rankPoint = (rank: number) =>
     settings.rankPoints[rank - 1] ?? settings.rankPoints[settings.rankPoints.length - 1] ?? 0;
-  const bestGroupId = bestSnap.exists()
-    ? (bestSnap.data() as Record<string, { groupId: number } | undefined>)[date]?.groupId
+  const bestEntry = bestSnap.exists()
+    ? (bestSnap.data() as Record<string, { groupId: number; ranking?: number[] } | undefined>)[
+        date
+      ]
     : undefined;
-  const ranks: Record<number, number> = bestGroupId ? { [bestGroupId]: 1 } : {};
+  const ranks: Record<number, number> = bestEntry?.ranking?.length
+    ? Object.fromEntries(bestEntry.ranking.map((g, i) => [g, i + 1]))
+    : bestEntry?.groupId
+      ? { [bestEntry.groupId]: 1 }
+      : {};
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);

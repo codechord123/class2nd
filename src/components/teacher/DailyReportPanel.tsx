@@ -139,13 +139,15 @@ ${
               </p>
             </div>
             <div className="rounded-btn bg-ink-50 p-3">
-              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠</p>
+              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠 순위</p>
               <p className="mt-1 text-sm text-ink-700">
                 {rankPairs.length ? (
-                  rankPairs.map(([g]) => `👑 ${g}모둠`).join(" · ")
+                  rankPairs
+                    .map(([g, r]) => `${r === 1 ? "👑 " : ""}${r}위 ${g}모둠`)
+                    .join(" · ")
                 ) : (
                   <span className="font-bold text-warn">
-                    ⚠️ 미선정 — 순위 점수 0점. 선정 후 재집계하세요
+                    ⚠️ 순위 미선정 — 순위 점수 0점. 선정 후 재집계하세요
                   </span>
                 )}
               </p>

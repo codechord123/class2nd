@@ -65,7 +65,7 @@ export function ScaleEditor({
   );
 }
 
-/** 오늘의 모둠 점수 — 모둠 간 평가 폐지 후 순위는 '오늘의 모둠(1위)'만 존재. */
+/** 모둠 순위(1~5위) → 개인 점수 — 교사가 매긴 오늘의 모둠 순위대로 배분(기본 5·4·3·2·1). */
 export function RankPointsEditor({
   value,
   onChange,
@@ -73,20 +73,26 @@ export function RankPointsEditor({
   value: number[];
   onChange: (v: number[]) => void;
 }) {
+  const medal = (i: number) => (i === 0 ? "🥇 1위" : i === 1 ? "🥈 2위" : i === 2 ? "🥉 3위" : `${i + 1}위`);
   return (
     <div className="rounded-card bg-ink-50 p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-ink-800">👑 오늘의 모둠 점수</span>
-        <NumberStepper
-          value={value[0] ?? 5}
-          min={0}
-          max={20}
-          onChange={(v) => onChange([v, ...value.slice(1)])}
-        />
-      </div>
-      <p className="mt-1.5 text-[11px] text-ink-400">
-        선생님이 고른 오늘의 모둠 전원이 받는 점수예요. (다른 모둠은 0점)
+      <p className="text-sm font-bold text-ink-800">모둠 순위 → 개인 점수</p>
+      <p className="mt-0.5 text-[11px] text-ink-400">
+        선생님이 매긴 오늘의 모둠 순위대로 모둠원 전원에게 배분돼요. (1위 = 오늘의 모둠)
       </p>
+      <div className="mt-2 space-y-1.5">
+        {value.map((pt, i) => (
+          <div key={i} className="flex items-center justify-between">
+            <span className="text-sm text-ink-700">{medal(i)}</span>
+            <NumberStepper
+              value={pt}
+              min={0}
+              max={20}
+              onChange={(v) => onChange(value.map((p, j) => (j === i ? v : p)))}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

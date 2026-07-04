@@ -4,9 +4,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-// ── 오늘의 모둠: classData/bestGroups = { [date]: { groupId, chairId } } ──
+// ── 오늘의 모둠 순위: classData/bestGroups = { [date]: { groupId(1위), chairId, ranking } } ──
+// ranking = [1위 모둠, 2위 모둠, …] — 집계에서 rankPoints(기본 5·4·3·2·1점) 배분.
+// groupId는 1위 모둠(하위호환 + 세션 '최고 모둠' 통계는 1위만 집계).
 export interface BestGroups {
-  [date: string]: { groupId: number; chairId: number };
+  [date: string]: { groupId: number; chairId: number; ranking?: number[] };
 }
 
 export function useBestGroups() {
@@ -22,15 +24,12 @@ export function useBestGroups() {
 
 export function useSetBestGroup() {
   const qc = useQueryClient();
-  return async (date: string, groupId: number, chairId: number) => {
-    await setDoc(
-      doc(db(), "classData", "bestGroups"),
-      { [date]: { groupId, chairId } },
-      { merge: true }
-    );
+  return async (date: string, ranking: number[], chairId: number) => {
+    const entry = { groupId: ranking[0], chairId, ranking };
+    await setDoc(doc(db(), "classData", "bestGroups"), { [date]: entry }, { merge: true });
     qc.setQueryData(["bestGroups"], (prev: BestGroups | undefined) => ({
       ...prev,
-      [date]: { groupId, chairId },
+      [date]: entry,
     }));
   };
 }
