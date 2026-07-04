@@ -96,7 +96,8 @@ export async function openRangePrintDoc(
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
   if (today >= start && today <= end && !byDate.has(today)) {
     const extras = await liveDayExtras(today);
-    if (extras.compliments.length || extras.toTeacher.length) byDate.set(today, extras);
+    if (extras.compliments.length || extras.peerSuggestions.length || extras.toTeacher.length)
+      byDate.set(today, extras);
   }
 
   // 3) 기간 내 건의

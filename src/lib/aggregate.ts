@@ -366,6 +366,10 @@ export async function settleSession(period: number): Promise<SessionSettleResult
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
 
   const entries = Object.entries(grant);
+  // 지급 대상이 없으면(집계 전이거나 MVP·최고모둠 미정) 마커를 남기지 않아 재실행 가능하게 둔다
+  if (entries.length === 0) {
+    return { period, range: [start, end], mvps: [], bestGroups: [], bestGroupMembers: [], alreadySettled: false };
+  }
   for (const [sid, n] of entries) {
     await addDoc(collection(d, "coinTxns"), {
       studentId: Number(sid),
@@ -376,13 +380,11 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       createdAt: Date.now(),
     });
   }
-  if (entries.length) {
-    await setDoc(
-      doc(d, "coinTxns", "0_balances"),
-      Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
-      { merge: true }
-    );
-  }
+  await setDoc(
+    doc(d, "coinTxns", "0_balances"),
+    Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
+    { merge: true }
+  );
   await setDoc(marker, {
     mvps,
     bestGroups,
