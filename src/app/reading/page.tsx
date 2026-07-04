@@ -234,6 +234,7 @@ export default function ReadingPage() {
   const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [onlyS2, setOnlyS2] = useState(false); // 2학기 글만 보기 (1학기 112건 스킵)
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 전체화면 쓰기 시트
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -296,6 +297,7 @@ export default function ReadingPage() {
     !!r.isPrivate && role !== "teacher" && r.studentId !== studentId;
 
   const visible = allReports
+    .filter((r) => (onlyS2 ? !r.s1 : true))
     // 잠긴 글은 태그 필터 결과에서 제외 — 장르 메타데이터도 새지 않게
     .filter((r) => (tagFilter ? !isLocked(r) && (r.tags ?? []).includes(tagFilter) : true))
     .filter((r) => {
@@ -312,7 +314,7 @@ export default function ReadingPage() {
   const filtering = Boolean(search.trim() || tagFilter);
   const knownPages = Math.max(
     1,
-    Math.ceil(((reports?.length ?? 0) + s1Items.length) / pageSize)
+    Math.ceil(((reports?.length ?? 0) + (onlyS2 ? 0 : s1Items.length)) / pageSize)
   );
   const pageItems = filtering ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
 
@@ -538,6 +540,17 @@ export default function ReadingPage() {
               }`}
             >
               전체
+            </button>
+            <button
+              onClick={() => {
+                setOnlyS2((v) => !v);
+                setPage(1);
+              }}
+              className={`press rounded-full px-2.5 py-1 text-xs font-medium ${
+                onlyS2 ? "bg-emerald-600 text-white" : "bg-ink-100 text-ink-500"
+              }`}
+            >
+              2학기만
             </button>
             {BOOK_TAGS.map((t) => (
               <button

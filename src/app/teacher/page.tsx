@@ -10,18 +10,11 @@ import { runAutoTasks } from "@/lib/autoRun";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
 import {
-  usePendingRequests,
-  useDecideRequest,
-  useGrantSilver,
-  type WalletKind,
-} from "@/lib/query/wallet";
-import {
   usePendingSeatRequests,
   useDecideSeatRequest,
   findOccupant,
 } from "@/lib/query/seatChange";
 import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
-import ShopMenuEditor from "@/components/teacher/ShopMenuEditor";
 import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
@@ -30,7 +23,6 @@ import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import TodaySubmissionsPanel from "@/components/teacher/TodaySubmissionsPanel";
-import TokenLedgerPanel from "@/components/teacher/TokenLedgerPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
 import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import BannerEditor from "@/components/teacher/BannerEditor";
@@ -53,7 +45,7 @@ export default function TeacherPage() {
   const saveSettings = useSaveSettings();
   const qc = useQueryClient();
 
-  const [tTab, setTTab] = useState<"score" | "approve" | "shop" | "tools">("score");
+  const [tTab, setTTab] = useState<"score" | "approve" | "tools">("score");
   // 하위탭 — 긴 세로 스크롤 대신 목적별 분리 (사용자 요청)
   const [scoreTab, setScoreTab] = useState<"today" | "report" | "reward">("today");
   const [toolsTab, setToolsTab] = useState<"settings" | "manage">("settings");
@@ -73,17 +65,9 @@ export default function TeacherPage() {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
-  const { data: pendS2 } = usePendingRequests("s2", isTeacher);
-  const { data: pendS1 } = usePendingRequests("s1", isTeacher);
-  const decideSpend = useDecideRequest("s2");
-  const decideSpendS1 = useDecideRequest("s1");
   const { data: pendSeat } = usePendingSeatRequests(isTeacher);
   const decideSeat = useDecideSeatRequest();
-  const grantSilver = useGrantSilver();
 
-  const [grantSids, setGrantSids] = useState<number[]>([]); // 다중 선택 지급
-  const [grantAmt, setGrantAmt] = useState("1");
-  const [grantNote, setGrantNote] = useState("");
 
   const { data: bestGroups } = useBestGroups();
   const setBestGroup = useSetBestGroup();
@@ -176,8 +160,7 @@ export default function TeacherPage() {
       <SubTabs
         tabs={[
           { key: "score" as const, label: "📊 점수·집계" },
-          { key: "approve" as const, label: "✅ 승인 대기" },
-          { key: "shop" as const, label: "🛍️ 상점·지급" },
+          { key: "approve" as const, label: "🎫 자리 승인" },
           { key: "tools" as const, label: "⚙️ 설정·도구" },
         ]}
         active={tTab}
@@ -432,64 +415,6 @@ export default function TeacherPage() {
       </>)}
 
       {tTab === "approve" && (<>
-      {/* 실버 사용 승인 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">
-          🛒 실버 사용 승인 대기{" "}
-          <span className="text-sm font-normal text-ink-400">
-            ({(pendS2?.length ?? 0) + (pendS1?.length ?? 0)}건)
-          </span>
-        </h2>
-        {!(pendS2?.length || pendS1?.length) && (
-          <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>
-        )}
-        <ul className="mt-3 space-y-2">
-          {([
-            ...(pendS2 ?? []).map((r) => ({ r, kind: "s2" as WalletKind })),
-            ...(pendS1 ?? []).map((r) => ({ r, kind: "s1" as WalletKind })),
-          ]).map(({ r, kind }) => (
-            <li
-              key={`${kind}-${r.id}`}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
-                  {studentById.get(r.studentId)?.name}
-                </span>
-                <b className="truncate text-[15px] text-ink-900">{r.item}</b>
-                <span className="shrink-0 rounded-full bg-warn-weak px-2 py-0.5 text-xs font-bold text-warn">
-                  {kind === "s2" ? "2학기" : "이월"} {r.amount}개
-                </span>
-              </span>
-              <span className="flex gap-1.5">
-                <button
-                  onClick={() =>
-                    void (kind === "s2" ? decideSpend : decideSpendS1)(r, true).then(
-                      () => toast(`✅ 승인: ${studentById.get(r.studentId)?.name} · ${r.item}`),
-                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
-                    )
-                  }
-                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
-                >
-                  승인
-                </button>
-                <button
-                  onClick={() =>
-                    void (kind === "s2" ? decideSpend : decideSpendS1)(r, false).then(
-                      () => toast(`반려 처리했어요: ${r.item}`),
-                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
-                    )
-                  }
-                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
-                >
-                  반려
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       {/* 자리 변경 승인 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">
@@ -552,97 +477,6 @@ export default function TeacherPage() {
 
       </>)}
 
-      {tTab === "shop" && (<>
-      <ShopMenuEditor />
-      {/* 실버 지급 — 여러 명 동시 지급 (모둠 단위 보상 등) */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold">💰 실버 지급 (2학기)</h2>
-          <span className="text-xs text-ink-500">
-            {grantSids.length > 0 ? `${grantSids.length}명 선택됨` : "학생을 눌러 선택 (여러 명 가능)"}
-          </span>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <button
-            onClick={() =>
-              setGrantSids(grantSids.length === students.length ? [] : students.map((s) => s.id))
-            }
-            className="press rounded-full border border-ink-400 bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-700"
-          >
-            {grantSids.length === students.length ? "전체 해제" : "전체 선택"}
-          </button>
-          {students.map((s) => {
-            const on = grantSids.includes(s.id);
-            return (
-              <button
-                key={s.id}
-                onClick={() =>
-                  setGrantSids(on ? grantSids.filter((x) => x !== s.id) : [...grantSids, s.id])
-                }
-                className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
-                  on
-                    ? "border-brand bg-brand text-white"
-                    : "border-ink-200 bg-white text-ink-600 hover:border-brand/40"
-                }`}
-              >
-                {s.name}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-ink-500">1인당</span>
-          <input
-            type="number"
-            min={1}
-            value={grantAmt}
-            onChange={(e) => setGrantAmt(e.target.value)}
-            className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          />
-          <span className="text-xs text-ink-500">개</span>
-          <input
-            value={grantNote}
-            onChange={(e) => setGrantNote(e.target.value)}
-            placeholder="사유 (예: 발표 준비 도움)"
-            className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
-          />
-          <button
-            onClick={() =>
-              void (async () => {
-                const n = Number(grantAmt);
-                if (!Number.isInteger(n) || n <= 0) {
-                  toast("지급 개수는 1 이상의 정수여야 해요.", "warn");
-                  return;
-                }
-                if (grantSids.length === 0) {
-                  toast("지급할 학생을 골라주세요.", "warn");
-                  return;
-                }
-                try {
-                  await grantSilver(grantSids, n, grantNote);
-                  toast(
-                    `✅ ${grantSids.length}명에게 실버 ${n}개씩 지급 (${grantSids
-                      .slice(0, 3)
-                      .map((id) => studentById.get(id)?.name)
-                      .join(", ")}${grantSids.length > 3 ? " 외" : ""})`
-                  );
-                  setGrantNote("");
-                  setGrantSids([]);
-                } catch (e) {
-                  toast(`⚠️ 지급 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
-                }
-              })()
-            }
-            className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
-          >
-            {grantSids.length > 1 ? `${grantSids.length}명에게 지급` : "지급"}
-          </button>
-        </div>
-      </section>
-
-      {/* 토큰 사용 기록 — 날짜별·학생별 원장 */}
-      <TokenLedgerPanel />
-      </>)}
 
       {msg && <p className="text-sm">{msg}</p>}
     </div>

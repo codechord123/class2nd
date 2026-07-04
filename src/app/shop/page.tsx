@@ -3,8 +3,8 @@
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
-import { s1Wallet, s1ClassGoldRemaining, getS1WalletOf } from "@/lib/staticData";
-import { studentById } from "@/lib/roster";
+import { s1ClassGoldRemaining, getS1WalletOf } from "@/lib/staticData";
+import ShopAdmin from "@/components/teacher/ShopAdmin";
 import {
   useBalances,
   useMyRequests,
@@ -52,6 +52,9 @@ export default function ShopPage() {
   const closeHour = settings?.requestCloseHour ?? 24;
   const windowLabel = requestWindowLabel(openHour, closeHour);
   const requestOpen = role === "teacher" || isRequestOpen(openHour, closeHour);
+
+  // 교사는 상점 탭에서 관리 화면을 본다 (승인·기록·지급·메뉴판 — 교사탭에서 이동)
+  if (role === "teacher") return <ShopAdmin />;
 
   const myS2Balance = studentId ? (s2Bal?.[String(studentId)] ?? 0) : 0;
   const myS1Remaining = studentId
@@ -386,49 +389,6 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 교사: 반 전체 이월 지갑 현황 (내역 탭에서 — 학생에겐 본인 것만) */}
-      {tab === "history" && role === "teacher" && (
-      <section className="rounded-card border border-indigo-200 bg-indigo-50/50 p-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold">🎒 1학기 이월 지갑</h2>
-          <p className="text-sm text-ink-600">
-            학급 골드토큰 <b>{classGoldLeft}개</b> 남음
-          </p>
-        </div>
-        <p className="mt-1 text-xs text-ink-500">
-          1학기에 다 쓰지 못한 실버예요. 2학기 실버와 섞이지 않아요.
-        </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[380px] text-sm">
-            <thead>
-              <tr className="border-b border-indigo-200 text-left text-xs text-ink-500">
-                <th className="py-2 pr-2">이름</th>
-                <th className="py-2 pr-2 text-right">이월 실버</th>
-                <th className="py-2 pr-2 text-right">사용</th>
-                <th className="py-2 text-right">남음</th>
-              </tr>
-            </thead>
-            <tbody>
-              {s1Wallet.students.map((s) => {
-                const used = s1Used?.[String(s.id)] ?? 0;
-                return (
-                  <tr key={s.id} className="border-b border-indigo-100 last:border-0">
-                    <td className="py-1.5 pr-2 font-medium">
-                      {studentById.get(s.id)?.name ?? s.name}
-                    </td>
-                    <td className="py-1.5 pr-2 text-right text-ink-500">{s.silverRemaining}</td>
-                    <td className="py-1.5 pr-2 text-right text-ink-400">{used}</td>
-                    <td className="py-1.5 text-right font-bold text-indigo-700">
-                      {s.silverRemaining - used}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      )}
     </div>
   );
 }
