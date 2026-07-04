@@ -192,7 +192,7 @@ export default function SeatsPage() {
           {(weekRequests?.length ?? 0) > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {weekRequests!.map((r) => (
-                <li key={r.id} className="flex justify-between rounded bg-ink-50 px-3 py-1.5">
+                <li key={r.id} className="flex justify-between rounded-btn bg-ink-50 px-3 py-1.5">
                   <span>
                     {studentById.get(r.studentId)?.name} → {r.targetGroup}모둠 {r.targetRole}
                   </span>

@@ -360,7 +360,7 @@ export default function ReadingPage() {
           <div className="flex flex-wrap gap-1.5 border-b border-ink-100 p-3">
             <button
               onClick={() => setTagFilter(null)}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              className={`press rounded-full px-2.5 py-1 text-xs font-medium ${
                 tagFilter === null ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
               }`}
             >
@@ -370,7 +370,7 @@ export default function ReadingPage() {
               <button
                 key={t}
                 onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                className={`press rounded-full px-2.5 py-1 text-xs font-medium ${
                   tagFilter === t ? "bg-brand text-white" : "bg-ink-100 text-ink-500"
                 }`}
               >

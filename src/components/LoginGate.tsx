@@ -156,7 +156,7 @@ function LoginScreen({
               <button
                 key={s.id}
                 onClick={() => setSelectedId(s.id)}
-                className={`press rounded-xl py-2.5 text-xs font-bold transition-colors ${
+                className={`press rounded-btn py-2.5 text-xs font-bold transition-colors ${
                   selectedId === s.id
                     ? "bg-brand text-white shadow-card"
                     : "bg-ink-100 text-ink-600 hover:bg-ink-200"

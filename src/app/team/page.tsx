@@ -147,7 +147,7 @@ export default function TeamPage() {
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">🏆 순위 +{myRow.groupRank}</span>
             )}
             {myRow.bonus !== 0 && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
+              <span className="rounded-full bg-success-weak px-2 py-0.5 text-success">🎁 보너스 {myRow.bonus >= 0 ? "+" : ""}{myRow.bonus}</span>
             )}
           </div>
         ) : (
