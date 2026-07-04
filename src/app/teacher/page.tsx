@@ -36,6 +36,7 @@ import BannerEditor from "@/components/teacher/BannerEditor";
 import { BETA_END } from "@/components/BetaBanner";
 import ScoreDiagnosisPanel from "@/components/teacher/ScoreDiagnosisPanel";
 import SubTabs from "@/components/ui/SubTabs";
+import { SkeletonPage } from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
@@ -123,7 +124,7 @@ export default function TeacherPage() {
       </section>
     );
   }
-  if (!settings) return <p className="text-sm text-ink-400">불러오는 중…</p>;
+  if (!settings) return <SkeletonPage />;
 
   async function runAggregate() {
     setBusy(true);
@@ -184,19 +185,15 @@ export default function TeacherPage() {
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
 
-      {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
-      <DailyReportPanel date={date} />
-
-      {/* 샘플 데이터 — 개학 전 미리보기 */}
-      <SampleDataPanel date={date} />
+      {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 리포트 위, 한 행(2열)에 */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
 
       {/* 오늘의 모둠 순위(1~5위) 선정 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
         <p className="mt-1 text-xs text-ink-500">
-          잘한 순서대로 모둠을 눌러주세요 (1위→5위). 순위대로 5·4·3·2·1점 + <b>오늘의 모둠(1위)은
-          +1점 더</b> 받아요. 세션 통계(최고 모둠)는 1위만 집계. <b>순위 저장 후 아래에서 집계
-          실행</b>하면 반영돼요.
+          잘한 순서대로 눌러주세요 (1위→5위) — 순위대로 5·4·3·2·1점, <b>1위는 +1점 더</b>.
+          저장 후 옆 <b>집계 실행</b>으로 반영돼요.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {[1, 2, 3, 4, 5].map((g) => {
@@ -265,13 +262,8 @@ export default function TeacherPage() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
         <p className="mt-1 text-xs text-ink-500">
-          학생들이 낸 평가(모둠 친구 점수·MVP·칭찬)를 모아 <b>오늘 점수를 계산</b>해서 반영해요.
-          <br />
-          순서: ① 위 👑에서 모둠 순위 저장 → ② 종회 때 이 버튼 1번. 다시 눌러도 안전해요(누적
-          자동 보정).
-          <br />
-          🤖 <b>어제까지 밀린 집계는 자동</b>이에요 — 깜빡해도 다음 날 교사 화면이 열리면 자정
-          기준으로 자동 처리돼요. (오늘 것만 종회 때 직접!)
+          평가·MVP·칭찬을 모아 <b>오늘 점수를 계산</b>해요. 종회 때 1번 — 다시 눌러도
+          안전해요. 🤖 <b>밀린 날은 자동 처리</b>되니 오늘 것만 직접!
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
@@ -299,10 +291,18 @@ export default function TeacherPage() {
           </p>
         )}
       </section>
+      </div>
 
-      <BiweeklySettlePanel />
-      <BonusPanel />
-      <ScoreDiagnosisPanel />
+      {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
+      <DailyReportPanel date={date} />
+
+      {/* 가끔 쓰는 도구들 — 2열로 스크롤 압축 */}
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+        <BiweeklySettlePanel />
+        <BonusPanel />
+        <ScoreDiagnosisPanel />
+        <SampleDataPanel date={date} />
+      </div>
       </>)}
 
       {tTab === "tools" && (<>
@@ -398,14 +398,19 @@ export default function TeacherPage() {
         </span>
       </button>
       {showMoreTools && (
-        <>
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
           <PasswordResetPanel />
           <ReadingAdjustPanel />
-          <BookletExportPanel />
+          {/* 학생 칩 25개가 넓게 퍼지는 카드는 전체 폭 */}
+          <div className="lg:col-span-2">
+            <BookletExportPanel />
+          </div>
           <CsvExportPanel />
           <LinksEditor />
-          <TeacherMemoWidget />
-        </>
+          <div className="lg:col-span-2">
+            <TeacherMemoWidget />
+          </div>
+        </div>
       )}
 
       {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}

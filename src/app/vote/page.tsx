@@ -5,6 +5,7 @@ import { useSession } from "@/stores/session";
 import { studentById, students } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
 import EmptyState from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
 import {
   usePolls,
@@ -513,7 +514,7 @@ export default function VotePage() {
 
         {/* 목록 */}
         {!polls ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-400">불러오는 중…</p>
+          <SkeletonList rows={4} />
         ) : !sorted.length ? (
           search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />

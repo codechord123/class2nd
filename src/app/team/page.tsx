@@ -25,6 +25,7 @@ import {
 } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
 import SubTabs from "@/components/ui/SubTabs";
+import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
 import { useRef, useState } from "react";
 import type { DailyScoreRow } from "@/types";
@@ -122,7 +123,7 @@ export default function TeamPage() {
     (g) => g.chair === studentId || g.members.some((m) => m.studentId === studentId)
   );
   if (!studentId || !myGroup || !settings) {
-    return <p className="text-sm text-ink-400">불러오는 중…</p>;
+    return <SkeletonPage />;
   }
 
   // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외

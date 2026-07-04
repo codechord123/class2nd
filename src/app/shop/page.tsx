@@ -15,6 +15,7 @@ import { useShopMenu } from "@/lib/query/classMeta";
 import { useSettings } from "@/lib/query/settings";
 import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
@@ -209,11 +210,7 @@ export default function ShopPage() {
       )}
 
       {/* 메뉴판 — 로딩/빈 상태 안내 */}
-      {tab === "shop" && role === "student" && studentId && !menu && (
-        <p className="rounded-card border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-400 shadow-card">
-          메뉴판 불러오는 중…
-        </p>
-      )}
+      {tab === "shop" && role === "student" && studentId && !menu && <SkeletonCard />}
       {tab === "shop" && role === "student" && studentId && menu && menu.length === 0 && (
         <p className="rounded-card border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-400 shadow-card">
           📋 아직 메뉴가 없어요. 선생님이 메뉴를 올리면 여기에 보여요. 그동안은 아래에서 직접 신청할

@@ -29,6 +29,7 @@ import WriteSheet, { type WriteInitial } from "@/components/reading/WriteSheet";
 import ClassBanner from "@/components/ClassBanner";
 import SubTabs from "@/components/ui/SubTabs";
 import EmptyState from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/Skeleton";
 import Linkify from "@/components/ui/Linkify";
 import { useFeedback } from "@/components/ui/Feedback";
 
@@ -552,7 +553,7 @@ export default function ReadingPage() {
           </div>
 
           {!reports ? (
-            <p className="px-4 py-8 text-center text-sm text-ink-400">불러오는 중…</p>
+            <SkeletonList rows={5} />
           ) : (
             !visible.length &&
             (search || tagFilter ? (
