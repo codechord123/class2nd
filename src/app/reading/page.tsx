@@ -3,8 +3,10 @@
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
+import { loadS1TurtleReading } from "@/lib/staticData";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
@@ -22,7 +24,6 @@ import {
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
-import S1Archive from "@/components/reading/S1Archive";
 import WriteSheet, { type WriteInitial } from "@/components/reading/WriteSheet";
 import ClassBanner from "@/components/ClassBanner";
 import SubTabs from "@/components/ui/SubTabs";
@@ -31,7 +32,7 @@ import { SkeletonList } from "@/components/ui/Skeleton";
 import Linkify from "@/components/ui/Linkify";
 import { useFeedback } from "@/components/ui/Feedback";
 
-type Tab = "write" | "list" | "s1";
+type Tab = "write" | "list";
 
 // 게시판 통합용 — 1학기 정적 감상문을 2학기 형태에 얹은 것 (s1=true면 수정·삭제·댓글 없음)
 type ListReport = ReadingReport2 & { s1?: boolean; s1Date?: string };
@@ -253,9 +254,42 @@ export default function ReadingPage() {
   const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id });
   const editReport = (r: ReadingReport2) => openSheet({ form: toForm(r), reportId: r.id });
 
-  // 감상문 게시판은 2학기 글만 (사용자 결정 — 1학기 글은 게시판에서 제외,
-  // 전문은 교사의 '감상문 모음집(출판용)'에서만 함께 엮인다)
-  const allReports: ListReport[] = useMemo(() => reports ?? [], [reports]);
+  // 📚 1·2학기 통합 게시판 (사용자 결정: 별도 '1학기' 탭 없이 여기서 함께) —
+  // 1학기 정적 백업(313KB)은 감상문 탭을 열 때만 동적 로드 (Firestore 읽기 0회)
+  const { data: s1Data } = useQuery({
+    queryKey: ["s1-turtle"],
+    queryFn: loadS1TurtleReading,
+    staleTime: Infinity,
+    enabled: tab === "list",
+  });
+  const s1Items: ListReport[] = useMemo(
+    () =>
+      (s1Data?.readingReports ?? [])
+        .filter((r) => !(r as { isDraft?: boolean }).isDraft)
+        .map((r) => ({
+          id: `s1-${r.docId}`,
+          studentId: r.studentId,
+          title: r.title,
+          author: r.author ?? "",
+          publisher: r.publisher ?? "",
+          summary: r.summary ?? "",
+          scene: r.scene ?? "",
+          quote: r.quote ?? "",
+          thoughts: r.thoughts ?? "",
+          isDraft: false,
+          week: 0,
+          createdAt: Number(r.docId.split("_")[0]) || 0,
+          s1: true,
+          s1Date: r.date.split(" ").slice(0, 2).join(" "), // "6월 11일 오후 10:13" → "6월 11일"
+        }))
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [s1Data]
+  );
+  // 2학기(최신)가 앞, 1학기가 뒤 — 최신순 게시판이 자연히 학기 역순이 된다
+  const allReports: ListReport[] = useMemo(
+    () => [...(reports ?? []), ...s1Items],
+    [reports, s1Items]
+  );
 
   // 🔒 비공개 글: 작성자 본인·교사만 내용 열람 가능
   const isLocked = (r: ListReport) =>
@@ -276,7 +310,10 @@ export default function ReadingPage() {
 
   // 페이지네이션: 검색·태그 필터 중에는 결과 전체를 그대로 (페이지 개념이 헷갈리지 않게)
   const filtering = Boolean(search.trim() || tagFilter);
-  const knownPages = Math.max(1, Math.ceil((reports?.length ?? 0) / pageSize));
+  const knownPages = Math.max(
+    1,
+    Math.ceil(((reports?.length ?? 0) + s1Items.length) / pageSize)
+  );
   const pageItems = filtering ? visible : visible.slice((page - 1) * pageSize, page * pageSize);
 
   // ── 상세 화면 (제목 클릭 진입) — 잠긴 글은 진입 불가 ──────────────
@@ -424,8 +461,7 @@ export default function ReadingPage() {
       <SubTabs<Tab>
         tabs={[
           { key: "write", label: "✍️ 쓰기" },
-          { key: "list", label: `📖 감상문` },
-          { key: "s1", label: "📚 1학기" },
+          { key: "list", label: `📖 감상문 (1·2학기)` },
         ]}
         active={tab}
         onChange={setTab}
@@ -620,9 +656,6 @@ export default function ReadingPage() {
           )}
         </section>
       )}
-
-      {/* 📚 1학기 */}
-      {tab === "s1" && <S1Archive />}
 
       {/* 전체화면 쓰기 시트 */}
       {sheetOpen && studentId && (

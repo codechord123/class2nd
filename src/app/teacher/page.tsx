@@ -30,6 +30,7 @@ import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import TodaySubmissionsPanel from "@/components/teacher/TodaySubmissionsPanel";
+import TokenLedgerPanel from "@/components/teacher/TokenLedgerPanel";
 import SampleDataPanel from "@/components/teacher/SampleDataPanel";
 import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import BannerEditor from "@/components/teacher/BannerEditor";
@@ -53,6 +54,9 @@ export default function TeacherPage() {
   const qc = useQueryClient();
 
   const [tTab, setTTab] = useState<"score" | "approve" | "shop" | "tools">("score");
+  // 하위탭 — 긴 세로 스크롤 대신 목적별 분리 (사용자 요청)
+  const [scoreTab, setScoreTab] = useState<"today" | "report" | "reward">("today");
+  const [toolsTab, setToolsTab] = useState<"settings" | "manage">("settings");
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
@@ -67,7 +71,6 @@ export default function TeacherPage() {
   const [dOpen, setDOpen] = useState<number | null>(null);
   const [dClose, setDClose] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [showMoreTools, setShowMoreTools] = useState(false);
 
   const isTeacher = role === "teacher";
   const { data: pendS2 } = usePendingRequests("s2", isTeacher);
@@ -78,7 +81,7 @@ export default function TeacherPage() {
   const decideSeat = useDecideSeatRequest();
   const grantSilver = useGrantSilver();
 
-  const [grantSid, setGrantSid] = useState(1);
+  const [grantSids, setGrantSids] = useState<number[]>([]); // 다중 선택 지급
   const [grantAmt, setGrantAmt] = useState("1");
   const [grantNote, setGrantNote] = useState("");
 
@@ -182,6 +185,17 @@ export default function TeacherPage() {
       />
 
       {tTab === "score" && (<>
+      <SubTabs
+        tabs={[
+          { key: "today" as const, label: "📌 오늘 집계" },
+          { key: "report" as const, label: "📄 리포트" },
+          { key: "reward" as const, label: "🏆 보상·도구" },
+        ]}
+        active={scoreTab}
+        onChange={setScoreTab}
+      />
+
+      {scoreTab === "today" && (<>
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
 
@@ -292,20 +306,33 @@ export default function TeacherPage() {
         )}
       </section>
       </div>
+      </>)}
 
       {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
-      <DailyReportPanel date={date} />
+      {scoreTab === "report" && <DailyReportPanel date={date} />}
 
       {/* 가끔 쓰는 도구들 — 2열로 스크롤 압축 */}
+      {scoreTab === "reward" && (
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         <BiweeklySettlePanel />
         <BonusPanel />
         <ScoreDiagnosisPanel />
         <SampleDataPanel date={date} />
       </div>
+      )}
       </>)}
 
       {tTab === "tools" && (<>
+      <SubTabs
+        tabs={[
+          { key: "settings" as const, label: "⚙️ 설정" },
+          { key: "manage" as const, label: "🧰 관리 도구" },
+        ]}
+        active={toolsTab}
+        onChange={setToolsTab}
+      />
+
+      {toolsTab === "settings" && (<>
       {/* 학급 목표 배너 편집 */}
       <BannerEditor />
       {/* 평가 척도 설정 — 모듈형 */}
@@ -382,39 +409,26 @@ export default function TeacherPage() {
           {savedFlash ? "✓ 저장됨" : "설정 저장"}
         </Button>
       </Card>
+      </>)}
 
-      <button
-        onClick={() => setShowMoreTools((v) => !v)}
-        className="press flex w-full items-center justify-between rounded-card border border-ink-200 bg-white px-4 py-3 text-left shadow-card"
-      >
-        <span className="text-sm font-bold text-ink-800">
-          🧰 기타 관리 도구
-          <span className="ml-1 font-normal text-ink-400">
-            비밀번호·독서 보정·감상문집·CSV·바로가기·메모
-          </span>
-        </span>
-        <span className="shrink-0 text-xs text-ink-400">
-          {showMoreTools ? "접기 ▲" : "펼치기 ▼"}
-        </span>
-      </button>
-      {showMoreTools && (
-        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-          <PasswordResetPanel />
-          <ReadingAdjustPanel />
-          {/* 학생 칩 25개가 넓게 퍼지는 카드는 전체 폭 */}
-          <div className="lg:col-span-2">
-            <BookletExportPanel />
-          </div>
-          <CsvExportPanel />
-          <LinksEditor />
-          <div className="lg:col-span-2">
-            <TeacherMemoWidget />
-          </div>
+      {toolsTab === "manage" && (<>
+      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+        <PasswordResetPanel />
+        <ReadingAdjustPanel />
+        {/* 학생 칩 25개가 넓게 퍼지는 카드는 전체 폭 */}
+        <div className="lg:col-span-2">
+          <BookletExportPanel />
         </div>
-      )}
+        <CsvExportPanel />
+        <LinksEditor />
+        <div className="lg:col-span-2">
+          <TeacherMemoWidget />
+        </div>
+      </div>
 
       {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}
       {todayKST() <= BETA_END && <BetaResetPanel />}
+      </>)}
       </>)}
 
       {tTab === "approve" && (<>
@@ -540,21 +554,44 @@ export default function TeacherPage() {
 
       {tTab === "shop" && (<>
       <ShopMenuEditor />
-      {/* 실버 지급 */}
+      {/* 실버 지급 — 여러 명 동시 지급 (모둠 단위 보상 등) */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">💰 실버 지급 (2학기)</h2>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select
-            value={grantSid}
-            onChange={(e) => setGrantSid(Number(e.target.value))}
-            className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-bold">💰 실버 지급 (2학기)</h2>
+          <span className="text-xs text-ink-500">
+            {grantSids.length > 0 ? `${grantSids.length}명 선택됨` : "학생을 눌러 선택 (여러 명 가능)"}
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <button
+            onClick={() =>
+              setGrantSids(grantSids.length === students.length ? [] : students.map((s) => s.id))
+            }
+            className="press rounded-full border border-ink-400 bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-700"
           >
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.id}번 {s.name}
-              </option>
-            ))}
-          </select>
+            {grantSids.length === students.length ? "전체 해제" : "전체 선택"}
+          </button>
+          {students.map((s) => {
+            const on = grantSids.includes(s.id);
+            return (
+              <button
+                key={s.id}
+                onClick={() =>
+                  setGrantSids(on ? grantSids.filter((x) => x !== s.id) : [...grantSids, s.id])
+                }
+                className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
+                  on
+                    ? "border-brand bg-brand text-white"
+                    : "border-ink-200 bg-white text-ink-600 hover:border-brand/40"
+                }`}
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-ink-500">1인당</span>
           <input
             type="number"
             min={1}
@@ -562,10 +599,11 @@ export default function TeacherPage() {
             onChange={(e) => setGrantAmt(e.target.value)}
             className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
+          <span className="text-xs text-ink-500">개</span>
           <input
             value={grantNote}
             onChange={(e) => setGrantNote(e.target.value)}
-            placeholder="사유 (예: 격주 MVP)"
+            placeholder="사유 (예: 발표 준비 도움)"
             className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
           />
           <button
@@ -576,10 +614,20 @@ export default function TeacherPage() {
                   toast("지급 개수는 1 이상의 정수여야 해요.", "warn");
                   return;
                 }
+                if (grantSids.length === 0) {
+                  toast("지급할 학생을 골라주세요.", "warn");
+                  return;
+                }
                 try {
-                  await grantSilver(grantSid, n, grantNote);
-                  toast(`✅ ${studentById.get(grantSid)?.name}에게 실버 ${n}개 지급`);
+                  await grantSilver(grantSids, n, grantNote);
+                  toast(
+                    `✅ ${grantSids.length}명에게 실버 ${n}개씩 지급 (${grantSids
+                      .slice(0, 3)
+                      .map((id) => studentById.get(id)?.name)
+                      .join(", ")}${grantSids.length > 3 ? " 외" : ""})`
+                  );
                   setGrantNote("");
+                  setGrantSids([]);
                 } catch (e) {
                   toast(`⚠️ 지급 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
                 }
@@ -587,11 +635,13 @@ export default function TeacherPage() {
             }
             className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
           >
-            지급
+            {grantSids.length > 1 ? `${grantSids.length}명에게 지급` : "지급"}
           </button>
         </div>
       </section>
 
+      {/* 토큰 사용 기록 — 날짜별·학생별 원장 */}
+      <TokenLedgerPanel />
       </>)}
 
       {msg && <p className="text-sm">{msg}</p>}

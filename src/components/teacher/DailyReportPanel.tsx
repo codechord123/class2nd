@@ -133,65 +133,67 @@ export default function DailyReportPanel({ date }: { date: string }) {
           )}</div>`
         );
 
-        // 오늘 점수 (전원) — 2단 표 + 거북이 독서 오늘/누적 권수 함께
+        // ── 1페이지: 정량 — 모둠별 통합 (순위·MVP·점수·독서를 모둠 카드 하나에) ──
         const readTodayOf = (id: number) =>
           (today?.[id] as { read?: number } | undefined)?.read ?? 0;
         const cumBooksOf = (id: number) =>
           s1BooksOf(stats, id) + (stats?.total?.[String(id)] ?? 0);
-        const ranked = [...students].sort((a, b) => totalOf(b.id) - totalOf(a.id));
-        const half = Math.ceil(ranked.length / 2);
-        // 점수 칸에 미니 바 — 표가 숫자 나열이 아니라 분포로 읽히게 (시각화)
+        // 점수 칸 미니 바 — 표가 숫자 나열이 아니라 분포로 읽히게
         const maxScore = Math.max(1, ...students.map((s) => totalOf(s.id)));
         const scoreCell = (n: number) =>
           `<td class="score"><span class="sbar" style="width:${Math.round((Math.max(n, 0) / maxScore) * 100)}%"></span><b>${n}</b></td>`;
-        const scoreTbl = (rows: typeof ranked, offset: number) =>
-          `<table><thead><tr><th>순위</th><th>이름</th><th>점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows
-            .map(
-              (s, i) =>
-                `<tr><td>${offset + i + 1}</td><td>${esc(s.name)}</td>${scoreCell(totalOf(s.id))}<td>${
-                  readTodayOf(s.id) || "·"
-                }</td><td>${cumBooksOf(s.id)}</td></tr>`
-            )
-            .join("")}</tbody></table>`;
-        sections.push(
-          card(
-            "오늘 점수 · 거북이 독서 (오늘 쓴 권수 / 1·2학기 누적 권수)",
-            `<div class="cols">${scoreTbl(ranked.slice(0, half), 0)}${scoreTbl(ranked.slice(half), half)}</div>`
-          )
-        );
-
-        // 모둠별
         const mvpSet = new Set(meta.mvpWinners ?? []);
         const groupsHtml = schedule.groups
           .map((g) => {
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
-            const set = new Set(ids);
             const gRank = meta.ranks?.[String(g.groupId)];
-            const gComps = compliments.filter((c) => set.has(c.to));
-            const gSugs = peerSug.filter((c) => set.has(c.to));
-            const memHtml = ids
+            const gSum = ids.reduce((a, id) => a + totalOf(id), 0);
+            const rows = ids
               .map(
-                (id) => `${mvpSet.has(id) ? "★" : ""}${esc(nm(id))} <b>${totalOf(id)}</b>`
+                (id) =>
+                  `<tr><td>${mvpSet.has(id) ? "★ " : ""}${esc(nm(id))}</td>${scoreCell(totalOf(id))}<td>${
+                    readTodayOf(id) || "·"
+                  }</td><td>${cumBooksOf(id)}</td></tr>`
               )
-              .join(" · ");
-            const lines =
-              [
-                ...gComps.map(
-                  (c) => `<li>[칭찬] <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
-                ),
-                ...gSugs.map(
-                  (c) => `<li>[건의] <b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`
-                ),
-              ].join("") || `<li class="muted">오늘 기록이 없어요.</li>`;
+              .join("");
+            const rankBadge = gRank
+              ? `<span class="badge${gRank === 1 ? " gold" : ""}">${gRank === 1 ? "오늘의 모둠 · 1위" : `${gRank}위`}</span>`
+              : "";
             const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
-            return `<div class="grp"><div class="h"><span class="gname">${g.groupId}모둠${gRank ? `<span class="badge">${gRank === 1 ? "오늘의 모둠 · 1위" : `${gRank}위`}</span>` : ""}${missionBadge}</span><span class="mem">${memHtml}</span></div><ul>${lines}</ul></div>`;
+            return `<div class="grp${gRank === 1 ? " win" : ""}">
+  <div class="h"><span class="gname">${g.groupId}모둠${rankBadge}${missionBadge}</span><span class="gsum">모둠 합계 <b>${gSum}</b>점</span></div>
+  <table><thead><tr><th>이름</th><th>오늘 점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows}</tbody></table>
+</div>`;
           })
           .join("");
         sections.push(
-          card("모둠별 오늘 기록 (★=MVP)", `<div class="grps">${groupsHtml}</div>`)
+          card("모둠별 오늘 기록 — 점수·독서 (★=오늘의 MVP)", `<div class="grps">${groupsHtml}</div>`)
         );
 
-        // 바라는 점
+        // ── 2페이지: 정성 — 칭찬·건의·바라는 점 ──
+        sections.push(
+          `<div class="pagebreak"></div><h1>${date} 마음 기록</h1><div class="sub">오늘 주고받은 칭찬 · 건의 · 선생님에게 바라는 점</div>`
+        );
+        sections.push(
+          card(
+            `오늘의 칭찬 (${compliments.length}건)`,
+            compliments.length
+              ? `<ul>${compliments
+                  .map((c) => `<li><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`)
+                  .join("")}</ul>`
+              : `<p class="muted">기록이 없어요.</p>`
+          )
+        );
+        sections.push(
+          card(
+            `모둠원 건의 (${peerSug.length}건)`,
+            peerSug.length
+              ? `<ul>${peerSug
+                  .map((c) => `<li><b>${esc(nm(c.from))}</b> → <b>${esc(nm(c.to))}</b>: ${esc(c.text)}</li>`)
+                  .join("")}</ul>`
+              : `<p class="muted">기록이 없어요.</p>`
+          )
+        );
         sections.push(
           card(
             `선생님에게 바라는 점 (${wishes.length})`,

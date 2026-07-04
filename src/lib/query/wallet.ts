@@ -33,6 +33,12 @@ export interface SpendRequest {
   type?: string;
 }
 
+/** 받은 것(+)/쓴 것(−)은 금액 부호가 아니라 기록 종류로 판단 — 지급 유형만 양수 */
+const EARN_TYPES = new Set(["earn", "mvp", "milestone"]);
+export function signedAmount(type: string | undefined, amount: number): number {
+  return EARN_TYPES.has(type ?? "") ? Math.abs(amount) : -Math.abs(amount);
+}
+
 const COLL: Record<WalletKind, string> = { s2: "coinTxns", s1: "s1Spends" };
 
 /** 잔액/사용량 문서 — 컬렉션당 1개 (교사만 갱신, 전원 조회 가능) */
@@ -143,22 +149,27 @@ export function useDecideRequest(kind: WalletKind) {
   };
 }
 
-/** 교사 수동 지급(적립): 원장 기록 + 잔액 증가 (2학기 실버 전용) */
+/** 교사 수동 지급(적립): 여러 명 동시 지급 — 원장 기록(인당 1건) + 잔액 일괄 증가 (2학기 실버) */
 export function useGrantSilver() {
   const qc = useQueryClient();
-  return async (studentId: number, amount: number, note: string) => {
+  return async (studentIds: number[], amount: number, note: string) => {
+    if (!studentIds.length) throw new Error("지급할 학생을 골라주세요.");
     const d = db();
-    await addDoc(collection(d, "coinTxns"), {
-      studentId,
-      amount,
-      item: note || "교사 지급",
-      type: "earn",
-      status: "approved",
-      createdAt: Date.now(),
-    });
+    await Promise.all(
+      studentIds.map((studentId) =>
+        addDoc(collection(d, "coinTxns"), {
+          studentId,
+          amount,
+          item: note || "교사 지급",
+          type: "earn",
+          status: "approved",
+          createdAt: Date.now(),
+        })
+      )
+    );
     await setDoc(
       doc(d, "coinTxns", "0_balances"),
-      { [studentId]: increment(amount) },
+      Object.fromEntries(studentIds.map((sid) => [sid, increment(amount)])),
       { merge: true }
     );
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });

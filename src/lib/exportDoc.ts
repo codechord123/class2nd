@@ -69,6 +69,15 @@ const PRINT_CSS = `
   .grp .mem b { color: #191f28; }
   .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px;
            font-weight: 700; background: #fff4e6; color: #e8590c; margin-left: 3px; }
+  .badge.gold { background: #f59f00; color: #fff; }
+  /* 모둠 카드 — 1위(오늘의 모둠)는 금색 테두리로 돋보이게 */
+  .grp.win { border-color: #f59f00; background: #fffdf5; }
+  .grp .gsum { font-size: 11.5px; color: #4e5968; }
+  .grp table { margin-top: 6px; }
+  .grp th { font-size: 10.5px; padding: 2.5px 6px; }
+  .grp td { font-size: 11.5px; padding: 2.5px 6px; }
+  .grp td:first-child { text-align: left; }
+  .pagebreak { page-break-before: always; margin-top: 24px; }
   .docfoot { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e5e8eb;
              text-align: center; color: #b0b8c1; font-size: 10.5px; }
   /* 시각화 — 점수 칸 미니 바 · 달성 게이지 */

@@ -9,6 +9,7 @@ import {
   useBalances,
   useMyRequests,
   useCreateSpendRequest,
+  signedAmount,
   type WalletKind,
 } from "@/lib/query/wallet";
 import { useShopMenu } from "@/lib/query/classMeta";
@@ -361,9 +362,16 @@ export default function ShopPage() {
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
-                    {/* 받은 실버(+)는 초록, 쓴 실버(−)는 빨강 — 방향이 한눈에 */}
-                    <b className={`tnum text-sm ${r.amount > 0 ? "text-success" : "text-danger"}`}>
-                      {r.amount > 0 ? `+${r.amount}` : r.amount}
+                    {/* 받은 실버(+)는 초록, 쓴 실버(−)는 빨강 — 종류(type)로 판단 */}
+                    <b
+                      className={`tnum text-sm ${
+                        signedAmount(r.type, r.amount) > 0 ? "text-success" : "text-danger"
+                      }`}
+                    >
+                      {(() => {
+                        const v = signedAmount(r.type, r.amount);
+                        return v > 0 ? `+${v}` : `${v}`;
+                      })()}
                     </b>
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[r.status]}`}
