@@ -139,6 +139,20 @@ function ReportBody({
   );
 }
 
+// 책 종류 태그 칩
+function Tags({ r }: { r: ReadingReport2 }) {
+  if (!(r.tags?.length ?? 0)) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {r.tags!.map((t) => (
+        <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
+          {t}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function ReadingPage() {
   const { role, studentId } = useSession();
   const { toast, confirm } = useFeedback();
@@ -154,7 +168,7 @@ export default function ReadingPage() {
   const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // 전체화면 쓰기 시트
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetInitial, setSheetInitial] = useState<WriteInitial | null>(null);
@@ -191,16 +205,66 @@ export default function ReadingPage() {
       return hay.includes(kw);
     });
 
-  const Tags = ({ r }: { r: ReadingReport2 }) =>
-    (r.tags?.length ?? 0) > 0 ? (
-      <span className="flex flex-wrap gap-1">
-        {r.tags!.map((t) => (
-          <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
-            {t}
-          </span>
-        ))}
-      </span>
-    ) : null;
+  // ── 상세 화면 (제목 클릭 진입) — 잠긴 글은 진입 불가 ──────────────
+  const selectedReport = (reports ?? []).find((r) => r.id === selectedId && !isLocked(r));
+  if (selectedId && selectedReport) {
+    const r = selectedReport;
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setSelectedId(null)}
+          className="text-sm text-ink-400 hover:text-ink-600"
+        >
+          ← 목록으로
+        </button>
+        <section className="rounded-card border border-ink-200 bg-white p-5 shadow-card">
+          <div className="border-b border-ink-100 pb-3">
+            <div className="flex items-center gap-2">
+              {r.isPrivate && <span className="shrink-0 text-sm">🔒</span>}
+              <h3 className="text-lg font-bold">{r.title}</h3>
+            </div>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <p className="text-xs text-ink-400">
+                {studentById.get(r.studentId)?.name} · {r.week}주차
+              </p>
+              <Tags r={r} />
+            </div>
+          </div>
+          <div className="mt-3">
+            <ReportBody
+              r={r}
+              onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
+              onDelete={
+                role === "teacher" || r.studentId === studentId
+                  ? async () => {
+                      const ok = await confirm({
+                        title: "이 감상문을 삭제할까요?",
+                        body: "권수 1권도 함께 줄어들어요.",
+                        confirmLabel: "삭제",
+                        danger: true,
+                      });
+                      if (ok)
+                        void deleteReport(r)
+                          .then(() => setSelectedId(null))
+                          .catch((e: Error) => toast(e.message, "error"));
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        </section>
+        {/* 전체화면 쓰기 시트 — 상세에서 수정 눌러도 열리도록 유지 */}
+        {sheetOpen && studentId && (
+          <WriteSheet
+            studentId={studentId}
+            week={week}
+            initial={sheetInitial}
+            onClose={() => setSheetOpen(false)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -328,7 +392,7 @@ export default function ReadingPage() {
               ) : (
                 <li key={r.id}>
                   <button
-                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    onClick={() => setSelectedId(r.id)}
                     className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-ink-50"
                   >
                     <span className="flex min-w-0 items-center gap-2">
@@ -342,31 +406,9 @@ export default function ReadingPage() {
                       )}
                     </span>
                     <span className="shrink-0 text-xs text-ink-400">
-                      {studentById.get(r.studentId)?.name} · {r.week}주차{" "}
-                      {expandedId === r.id ? "▲" : "▼"}
+                      {studentById.get(r.studentId)?.name} · {r.week}주차 ›
                     </span>
                   </button>
-                  {expandedId === r.id && (
-                    <div className="bg-ink-50 px-4 py-3">
-                      <ReportBody
-                        r={r}
-                        onEdit={r.studentId === studentId ? () => editReport(r) : undefined}
-                        onDelete={
-                          role === "teacher" || r.studentId === studentId
-                            ? async () => {
-                                const ok = await confirm({
-                                  title: "이 감상문을 삭제할까요?",
-                                  body: "권수 1권도 함께 줄어들어요.",
-                                  confirmLabel: "삭제",
-                                  danger: true,
-                                });
-                                if (ok) void deleteReport(r).catch((e: Error) => toast(e.message, "error"));
-                              }
-                            : undefined
-                        }
-                      />
-                    </div>
-                  )}
                 </li>
               )
             )}

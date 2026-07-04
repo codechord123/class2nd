@@ -11,18 +11,22 @@ import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
 
-import StatCard from "@/components/ui/StatCard";
-
-// 도메인 톤 → StatCard 토큰 톤 매핑
+// 컴팩트 스탯 타일 — 숫자 하나에 큰 카드를 쓰지 않도록 밀도 높인 버전
 type Legacy = "slate" | "emerald" | "indigo" | "amber";
-const toneMap: Record<Legacy, "neutral" | "brand" | "success" | "warn"> = {
-  slate: "neutral",
-  emerald: "success",
-  indigo: "brand",
-  amber: "warn",
+const valueColor: Record<Legacy, string> = {
+  slate: "text-ink-900",
+  emerald: "text-success",
+  indigo: "text-brand-strong",
+  amber: "text-warn",
 };
 function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: Legacy }) {
-  return <StatCard label={label} value={value} sub={sub} tone={toneMap[tone]} />;
+  return (
+    <div className="rounded-btn bg-ink-50 px-2 py-2 text-center">
+      <p className="text-[11px] leading-tight text-ink-400">{label}</p>
+      <p className={`tnum text-lg font-extrabold leading-tight ${valueColor[tone]}`}>{value}</p>
+      {sub && <p className="text-[10px] leading-tight text-ink-300">{sub}</p>}
+    </div>
+  );
 }
 
 export default function MyStatus() {
@@ -45,7 +49,7 @@ export default function MyStatus() {
     .reduce((a, [, v]) => a + (v as number), 0);
 
   const classBoard = (
-    <section className="grid grid-cols-3 gap-2">
+    <section className="grid grid-cols-3 gap-1.5">
       <Stat label="🐢 학급 총 권수" value={classTotalBooks} sub={`2학기 +${s2Total}`} tone="emerald" />
       <Stat label="🏅 학급 총점" value={classScore} tone="indigo" />
       <Stat label="🥇 골드토큰" value={goldLeft} sub="학급 공용" tone="amber" />
@@ -67,16 +71,16 @@ export default function MyStatus() {
 
   return (
     <div className="space-y-3">
-      <section className="rise rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section className="rise rounded-card border border-ink-200 bg-white p-3 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-1">
-          <h2 className="font-bold text-ink-900">🙋 내 현황</h2>
+          <h2 className="text-sm font-bold text-ink-900">🙋 내 현황</h2>
           {myGroup && (
             <span className="text-xs text-ink-400">
               이번 주 나: <b className="text-brand">{myGroup.groupId}모둠 · {myRole} 지킴이</b>
             </span>
           )}
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
           <Stat
             label="이번 주 독서"
             value={`${myWeekRead}/${quota}권`}
