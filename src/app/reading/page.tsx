@@ -29,7 +29,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Linkify from "@/components/ui/Linkify";
 import { useFeedback } from "@/components/ui/Feedback";
 
-type Tab = "write" | "list" | "rank" | "s1";
+type Tab = "write" | "list" | "s1";
 
 // ── 감상문 본문 + 댓글 ───────────────────────────────────────────
 function ReportBody({
@@ -283,11 +283,18 @@ export default function ReadingPage() {
       <ReadingAlert />
       <TurtleMarathon />
 
+      {/* 🏁 독서 순위 — 목표 블록 바로 아래 상시 노출 (탭 아님) */}
+      <section className="rounded-card border border-amber-200 bg-amber-50/60 px-4 py-3">
+        <h3 className="text-sm font-bold text-amber-800">🏁 독서 순위 (1·2학기 합산)</h3>
+        <div className="mt-1">
+          <RankCarousel totals={stats?.total ?? {}} />
+        </div>
+      </section>
+
       <SubTabs<Tab>
         tabs={[
           { key: "write", label: "✍️ 쓰기" },
           { key: "list", label: `📖 감상문` },
-          { key: "rank", label: "🏁 순위" },
           { key: "s1", label: "📚 1학기" },
         ]}
         active={tab}
@@ -441,16 +448,6 @@ export default function ReadingPage() {
               더 보기
             </button>
           )}
-        </section>
-      )}
-
-      {/* 🏁 순위 */}
-      {tab === "rank" && (
-        <section className="rounded-card border border-amber-200 bg-amber-50/60 p-4">
-          <h3 className="text-sm font-bold text-amber-800">🏁 독서 순위 (1·2학기 합산)</h3>
-          <div className="mt-2">
-            <RankCarousel totals={stats?.total ?? {}} />
-          </div>
         </section>
       )}
 

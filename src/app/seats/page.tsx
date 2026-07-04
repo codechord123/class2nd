@@ -84,19 +84,29 @@ export default function SeatsPage() {
     }
   }
 
+  // 자리는 2주 단위(기)로 교체 — 기별 대표(첫 주)만 노출
+  const periods = [...new Set(schedules.weeks.map((w) => w.period))].map((p) => {
+    const ws = schedules.weeks.filter((w) => w.period === p);
+    return { period: p, first: ws[0], weeks: ws.map((w) => w.week) };
+  });
+  const selPeriod = scheduleOfWeek(week).period;
+  const nowPeriod = scheduleOfWeek(nowWeek).period;
+
   return (
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">🪑 자리 배치 및 일정</h2>
           <span className="text-xs text-ink-400">
-            {beforeSemester ? `개학(${SEMESTER_START}) 전 — 미리보기` : `현재 ${nowWeek}주차`} ·
-            2주마다 자동 교체
+            {beforeSemester
+              ? `개학(${SEMESTER_START}) 전 — 미리보기`
+              : `현재 ${nowPeriod}기 (${nowWeek}주차)`}{" "}
+            · 2주마다 자동 교체
           </span>
         </div>
         {myGroup && (
           <p className="mt-2 rounded-btn bg-brand-weak px-3 py-2 text-sm text-brand-strong">
-            {week}주차의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 지킴이</b>
+            {selPeriod}기의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 지킴이</b>
           </p>
         )}
         {chairsProvisional && (
@@ -107,25 +117,32 @@ export default function SeatsPage() {
         )}
       </section>
 
-      {/* 주차 선택 */}
+      {/* 기(2주 단위) 선택 */}
       <div className="-mx-4 overflow-x-auto px-4">
         <div className="flex gap-1 pb-1">
-          {schedules.weeks.map((w) => (
-            <button
-              key={w.week}
-              onClick={() => setWeek(w.week)}
-              className={`shrink-0 rounded-btn px-2.5 py-1.5 text-xs font-medium ${
-                w.week === week
-                  ? "bg-brand text-white"
-                  : w.week === nowWeek && !beforeSemester
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-white text-ink-500 border border-ink-200"
-              }`}
-            >
-              {w.week}주
-              <span className="block text-[10px] opacity-70">{w.weekStart.slice(5)}</span>
-            </button>
-          ))}
+          {periods.map((pd) => {
+            const active = pd.weeks.includes(week);
+            const isNow = pd.weeks.includes(nowWeek) && !beforeSemester;
+            const lastWeek = pd.weeks[pd.weeks.length - 1];
+            return (
+              <button
+                key={pd.period}
+                onClick={() => setWeek(pd.first.week)}
+                className={`press shrink-0 rounded-btn px-2.5 py-1.5 text-center text-xs font-medium ${
+                  active
+                    ? "bg-brand text-white"
+                    : isNow
+                      ? "bg-amber-100 text-amber-800"
+                      : "border border-ink-200 bg-white text-ink-500"
+                }`}
+              >
+                {pd.period}기
+                <span className="block text-[10px] opacity-70">
+                  {pd.first.week === lastWeek ? `${pd.first.week}주` : `${pd.first.week}·${lastWeek}주`}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -135,7 +152,7 @@ export default function SeatsPage() {
       {role === "student" && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({week}주차)</h3>
+            <h3 className="font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
             <span className="text-xs text-ink-400">
               비용 {settings?.seatChangeCost ?? 1}실버 · 마감{" "}
               {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일

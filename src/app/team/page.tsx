@@ -12,8 +12,6 @@ import { useSettings } from "@/lib/query/settings";
 import {
   useMyEvaluation,
   useSaveEvaluation,
-  useMyGroupVotes,
-  useSaveGroupVotes,
   useDailyScores,
   useCumulativeScores,
   useSaveMvp,
@@ -69,9 +67,7 @@ export default function TeamPage() {
 
   const { data: settings } = useSettings();
   const { data: myEval } = useMyEvaluation(date, studentId);
-  const { data: myVotes } = useMyGroupVotes(date, studentId);
   const saveEval = useSaveEvaluation(date, studentId);
-  const saveVotes = useSaveGroupVotes(date, studentId);
   const saveMvp = useSaveMvp(date, studentId);
   const saveCompliment = useSaveCompliment(date, studentId);
   const saveToTeacher = useSaveToTeacher(date, studentId);
@@ -79,7 +75,7 @@ export default function TeamPage() {
   const { data: cumScores } = useCumulativeScores();
   const { data: bestGroups } = useBestGroups();
 
-  const [tab, setTab] = useState<"eval" | "mvp" | "stats">("eval");
+  const [tab, setTab] = useState<"eval" | "stats">("eval");
   const [complimentTo, setComplimentTo] = useState<number | null>(null);
   const [complimentText, setComplimentText] = useState("");
   const [toTeacherText, setToTeacherText] = useState("");
@@ -107,7 +103,6 @@ export default function TeamPage() {
     return <p className="text-sm text-ink-400">불러오는 중…</p>;
   }
 
-  const otherGroups = schedule.groups.filter((g) => g.groupId !== myGroup.groupId);
   // 평가 대상: 나를 제외한 우리 모둠 전원 (의장 포함)
   const targets = [
     { studentId: myGroup.chair, role: "소통" },
@@ -157,8 +152,7 @@ export default function TeamPage() {
 
       <SubTabs
         tabs={[
-          { key: "eval" as const, label: "🫂 평가하기" },
-          { key: "mvp" as const, label: "⭐ MVP·칭찬" },
+          { key: "eval" as const, label: "🫂 평가·칭찬" },
           { key: "stats" as const, label: "📈 통계" },
         ]}
         active={tab}
@@ -198,42 +192,6 @@ export default function TeamPage() {
         </ul>
       </section>
 
-      {/* 모둠 간 평가 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">🏆 다른 모둠 평가</h3>
-        <p className="mt-1 text-xs text-ink-500">
-          오늘 잘한 모둠에게 점수를 주세요. 집계 후 순위에 따라 그 모둠 전원이 점수를
-          받아요.
-        </p>
-        <ul className="mt-3 space-y-2">
-          {otherGroups.map((g) => (
-            <li
-              key={g.groupId}
-              className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
-            >
-              <div className="text-sm">
-                <b>{g.groupId}모둠</b>
-                <span className="ml-2 text-xs text-ink-400">
-                  {studentById.get(g.chair)?.name} 외 {g.members.length}명
-                </span>
-              </div>
-              <ScaleButtons
-                scale={settings.groupScale}
-                value={myVotes?.[g.groupId]}
-                onSelect={(v) =>
-                  void saveVotes({ [g.groupId]: v }).catch((e: Error) =>
-                    toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                  )
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      </>)}
-
-      {tab === "mvp" && (<>
       {/* 오늘의 모둠 MVP 투표 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
