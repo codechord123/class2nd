@@ -149,7 +149,7 @@ export default function ScoreDiagnosisPanel() {
             </p>
             {diag.row ? (
               <p className="mt-1 flex flex-wrap gap-1.5 text-xs">
-                <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🫂 정량 {diag.row.peer}</span>
+                <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🤝 정량 {diag.row.peer}</span>
                 <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">👑 순위 {diag.row.groupRank}</span>
                 <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">🎯 미션 {diag.row.mission ?? 0}</span>
                 <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">⭐ MVP {diag.row.mvp ?? 0}</span>

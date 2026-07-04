@@ -524,7 +524,7 @@ export default function TeacherPage() {
       <ShopMenuEditor />
       {/* 실버 지급 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">🪙 실버 지급 (2학기)</h2>
+        <h2 className="text-lg font-bold">💰 실버 지급 (2학기)</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <select
             value={grantSid}

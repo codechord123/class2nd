@@ -22,7 +22,7 @@ export default function Card({
         <div className={`flex items-start justify-between gap-3 ${pad ? "" : "p-4 pb-0"}`}>
           <div>
             {title && <h2 className="text-lg font-bold text-ink-900">{title}</h2>}
-            {desc && <p className="mt-1 text-xs text-ink-500">{desc}</p>}
+            {desc && <p className="mt-1 text-[13px] text-ink-600">{desc}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
         </div>

@@ -78,7 +78,7 @@ export default function ShopMenuEditor() {
           {menu!.map((m) => (
             <li key={m.id} className="flex justify-between rounded bg-ink-50 px-3 py-1.5">
               <span>
-                {m.wallet === "gold" ? "🥇" : "🪙"} <b>{m.name}</b>{" "}
+                {m.wallet === "gold" ? "🥇" : "💰"} <b>{m.name}</b>{" "}
                 <span className="text-xs text-ink-400">
                   {m.price}
                   {m.wallet === "gold" ? "골드" : "실버"}

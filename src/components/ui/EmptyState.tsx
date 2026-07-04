@@ -1,6 +1,6 @@
 // 빈 상태 — 이모지 일러스트 + 안내 (토스식 친근한 empty).
 export default function EmptyState({
-  emoji = "🫧",
+  emoji = "✨",
   title,
   desc,
   action,

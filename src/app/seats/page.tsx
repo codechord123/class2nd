@@ -95,7 +95,7 @@ export default function SeatsPage() {
     <div className="space-y-4">
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-bold">🪑 자리 배치 및 일정</h2>
+          <h2 className="text-lg font-bold">💺 자리 배치 및 일정</h2>
           <span className="text-xs text-ink-400">
             {beforeSemester
               ? `개학(${SEMESTER_START}) 전 — 미리보기`

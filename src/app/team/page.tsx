@@ -46,14 +46,14 @@ function ScaleButtons({
         <button
           key={v}
           onClick={() => onSelect(v)}
-          className={`min-w-10 rounded-btn border px-2 py-1.5 text-sm font-bold transition-colors ${
+          className={`press min-w-11 rounded-btn border px-2 py-2 text-[15px] font-bold transition-colors ${
             value === v
               ? v > 0
-                ? "border-success bg-success text-white"
+                ? "border-success bg-success text-white shadow-card"
                 : v < 0
-                  ? "border-danger bg-danger text-white"
-                  : "border-ink-400 bg-ink-400 text-white"
-              : "border-ink-200 bg-white text-ink-500 hover:border-ink-400"
+                  ? "border-danger bg-danger text-white shadow-card"
+                  : "border-ink-500 bg-ink-500 text-white shadow-card"
+              : "border-ink-300 bg-white text-ink-600 hover:border-ink-500 hover:text-ink-900"
           }`}
         >
           {v > 0 ? `+${v}` : v}
@@ -225,7 +225,7 @@ export default function TeamPage() {
         {/* 오늘 점수 출처 — 별도 줄 */}
         {myRow ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
-            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🫂 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🤝 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
             {myRow.groupRank !== 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">🏆 순위 +{myRow.groupRank}</span>
             )}
@@ -249,7 +249,7 @@ export default function TeamPage() {
 
       <SubTabs
         tabs={[
-          { key: "eval" as const, label: "🫂 평가·칭찬" },
+          { key: "eval" as const, label: "🤝 평가·칭찬" },
           { key: "stats" as const, label: "📈 통계" },
         ]}
         active={tab}
@@ -262,8 +262,8 @@ export default function TeamPage() {
 
       {/* 모둠 내 상호평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">🫂 우리 모둠 평가</h3>
-        <p className="mt-1 text-xs text-ink-500">
+        <h3 className="text-lg font-bold">🤝 우리 모둠 평가</h3>
+        <p className="mt-1 text-[13px] text-ink-600">
           친구가 역할을 얼마나 잘 수행했는지 점수를 주세요. 누르면 바로 저장돼요.
         </p>
         <ul className="mt-3 space-y-2">
@@ -272,10 +272,10 @@ export default function TeamPage() {
               key={t.studentId}
               className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
             >
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-[15px]">
                 <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
                 <b>{studentById.get(t.studentId)?.name}</b>
-                <span className="text-xs text-ink-400">{t.role} 지킴이</span>
+                <span className="text-xs text-ink-500">{t.role} 지킴이</span>
               </div>
               <ScaleButtons
                 scale={settings.peerScale}
@@ -293,8 +293,8 @@ export default function TeamPage() {
 
       {/* 오늘의 모둠 MVP 투표 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
-        <p className="mt-1 text-xs text-ink-500">오늘 가장 빛난 모둠 친구 1명을 뽑아주세요.</p>
+        <h3 className="text-lg font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
+        <p className="mt-1 text-[13px] text-ink-600">오늘 가장 빛난 모둠 친구 1명을 뽑아주세요.</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {targets.map((t) => {
             const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
@@ -328,7 +328,7 @@ export default function TeamPage() {
       {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold">💌 오늘의 칭찬</h3>
+          <h3 className="text-lg font-bold">💌 오늘의 칭찬</h3>
           {/* 오늘 평가 완성 체크리스트 */}
           <span className="flex gap-1.5 text-[11px]">
             <span className={doneScores ? "text-success" : "text-ink-300"}>
@@ -342,7 +342,7 @@ export default function TeamPage() {
             </span>
           </span>
         </div>
-        <p className="mt-1 text-xs text-ink-500">
+        <p className="mt-1 text-[13px] text-ink-600">
           오늘 고마웠던 친구를 골라 칭찬해요. 🌱 새싹 친구는 <b>아직 칭찬을 못 받은 친구</b> —
           칭찬을 받으면 새싹이 사라져요!
         </p>
@@ -460,8 +460,8 @@ export default function TeamPage() {
 
       {/* 선생님에게 바라는 점 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="font-bold">🙏 선생님에게 바라는 점</h3>
-        <p className="mt-1 text-xs text-ink-500">
+        <h3 className="text-lg font-bold">🙏 선생님에게 바라는 점</h3>
+        <p className="mt-1 text-[13px] text-ink-600">
           오늘 선생님께 하고 싶은 말이나 바라는 점을 남겨주세요. 선생님만 볼 수 있어요.
         </p>
         {(() => {

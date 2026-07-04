@@ -162,7 +162,7 @@ export default function ShopPage() {
           {/* 버는 법 — 경제가 쓰기 전용으로 보이지 않게 */}
           <details className="mt-2 border-t border-ink-100 pt-2">
             <summary className="cursor-pointer text-xs font-medium text-ink-400">
-              🪙 실버는 어떻게 벌어요?
+              💰 실버는 어떻게 벌어요?
             </summary>
             <ul className="mt-1.5 space-y-0.5 text-xs text-ink-500">
               <li>⭐ 최다 MVP — 2주 동안 MVP에 가장 많이 뽑힌 친구</li>
