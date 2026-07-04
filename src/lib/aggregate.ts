@@ -51,11 +51,12 @@ export async function aggregateDate(
   const d = db();
 
   // 1) 원시 평가 읽기 (교사 1회 — 최대 50문서)
-  const [evalSnap, voteSnap, prevSnap, cumSnap] = await Promise.all([
+  const [evalSnap, voteSnap, prevSnap, cumSnap, bestSnap] = await Promise.all([
     getDocs(collection(d, "evaluations", date, "entries")),
     getDocs(collection(d, "groupVotes", date, "entries")),
     getDoc(doc(d, "dailyScores", date)), // 재집계 시 이전분 차감용
     getDoc(doc(d, "dailyScores", "_cumulative")),
+    getDoc(doc(d, "classData", "bestGroups")), // 모둠 간 평가 폐지 → 교사 '오늘의 모둠'으로 순위 대체
   ]);
 
   // 2) 모둠 내 점수: 받은 평가 합 (+ MVP 득표 집계)
@@ -86,9 +87,19 @@ export async function aggregateDate(
         groupScore[Number(gId)] += v;
     }
   });
-  const ranks = denseRank(groupScore);
   const rankPoint = (rank: number) =>
     settings.rankPoints[rank - 1] ?? settings.rankPoints[settings.rankPoints.length - 1] ?? 0;
+
+  // 순위 산정: 모둠 간 평가 표가 있으면 Dense Ranking, 없으면(현행) 교사가 고른
+  // '오늘의 모둠'만 1위 → 나머지 모둠은 순위 점수 0. (모둠 간 평가 폐지 반영)
+  const bestGroupId = bestSnap.exists()
+    ? (bestSnap.data() as Record<string, { groupId: number } | undefined>)[date]?.groupId
+    : undefined;
+  const ranks: Record<number, number> = !voteSnap.empty
+    ? denseRank(groupScore)
+    : bestGroupId
+      ? { [bestGroupId]: 1 }
+      : {};
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
@@ -108,7 +119,9 @@ export async function aggregateDate(
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
     const p = peer[s.id] ?? 0;
-    const gr = rankPoint(ranks[groupOfStudent[s.id]] ?? Object.keys(ranks).length);
+    // 순위에 든 모둠 소속이면 그 순위 점수, 아니면 0 (미평가 그룹은 가점 없음)
+    const myRank = ranks[groupOfStudent[s.id]];
+    const gr = myRank ? rankPoint(myRank) : 0;
     const bonus = prevRow?.bonus ?? 0;
     rows[s.id] = { peer: p, groupRank: gr, bonus, total: p + gr + bonus };
   }
