@@ -32,11 +32,18 @@ export function applyTabConfig(
   const orderStr = uiText?.["nav.order"]?.trim();
   if (!orderStr) return base;
   const order = orderStr.split(",").map((s) => s.trim());
-  return [...base].sort((a, b) => {
-    const ia = order.indexOf(a.href);
-    const ib = order.indexOf(b.href);
-    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-  });
+  // 저장된 순서에 있는 탭은 그 순서대로
+  const result = base
+    .filter((t) => order.includes(t.href))
+    .sort((a, b) => order.indexOf(a.href) - order.indexOf(b.href));
+  // 순서 저장 '이후에' 새로 생긴 탭은 끝으로 밀지 않고 기본 위치(TABS 순서)에
+  // 끼워 넣는다 — 끝으로 밀리면 좁은 화면에서 새 탭이 아예 안 보인다
+  for (const t of base) {
+    if (order.includes(t.href)) continue;
+    const defIdx = TABS.findIndex((x) => x.href === t.href);
+    result.splice(Math.min(defIdx, result.length), 0, t);
+  }
+  return result;
 }
 
 export default function TabNav() {

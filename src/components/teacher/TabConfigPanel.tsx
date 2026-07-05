@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useQueryClient } from "@tanstack/react-query";
-import { TABS } from "@/components/TabNav";
+import { TABS, applyTabConfig } from "@/components/TabNav";
 import { useUiText } from "@/lib/uiText";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
@@ -26,16 +26,12 @@ export default function TabConfigPanel() {
   // 현재 저장된 순서·이름으로 초기화 (1회)
   useEffect(() => {
     if (rows || uiText === undefined) return;
-    const order = uiText["nav.order"]?.split(",").map((s) => s.trim()) ?? [];
-    const sorted = [...TABS].sort((a, b) => {
-      const ia = order.indexOf(a.href);
-      const ib = order.indexOf(b.href);
-      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-    });
+    // 실제 내비게이션과 같은 정렬 규칙 공유 — 새 탭도 기본 위치에 보인다
+    const sorted = applyTabConfig(uiText);
     setRows(
       sorted.map((t) => ({
         href: t.href,
-        defLabel: t.label,
+        defLabel: TABS.find((x) => x.href === t.href)?.label ?? t.label,
         label: uiText[`nav.label.${t.href}`] ?? "",
       }))
     );
