@@ -22,6 +22,7 @@ import {
 } from "@/lib/query/evaluation";
 import { BETA_END } from "@/components/BetaBanner";
 import { useUiText, uiTextOf } from "@/lib/uiText";
+import JuiceBurst from "@/components/ui/Juice";
 import {
   useBestGroups,
   useComplimentCoverage,
@@ -50,15 +51,18 @@ function ScaleButtons({
     <div className="flex gap-1">
       {scale.map((v) => (
         <button
-          key={v}
+          // 선택이 바뀔 때 리마운트 → 선택된 버튼이 통통 튄다 (juice)
+          key={`${v}-${value === v}`}
           onClick={() => onSelect(v)}
           className={`press min-w-11 rounded-btn border px-2 py-2 text-[15px] font-bold transition-colors ${
             value === v
-              ? v > 0
-                ? "border-success bg-success text-white shadow-card"
-                : v < 0
-                  ? "border-danger bg-danger text-white shadow-card"
-                  : "border-ink-500 bg-ink-500 text-white shadow-card"
+              ? `badge-pop ${
+                  v > 0
+                    ? "border-success bg-success text-white shadow-card"
+                    : v < 0
+                      ? "border-danger bg-danger text-white shadow-card"
+                      : "border-ink-500 bg-ink-500 text-white shadow-card"
+                }`
               : "border-ink-300 bg-white text-ink-600 hover:border-ink-500 hover:text-ink-900"
           }`}
         >
@@ -99,6 +103,8 @@ export default function TeamPage() {
   const [sugOpen, setSugOpen] = useState(false);
   const [toTeacherText, setToTeacherText] = useState("");
   const [reflText, setReflText] = useState("");
+  const [compBurst, setCompBurst] = useState(0); // 칭찬 전송 성공 juice
+  const [gaugeBurst, setGaugeBurst] = useState(0); // 실버 게이지 응원 juice
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
@@ -219,6 +225,7 @@ export default function TeamPage() {
       setSugTo(null);
       setSugText("");
       setSugOpen(false);
+      setCompBurst((k) => k + 1); // 💌 버스트
       toast("💌 전달됐어요!", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
@@ -346,15 +353,31 @@ export default function TeamPage() {
           const earned = Math.floor(cumVal / 25);
           return (
             <div className="mt-2">
-              <div className="relative h-5 overflow-hidden rounded-full bg-ink-100">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-slate-300 to-slate-400"
-                  style={{ width: `${Math.max((prog / 25) * 100, prog > 0 ? 6 : 0)}%` }}
-                />
+              {/* 누르면 🥈 응원 juice — 마라톤과 같은 놀이 문법 */}
+              <button
+                type="button"
+                onClick={() => setGaugeBurst((k) => k + 1)}
+                aria-label="실버 게이지 응원하기"
+                key={`g-${gaugeBurst}`}
+                className={`press relative block h-5 w-full cursor-pointer rounded-full bg-ink-100 ${
+                  gaugeBurst > 0 ? "bar-glow" : ""
+                }`}
+              >
+                <span className="absolute inset-0 overflow-hidden rounded-full">
+                  <span
+                    className="bar-stripes block h-full rounded-full bg-gradient-to-r from-slate-300 to-slate-400"
+                    style={{ width: `${Math.max((prog / 25) * 100, prog > 0 ? 6 : 0)}%` }}
+                  />
+                </span>
                 <span className="absolute inset-0 grid place-items-center text-[11px] font-bold text-ink-700">
                   🥈 다음 실버까지 {25 - prog}점 ({prog}/25)
                 </span>
-              </div>
+                <JuiceBurst
+                  fireKey={gaugeBurst}
+                  emojis={["🥈", "✨", "⭐"]}
+                  className="left-1/2 top-0"
+                />
+              </button>
               {earned > 0 && (
                 <p className="mt-1 text-center text-[11px] text-ink-400">
                   지금까지 점수로 받은 실버 {earned}개 — 25점마다 자동으로 지급돼요
@@ -492,7 +515,8 @@ export default function TeamPage() {
             const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
             return (
               <button
-                key={t.studentId}
+                // 선택 시 리마운트 → 왕관 칩이 통통 (juice)
+                key={`${t.studentId}-${selected}`}
                 onClick={() => {
                   if (mvpBusy || !firstClick(`mvp-${t.studentId}`)) return;
                   setMvpBusy(true);
@@ -503,7 +527,7 @@ export default function TeamPage() {
                 }}
                 className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
                   selected
-                    ? "border-warn bg-warn text-white"
+                    ? "badge-pop border-warn bg-warn text-white"
                     : "border-ink-200 bg-white text-ink-600 hover:border-warn/40"
                 }`}
               >
@@ -590,13 +614,17 @@ export default function TeamPage() {
             }
             className="min-w-0 flex-1 rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
           />
-          <button
-            onClick={() => void submitPeerNotes()}
-            disabled={sending}
-            className="press shrink-0 rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-          >
-            {sending ? "저장 중…" : "보내기"}
-          </button>
+          <span className="relative shrink-0">
+            <button
+              onClick={() => void submitPeerNotes()}
+              disabled={sending}
+              className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {sending ? "저장 중…" : "보내기"}
+            </button>
+            {/* 전송 성공 juice — 💌가 버튼 위로 터진다 */}
+            <JuiceBurst fireKey={compBurst} emojis={["💌", "✨", "💛"]} className="left-1/2 top-0" />
+          </span>
         </div>
         {sentComp.length > 0 && (
           <div className="mt-3">

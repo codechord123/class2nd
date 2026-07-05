@@ -66,6 +66,7 @@ export default function TeacherPage() {
   const [dSeat, setDSeat] = useState<number | null>(null);
   const [dOpen, setDOpen] = useState<number | null>(null);
   const [dClose, setDClose] = useState<number | null>(null);
+  const [dPresident, setDPresident] = useState<number | null | undefined>(undefined); // undefined=미편집
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -173,6 +174,7 @@ export default function TeacherPage() {
       seatChangeCost: dSeat ?? settings!.seatChangeCost,
       requestOpenHour: dOpen ?? settings!.requestOpenHour,
       requestCloseHour: dClose ?? settings!.requestCloseHour,
+      presidentId: dPresident !== undefined ? dPresident : (settings!.presidentId ?? null),
     };
     try {
       await saveSettings(next);
@@ -385,6 +387,23 @@ export default function TeacherPage() {
                 max={20}
                 onChange={setDSeat}
               />
+            </div>
+            <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
+              <span className="text-sm font-bold text-ink-800">
+                🥇 학급 회장 <span className="block text-[10px] font-normal text-ink-500">골드토큰 사용 신청 권한</span>
+              </span>
+              <select
+                value={dPresident !== undefined ? (dPresident ?? "") : (settings.presidentId ?? "")}
+                onChange={(e) => setDPresident(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              >
+                <option value="">미지정 (교사만)</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.id}번 {s.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

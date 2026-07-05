@@ -196,7 +196,11 @@ export default function MyStatus() {
               <p className={`mt-1 text-sm font-extrabold ${t.done ? "text-success" : "text-ink-900"}`}>
                 {t.label}
               </p>
-              <p className={`mt-0.5 text-[11px] font-bold ${t.done ? "text-success" : "text-brand"}`}>
+              <p
+                className={`mt-0.5 text-[11px] font-bold ${
+                  t.done ? "badge-pop text-success" : "text-brand"
+                }`}
+              >
                 {t.done ? "✓ 완료" : `${t.sub} →`}
               </p>
             </a>

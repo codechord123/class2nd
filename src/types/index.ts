@@ -70,9 +70,12 @@ export interface ClassSettings {
   /** 토큰(실버/골드) 사용 신청을 받는 시각(KST, 0~24). 기본 오후 4시~자정. */
   requestOpenHour: number;
   requestCloseHour: number;
+  /** 학급 회장 학생 번호 — 골드토큰(학급 공용) 사용 신청 권한 (null = 미지정, 교사만) */
+  presidentId?: number | null;
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {
+  presidentId: null,
   peerScale: [-1, 0, 1],
   groupScale: [-1, 0, 1],
   rankPoints: [5, 4, 3, 2, 1],

@@ -123,6 +123,16 @@ export default function ShopPage() {
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
     if (m.wallet === "gold") {
+      // 골드는 학급 공용 재화 — 사용 신청은 학급 회장만 (사용자 확정, 설정에서 지정)
+      if (role === "student" && studentId !== settings?.presidentId) {
+        toast(
+          settings?.presidentId
+            ? "🥇 골드토큰은 학급 회장만 신청할 수 있어요 — 학급 회의에서 정한 뒤 회장에게 부탁해요!"
+            : "🥇 골드토큰은 학급 회장만 신청할 수 있어요 — 아직 회장이 지정되지 않았어요.",
+          "warn"
+        );
+        return;
+      }
       if (m.price > classGoldLeft) {
         toast("학급 골드토큰이 부족해요.", "warn");
         return;
@@ -283,6 +293,11 @@ export default function ShopPage() {
                     {m.price}
                     {m.wallet === "gold" ? "골드 (학급 공용)" : "실버"}
                   </span>
+                  {m.wallet === "gold" && (
+                    <span className="ml-1 rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                      🥇 회장 전용
+                    </span>
+                  )}
                   {m.note && <p className="text-xs text-ink-400">{m.note}</p>}
                 </div>
                 <button
