@@ -366,7 +366,7 @@ export default function TeamPage() {
               >
                 <span className="absolute inset-0 overflow-hidden rounded-full">
                   <span
-                    className="bar-stripes block h-full rounded-full bg-gradient-to-r from-slate-300 to-slate-400"
+                    className="bar-stripes block h-full rounded-full bg-gradient-to-r from-emerald-300 to-emerald-400"
                     style={{ width: `${Math.max((prog / 25) * 100, prog > 0 ? 6 : 0)}%` }}
                   />
                 </span>
