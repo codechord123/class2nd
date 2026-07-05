@@ -504,6 +504,7 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 // · 성장상: 지난 세션 대비 세션 총점 상승폭 최다(양수만, 동점 모두) → 실버 1개 (2기부터)
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
 // · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
+// · 주간 최다 독서 모둠(각 주 감상문 권수 합 1위) → 모둠원 전원 실버 1개 (주마다 — 두 주면 최대 2개)
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
 // · 독서 스트릭: 주간 목표 달성 주마다 연속 주수만큼 보너스 점수(누적 가산) (1주=1, 2주=2, 3주+=3 상한)
 // 멱등: biweeklyScores/session-{period} 마커 재사용(신규 규칙 불필요). 세션 종료 후 월요일에 실행.
@@ -514,6 +515,8 @@ export interface SessionSettleResult {
   bestGroups: number[];
   bestGroupMembers: number[];
   readingTop: number[]; // 최다 독서
+  readingTopGroups: number[]; // 주간 최다 독서 모둠 (두 주 합집합 — 표시용)
+  readingTopGroupMembers: number[]; // 지급 대상 (주별 — 두 주 모두 1위면 같은 학생이 2번)
   missionTopGroups: number[]; // 최다 미션 모둠
   missionTopMembers: number[];
   growthTop: number[]; // 성장상 — 지난 세션 대비 총점 상승폭 최다 (2기부터)
@@ -551,6 +554,8 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       bestGroups: data.bestGroups ?? [],
       bestGroupMembers: data.bestGroupMembers ?? [],
       readingTop: data.readingTop ?? [],
+      readingTopGroups: data.readingTopGroups ?? [],
+      readingTopGroupMembers: data.readingTopGroupMembers ?? [],
       missionTopGroups: data.missionTopGroups ?? [],
       missionTopMembers: data.missionTopMembers ?? [],
       growthTop: data.growthTop ?? [],
@@ -652,6 +657,26 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     readSum[s.id] = weekBooks(stats, s.id, w1) + (w2 !== w1 ? weekBooks(stats, s.id, w2) : 0);
   const readingTop = topKeys(readSum);
 
+  // 주간 최다 독서 모둠 — 각 주별 모둠 감상문 권수 합 1위 모둠 전원 실버 1개 (사용자 요청).
+  // "주마다" 주는 보상이라 두 주 모두 1위면 그 모둠원은 2개 (전출 학생은 지급 제외).
+  const readingTopGroupMembers: number[] = [];
+  const readingTopGroupSet = new Set<number>();
+  const activeMembersOf = (gid: number) =>
+    membersOf(gid).filter((id) => !studentById.get(id)?.inactive);
+  for (const w of w2 !== w1 ? [w1, w2] : [w1]) {
+    const groupBooks: Record<number, number> = {};
+    for (const g of schedule.groups)
+      groupBooks[g.groupId] = activeMembersOf(g.groupId).reduce(
+        (a, id) => a + weekBooks(stats, id, w),
+        0
+      );
+    for (const gid of topKeys(groupBooks)) {
+      readingTopGroupSet.add(gid);
+      readingTopGroupMembers.push(...activeMembersOf(gid));
+    }
+  }
+  const readingTopGroups = [...readingTopGroupSet];
+
   // 스트릭 보상은 실버가 아닌 '보너스 점수'(누적 점수 가산) — 1주=1, 2주 연속=2, 상한 STREAK_CAP
   const streakPoints: Record<string, number> = {};
   if (quota > 0) {
@@ -665,11 +690,12 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     }
   }
 
-  // 실버 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1 + 성장상 1)
+  // 실버 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 주간독서모둠 주당 1 + 최다미션모둠 1 + 성장상 1)
   const grant: Record<number, number> = {};
   for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of readingTop) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of readingTopGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of missionTopMembers) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of growthTop) grant[sid] = (grant[sid] ?? 0) + 1;
 
@@ -684,6 +710,8 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       bestGroups: [],
       bestGroupMembers: [],
       readingTop: [],
+      readingTopGroups: [],
+      readingTopGroupMembers: [],
       missionTopGroups: [],
       missionTopMembers: [],
       growthTop: [],
@@ -707,6 +735,8 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       bestGroups,
       bestGroupMembers,
       readingTop,
+      readingTopGroups,
+      readingTopGroupMembers,
       missionTopGroups,
       missionTopMembers,
       growthTop,
@@ -757,6 +787,8 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       bestGroups,
       bestGroupMembers,
       readingTop,
+      readingTopGroups,
+      readingTopGroupMembers,
       missionTopGroups,
       missionTopMembers,
       growthTop,
@@ -775,6 +807,8 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     bestGroups,
     bestGroupMembers,
     readingTop,
+    readingTopGroups,
+    readingTopGroupMembers,
     missionTopGroups,
     missionTopMembers,
     growthTop,

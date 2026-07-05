@@ -143,7 +143,10 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
 
           {/* 이번 주 독서 대항 */}
           <div>
-            <p className="text-xs font-bold text-ink-600">🐢 이번 주 독서 (모둠 권수 합)</p>
+            <p className="text-xs font-bold text-ink-600">
+              🐢 이번 주 독서 (모둠 권수 합) —{" "}
+              <span className="text-brand-strong">주 1위 모둠 전원 실버 +1!</span>
+            </p>
             <div className="mt-1.5 space-y-1">
               {[...groups]
                 .sort((a, b) => b.weekBooksSum - a.weekBooksSum)

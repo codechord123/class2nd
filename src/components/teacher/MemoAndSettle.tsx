@@ -80,6 +80,7 @@ export function BiweeklySettlePanel() {
           ...r.mvps,
           ...r.bestGroupMembers,
           ...r.readingTop,
+          ...r.readingTopGroupMembers,
           ...r.missionTopMembers,
           ...r.growthTop,
         ]).size;
@@ -101,8 +102,9 @@ export function BiweeklySettlePanel() {
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-600">
-        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원·성장상(지난 세션 대비 총점
-        상승폭 최다, 2기부터) 각 1개. 보너스 점수: 독서 스트릭 — 목표 달성 주마다 연속 1·2·3점.
+        실버: 최다 MVP·최고 모둠 전원·최다 독서·주간 최다 독서 모둠 전원(주마다)·최다 미션 모둠
+        전원·성장상(지난 세션 대비 총점 상승폭 최다, 2기부터) 각 1개. 보너스 점수: 독서 스트릭 —
+        목표 달성 주마다 연속 1·2·3점.
         <br />
         🤖 <b>자동 정산</b>: 세션이 끝나면(일요일 자정 기준) 다음 접속 때 자동으로 지급돼요.
         이 버튼은 수동 실행·결과 다시 보기용 — 같은 기를 다시 눌러도 이중 지급되지 않아요.
@@ -143,6 +145,17 @@ export function BiweeklySettlePanel() {
           </p>
           <p>
             🐢 최다 독서: {result.readingTop.length ? <b>{names(result.readingTop)}</b> : "없음"}
+          </p>
+          <p>
+            📚 주간 최다 독서 모둠 (주마다 1위 모둠 전원 실버 1개):{" "}
+            {result.readingTopGroups.length ? (
+              <>
+                <b>{result.readingTopGroups.map((g) => `${g}모둠`).join(", ")}</b> —{" "}
+                {names([...new Set(result.readingTopGroupMembers)])}
+              </>
+            ) : (
+              "없음"
+            )}
           </p>
           <p>
             🎯 최다 미션 모둠:{" "}
