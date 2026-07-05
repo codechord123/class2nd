@@ -19,6 +19,20 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow write: if isTeacher();
     }
+    // 예외: 거북이 응원 클릭 카운터 — 학생은 count 증가만 (한 번에 +100 이하로 어뷰징 완충)
+    match /classData/turtleClicks {
+      allow create: if isAuthed()
+        && request.resource.data.keys().hasOnly(['count'])
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= 100;
+      allow update: if isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count'])
+        && request.resource.data.count is int
+        && request.resource.data.count >= resource.data.count
+        && request.resource.data.count <= resource.data.count + 100;
+    }
+
     // 예외: 감상문 삭제 시 학생이 '재집계 요청 날짜'만 남길 수 있게 (redoDates 필드 한정)
     match /classData/autoRun {
       allow create: if isAuthed() && request.resource.data.keys().hasOnly(['redoDates']);

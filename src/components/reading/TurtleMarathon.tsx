@@ -2,10 +2,34 @@
 // 🐢 거북이 독서 마라톤 — 1학기와 이어서 목표 진행:
 //   학급 누적 = 1학기(정적) + 2학기(readingStats). 바에 1학기 구간을 진하게 표시.
 //   juice: 거북이 종종걸음(상시) + 누르면 점프·입자 버스트·% 배지 팝·바 글로우·응원말.
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { doc, getDoc, increment, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
+import { useFeedback } from "@/components/ui/Feedback";
 import { s1TotalOf } from "@/lib/staticData";
+
+// 🍪 학급 응원 클릭 — 10,000번 모을 때마다 학급 골드 +1 (선생님 접속 때 자동 지급).
+// 쓰기 예산: 클릭은 로컬에 모았다가 20번마다(또는 화면 이탈 시) 한 번만 increment.
+const GOLD_PER_CLICKS = 10000;
+const FLUSH_EVERY = 20;
+
+function useTurtleClicks() {
+  return useQuery({
+    queryKey: ["turtleClicks"],
+    queryFn: async (): Promise<number> => {
+      try {
+        const snap = await getDoc(doc(db(), "classData", "turtleClicks"));
+        return snap.exists() ? ((snap.data().count as number) ?? 0) : 0;
+      } catch {
+        return 0;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 // 클릭 버스트 입자 — 방향·회전을 CSS 변수로 (매번 같은 모양이 아니게 응원 횟수로 순환)
 const BURSTS = [
@@ -30,7 +54,31 @@ const CHEER_WORDS = ["힘내라 거북이!", "달려 달려~ 🏃", "한 권 더
 export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const { data: settings } = useSettings();
   const { data: stats } = useReadingStats();
+  const { toast } = useFeedback();
   const [hopKey, setHopKey] = useState(0); // 클릭할 때마다 juice 애니메이션 재시작
+
+  // 학급 응원 클릭 카운터 — 서버값 + 이 세션에서 누른 만큼
+  const { data: serverClicks } = useTurtleClicks();
+  const [localClicks, setLocalClicks] = useState(0);
+  const pendingRef = useRef(0);
+  const flush = useCallback(() => {
+    const n = pendingRef.current;
+    if (n <= 0) return;
+    pendingRef.current = 0;
+    void setDoc(doc(db(), "classData", "turtleClicks"), { count: increment(n) }, { merge: true })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    const onHide = () => flush();
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      flush();
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("beforeunload", onHide);
+    };
+  }, [flush]);
+  const totalClicks = (serverClicks ?? 0) + localClicks;
 
   const goal = settings?.readingGoal ?? 1250;
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
@@ -65,7 +113,14 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
       </div>
       <button
         type="button"
-        onClick={() => setHopKey((k) => k + 1)}
+        onClick={() => {
+          setHopKey((k) => k + 1);
+          setLocalClicks((c) => c + 1);
+          pendingRef.current += 1;
+          if (pendingRef.current >= FLUSH_EVERY) flush();
+          if ((totalClicks + 1) % GOLD_PER_CLICKS === 0)
+            toast("🥇 10,000번 달성! 학급 골드 +1 — 선생님 화면에서 지급돼요!", "success");
+        }}
         aria-label="거북이 응원하기"
         key={`bar-${hopKey}`}
         className={`press relative mt-2 block h-8 w-full cursor-pointer overflow-visible rounded-full border-2 border-emerald-300 bg-emerald-100 shadow-inner ${
@@ -131,10 +186,17 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
           🐢
         </span>
       </button>
-      <p className="mt-1.5 text-right text-[11px] font-medium text-emerald-700">
-        1학기 <b className="tnum">{s1Total}권</b> + 2학기 <b className="tnum">{s2Total}권</b>{" "}
-        — 이어서 달려요! <span className="text-emerald-500">(바를 눌러 응원 🐢)</span>
-      </p>
+      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] font-medium text-emerald-700">
+        <span>
+          👆 학급 응원 클릭 <b className="tnum">{totalClicks.toLocaleString()}</b>
+          <span className="text-emerald-500">
+            {" "}— <b className="tnum">{(GOLD_PER_CLICKS - (totalClicks % GOLD_PER_CLICKS)).toLocaleString()}</b>번 더 누르면 학급 골드 +1! 🥇
+          </span>
+        </span>
+        <span>
+          1학기 <b className="tnum">{s1Total}권</b> + 2학기 <b className="tnum">{s2Total}권</b> — 이어서 달려요!
+        </span>
+      </div>
     </div>
   );
 }

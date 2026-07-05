@@ -119,6 +119,8 @@ export default function TeacherPage() {
               .join(", ")} — 점수·집계에서 날짜 선택 후 순위 저장→재집계하면 반영돼요`,
             "warn"
           );
+        if (r.clickGold)
+          toast(`🥇 거북이 응원 클릭 10,000번 달성 — 학급 골드 +${r.clickGold} 지급!`, "success");
         if (r.skippedRange)
           toast(
             `⚠️ ${r.skippedRange.days}일치(${r.skippedRange.from}~${r.skippedRange.to})는 소급 상한(14일)을 넘어 자동 집계에서 제외됐어요 — 필요하면 날짜별 수동 집계로 처리하세요`,
@@ -153,9 +155,13 @@ export default function TeacherPage() {
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
       void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       const noBest = Object.keys(r.groupRanks).length === 0;
+      const streakNames = Object.entries(r.compStreakBonus ?? {})
+        .map(([sid, n]) => `${studentById.get(Number(sid))?.name} +${n}`)
+        .join(", ");
       setMsg(
         `✅ ${date} 집계 완료 — 평가 ${r.evaluatorCount}명 제출` +
-          (noBest ? " · ⚠️ 오늘의 모둠 미선정(순위 점수 0점) — 아래에서 선정 후 재집계하세요" : "")
+          (noBest ? " · ⚠️ 오늘의 모둠 미선정(순위 점수 0점) — 아래에서 선정 후 재집계하세요" : "") +
+          (streakNames ? ` · 💌 칭찬 연속 보너스: ${streakNames}점` : "")
       );
     } catch (e) {
       setMsg(`⚠️ 집계 실패: ${e instanceof Error ? e.message : String(e)}`);

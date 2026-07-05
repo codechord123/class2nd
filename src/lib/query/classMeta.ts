@@ -68,6 +68,9 @@ export interface ClassBanner {
   title: string;
   sub?: string;
   active: boolean;
+  /** 이벤트 주간 — 예: "이번 주 칭찬 점수 2배!" (배너 문서에 같이 저장 — 추가 읽기 0) */
+  eventText?: string;
+  eventActive?: boolean;
 }
 const DEFAULT_BANNER: ClassBanner = {
   title: "🍜 짜파게티 파티까지 달린다!",

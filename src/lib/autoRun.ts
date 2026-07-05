@@ -8,7 +8,7 @@
 // 하루 1회만 (classData/autoRun 마커를 트랜잭션으로 선점 → 탭 2개여도 이중 정산 없음).
 // 단, redoDates가 남아 있으면 이미 오늘 실행했어도 그 날짜들만 추가 처리한다.
 // 모든 작업이 멱등이라 수동 실행과 겹쳐도 점수가 어긋나지 않는다.
-import { doc, runTransaction, setDoc } from "firebase/firestore";
+import { doc, getDoc, increment, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { shiftDate, todayKST } from "@/lib/date";
 import {
@@ -32,6 +32,8 @@ export interface AutoRunResult {
   missedRankDates: string[];
   /** 소급 상한(14일)에 걸려 집계를 건너뛴 구간 (없으면 undefined) */
   skippedRange?: { from: string; to: string; days: number };
+  /** 거북이 응원 클릭 10,000번 달성으로 지급된 학급 골드 */
+  clickGold?: number;
 }
 
 let inFlight: Promise<AutoRunResult | null> | null = null;
@@ -130,7 +132,29 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     await setDoc(markerRef, { coveredUntil: yesterday, settledThrough: p - 1 }, { merge: true });
   }
 
-  // 5) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
+  // 5) 거북이 응원 클릭 골드 — 10,000클릭당 학급 골드 1개 (교사 세션에서만 지급 가능)
+  try {
+    const clickRef = doc(d, "classData", "turtleClicks");
+    const clickSnap = await getDoc(clickRef);
+    if (clickSnap.exists()) {
+      const count = (clickSnap.data().count as number) ?? 0;
+      const paid = (clickSnap.data().goldPaid as number) ?? 0;
+      const entitled = Math.floor(count / 10000);
+      if (entitled > paid) {
+        await setDoc(
+          doc(d, "s1Spends", "0_balances"),
+          { classGoldEarned: increment(entitled - paid) },
+          { merge: true }
+        );
+        await setDoc(clickRef, { goldPaid: entitled }, { merge: true });
+        result.clickGold = entitled - paid;
+      }
+    }
+  } catch {
+    // 지급 실패는 다음 접속 때 재시도 (goldPaid가 안 올라가므로 유실 없음)
+  }
+
+  // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
   const already = new Set(result.aggregatedDates);
   for (const date of claimed.redoDates) {
     if (already.has(date)) {

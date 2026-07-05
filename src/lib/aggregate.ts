@@ -32,6 +32,8 @@ export interface AggregateResult {
   milestoneSilver?: Record<string, number>;
   /** 이번 집계로 적립된 학급 골드 */
   milestoneGold?: number;
+  /** 칭찬 연속 보너스 — 이번 집계로 5일(+1)/10일(+2) 도달한 학생 */
+  compStreakBonus?: Record<string, number>;
 }
 
 // ── 마일스톤 보상 (사용자 확정 규칙) ─────────────────────────────
@@ -379,6 +381,7 @@ async function aggregateDateInner(
   type CumDoc = Record<string, number> & {
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
+    // 이 외에 칭찬 연속 보너스 상태 필드(compStreak*, compBonusToday)가 함께 저장된다
   };
   const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
   const prevMeta =
@@ -400,6 +403,54 @@ async function aggregateDateInner(
     const prevTotal = (prevRows[String(s.id)] as DailyScoreRow | undefined)?.total ?? 0;
     cum[String(s.id)] = (cum[String(s.id)] ?? 0) - prevTotal + rows[s.id].total;
   }
+
+  // ── 칭찬 연속 보너스 (사용자 확정) ─────────────────────────────
+  // 학사일(평가 제출이 있는 날) 기준으로 칭찬을 연속으로 보내면:
+  //   5일 연속 도달 시 +1점 · 10일 연속 도달 시 +2점 (누적 점수 직접 가산).
+  // 세션(기)이 바뀌면 연속이 리셋된다 (월~금 ×2주 = 10일이 만점).
+  // 멱등 장치: 같은 날 재집계 시 compStreakPrev(전날 상태)에서 다시 계산하고,
+  // 그날 이미 준 보너스(compBonusToday)를 빼고 새로 더한다. 과거 날짜 재집계는 건드리지 않음.
+  const compStreakBonus: Record<string, number> = {};
+  {
+    const cumAny = cum as Record<string, unknown>;
+    const period = periodOfWeek(week);
+    const streakDay = (cumAny.compStreakDay as string) ?? "";
+    const isSchoolDay = evalSnap.size > 0;
+    if (date >= streakDay) {
+      const sameDay = streakDay === date;
+      let base =
+        (sameDay
+          ? (cumAny.compStreakPrev as Record<string, number>)
+          : (cumAny.compStreak as Record<string, number>)) ?? {};
+      const oldBonus = sameDay ? ((cumAny.compBonusToday as Record<string, number>) ?? {}) : {};
+      // 새 기(세션) 진입 — 연속 리셋 (같은 날 재집계는 이미 리셋된 base라 통과)
+      if (!sameDay && ((cumAny.compStreakPeriod as number) ?? period) !== period) base = {};
+
+      const senders = new Set(compliments.map((c) => c.from));
+      const newStreak: Record<string, number> = {};
+      const newBonus: Record<string, number> = {};
+      for (const s of students) {
+        const sid = String(s.id);
+        const prev = base[sid] ?? 0;
+        const next = isSchoolDay ? (senders.has(s.id) ? prev + 1 : 0) : prev;
+        if (next > 0) newStreak[sid] = next;
+        if (isSchoolDay) {
+          if (next === 5) newBonus[sid] = 1;
+          else if (next === 10) newBonus[sid] = 2;
+          if (newBonus[sid]) compStreakBonus[sid] = newBonus[sid];
+        }
+      }
+      for (const sid of new Set([...Object.keys(oldBonus), ...Object.keys(newBonus)])) {
+        cum[sid] = (cum[sid] ?? 0) - (oldBonus[sid] ?? 0) + (newBonus[sid] ?? 0);
+      }
+      cumAny.compStreak = newStreak;
+      cumAny.compStreakPrev = base;
+      cumAny.compStreakDay = date;
+      cumAny.compStreakPeriod = period;
+      cumAny.compBonusToday = newBonus;
+    }
+  }
+
   await Promise.all([
     setDoc(doc(d, "dailyScores", date), {
       ...rows,
@@ -431,6 +482,7 @@ async function aggregateDateInner(
     groupRanks: ranks,
     milestoneSilver: ms.silver,
     milestoneGold: ms.gold,
+    compStreakBonus,
   };
 }
 

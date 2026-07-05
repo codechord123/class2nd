@@ -544,7 +544,21 @@ export default function TeamPage() {
       {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-bold">💌 오늘의 칭찬</h3>
+          <h3 className="text-lg font-bold">
+            💌 오늘의 칭찬
+            {(() => {
+              // 칭찬 연속(학사일) — 5일 +1점 · 10일 +2점. 누적 문서의 compStreak 재사용 (추가 읽기 0)
+              const st =
+                ((cumScores as Record<string, unknown> | null)?.compStreak as
+                  | Record<string, number>
+                  | undefined)?.[String(studentId)] ?? 0;
+              return st > 0 ? (
+                <span className="ml-1.5 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-bold text-pink-600">
+                  🔥 연속 {st}일 {st < 5 ? `(5일 +1점)` : st < 10 ? `(10일 +2점)` : ""}
+                </span>
+              ) : null;
+            })()}
+          </h3>
           {/* 오늘 평가 완성 체크리스트 */}
           <span className="flex gap-1.5 text-[11px]">
             <span className={doneScores ? "text-success" : "text-ink-300"}>
