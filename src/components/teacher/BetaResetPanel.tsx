@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { resetAllRecords } from "@/lib/betaReset";
+import { payVacationReading } from "@/lib/aggregate";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function BetaResetPanel() {
@@ -30,9 +31,16 @@ export default function BetaResetPanel() {
     setBusy(true);
     try {
       const r = await resetAllRecords(setProgress);
+      // 방학 독서 점수 즉시 복원 — 자동 실행(하루 1회)을 기다리면 다음 날까지
+      // 아이들 누적 점수가 0으로 보인다. 0주차 버킷 → 누적 재지급 (멱등).
+      setProgress("독서 점수 복원 중…");
+      const vr = await payVacationReading().catch(() => null);
       qc.clear(); // 캐시 전체 비우기 — 모든 화면이 빈 상태부터 다시
       if (r.failed.length === 0) {
-        toast(`🧹 초기화 완료 — ${r.deleted}개 기록 삭제. 새 출발!`, "success");
+        toast(
+          `🧹 초기화 완료 — ${r.deleted}개 기록 삭제${vr ? ` · 🐢 독서 점수 ${vr.points}점 복원` : ""}. 새 출발!`,
+          "success"
+        );
       } else {
         toast(
           `⚠️ ${r.deleted}개 삭제했지만 일부 실패: ${r.failed.join(", ")} — Firebase 콘솔에 최신 규칙(firestore.rules)을 게시한 뒤 다시 실행해주세요.`,
