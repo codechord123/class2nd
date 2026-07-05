@@ -139,6 +139,8 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
           return (
             <li key={i}>
               <button
+                // 선택 전환 시 리마운트 → 살짝 통통 (juice)
+                key={`${i}-${chosen}`}
                 onClick={() =>
                   role === "student" &&
                   void vote(poll, i).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
@@ -146,7 +148,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                 disabled={role !== "student" || closed}
                 className={`relative w-full overflow-hidden rounded-btn border px-3 py-2.5 text-left text-sm transition-colors ${
                   chosen
-                    ? "border-brand font-bold"
+                    ? "badge-pop border-brand font-bold"
                     : winner
                       ? "border-warn font-bold"
                       : "border-ink-200"
@@ -177,9 +179,12 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
       {/* 투표 후 완료 — 선택하면 활성화, 누르면 목록으로 */}
       {onDone && role === "student" && !closed && (
         <button
+          key={`done-${myVotes.length > 0}`}
           onClick={onDone}
           disabled={myVotes.length === 0}
-          className="press mt-3 w-full rounded-btn bg-success py-2.5 text-sm font-bold text-white disabled:opacity-40"
+          className={`press mt-3 w-full rounded-btn bg-success py-2.5 text-sm font-bold text-white disabled:opacity-40 ${
+            myVotes.length > 0 ? "badge-pop" : ""
+          }`}
         >
           {myVotes.length > 0 ? "✓ 투표 완료" : "먼저 선택지를 골라주세요"}
         </button>

@@ -17,6 +17,7 @@ import { groupOf, roleOf } from "@/lib/schedule";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import { useUiText, uiTextOf } from "@/lib/uiText";
+import JuiceBurst from "@/components/ui/Juice";
 
 type Tone = "slate" | "emerald" | "indigo" | "amber";
 const toneStyle: Record<Tone, { tile: string; value: string }> = {
@@ -170,7 +171,13 @@ export default function MyStatus() {
       {readingCard({ weekRead: myWeekRead, totalBooks: myTotalBooks })}
 
       {/* ② 오늘 할 일 — 큰 타일 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        {/* 전체 완료 순간의 축하 juice (완료 상태로 열어도 한 번 터짐 — 기분 좋음 우선) */}
+        <JuiceBurst
+          fireKey={doneCount === checkable.length ? 1 : 0}
+          emojis={["🎉", "✨", "🏆"]}
+          className="left-1/2 top-3"
+        />
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-ink-900">
             {doneCount === checkable.length ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}

@@ -18,6 +18,7 @@ import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
+import JuiceBurst from "@/components/ui/Juice";
 
 const STATUS_LABEL = { pending: "⏳ 대기", approved: "✅ 승인", rejected: "❌ 반려" } as const;
 const STATUS_STYLE = {
@@ -38,6 +39,7 @@ export default function ShopPage() {
   const [item, setItem] = useState("");
   const [busy, setBusy] = useState(false);
   const [directOpen, setDirectOpen] = useState(false);
+  const [buyBurst, setBuyBurst] = useState(0); // 신청·예약 성공 juice
   const { toast, confirm } = useFeedback();
 
   const createRequest = useCreateSpendRequest(wallet, studentId);
@@ -107,6 +109,7 @@ export default function ShopPage() {
     setBusy(true);
     try {
       await createRequest(n, name, "spend", { reserved: !requestOpen });
+      setBuyBurst((k) => k + 1);
       setItem("");
       toast(
         requestOpen ? "신청 완료! 선생님 승인을 기다려주세요." : "🕓 예약 완료! 내일 아침에 승인돼요.",
@@ -166,6 +169,7 @@ export default function ShopPage() {
       if (m.wallet === "gold")
         await createGoldRequest(m.price, m.name, "gold", { reserved: !requestOpen });
       else await createRequest(m.price, m.name, "spend", { reserved: !requestOpen });
+      setBuyBurst((k) => k + 1);
       toast(
         requestOpen
           ? `"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`
@@ -187,7 +191,9 @@ export default function ShopPage() {
     <div className="space-y-4">
       {/* 내 지갑 — 잔액 요약 + (상점 탭) 결제 지갑 토글을 한 카드로 압축 */}
       {role === "student" && studentId && (
-        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          {/* 신청·예약 성공 juice */}
+          <JuiceBurst fireKey={buyBurst} emojis={["🛒", "✨", "🧾"]} className="left-1/2 top-2" />
           <div className="grid grid-cols-3 divide-x divide-ink-100 text-center">
             <div className="px-1">
               <p className="text-[11px] text-ink-400">2학기 실버</p>

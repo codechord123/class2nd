@@ -105,6 +105,7 @@ export default function TeamPage() {
   const [reflText, setReflText] = useState("");
   const [compBurst, setCompBurst] = useState(0); // 칭찬 전송 성공 juice
   const [gaugeBurst, setGaugeBurst] = useState(0); // 실버 게이지 응원 juice
+  const [reflBurst, setReflBurst] = useState(0); // 모둠 반성 저장 juice
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
@@ -806,6 +807,7 @@ export default function TeamPage() {
                     setSending(true);
                     try {
                       await saveReflection(reflText);
+                      setReflBurst((k) => k + 1);
                       toast("📝 모둠 반성이 저장됐어요!", "success");
                       setReflText("");
                     } catch (e) {
@@ -816,9 +818,10 @@ export default function TeamPage() {
                   })()
                 }
                 disabled={sending}
-                className="press shrink-0 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="press relative shrink-0 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 저장
+                <JuiceBurst fireKey={reflBurst} emojis={["📝", "✨", "💙"]} className="left-1/2 top-0" />
               </button>
             </div>
           </section>

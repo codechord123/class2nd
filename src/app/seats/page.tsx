@@ -13,6 +13,7 @@ import SeatGrid from "@/components/seats/SeatGrid";
 import { chairsProvisional, studentById, ROLE_INFO } from "@/lib/roster";
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
+import JuiceBurst from "@/components/ui/Juice";
 import {
   useWeekSwaps,
   applySwaps,
@@ -56,6 +57,7 @@ export default function SeatsPage() {
   const [targetGroup, setTargetGroup] = useState(1);
   const [targetRole, setTargetRole] = useState<RoleKey>("질서");
   const [busy, setBusy] = useState(false);
+  const [seatBurst, setSeatBurst] = useState(0); // 신청 성공 juice
   const { toast, confirm } = useFeedback();
 
   const deadline = seatChangeDeadline(sessionMeta.weekStart);
@@ -102,6 +104,7 @@ export default function SeatsPage() {
         targetRole,
         existing: weekRequests ?? [],
       });
+      setSeatBurst((k) => k + 1);
       toast("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.", "success");
       setShowRequest(false);
     } catch (e) {
@@ -177,7 +180,8 @@ export default function SeatsPage() {
 
       {/* 실버 자리변경 신청 */}
       {role === "student" && (
-        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <JuiceBurst fireKey={seatBurst} emojis={["💺", "✨", "🎫"]} className="left-1/2 top-2" />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
             <span className="text-xs text-ink-400">

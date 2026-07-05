@@ -10,6 +10,7 @@ import {
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
+import JuiceBurst from "@/components/ui/Juice";
 import Button from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 
@@ -72,6 +73,7 @@ export default function WriteSheet({
   const [busy, setBusy] = useState(false);
   // 열 때마다 유도 질문 한 세트 선택 (렌더마다 바뀌지 않게 state 초기값으로 고정)
   const [prompts] = useState(() => PROMPTS[Math.floor(Math.random() * PROMPTS.length)]);
+  const [doneBurst, setDoneBurst] = useState(0); // 정식 등록 성공 juice
 
   // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
   const dirty = JSON.stringify(form) !== JSON.stringify(initialForm);
@@ -110,7 +112,12 @@ export default function WriteSheet({
             ? "✅ 감상문이 수정되었어요!"
             : "✅ 감상문이 정식 등록되었어요! +1권"
       );
-      if (!draft) onClose();
+      if (!draft) {
+        // 등록 juice — 📚 버스트를 잠깐 보여주고 닫는다 (성취의 한 박자)
+        setDoneBurst((k) => k + 1);
+        setTimeout(onClose, 650);
+        return;
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
@@ -225,9 +232,12 @@ export default function WriteSheet({
             <span className={`tnum text-sm font-extrabold ${pct >= 100 ? "text-success" : "text-ink-600"}`}>
               {bodyLen} / {charLimit}자 {pct >= 100 ? "✅ 등록 가능!" : ""}
             </span>
-            <Button size="lg" variant="primary" onClick={() => void submit(false)} disabled={busy}>
-              {busy ? "저장 중…" : editingReport ? "수정 저장" : "정식 등록 (+1권)"}
-            </Button>
+            <span className="relative">
+              <Button size="lg" variant="primary" onClick={() => void submit(false)} disabled={busy}>
+                {busy ? "저장 중…" : editingReport ? "수정 저장" : "정식 등록 (+1권)"}
+              </Button>
+              <JuiceBurst fireKey={doneBurst} emojis={["📚", "🐢", "✨"]} className="left-1/2 top-0" />
+            </span>
           </div>
         </div>
       </footer>

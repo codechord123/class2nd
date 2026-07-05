@@ -102,12 +102,14 @@ export default function TabNav() {
             return (
               <li key={t.href}>
                 <Link
+                  // 활성 탭이 바뀌면 리마운트 → 색 알약이 통통 (juice)
+                  key={`${t.href}-${active}`}
                   ref={active ? activeRef : undefined}
                   href={t.href}
                   aria-current={active ? "page" : undefined}
                   className={`press inline-flex min-h-11 items-center rounded-full px-3.5 py-2.5 font-bold transition-colors ${
                     active
-                      ? `${t.accent} text-white shadow-card`
+                      ? `badge-pop ${t.accent} text-white shadow-card`
                       : "bg-ink-100 text-ink-600 hover:bg-ink-200 hover:text-ink-800"
                   }`}
                 >

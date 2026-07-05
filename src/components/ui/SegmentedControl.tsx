@@ -19,11 +19,12 @@ export default function SegmentedControl<T extends string>({
     <div className="flex gap-1 overflow-x-auto rounded-btn border border-ink-200 bg-ink-200/60 p-1 text-sm font-bold">
       {tabs.map((t) => (
         <button
-          key={t.key}
+          // 활성 전환 시 리마운트 → 흰 캡슐이 통통 (juice — 앱 전체 하위탭 공통)
+          key={`${t.key}-${active === t.key}`}
           onClick={() => onChange(t.key)}
           className={`press flex-1 whitespace-nowrap rounded-[11px] px-3 py-2 transition-colors ${
             active === t.key
-              ? "bg-white font-extrabold text-brand-strong shadow-card"
+              ? "badge-pop bg-white font-extrabold text-brand-strong shadow-card"
               : "text-ink-500 hover:text-ink-700"
           }`}
         >

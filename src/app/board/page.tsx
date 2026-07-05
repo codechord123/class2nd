@@ -10,6 +10,7 @@ import Linkify from "@/components/ui/Linkify";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
+import JuiceBurst from "@/components/ui/Juice";
 import {
   useSuggestions,
   useAnnouncements,
@@ -473,6 +474,7 @@ export default function BoardPage() {
   const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
 
   // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
@@ -490,6 +492,7 @@ export default function BoardPage() {
       setTeacherOnly(false);
       setAnnounce(false);
       setWriting(false);
+      setPostBurst((k) => k + 1);
       toast("✅ 등록되었어요!");
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
@@ -579,12 +582,15 @@ export default function BoardPage() {
               className="w-32 rounded-btn border border-ink-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none"
             />
             {role != null && (
-              <button
-                onClick={() => setWriting((v) => !v)}
-                className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
-              >
-                {writing ? "닫기" : role === "teacher" ? "✏️ 글 올리기" : "✏️ 안건 올리기"}
-              </button>
+              <span className="relative">
+                <button
+                  onClick={() => setWriting((v) => !v)}
+                  className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
+                >
+                  {writing ? "닫기" : role === "teacher" ? "✏️ 글 올리기" : "✏️ 안건 올리기"}
+                </button>
+                <JuiceBurst fireKey={postBurst} emojis={["📬", "✨", "💙"]} className="left-1/2 top-0" />
+              </span>
             )}
           </div>
         </div>
