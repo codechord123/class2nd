@@ -123,7 +123,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="press rounded-btn border border-ink-200 px-3 py-1.5 text-xs text-ink-500"
+              className="press rounded-btn border border-ink-200 px-3 py-1.5 text-xs text-ink-600"
             >
               취소
             </button>
@@ -263,7 +263,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
       </div>
 
       {showVoters && (!poll.anonymous || role === "teacher") && (
-        <div className="mt-2 space-y-1 rounded-btn bg-ink-50 p-2 text-xs text-ink-500">
+        <div className="mt-2 space-y-1 rounded-btn bg-ink-50 p-2 text-xs text-ink-600">
           {poll.anonymous && (
             <p className="font-bold text-warn">🔒 익명 투표 — 이 목록은 선생님에게만 보여요</p>
           )}
@@ -429,11 +429,12 @@ function PollRow({ p, myId, onOpen }: { p: Poll; myId: number | null; onOpen: ()
           >
             {closed ? "마감" : "진행"}
           </span>
-          <b className="truncate text-[15px] text-ink-900">{p.title}</b>
+          {/* 긴 제목이 잘리지 않게 2줄까지 표시 (모바일 폭 대응) */}
+          <b className="line-clamp-2 min-w-0 text-[15px] text-ink-900">{p.title}</b>
           {p.multi && <span className="shrink-0 text-[10px] text-ink-400">복수</span>}
           {p.anonymous && <span className="shrink-0 text-[10px] text-ink-400">익명</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-500">
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-600">
           {iVoted && <span className="font-bold text-success">✓내 투표</span>}
           <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
             {author}

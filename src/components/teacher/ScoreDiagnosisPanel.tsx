@@ -109,7 +109,7 @@ export default function ScoreDiagnosisPanel() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🔍 점수 진단</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         점수가 이상할 때: 그날 점수의 출처(누가 몇 점 줬는지)와 누적 계산을 검증하고 바로잡아요.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">

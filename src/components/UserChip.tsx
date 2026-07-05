@@ -26,7 +26,7 @@ export default function UserChip() {
       {role === "student" && (
         <button
           onClick={() => setPwOpen(true)}
-          className="press rounded-full border border-ink-200 px-2 py-1 text-xs text-ink-500 hover:bg-ink-100"
+          className="press rounded-full border border-ink-200 px-2 py-1 text-xs text-ink-600 hover:bg-ink-100"
           aria-label="비밀번호 관리"
         >
           🔑
@@ -37,7 +37,7 @@ export default function UserChip() {
           void fbLogout();
           logout();
         }}
-        className="press rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-500 hover:bg-ink-100"
+        className="press rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100"
       >
         로그아웃
       </button>

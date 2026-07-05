@@ -310,7 +310,7 @@ export default function ShopAdmin() {
               ))}
             </div>
           </div>
-          <p className="mt-1 text-xs text-ink-500">
+          <p className="mt-1 text-xs text-ink-600">
             날짜(또는 학생)를 고르면 그때만 불러와요 — 미리 읽지 않아 데이터 낭비가 없어요.
           </p>
 
@@ -377,7 +377,7 @@ export default function ShopAdmin() {
           <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-lg font-bold">💰 실버 지급 (2학기)</h2>
-              <span className="text-xs text-ink-500">
+              <span className="text-xs text-ink-600">
                 {grantSids.length > 0
                   ? `${grantSids.length}명 선택됨`
                   : "학생을 눌러 선택 (여러 명 가능)"}
@@ -414,7 +414,7 @@ export default function ShopAdmin() {
               })}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-ink-500">1인당</span>
+              <span className="text-xs text-ink-600">1인당</span>
               <input
                 type="number"
                 min={1}
@@ -422,7 +422,7 @@ export default function ShopAdmin() {
                 onChange={(e) => setGrantAmt(e.target.value)}
                 className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
               />
-              <span className="text-xs text-ink-500">개</span>
+              <span className="text-xs text-ink-600">개</span>
               <input
                 value={grantNote}
                 onChange={(e) => setGrantNote(e.target.value)}
@@ -497,7 +497,7 @@ function S1CarryTable() {
   return (
     <table className="w-full min-w-[380px] text-sm">
       <thead>
-        <tr className="border-b border-ink-200 text-left text-xs text-ink-500">
+        <tr className="border-b border-ink-200 text-left text-xs text-ink-600">
           <th className="py-2 pr-2">이름</th>
           <th className="py-2 pr-2 text-right">이월 실버</th>
           <th className="py-2 pr-2 text-right">사용</th>

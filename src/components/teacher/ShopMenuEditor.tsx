@@ -35,7 +35,7 @@ export default function ShopMenuEditor() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">📋 상점 메뉴판 관리</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         학급 회의로 정한 메뉴를 추가하세요. 학생 상점에 바로 나타납니다.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">

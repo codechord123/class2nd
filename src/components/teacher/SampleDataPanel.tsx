@@ -70,7 +70,7 @@ export default function SampleDataPanel({ date }: { date: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-ink-800">🧪 샘플 데이터 (미리보기용)</p>
-          <p className="mt-0.5 text-xs text-ink-500">
+          <p className="mt-0.5 text-xs text-ink-600">
             아이들이 아직 안 써도 리포트·집계가 어떻게 보이는지 확인할 수 있어요.
           </p>
         </div>

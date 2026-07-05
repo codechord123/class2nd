@@ -382,7 +382,7 @@ export default function ReadingPage() {
                   )}
                 </p>
               )}
-              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-500 lg:justify-center">
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-600 lg:justify-center">
                 <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
                   {studentById.get(r.studentId)?.name}
                 </span>
@@ -606,7 +606,7 @@ export default function ReadingPage() {
                         <b className="truncate text-[15px] text-ink-900">{r.title}</b>
                       </span>
                       {/* 2줄: 작가 · 작성자 칩 · 작성일 (1학기 기록은 학기 배지) */}
-                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-600">
                         {r.author && <span className="max-w-[9rem] truncate">{r.author}</span>}
                         {r.author && <span>·</span>}
                         <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">

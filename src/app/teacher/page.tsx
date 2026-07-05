@@ -215,7 +215,7 @@ export default function TeacherPage() {
       {/* 오늘의 모둠 순위(1~5위) 선정 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
-        <p className="mt-1 text-xs text-ink-500">
+        <p className="mt-1 text-xs text-ink-600">
           잘한 순서대로 눌러주세요 (1위→5위) — 순위대로 5·4·3·2·1점, <b>1위는 +1점 더</b>.
           저장 후 옆 <b>집계 실행</b>으로 반영돼요.
         </p>
@@ -296,7 +296,7 @@ export default function TeacherPage() {
       {/* 일일 집계 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">📊 일일 평가 집계</h2>
-        <p className="mt-1 text-xs text-ink-500">
+        <p className="mt-1 text-xs text-ink-600">
           평가·MVP·칭찬을 모아 <b>오늘 점수를 계산</b>해요. 종회 때 1번 — 다시 눌러도
           안전해요. 🤖 <b>밀린 날은 자동 처리</b>되니 오늘 것만 직접!
         </p>
@@ -397,12 +397,12 @@ export default function TeacherPage() {
                 )}
               </span>
             </div>
-            <p className="mt-1 text-xs text-ink-500">
+            <p className="mt-1 text-xs text-ink-600">
               학생은 이 시간에만 실버·골드 사용을 신청할 수 있어요. (승인은 선생님이 다음 날 아침에)
             </p>
             <div className="mt-3 flex flex-wrap gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-ink-500">시작</span>
+                <span className="text-xs text-ink-600">시작</span>
                 <NumberStepper
                   value={dOpen ?? settings.requestOpenHour}
                   min={0}
@@ -411,7 +411,7 @@ export default function TeacherPage() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-ink-500">마감</span>
+                <span className="text-xs text-ink-600">마감</span>
                 <NumberStepper
                   value={dClose ?? settings.requestCloseHour}
                   min={1}

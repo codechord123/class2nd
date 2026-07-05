@@ -98,8 +98,8 @@ export default function MyStatus() {
   ).some((v) => v?.trim());
   const doneRead = myWeekRead >= quota;
   const todos: { label: string; done: boolean }[] = [
-    { label: "모둠 평가", done: doneScores },
-    { label: "MVP", done: doneMvp },
+    { label: "부서장 평가", done: doneScores },
+    { label: "부서장 투표", done: doneMvp },
     { label: "칭찬", done: doneComp },
     { label: `독서 ${myWeekRead}/${quota}`, done: doneRead },
   ];

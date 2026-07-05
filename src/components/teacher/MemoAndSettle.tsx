@@ -100,7 +100,7 @@ export function BiweeklySettlePanel() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원·성장상(지난 세션 대비 총점
         상승폭 최다, 2기부터) 각 1개. 보너스 점수: 독서 스트릭 — 목표 달성 주마다 연속 1·2·3점.
         <br />
@@ -188,7 +188,7 @@ export function BonusPanel() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">➕ 교사 보너스 점수</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         특정 날짜의 학생 점수에 보너스를 더하거나 뺍니다 (누적 자동 반영).
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -322,7 +322,7 @@ export default function TeamPage() {
         {/* 큰 숫자 2개를 앵커로 */}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-card bg-ink-50 p-3 text-center">
-            <p className="text-xs text-ink-500">오늘 점수</p>
+            <p className="text-xs text-ink-600">오늘 점수</p>
             <p className="tnum mt-0.5 text-2xl font-extrabold text-ink-900">
               {myRow ? myRow.total : "–"}
             </p>
@@ -456,7 +456,7 @@ export default function TeamPage() {
               <div className="flex items-center gap-2 text-[15px]">
                 <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
                 <b>{studentById.get(t.studentId)?.name}</b>
-                <span className="text-xs text-ink-500">{t.role} 부서장</span>
+                <span className="text-xs text-ink-600">{t.role} 부서장</span>
               </div>
               <ScaleButtons
                 scale={settings.peerScale}

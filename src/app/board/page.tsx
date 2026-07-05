@@ -134,7 +134,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             {titleOf(sug)}
           </h3>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500">
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-600">
           <span className="flex items-center gap-1.5">
             <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
               {sug.isAnonymous
@@ -523,9 +523,9 @@ export default function BoardPage() {
         <span className="min-w-0 flex-1">
           {/* 1줄: 상태 + 제목 */}
           <span className="flex items-center gap-1.5">
-            {/* 1학기 게시판 차용 — 공지는 빨간 배지로 확실하게 (📌보다 눈에 잘 띔) */}
+            {/* 공지 배지 — 빨강은 '오류/위험' 문법과 겹쳐서 브랜드 파랑으로 (디자이너 감사) */}
             {pin && (
-              <span className="shrink-0 rounded bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white">
+              <span className="shrink-0 rounded bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">
                 공지
               </span>
             )}
@@ -534,7 +534,7 @@ export default function BoardPage() {
             {p.enactedAsLaw && <span className="shrink-0 text-xs">📜</span>}
           </span>
           {/* 2줄: 작성자 칩 · 날짜 · 찬반 */}
-          <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-600">
             <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
               {author}
             </span>

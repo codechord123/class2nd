@@ -32,7 +32,7 @@ export default function BannerEditor() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🎯 학급 목표 배너</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         홈·독서 상단의 주황 배너예요. 학급 목표로 활용하세요 — 리포트에도 함께 담겨요.
       </p>
       <div className="mt-3 space-y-2">

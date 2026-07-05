@@ -368,7 +368,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-ink-500">
+                    <p className="text-xs text-ink-600">
                       {memberIds.map((id) => (
                         <span key={id} className="mr-1.5">
                           {mvpSet.has(id) && "⭐"}
@@ -431,7 +431,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
             </div>
           </div>
           {notMet.length > 0 && (
-            <p className="mt-2 text-xs text-ink-500">
+            <p className="mt-2 text-xs text-ink-600">
               미달({notMet.length}): {notMet.map((s) => s.name).join(", ")}
             </p>
           )}
@@ -476,7 +476,7 @@ export default function DailyReportPanel({ date }: { date: string }) {
                 </p>
               )}
               {(meta?.bossWinners ?? []).length > 0 && (
-                <p className="mt-0.5 text-xs text-ink-500">
+                <p className="mt-0.5 text-xs text-ink-600">
                   👑 오늘의 부서장(투표): {(meta!.bossWinners ?? []).map(nm).join(", ")}
                 </p>
               )}

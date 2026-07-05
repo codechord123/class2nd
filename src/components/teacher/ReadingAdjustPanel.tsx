@@ -75,7 +75,7 @@ export default function ReadingAdjustPanel() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">📚 독서 권수 보정</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         종이 감상문 인정, count 꼬임 복구용. 1학기 권수는 <b>실제 감상문 수</b>가 기본값이고
         여기서 더한 만큼이 보정으로 저장돼요. 2학기 보정은 오늘 기준 주차에 함께 반영돼요.
       </p>

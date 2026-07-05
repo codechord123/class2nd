@@ -128,7 +128,8 @@ export function useAddComment(author: number | "teacher" | null) {
     if (author == null) throw new Error("로그인이 필요해요.");
     if (!text.trim()) throw new Error("내용을 입력해주세요.");
     const comment: BoardComment = {
-      id: Date.now(),
+      // 같은 밀리초에 두 명이 달면 id가 겹쳐 삭제·답글이 꼬인다 — 무작위 하위 자릿수로 유일화
+      id: Date.now() * 1000 + Math.floor(Math.random() * 1000),
       studentId: author,
       text: text.trim(),
       ...(replyTo != null ? { replyTo } : {}),

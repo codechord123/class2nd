@@ -45,7 +45,7 @@ export default function LinksEditor() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🔗 바로가기 링크 관리</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         패들렛, 학급 홈페이지 등 자주 쓰는 링크를 홈 화면에 카드로 띄웁니다.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -73,7 +73,7 @@ export default function LinksEditor() {
           placeholder="설명 (선택)"
           className="min-w-28 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
-        <label className="flex items-center gap-1 text-xs text-ink-500">
+        <label className="flex items-center gap-1 text-xs text-ink-600">
           <input
             type="checkbox"
             checked={teacherOnly}

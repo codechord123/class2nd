@@ -52,7 +52,7 @@ export default function BetaResetPanel() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-danger">🧨 베타 테스트 초기화</p>
-          <p className="mt-0.5 text-xs text-ink-500">
+          <p className="mt-0.5 text-xs text-ink-600">
             테스트 기간의 학생 기록 전체를 삭제해요(설정·메뉴·비밀번호는 유지). 개학 전 새 출발용.
           </p>
         </div>

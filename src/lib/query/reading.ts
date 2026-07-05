@@ -124,7 +124,8 @@ export function useAddReportComment(author: number | "teacher" | null) {
     if (author == null) throw new Error("로그인이 필요해요.");
     if (!text.trim()) throw new Error("내용을 입력해주세요.");
     const comment: ReportComment = {
-      id: Date.now(),
+      // 같은 밀리초 동시 작성 시 id 충돌 방지 (board와 동일)
+      id: Date.now() * 1000 + Math.floor(Math.random() * 1000),
       studentId: author,
       text: text.trim(),
       createdAt: Date.now(),

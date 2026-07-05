@@ -112,7 +112,7 @@ export default function CoinAuditPanel() {
       </button>
       {result && (
         <div className="mt-3 text-sm">
-          <p className="text-xs text-ink-500">원장 {result.txns}건 검사</p>
+          <p className="text-xs text-ink-600">원장 {result.txns}건 검사</p>
           {result.mismatches.length === 0 ? (
             <p className="mt-1 rounded-btn bg-success-weak px-3 py-2 font-bold text-success">
               ✅ 전부 일치

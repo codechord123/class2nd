@@ -154,7 +154,7 @@ export default function WriteSheet({
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-baseline justify-between gap-1">
             <h3 className="text-base font-extrabold text-ink-900">2. 감상을 남겨요</h3>
-            <span className="text-xs text-ink-500">네 칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
+            <span className="text-xs text-ink-600">네 칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
           </div>
           <div className="mt-3 space-y-3">
             <Field label="줄거리">

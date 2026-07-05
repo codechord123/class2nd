@@ -178,7 +178,7 @@ export default function ShopPage() {
             <summary className="cursor-pointer text-xs font-medium text-ink-400">
               💰 실버는 어떻게 벌어요?
             </summary>
-            <ul className="mt-1.5 space-y-0.5 text-xs text-ink-500">
+            <ul className="mt-1.5 space-y-0.5 text-xs text-ink-600">
               <li>
                 🏅 <b>누적 점수 25점</b>이 모일 때마다 실버 1개 (자동!)
               </li>
@@ -241,7 +241,7 @@ export default function ShopPage() {
       {tab === "shop" && role === "student" && studentId && (menu?.length ?? 0) > 0 && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <h3 className="text-lg font-bold">📋 우리 반 메뉴판</h3>
-          <p className="mt-1 text-xs text-ink-500">
+          <p className="mt-1 text-xs text-ink-600">
             선생님이 올린 메뉴예요. 골라서 신청하면 다음 날 아침에 승인돼요!
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -254,7 +254,7 @@ export default function ShopPage() {
               >
                 <div className="text-sm">
                   <b>{m.name}</b>
-                  <span className="ml-1.5 text-xs text-ink-500">
+                  <span className="ml-1.5 text-xs text-ink-600">
                     {m.price}
                     {m.wallet === "gold" ? "골드 (학급 공용)" : "실버"}
                   </span>
@@ -329,7 +329,7 @@ export default function ShopPage() {
               >
                 <span className="min-w-0 truncate">
                   <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
-                  <span className="text-xs text-ink-500">
+                  <span className="text-xs text-ink-600">
                     · {r.wallet === "s2" ? "2학기" : "이월"} 실버 {r.amount}개
                     {r.reserved && " · 🕓 예약"}
                   </span>
@@ -348,7 +348,7 @@ export default function ShopPage() {
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-bold">📜 내 사용 내역</h2>
-            <span className="text-xs text-ink-500">
+            <span className="text-xs text-ink-600">
               이월 실버 <b className="text-brand-strong">{myS1Remaining}개</b> 남음 (2학기와 안 섞여요)
             </span>
           </div>
@@ -365,7 +365,7 @@ export default function ShopPage() {
                 >
                   <span className="min-w-0 truncate">
                     <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
-                    <span className="text-xs text-ink-500">
+                    <span className="text-xs text-ink-600">
                       · {r.wallet === "s2" ? "2학기" : "이월"}
                       <span className="tnum">
                         {" "}· {new Date(r.createdAt).getMonth() + 1}월 {new Date(r.createdAt).getDate()}일

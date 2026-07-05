@@ -94,7 +94,7 @@ export default function DebugPage() {
     <div className="mx-auto max-w-md space-y-4 py-6">
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h1 className="text-lg font-bold">🔬 연결 진단</h1>
-        <p className="mt-1 text-xs text-ink-500">
+        <p className="mt-1 text-xs text-ink-600">
           로그인이 안 될 때 이 기기에서 어느 구간이 막히는지 검사해요. 결과 화면을
           스크린샷으로 공유해주세요.
         </p>

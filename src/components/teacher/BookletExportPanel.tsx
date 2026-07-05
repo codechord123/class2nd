@@ -66,7 +66,7 @@ export default function BookletExportPanel() {
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">📕 감상문 모음집 (출판용)</h2>
-      <p className="mt-1 text-xs text-ink-500">
+      <p className="mt-1 text-xs text-ink-600">
         학생을 누르면 <b>1·2학기 감상문 전체</b>가 표지·차례·본문을 갖춘 책 레이아웃으로 열려요 —
         인쇄하거나 PDF로 저장해 출판 원고로 쓸 수 있어요. 🏆는 합산 30권 이상,
         🔒 비공개 글도 본인 책에는 포함돼요.
