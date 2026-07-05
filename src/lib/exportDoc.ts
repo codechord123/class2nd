@@ -362,3 +362,140 @@ export async function openRangePrintDoc(
   );
   return { days: byDate.size, compliments: allCompliments.length, suggestions: suggestions.length };
 }
+
+// ── 학생 개인 리포트 — 상담·가정통신 첨부용 1장 ─────────────────
+// 그 아이의 점수 흐름 + 받은 칭찬(실명) + 독서 기록만 담는다.
+// 읽기: 기간 내 집계 문서 + 본인 감상문(등호 쿼리 — 인덱스 불필요). 교사 필요 시에만.
+export async function openStudentPrintDoc(
+  sid: number,
+  start: string,
+  end: string,
+  label: string
+): Promise<{ days: number }> {
+  const d = db();
+  const sname = name(sid);
+
+  const [daySnap, reportSnap] = await Promise.all([
+    getDocs(
+      query(
+        collection(d, "dailyScores"),
+        where(documentId(), ">=", start),
+        where(documentId(), "<=", end)
+      )
+    ),
+    getDocs(query(collection(d, "readingReports"), where("studentId", "==", sid))),
+  ]);
+
+  // 날짜별 내 행 + 받은 칭찬 수집
+  const startMs = new Date(start + "T00:00:00+09:00").getTime();
+  const endMs = new Date(end + "T00:00:00+09:00").getTime() + 86400000;
+  const dayRows: { date: string; row: DailyScoreRow }[] = [];
+  const received: (Compliment & { date: string })[] = [];
+  let sentCount = 0;
+  daySnap.forEach((day) => {
+    const data = day.data();
+    const row = data[String(sid)] as DailyScoreRow | undefined;
+    if (row) dayRows.push({ date: day.id, row });
+    const meta = (data._meta ?? {}) as { compliments?: Compliment[] };
+    for (const c of meta.compliments ?? []) {
+      if (c.to === sid) received.push({ ...c, date: day.id });
+      if (c.from === sid) sentCount++;
+    }
+  });
+  dayRows.sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  const books = reportSnap.docs
+    .map((r) => r.data() as { title?: string; createdAt?: number })
+    .filter((r) => (r.createdAt ?? 0) >= startMs && (r.createdAt ?? 0) < endMs)
+    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+
+  const totalScore = dayRows.reduce((a, r) => a + r.row.total, 0);
+  const mvpDays = dayRows.filter((r) => (r.row.mvp ?? 0) > 0).length;
+  const missionDays = dayRows.filter((r) => (r.row.mission ?? 0) > 0).length;
+
+  const card = (title: string, inner: string) =>
+    `<div class="card"><div class="t">${title}</div>${inner}</div>`;
+  const dLabel = (dt: string) => `${Number(dt.slice(5, 7))}/${Number(dt.slice(8, 10))}`;
+  const sections: string[] = [];
+
+  // 요약 타일 3개 + 배지 줄
+  sections.push(
+    card(
+      "기간 요약",
+      `<div class="stats">
+        <div><div class="l">기간 총점</div><div class="v blue">${totalScore}</div></div>
+        <div><div class="l">독서</div><div class="v green">${books.length}권</div></div>
+        <div><div class="l">받은 칭찬</div><div class="v amber">${received.length}</div></div>
+      </div>
+      <p class="muted">보낸 칭찬 ${sentCount}회 · 모둠 MVP ${mvpDays}회 · 칭찬 미션 달성 ${missionDays}회 (집계 ${dayRows.length}일)</p>`
+    )
+  );
+
+  // 점수 흐름 — 날짜별 표 (합계는 미니 바)
+  if (dayRows.length) {
+    const maxTotal = Math.max(1, ...dayRows.map((r) => r.row.total));
+    const rowsHtml = dayRows
+      .map(
+        ({ date, row }) =>
+          `<tr><td>${dLabel(date)}</td><td>${row.peer}</td><td>${row.groupRank || "·"}</td><td>${
+            row.mission ? "+1" : "·"
+          }</td><td>${row.mvp ? "★" : "·"}</td><td>${row.read || "·"}</td><td>${
+            row.bonus || "·"
+          }</td><td class="score"><span class="sbar" style="width:${Math.round(
+            (Math.max(row.total, 0) / maxTotal) * 100
+          )}%"></span><b>${row.total}</b></td></tr>`
+      )
+      .join("");
+    sections.push(
+      card(
+        "날짜별 점수 흐름",
+        `<table><thead><tr><th>날짜</th><th>모둠평가</th><th>순위</th><th>미션</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th></tr></thead><tbody>${rowsHtml}</tbody></table>`
+      )
+    );
+  } else {
+    sections.push(card("날짜별 점수 흐름", `<p class="muted">이 기간에 집계된 점수가 없습니다.</p>`));
+  }
+
+  // 받은 칭찬 — 보낸 친구 실명 말풍선 (긍정 기록만 담는 문서)
+  sections.push(
+    card(
+      `친구들이 보낸 칭찬 (${received.length}건)`,
+      received.length
+        ? `<ul class="bubs">${received
+            .map(
+              (c) =>
+                `<li class="bub"><b>${esc(name(c.from))}</b> · ${esc(c.text)} <span class="muted">(${dLabel(c.date)})</span></li>`
+            )
+            .join("")}</ul>`
+        : `<p class="muted">이 기간에 받은 칭찬 기록이 없습니다.</p>`
+    )
+  );
+
+  // 독서 기록 — 감상문 제목 목록
+  sections.push(
+    card(
+      `거북이 독서 기록 (${books.length}권)`,
+      books.length
+        ? `<ul>${books
+            .map(
+              (b) =>
+                `<li><b>${esc(b.title ?? "(제목 없음)")}</b> <span class="muted">(${dLabel(
+                  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(
+                    new Date(b.createdAt ?? 0)
+                  )
+                )})</span></li>`
+            )
+            .join("")}</ul>`
+        : `<p class="muted">이 기간에 등록한 감상문이 없습니다.</p>`
+    )
+  );
+
+  openPrintWindow(
+    `${sname} 개인 리포트 (${start} ~ ${end})`,
+    brandHeader(
+      `${esc(sname)} 개인 리포트`,
+      `${esc(label)} · ${dateTitle(start)} ~ ${dateTitle(end)} · 2학기 학급 자치`
+    ) + sections.join("\n")
+  );
+  return { days: dayRows.length };
+}

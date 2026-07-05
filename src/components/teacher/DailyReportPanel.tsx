@@ -12,7 +12,14 @@ import { weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
-import { openPrintWindow, openRangePrintDoc, esc, brandHeader, dateTitle } from "@/lib/exportDoc";
+import {
+  openPrintWindow,
+  openRangePrintDoc,
+  openStudentPrintDoc,
+  esc,
+  brandHeader,
+  dateTitle,
+} from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -28,8 +35,11 @@ export default function DailyReportPanel({ date }: { date: string }) {
   const { toast } = useFeedback();
   const goalLine = banner?.active && banner.title.trim() ? banner.title.trim() : null;
   const [printing, setPrinting] = useState(false);
-  const [period, setPeriod] = useState<"day" | "week">("day");
+  const [period, setPeriod] = useState<"day" | "week" | "student">("day");
   const [view, setView] = useState<"all" | "groups">("all");
+  // 개인 리포트 — 학생·범위 선택 (상담·가정통신 첨부용)
+  const [repSid, setRepSid] = useState(1);
+  const [repScope, setRepScope] = useState<"session" | "semester">("session");
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
@@ -261,13 +271,32 @@ export default function DailyReportPanel({ date }: { date: string }) {
     }
   }
 
+  async function studentPrint() {
+    if (printing) return;
+    setPrinting(true);
+    try {
+      const [ps, pe] =
+        repScope === "session"
+          ? [sessionStart, sessionEnd]
+          : [isBeta ? "2026-07-01" : SEMESTER_START, date];
+      const label = repScope === "session" ? `${sessionNo}기 세션` : "학기 전체";
+      const r = await openStudentPrintDoc(repSid, ps, pe, label);
+      if (r.days === 0) toast("이 기간에 집계된 날이 없어요 — 빈 리포트가 열렸어요.", "warn");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return (
     <Card title="🗒️ 리포트" desc={`${date} · ${week}주차`}>
       <div className="mt-3">
-        <SubTabs<"day" | "week">
+        <SubTabs<"day" | "week" | "student">
           tabs={[
             { key: "day", label: "📅 일간" },
             { key: "week", label: "🏆 세션(2주)" },
+            { key: "student", label: "🧑 개인" },
           ]}
           active={period}
           onChange={setPeriod}
@@ -492,6 +521,41 @@ export default function DailyReportPanel({ date }: { date: string }) {
             인쇄본도 화면처럼 독서·점수·MVP·순위·모둠별 칭찬/건의·바라는 점 카드로 담겨요.
           </p>
         </>
+      )}
+
+      {/* 🧑 개인 리포트 — 상담·가정통신 첨부용 (점수 흐름·받은 칭찬·독서만) */}
+      {period === "student" && (
+        <div className="mt-2 space-y-2">
+          <p className="rounded-btn bg-ink-50 p-3 text-xs leading-relaxed text-ink-600">
+            학생 한 명의 <b>날짜별 점수 흐름 + 받은 칭찬(보낸 친구 실명) + 독서 기록</b>만 담은
+            1장짜리 인쇄물이에요. 상담이나 가정통신 첨부용 — 다른 학생의 점수·건의는 담기지
+            않아요.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={repSid}
+              onChange={(e) => setRepSid(Number(e.target.value))}
+              className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+            >
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id}번 {s.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={repScope}
+              onChange={(e) => setRepScope(e.target.value as "session" | "semester")}
+              className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+            >
+              <option value="session">{sessionNo}기 세션 ({sessionStart} ~ {sessionEnd})</option>
+              <option value="semester">학기 전체 (~ {date})</option>
+            </select>
+            <Button onClick={() => void studentPrint()} disabled={printing}>
+              🖨️ 개인 리포트 인쇄 / PDF 저장
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* 🏆 세션(2주) — 모둠별 없이 전체 하이라이트만 */}
