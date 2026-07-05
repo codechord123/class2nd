@@ -377,7 +377,10 @@ export default function ShopPage() {
                 <span className="min-w-0 truncate">
                   <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
                   <span className="text-xs text-ink-600">
-                    · {r.wallet === "s2" ? "2학기" : "이월"} 실버 {r.amount}개
+                    ·{" "}
+                    {r.type === "gold"
+                      ? `🥇 학급 골드 ${r.amount}개`
+                      : `${r.wallet === "s2" ? "2학기" : "이월"} 실버 ${r.amount}개`}
                     {r.reserved && " · 🕓 예약"}
                   </span>
                 </span>
@@ -413,7 +416,7 @@ export default function ShopPage() {
                   <span className="min-w-0 truncate">
                     <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
                     <span className="text-xs text-ink-600">
-                      · {r.wallet === "s2" ? "2학기" : "이월"}
+                      · {r.type === "gold" ? "🥇 골드" : r.wallet === "s2" ? "2학기" : "이월"}
                       <span className="tnum">
                         {" "}· {new Date(r.createdAt).getMonth() + 1}월 {new Date(r.createdAt).getDate()}일
                       </span>

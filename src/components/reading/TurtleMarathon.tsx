@@ -3,36 +3,19 @@
 //   학급 누적 = 1학기(정적) + 2학기(readingStats). 바에 1학기 구간을 진하게 표시.
 //   juice: 거북이 종종걸음(상시) + 누르면 점프·입자 버스트·% 배지 팝·바 글로우·응원말.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { doc, getDoc, increment, setDoc } from "firebase/firestore";
+import { doc, increment, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useFeedback } from "@/components/ui/Feedback";
 import { s1TotalOf } from "@/lib/staticData";
 
-// 🍪 학급 응원 클릭 — 10,000번 모을 때마다 학급 골드 +1 (선생님 접속 때 자동 지급).
-// 쓰기 예산 설계: ① 읽기는 세션당 문서 1개(5분 캐시)로 미미 ② 쓰기는 50클릭당 1회 배칭
-// ③ 기기별 하루 상한(비 카운트 클릭은 애니메이션만) — 최악의 경우에도
-// 25명 × 300클릭 ÷ 50 = 하루 150쓰기 상한.
-const GOLD_PER_CLICKS = 10000;
+// 🍪 학급 응원 클릭 — 10,000번 달성 시 학급 골드 +5 깜짝 이벤트 (1회성, 교사 접속 때 지급).
+// 학생에게는 몇 번 눌렀는지 보여주지 않는다 (사용자 확정 — 서프라이즈 유지, 읽기 0).
+// 쓰기 예산 설계: ① 쓰기는 50클릭당 1회 배칭 ② 기기별 하루 상한(초과 클릭은 애니메이션만)
+// — 최악의 경우에도 25명 × 300클릭 ÷ 50 = 하루 150쓰기 상한.
 const FLUSH_EVERY = 50;
 const DAILY_CAP = 300; // 기기당 하루 카운트 상한
-
-function useTurtleClicks() {
-  return useQuery({
-    queryKey: ["turtleClicks"],
-    queryFn: async (): Promise<number> => {
-      try {
-        const snap = await getDoc(doc(db(), "classData", "turtleClicks"));
-        return snap.exists() ? ((snap.data().count as number) ?? 0) : 0;
-      } catch {
-        return 0;
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-}
 
 // 클릭 버스트 입자 — 방향·회전을 CSS 변수로 (매번 같은 모양이 아니게 응원 횟수로 순환)
 const BURSTS = [
@@ -60,9 +43,6 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const { toast } = useFeedback();
   const [hopKey, setHopKey] = useState(0); // 클릭할 때마다 juice 애니메이션 재시작
 
-  // 학급 응원 클릭 카운터 — 서버값 + 이 세션에서 누른 만큼
-  const { data: serverClicks } = useTurtleClicks();
-  const [localClicks, setLocalClicks] = useState(0);
   const [capped, setCapped] = useState(false);
   const pendingRef = useRef(0);
   // 기기별 일일 상한 — localStorage에 오늘 카운트 저장
@@ -97,7 +77,6 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
       window.removeEventListener("beforeunload", onHide);
     };
   }, [flush]);
-  const totalClicks = (serverClicks ?? 0) + localClicks;
 
   const goal = settings?.readingGoal ?? 1250;
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
@@ -141,11 +120,8 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
             }
             return;
           }
-          setLocalClicks((c) => c + 1);
           pendingRef.current += 1;
           if (pendingRef.current >= FLUSH_EVERY) flush();
-          if ((totalClicks + 1) % GOLD_PER_CLICKS === 0)
-            toast("🥇 10,000번 달성! 학급 골드 +1 — 선생님 화면에서 지급돼요!", "success");
         }}
         aria-label="거북이 응원하기"
         key={`bar-${hopKey}`}
@@ -213,12 +189,8 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
         </span>
       </button>
       <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1 text-[11px] font-medium text-emerald-700">
-        <span>
-          👆 학급 응원 클릭 <b className="tnum">{totalClicks.toLocaleString()}</b>
-          <span className="text-emerald-500">
-            {" "}— <b className="tnum">{(GOLD_PER_CLICKS - (totalClicks % GOLD_PER_CLICKS)).toLocaleString()}</b>번 더 누르면 학급 골드 +1! 🥇
-          </span>
-        </span>
+        {/* 클릭 수는 비공개 (깜짝 이벤트) — 응원 자체가 목적처럼 보이게 */}
+        <span>👆 거북이를 눌러 응원해 주세요 — 응원이 많이 모이면 좋은 일이 생길지도…? 🎁</span>
         <span>
           1학기 <b className="tnum">{s1Total}권</b> + 2학기 <b className="tnum">{s2Total}권</b> — 이어서 달려요!
         </span>

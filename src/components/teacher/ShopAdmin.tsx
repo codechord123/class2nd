@@ -10,8 +10,9 @@ import { collection, getDocs, limit, orderBy, query, where } from "firebase/fire
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { todayKST, kstDateOf, shiftDate } from "@/lib/date";
-import { s1Wallet } from "@/lib/staticData";
+import { s1Wallet, getS1WalletOf, s1ClassGoldRemaining } from "@/lib/staticData";
 import {
+  useBalances,
   usePendingRequests,
   useDecideRequest,
   useGrantSilver,
@@ -131,8 +132,13 @@ function EntryRow({ e, showDate }: { e: Entry; showDate?: boolean }) {
           {studentById.get(e.studentId)?.name ?? `?${e.studentId}`}
         </span>
         <span className="truncate text-ink-700">{e.item}</span>
-        <span className="shrink-0 text-[11px] text-ink-400">
-          {e.wallet === "s2" ? "2학기" : "이월"}
+        {/* 골드는 지갑(s1)이 아니라 학급 공용 재화 — 이월 실버로 오인하지 않게 명시 */}
+        <span
+          className={`shrink-0 text-[11px] ${
+            e.type === "gold" ? "font-bold text-amber-600" : "text-ink-400"
+          }`}
+        >
+          {e.type === "gold" ? "🥇 골드" : e.wallet === "s2" ? "2학기" : "이월"}
           {showDate && <span className="tnum"> · {fmtDate(e.createdAt)}</span>}
         </span>
       </span>
@@ -164,6 +170,16 @@ export default function ShopAdmin() {
     ...(pendS2 ?? []).map((r) => ({ r, kind: "s2" as WalletKind })),
     ...(pendS1 ?? []).map((r) => ({ r, kind: "s1" as WalletKind })),
   ];
+  // 승인 판단용 잔액 — 이미 캐시되는 잔액 문서 2개 재사용 (추가 읽기 없음)
+  const { data: s2Bal } = useBalances("s2");
+  const { data: s1Used } = useBalances("s1");
+  const balanceOf = (p: (typeof pending)[number]): number =>
+    p.r.type === "gold"
+      ? s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0)
+      : p.kind === "s2"
+        ? (s2Bal?.[String(p.r.studentId)] ?? 0)
+        : (getS1WalletOf(p.r.studentId)?.silverRemaining ?? 0) -
+          (s1Used?.[String(p.r.studentId)] ?? 0);
 
   // ── 기록 (달력) ──
   const [mode, setMode] = useState<"date" | "week" | "student">("date");
@@ -239,14 +255,32 @@ export default function ShopAdmin() {
                       {studentById.get(p.r.studentId)?.name}
                     </span>
                     <b className="truncate text-[15px] text-ink-900">{p.r.item}</b>
-                    <span className="shrink-0 rounded-full bg-warn-weak px-2 py-0.5 text-xs font-bold text-warn">
-                      {p.kind === "s2" ? "2학기" : "이월"} {p.r.amount}개
+                    {/* 골드 신청(type=gold)은 학급 공용 재화 — "이월 N개"로 오인하면 오승인 */}
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                        p.r.type === "gold"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-warn-weak text-warn"
+                      }`}
+                    >
+                      {p.r.type === "gold"
+                        ? `🥇 학급 골드 ${p.r.amount}개`
+                        : `${p.kind === "s2" ? "2학기" : "이월"} ${p.r.amount}개`}
                     </span>
                     {p.r.reserved && (
                       <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-500">
                         🕓 예약
                       </span>
                     )}
+                    {/* 승인 판단 정보 — 부족하면 빨간 경고 (승인 시 트랜잭션이 최종 차단) */}
+                    <span
+                      className={`shrink-0 text-xs ${
+                        balanceOf(p) < p.r.amount ? "font-bold text-danger" : "text-ink-400"
+                      }`}
+                    >
+                      {p.r.type === "gold" ? "학급 골드" : "잔액"} {balanceOf(p)}개
+                      {balanceOf(p) < p.r.amount && " ⚠️ 부족"}
+                    </span>
                   </span>
                   <span className="flex gap-1.5">
                     <button

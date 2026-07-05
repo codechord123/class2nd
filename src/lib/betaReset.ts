@@ -2,7 +2,7 @@
 // 베타 테스트 초기화 — 학생 활동 기록을 전부 삭제 (교사 전용).
 // 유지: 교사 설정(settings)·상점 메뉴·바로가기·헌법·메모·학생 비밀번호(studentAuth).
 // 삭제: 평가·점수·칭찬 커버리지·실버 원장·이월 사용·자리신청·독서(감상문/초안/통계)·
-//       건의·투표·세션 정산·오늘의모둠·비번 재설정 요청.
+//       건의·투표·세션 정산·오늘의모둠·비번 재설정 요청·거북이 응원 클릭(이벤트 마커 포함).
 import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { todayKST } from "@/lib/date";
@@ -86,6 +86,8 @@ export async function resetAllRecords(onProgress?: (msg: string) => void): Promi
   // 3) 오늘의 모둠 순위 기록 삭제 (설정·메뉴 등 다른 classData 문서는 유지)
   onProgress?.("모둠 순위 기록 삭제 중…");
   await deleteDoc(doc(d, "classData", "bestGroups")).catch(() => failed.push("bestGroups"));
+  // 거북이 응원 클릭 — 카운트·이벤트 지급 마커까지 리셋 (개학 후 깜짝 이벤트를 처음부터)
+  await deleteDoc(doc(d, "classData", "turtleClicks")).catch(() => failed.push("turtleClicks"));
 
   return { deleted, failed: [...new Set(failed)] };
 }

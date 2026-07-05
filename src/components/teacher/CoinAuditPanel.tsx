@@ -32,12 +32,13 @@ export default function CoinAuditPanel() {
     setBusy(true);
     try {
       const d = db();
-      const [s2Snap, s1Snap, s2Bal, s1Bal, cumSnap] = await Promise.all([
+      const [s2Snap, s1Snap, s2Bal, s1Bal, cumSnap, clickSnap] = await Promise.all([
         getDocs(collection(d, "coinTxns")),
         getDocs(collection(d, "s1Spends")),
         getDoc(doc(d, "coinTxns", "0_balances")),
         getDoc(doc(d, "s1Spends", "0_balances")),
         getDoc(doc(d, "dailyScores", "_cumulative")),
+        getDoc(doc(d, "classData", "turtleClicks")), // 클릭 이벤트 골드도 적립 대조에 포함
       ]);
 
       // 원장에서 기대값 계산 — 승인된 기록만 잔액에 반영된다
@@ -81,11 +82,18 @@ export default function CoinAuditPanel() {
       const actGoldUsed = actS1.classGoldUsed ?? 0;
       if (expGoldUsed !== actGoldUsed)
         mismatches.push({ label: "학급 골드 사용량", expected: expGoldUsed, actual: actGoldUsed });
-      // 골드 적립: 잔액 문서의 classGoldEarned와 누적 문서의 classGoldPaid는 항상 같이 움직여야 함
+      // 골드 적립 대조: classGoldEarned(잔액 문서) = 실버 마일스톤분(classGoldPaid)
+      //   + 거북이 클릭분(turtleClicks의 eventGold + 구방식 goldPaid) — 경로별 마커 합산
       const earned = actS1.classGoldEarned ?? 0;
       const paid = (cum.classGoldPaid as number) ?? 0;
-      if (earned !== paid)
-        mismatches.push({ label: "학급 골드 적립(잔액 vs 누적 기록)", expected: paid, actual: earned });
+      const click = clickSnap.exists() ? clickSnap.data() : {};
+      const clickGold = ((click.eventGold as number) ?? 0) + ((click.goldPaid as number) ?? 0);
+      if (earned !== paid + clickGold)
+        mismatches.push({
+          label: "학급 골드 적립(잔액 vs 마일스톤+클릭 이벤트 기록)",
+          expected: paid + clickGold,
+          actual: earned,
+        });
 
       setResult({ txns, mismatches });
       toast(

@@ -38,11 +38,12 @@ export interface AggregateResult {
 
 // ── 마일스톤 보상 (사용자 확정 규칙) ─────────────────────────────
 // · 누적 점수 25점이 모일 때마다 → 실버 1개 (자동 지급, 점수는 소모되지 않음)
-// · 학급 전체가 자동 실버를 합산 25개 벌 때마다 → 학급 골드토큰 1개 적립
-//   (개인별 25개 기준에서 변경 — 골드는 학급 공동 재화라 적립도 학급 단위,
-//    첫 달부터 목표가 움직인다. 이전 개인별 지급분은 classGoldPaid 초기값으로 승계)
+// · 학급 전체가 번 실버 합산 25개마다 → 학급 골드토큰 1개 적립
+//   (재료 = 마일스톤 실버 + 세션 보상 실버 + 교사 수동 지급 실버 — 수동 지급 포함은 사용자 확정.
+//    수동 지급은 useGrantSilver가 silverEarned에 직접 증분하고, 여기서는 합산만 한다)
 // 지급 이력은 _cumulative에 저장(scoreSilverPaid·silverEarned·classGoldPaid) —
 // 재집계로 점수가 내려가도 이미 준 것은 회수하지 않는다(멱등·단조 증가).
+// silverEarned는 델타(increment)로만 쓴다 — 수동 지급 경로와 겹쳐도 증분이 유실되지 않게.
 const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
 
@@ -79,6 +80,7 @@ async function grantMilestones(
   const d = db();
   const scorePaid = { ...((cum.scoreSilverPaid as Record<string, number>) ?? {}) };
   const earned = { ...((cum.silverEarned as Record<string, number>) ?? {}) };
+  const earnedDelta: Record<string, number> = {}; // 이번 실행에서 늘어난 만큼만 (increment 쓰기용)
   const silverGrant: Record<string, number> = {};
 
   for (const s of students) {
@@ -91,9 +93,12 @@ async function grantMilestones(
       silverGrant[sid] = delta;
       scorePaid[sid] = entitled;
     }
-    // 자동 지급 실버 개인별 기록 (골드 계산의 재료 + 통계용)
+    // 번 실버 개인별 기록 (골드 계산의 재료 + 통계용)
     const gained = (silverGrant[sid] ?? 0) + (extraSilver[sid] ?? 0);
-    if (gained > 0) earned[sid] = (earned[sid] ?? 0) + gained;
+    if (gained > 0) {
+      earnedDelta[sid] = gained;
+      earned[sid] = (earned[sid] ?? 0) + gained;
+    }
   }
 
   // ② 학급 합산 자동 실버 25개 단위 → 학급 골드 적립.
@@ -141,7 +146,10 @@ async function grantMilestones(
         doc(d, "dailyScores", "_cumulative"),
         {
           scoreSilverPaid: scorePaid,
-          silverEarned: earned,
+          // 델타만 increment — 절대값 대입이면 동시에 들어온 수동 지급 증분을 덮어쓴다
+          silverEarned: Object.fromEntries(
+            Object.entries(earnedDelta).map(([sid, n]) => [sid, increment(n)])
+          ),
           classGoldPaid: classGoldPaid + goldDelta,
         },
         { merge: true }

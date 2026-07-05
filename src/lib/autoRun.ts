@@ -21,6 +21,9 @@ import type { ClassSettings } from "@/types";
 
 const MAX_BACKFILL_DAYS = 14; // 오래 접속 안 했을 때 소급 집계 상한 (읽기 예산 보호)
 const TOTAL_PERIODS = 11;
+// 거북이 응원 깜짝 이벤트 — 10,000클릭 달성 시 학급 골드 +5 (1회성, 사용자 확정)
+export const CLICK_EVENT_GOAL = 10000;
+export const CLICK_EVENT_GOLD = 5;
 
 export interface AutoRunResult {
   aggregatedDates: string[];
@@ -133,26 +136,26 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     await setDoc(markerRef, { coveredUntil: yesterday, settledThrough: p - 1 }, { merge: true });
   }
 
-  // 5) 거북이 응원 클릭 골드 — 10,000클릭당 학급 골드 1개 (교사 세션에서만 지급 가능)
+  // 5) 거북이 응원 이벤트 — 10,000클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
+  //    (사용자 확정: 반복 지급 아님. 학생 화면엔 클릭 수 비공개 — 교사 도구에서만 확인)
   try {
     const clickRef = doc(d, "classData", "turtleClicks");
     const clickSnap = await getDoc(clickRef);
     if (clickSnap.exists()) {
-      const count = (clickSnap.data().count as number) ?? 0;
-      const paid = (clickSnap.data().goldPaid as number) ?? 0;
-      const entitled = Math.floor(count / 10000);
-      if (entitled > paid) {
+      const data = clickSnap.data();
+      const count = (data.count as number) ?? 0;
+      if (count >= CLICK_EVENT_GOAL && !data.eventGold) {
         await setDoc(
           doc(d, "s1Spends", "0_balances"),
-          { classGoldEarned: increment(entitled - paid) },
+          { classGoldEarned: increment(CLICK_EVENT_GOLD) },
           { merge: true }
         );
-        await setDoc(clickRef, { goldPaid: entitled }, { merge: true });
-        result.clickGold = entitled - paid;
+        await setDoc(clickRef, { eventGold: CLICK_EVENT_GOLD }, { merge: true });
+        result.clickGold = CLICK_EVENT_GOLD;
       }
     }
   } catch {
-    // 지급 실패는 다음 접속 때 재시도 (goldPaid가 안 올라가므로 유실 없음)
+    // 지급 실패는 다음 접속 때 재시도 (eventGold 마커가 안 남으므로 유실 없음)
   }
 
   // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)

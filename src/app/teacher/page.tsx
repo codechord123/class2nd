@@ -21,6 +21,7 @@ import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import TransferPanel from "@/components/teacher/TransferPanel";
 import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
+import TurtleEventPanel from "@/components/teacher/TurtleEventPanel";
 import UiTextPanel from "@/components/teacher/UiTextPanel";
 import TabConfigPanel from "@/components/teacher/TabConfigPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
@@ -120,7 +121,10 @@ export default function TeacherPage() {
             "warn"
           );
         if (r.clickGold)
-          toast(`🥇 거북이 응원 클릭 10,000번 달성 — 학급 골드 +${r.clickGold} 지급!`, "success");
+          toast(
+            `🎉 거북이 응원 10,000번 달성 — 깜짝 이벤트! 학급 골드 +${r.clickGold} 지급 (아이들에게 발표해 주세요)`,
+            "success"
+          );
         if (r.skippedRange)
           toast(
             `⚠️ ${r.skippedRange.days}일치(${r.skippedRange.from}~${r.skippedRange.to})는 소급 상한(14일)을 넘어 자동 집계에서 제외됐어요 — 필요하면 날짜별 수동 집계로 처리하세요`,
@@ -473,6 +477,7 @@ export default function TeacherPage() {
         <CsvExportPanel />
         <LinksEditor />
         <CoinAuditPanel />
+        <TurtleEventPanel />
         <div className="lg:col-span-2">
           <UiTextPanel />
         </div>

@@ -20,6 +20,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getS1WalletOf, s1ClassGoldRemaining } from "@/lib/staticData";
 
 export type WalletKind = "s2" | "s1"; // 2학기 실버 | 1학기 이월
 
@@ -117,8 +118,8 @@ export function usePendingRequests(kind: WalletKind, enabled: boolean) {
  * 승인/반려 — runTransaction으로 원자 처리 (이중차감·음수잔액 방지):
  *   ① 요청 문서를 다시 읽어 아직 pending일 때만 진행 (더블클릭·낡은 목록 재승인 차단)
  *   ② 승인이면 잔액 문서를 읽어 부족하지 않을 때만 상태 갱신 + 잔액 반영
- * s1 이월 지갑은 잔액 = 정적 silverRemaining − 사용량이라 여기서 상한 검증은 못 하므로
- * (정적값을 모름) 학생 신청 단계 검증에 맡기고, 여기선 pending 가드만 적용.
+ * s1 이월·골드도 정적 JSON(silverRemaining·classGold)이 클라이언트에 있으므로
+ * 트랜잭션 안에서 상한을 검증한다 — 대기 신청 2건 연속 승인으로 음수가 되는 것 방지.
  */
 export function useDecideRequest(kind: WalletKind) {
   const qc = useQueryClient();
@@ -138,6 +139,14 @@ export function useDecideRequest(kind: WalletKind) {
       }
 
       if (req.type === "gold") {
+        const balSnap = await tx.get(balRef);
+        const bal = balSnap.exists() ? balSnap.data() : {};
+        const left =
+          s1ClassGoldRemaining -
+          ((bal.classGoldUsed as number) ?? 0) +
+          ((bal.classGoldEarned as number) ?? 0);
+        if (left < req.amount)
+          throw new Error(`학급 골드 부족으로 승인할 수 없어요 (남은 ${left}개).`);
         tx.set(balRef, { classGoldUsed: increment(req.amount) }, { merge: true });
       } else if (kind === "s2") {
         const balSnap = await tx.get(balRef);
@@ -145,7 +154,13 @@ export function useDecideRequest(kind: WalletKind) {
         if (cur < req.amount) throw new Error(`잔액 부족 (현재 ${cur}개).`);
         tx.set(balRef, { [req.studentId]: increment(-req.amount) }, { merge: true });
       } else {
-        // s1 이월: 사용량 가산
+        // s1 이월: 잔여 = 정적 이월분 − 사용량 — 넘으면 승인 불가
+        const balSnap = await tx.get(balRef);
+        const used =
+          (balSnap.exists() ? (balSnap.data()[String(req.studentId)] as number) : 0) ?? 0;
+        const remaining = (getS1WalletOf(req.studentId)?.silverRemaining ?? 0) - used;
+        if (remaining < req.amount)
+          throw new Error(`이월 실버 부족으로 승인할 수 없어요 (남은 ${remaining}개).`);
         tx.set(balRef, { [req.studentId]: increment(req.amount) }, { merge: true });
       }
       tx.update(reqRef, { status: "approved", decidedAt: Date.now() });
@@ -177,6 +192,17 @@ export function useGrantSilver() {
     await setDoc(
       doc(d, "coinTxns", "0_balances"),
       Object.fromEntries(studentIds.map((sid) => [sid, increment(amount)])),
+      { merge: true }
+    );
+    // 교사 수동 지급도 '학급 실버 25개 → 골드 1개' 적립 재료에 포함 (사용자 확정).
+    // silverEarned에 누적해 두면 다음 자동 집계·정산의 grantMilestones가 골드로 환산한다.
+    await setDoc(
+      doc(d, "dailyScores", "_cumulative"),
+      {
+        silverEarned: Object.fromEntries(
+          studentIds.map((sid) => [String(sid), increment(amount)])
+        ),
+      },
       { merge: true }
     );
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
