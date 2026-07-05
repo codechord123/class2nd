@@ -331,6 +331,30 @@ export default function TeamPage() {
             <p className="tnum mt-0.5 text-2xl font-extrabold text-brand-strong">{myCum ?? 0}</p>
           </div>
         </div>
+        {/* 다음 실버 게이지 — 누적 25점마다 실버 1개 자동 지급. 이미 읽는 누적 문서로 계산(추가 읽기 0) */}
+        {(() => {
+          const cumVal = Math.max(myCum ?? 0, 0);
+          const prog = cumVal % 25;
+          const earned = Math.floor(cumVal / 25);
+          return (
+            <div className="mt-2">
+              <div className="relative h-5 overflow-hidden rounded-full bg-ink-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-slate-300 to-slate-400"
+                  style={{ width: `${Math.max((prog / 25) * 100, prog > 0 ? 6 : 0)}%` }}
+                />
+                <span className="absolute inset-0 grid place-items-center text-[11px] font-bold text-ink-700">
+                  🥈 다음 실버까지 {25 - prog}점 ({prog}/25)
+                </span>
+              </div>
+              {earned > 0 && (
+                <p className="mt-1 text-center text-[11px] text-ink-400">
+                  지금까지 점수로 받은 실버 {earned}개 — 25점마다 자동으로 지급돼요
+                </p>
+              )}
+            </div>
+          );
+        })()}
         {/* 오늘 점수 출처 — 별도 줄 */}
         {myRow ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
