@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
+import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -729,19 +730,7 @@ export default function BoardPage() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: knownPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  className={`press tnum min-w-8 rounded-btn px-2 py-1 text-sm font-bold ${
-                    p === page ? "bg-brand text-white" : "bg-ink-100 text-ink-600 hover:bg-ink-200"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
+            <Pager page={page} totalPages={knownPages} onChange={setPage} />
           </div>
         )}
       </section>
