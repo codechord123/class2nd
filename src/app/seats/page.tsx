@@ -43,9 +43,14 @@ export default function SeatsPage() {
       ? "소통"
       : myGroup.members.find((m) => m.studentId === studentId)?.role);
 
-  // ── 자리변경 신청 ─────────────────────────────────────────────
+  // ── 자리변경 신청 — 2주(기) 단위로만 적용 (사용자 확정) ────────
+  // 어느 주를 보고 있든 신청 대상은 그 '기의 첫 주' 자리표 — 주 중간 교체는 없다.
+  const selPeriodNo = scheduleOfWeek(week).period;
+  const sessionStartWeek = Math.min(selPeriodNo * 2 - 1, schedules.weeks.length);
+  const sessionMeta = schedules.weeks[sessionStartWeek - 1];
+
   const { data: settings } = useSettings();
-  const { data: weekRequests } = useWeekRequests(week);
+  const { data: weekRequests } = useWeekRequests(sessionStartWeek);
   const createRequest = useCreateSeatRequest(studentId);
   const [showRequest, setShowRequest] = useState(false);
   const [targetGroup, setTargetGroup] = useState(1);
@@ -53,8 +58,7 @@ export default function SeatsPage() {
   const [busy, setBusy] = useState(false);
   const { toast, confirm } = useFeedback();
 
-  const weekMeta = schedules.weeks[week - 1];
-  const deadline = seatChangeDeadline(weekMeta.weekStart);
+  const deadline = seatChangeDeadline(sessionMeta.weekStart);
   const deadlinePassed = new Date() > deadline;
 
   // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
@@ -92,8 +96,8 @@ export default function SeatsPage() {
     setBusy(true);
     try {
       await createRequest({
-        week,
-        weekStart: weekMeta.weekStart,
+        week: sessionStartWeek, // 기의 첫 주 자리표에 적용 — 2주 단위 유지
+        weekStart: sessionMeta.weekStart,
         targetGroup,
         targetRole,
         existing: weekRequests ?? [],
@@ -129,7 +133,7 @@ export default function SeatsPage() {
         </div>
         {myGroup && (
           <p className="mt-2 rounded-btn bg-brand-weak px-3 py-2 text-sm text-brand-strong">
-            {selPeriod}기의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 지킴이</b>
+            {selPeriod}기의 나: <b>{myGroup.groupId}모둠</b> · <b>{myRole} 부서장</b>
           </p>
         )}
         {chairsProvisional && (
@@ -177,7 +181,7 @@ export default function SeatsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
             <span className="text-xs text-ink-400">
-              비용 {settings?.seatChangeCost ?? 1}실버 · 마감{" "}
+              비용 {settings?.seatChangeCost ?? 1}실버 · <b>2주(기) 단위 적용</b> · 마감{" "}
               {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일
               자정 · 선착순
             </span>

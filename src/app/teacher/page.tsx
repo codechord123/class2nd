@@ -21,6 +21,7 @@ import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import TransferPanel from "@/components/teacher/TransferPanel";
 import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
+import UiTextPanel from "@/components/teacher/UiTextPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
@@ -446,6 +447,9 @@ export default function TeacherPage() {
         <CsvExportPanel />
         <LinksEditor />
         <CoinAuditPanel />
+        <div className="lg:col-span-2">
+          <UiTextPanel />
+        </div>
         <div className="lg:col-span-2">
           <TeacherMemoWidget />
         </div>

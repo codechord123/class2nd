@@ -102,7 +102,15 @@ function LoginScreen({
   const [mode, setMode] = useState<"student" | "teacher">("student");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [password, setPassword] = useState("");
+  // 교사 이메일은 이 기기에 기억 — 다음부터 비밀번호만 입력 (사용자 요청)
+  // SSR 하이드레이션 불일치를 피하려고 마운트 후에 채운다
   const [email, setEmail] = useState("");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("teacher-email");
+      if (saved) setEmail(saved);
+    } catch {}
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -223,6 +231,9 @@ function LoginScreen({
         onLogin("student", selectedId);
       } else {
         await withTimeout(teacherLogin(email, password));
+        try {
+          localStorage.setItem("teacher-email", email.trim());
+        } catch {}
         onLogin("teacher");
       }
     } catch (e) {

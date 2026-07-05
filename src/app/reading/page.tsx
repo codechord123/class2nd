@@ -64,7 +64,7 @@ function ReportBody({
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
         <div className="mt-4">
-          <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남는 문장 (인용)</p>
+          <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남은 문장 (인용)</p>
           <div className="rounded-btn border border-emerald-200 bg-emerald-50 px-3.5 py-3">
             <p className="whitespace-pre-wrap text-[15px] italic leading-[1.9] text-emerald-900 [overflow-wrap:anywhere]">
               ❝ {r.quote}

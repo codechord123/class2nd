@@ -192,6 +192,7 @@ async function aggregateDateInner(
   const compliments: { from: number; to: number; text: string }[] = [];
   const peerSuggestions: { from: number; to: number; text: string }[] = [];
   const toTeacher: { from: number; text: string }[] = [];
+  const reflections: { from: number; text: string }[] = []; // 세션 모둠 반성 (마지막 주말 작성)
   evalSnap.forEach((entry) => {
     const data = entry.data();
     const from = Number(entry.id);
@@ -216,6 +217,8 @@ async function aggregateDateInner(
         if (text?.trim()) peerSuggestions.push({ from, to: Number(to), text });
     if (typeof data._toTeacher === "string" && data._toTeacher)
       toTeacher.push({ from, text: data._toTeacher });
+    if (typeof data._reflection === "string" && data._reflection)
+      reflections.push({ from, text: data._reflection });
   });
 
   // 3) 순위 산정: 교사가 매긴 1~5위(ranking)에 rankPoints(기본 5·4·3·2·1) 배분.
@@ -279,25 +282,43 @@ async function aggregateDateInner(
   }
 
   // 5) 학생별 행 구성 (기존 보너스는 유지)
-  //    1차 기본 점수 = 정량평가 + 오늘의모둠 순위 + 칭찬미션 + 독서 + 교사보너스 (MVP 제외)
+  //    1차 기본 점수 = 부서장평가 + 선생님 모둠순위 + 칭찬미션 + 독서 + 부서장 득표 + 교사보너스
+  //    (부서장 득표는 1표당 +1점 — 사용자 확정)
   const prevRows = (prevSnap.exists() ? prevSnap.data() : {}) as Record<
     string,
     DailyScoreRow | unknown
   >;
   const baseParts: Record<
     number,
-    { peer: number; groupRank: number; bonus: number; mission: number; read: number; sum: number }
+    {
+      peer: number;
+      groupRank: number;
+      bonus: number;
+      mission: number;
+      boss: number;
+      read: number;
+      sum: number;
+    }
   > = {};
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
     const p = peer[s.id] ?? 0;
-    // 순위에 든 모둠 소속이면 그 순위 점수 — 오늘의 모둠(1위)은 +1점 더
+    // 순위에 든 모둠 소속이면 그 순위 점수 — 교사 1위 모둠은 +1점 더
     const myRank = ranks[groupOfStudent[s.id]];
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
+    const boss = mvpVotes[s.id] ?? 0;
     const read = readCount[s.id] ?? 0;
-    baseParts[s.id] = { peer: p, groupRank: gr, bonus, mission, read, sum: p + gr + bonus + mission + read };
+    baseParts[s.id] = {
+      peer: p,
+      groupRank: gr,
+      bonus,
+      mission,
+      boss,
+      read,
+      sum: p + gr + bonus + mission + boss + read,
+    };
   }
 
   // 5-1) 오늘의 MVP (사용자 확정 규칙): 투표가 아니라 그날 모든 점수(기본 점수) 합산으로 —
@@ -332,11 +353,27 @@ async function aggregateDateInner(
       groupRank: b.groupRank,
       bonus: b.bonus,
       mission: b.mission,
+      boss: b.boss,
       mvp,
       read: b.read,
       total: b.sum + mvp,
     };
   }
+
+  // 5-2) '오늘의 모둠' 타이틀 — 교사 순위 점수와 별개로, 최종 총점 모둠 합계 1위가 자동으로
+  //      받는다 (동점 모두, 합계 0 초과만). 교사 순위 점수는 그대로 합산에 들어간다 (사용자 확정)
+  const groupSums: Record<number, number> = {};
+  for (const g of schedule.groups) {
+    const ids = activeIdsOf(g);
+    groupSums[g.groupId] = ids.reduce((a, id) => a + (rows[id]?.total ?? 0), 0);
+  }
+  const bestSum = Math.max(0, ...Object.values(groupSums));
+  const autoBestGroups =
+    bestSum > 0
+      ? Object.entries(groupSums)
+          .filter(([, v]) => v === bestSum)
+          .map(([k]) => Number(k))
+      : [];
 
   // 6) 저장: 그날 문서 1개 + 누적 문서 1개 (이전 집계분 빼고 더해 멱등)
   type CumDoc = Record<string, number> & {
@@ -368,15 +405,18 @@ async function aggregateDateInner(
       ...rows,
       _meta: {
         aggregatedAt: Date.now(),
-        ranks,
-        mvpVotes, // 오늘의 부서장 득표 (투표 원본)
+        ranks, // 교사 순위 (점수 배분용 — 타이틀과 분리)
+        mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
         classTop, // 학급 전체 1위 (+2 추가 대상)
         bossWinners, // 오늘의 부서장 (투표 최다 — 칭호)
+        autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
+        groupSums, // 모둠별 총점 합계 (리포트 표시용)
         missionGroups,
         compliments,
         peerSuggestions,
         toTeacher,
+        reflections, // 세션 모둠 반성 — 세션 리포트 인쇄에 수록
       },
     }),
     setDoc(doc(d, "dailyScores", "_cumulative"), { ...cum, mvpWins, mvpVotesTotal }),
@@ -488,11 +528,17 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     const meta = (data._meta ?? {}) as {
       mvpWinners?: number[];
       ranks?: Record<string, number>;
+      autoBestGroups?: number[];
       missionGroups?: number[];
     };
     for (const w of meta.mvpWinners ?? []) mvpCount[w] = (mvpCount[w] ?? 0) + 1;
-    for (const [g, r] of Object.entries(meta.ranks ?? {}))
-      if (r === 1) rank1Count[Number(g)] = (rank1Count[Number(g)] ?? 0) + 1;
+    // 오늘의 모둠 횟수 — 자동 타이틀(총점 합계 1위)이 있으면 그것, 없으면(구버전) 교사 1위
+    if (meta.autoBestGroups?.length) {
+      for (const g of meta.autoBestGroups) rank1Count[g] = (rank1Count[g] ?? 0) + 1;
+    } else {
+      for (const [g, r] of Object.entries(meta.ranks ?? {}))
+        if (r === 1) rank1Count[Number(g)] = (rank1Count[Number(g)] ?? 0) + 1;
+    }
     for (const g of meta.missionGroups ?? []) missionCount[g] = (missionCount[g] ?? 0) + 1;
     for (const s of students) {
       const row = data[String(s.id)] as DailyScoreRow | undefined;

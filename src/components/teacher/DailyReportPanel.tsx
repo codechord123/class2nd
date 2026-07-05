@@ -14,7 +14,6 @@ import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import {
   openPrintWindow,
-  openRangePrintDoc,
   openStudentPrintDoc,
   esc,
   brandHeader,
@@ -92,13 +91,15 @@ export default function DailyReportPanel({
   const meta = (today?._meta ?? null) as {
     mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
     classTop?: number[]; // 학급 전체 1위 (+2 추가)
-    bossWinners?: number[]; // 오늘의 부서장 (투표 — 칭호)
-    ranks?: Record<string, number>;
+    bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
+    autoBestGroups?: number[]; // 오늘의 모둠 — 총점 합계 1위 (자동 타이틀)
+    ranks?: Record<string, number>; // 교사 순위 (점수 배분)
     missionGroups?: number[];
     compliments?: { from: number; to: number; text: string }[];
     peerSuggestions?: { from: number; to: number; text: string }[];
     toTeacher?: { from: number; text: string }[];
   } | null;
+  const autoBestSet = new Set(meta?.autoBestGroups ?? []);
   const missionSet = new Set(meta?.missionGroups ?? []);
   const nm = (id: number) => studentById.get(id)?.name ?? `?${id}`;
   const mvpNames = (meta?.mvpWinners ?? []).map(nm);
@@ -129,11 +130,10 @@ export default function DailyReportPanel({
           <div><div class="l">목표 달성</div><div class="v blue">${metCount}/${students.length}</div></div>
         </div>
         <div class="gauge"><i style="width:${metPct}%"></i><span>주간 목표 달성 ${metCount}/${students.length}명 (${metPct}%)</span></div>${
-          notMet.length
-            ? `<p class="muted">미달(${notMet.length}): ${notMet.map((s) => esc(s.name)).join(", ")}</p>`
-            : `<p class="muted">전원 목표 달성!</p>`
+          notMet.length === 0 ? `<p class="muted">전원 목표 달성!</p>` : ""
         }`
       );
+      // 미달 학생 명단은 인쇄물에 싣지 않는다 — 학부모 공유물에 낙인 방지 (사용자 결정)
 
       const sections = [readingCard];
 
@@ -152,6 +152,7 @@ export default function DailyReportPanel({
         const groupsHtml = schedule.groups
           .map((g) => {
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+            const isBest = autoBestSet.has(g.groupId); // 총점 합계 1위 = 오늘의 모둠 (자동)
             const gRank = meta.ranks?.[String(g.groupId)];
             const gSum = ids.reduce((a, id) => a + totalOf(id), 0);
             const rows = ids
@@ -162,32 +163,23 @@ export default function DailyReportPanel({
                   }</td><td>${cumBooksOf(id)}</td></tr>`
               )
               .join("");
-            const rankBadge = gRank
-              ? `<span class="badge${gRank === 1 ? " gold" : ""}">${gRank === 1 ? "오늘의 모둠 · 1위" : `${gRank}위`}</span>`
-              : "";
+            const bestBadge = isBest ? `<span class="badge gold">오늘의 모둠</span>` : "";
+            const rankBadge = gRank ? `<span class="badge">교사 ${gRank}위</span>` : "";
             const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
-            return `<div class="grp${gRank === 1 ? " win" : ""}">
-  <div class="h"><span class="gname">${g.groupId}모둠${rankBadge}${missionBadge}</span><span class="gsum">모둠 합계 <b>${gSum}</b>점</span></div>
+            return `<div class="grp${isBest ? " win" : ""}">
+  <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 합계 <b>${gSum}</b>점</span></div>
   <table><thead><tr><th>이름</th><th>오늘 점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows}</tbody></table>
 </div>`;
           })
           .join("");
-        const bossLine =
-          (meta.bossWinners ?? []).length || (meta.classTop ?? []).length
-            ? `<p class="muted">${
-                (meta.classTop ?? []).length
-                  ? `학급 점수 1위(+2 추가): ${(meta.classTop ?? []).map((id) => esc(nm(id))).join(", ")}`
-                  : ""
-              }${
-                (meta.bossWinners ?? []).length
-                  ? `${(meta.classTop ?? []).length ? " · " : ""}오늘의 부서장(투표): ${(meta.bossWinners ?? []).map((id) => esc(nm(id))).join(", ")}`
-                  : ""
-              }</p>`
-            : "";
+        // 오늘의 학급 MVP 하이라이트 — 표에 없는 유일한 요약 (사용자 결정: 한 줄 정리는 제거)
+        const mvpHi = (meta.classTop ?? []).length
+          ? `<p style="margin:10px 0 0;padding:8px 12px;border-radius:10px;background:#fff4e0;font-weight:800;font-size:13px;color:#c2410c">🏆 오늘의 학급 MVP: ${(meta.classTop ?? []).map((id) => esc(nm(id))).join(", ")}</p>`
+          : "";
         sections.push(
           card(
-            "모둠별 오늘 기록 — 점수·독서 (★=오늘의 MVP·모둠 점수 1위)",
-            `<div class="grps">${groupsHtml}</div>${bossLine}`
+            "모둠별 오늘 기록 — 점수·독서 (★=모둠 점수 1위)",
+            `<div class="grps">${groupsHtml}</div>${mvpHi}`
           )
         );
 
@@ -256,37 +248,89 @@ export default function DailyReportPanel({
     }
   }
 
-  async function sessionPrint() {
-    if (printing) return;
+  // 세션 인쇄 — 화면의 하이라이트 구성을 그대로 담는다 (사용자 확정: 개별 칭찬·바라는 점
+  // 같은 마음 기록은 제외, 2주 활동을 한눈에 + 모둠 반성 수록)
+  function sessionPrint() {
+    if (printing || !rep) return;
     setPrinting(true);
     try {
-      // 세션 하이라이트(독서 MVP·최다 모둠 등)를 인쇄 상단에 함께 담는다
       const readCounts: Record<string, number> = {};
       for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
-      const top = (counts: Record<string, number>) => {
-        const max = Math.max(0, ...Object.values(counts));
-        if (max <= 0) return null;
-        const ids = Object.entries(counts)
-          .filter(([, v]) => v === max)
-          .map(([k]) => Number(k));
-        return { ids, max };
-      };
-      const readTop = top(readCounts);
-      const bestTop = rep ? top(rep.rank1ByGroup) : null;
-      const mvpTop = rep ? top(rep.mvpCount) : null;
+      const [readTop, readMax] = topOf(readCounts);
+      const [bestGs, bestMax] = topOf(rep.rank1ByGroup);
+      const [mvpTop, mvpMax] = topOf(rep.mvpCount);
+      const [giveTop, giveMax] = topOf(rep.givenCount);
+      const [recvTop, recvMax] = topOf(rep.receivedCount);
+      const [missionTop, missionMax] = topOf(rep.missionByGroup);
       const names = (ids: number[]) => ids.map((id) => esc(nm(id))).join(", ");
-      const hi = (label: string, v: string) => `<li><b>${label}</b>: ${v}</li>`;
-      const highlightHtml = `${
-        goalLine ? `<p class="muted">학급 목표: ${esc(goalLine)}</p>` : ""
-      }<div class="t">${sessionNo}기 세션 하이라이트 (${w1}·${w2}주)</div><ul>${[
-        readTop ? hi("독서 MVP", `${names(readTop.ids)} (${readTop.max}권)`) : "",
-        bestTop ? hi("오늘의 모둠 최다", `${bestTop.ids.map((g) => `${g}모둠`).join(", ")} (1위 ${bestTop.max}회)`) : "",
-        mvpTop ? hi("MVP 최다", `${names(mvpTop.ids)} (${mvpTop.max}회)`) : "",
-        rep ? hi("칭찬 미션 달성", `${rep.missionAchievements}회`) : "",
+      const card = (t: string, inner: string) =>
+        `<div class="card"><div class="t">${t}</div>${inner}</div>`;
+
+      // ① 하이라이트 6종 — 화면의 타일 구성 그대로
+      const hiTiles = [
+        ["독서 MVP", readMax > 0 ? `${names(readTop)} (${readMax}권)` : "없음"],
+        ["오늘의 모둠 최다", bestMax > 0 ? `${bestGs.map((g) => `${g}모둠`).join(", ")} (${bestMax}회)` : "없음"],
+        ["MVP 최다", mvpMax > 0 ? `${names(mvpTop)} (${mvpMax}회)` : "없음"],
+        ["미션 최다 모둠", missionMax > 0 ? `${missionTop.map((g) => `${g}모둠`).join(", ")} (${missionMax}일)` : "없음"],
+        ["칭찬왕 (보내기)", giveMax > 0 ? `${names(giveTop)} (${giveMax}회)` : "없음"],
+        ["칭찬 많이 받은 친구", recvMax > 0 ? `${names(recvTop)} (${recvMax}회)` : "없음"],
       ]
-        .filter(Boolean)
-        .join("")}</ul>`;
-      await openRangePrintDoc(sessionStart, sessionEnd, `${sessionNo}기 세션`, highlightHtml);
+        .map(([l, v]) => `<tr><td>${l}</td><td><b>${v}</b></td></tr>`)
+        .join("");
+
+      // ② 활동 스탯 + 독서 달성률
+      const metOf = (w: number) =>
+        students.filter((s) => weekBooks(stats, s.id, w) >= quota).length;
+      const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
+      const statsHtml = `<div class="stats">
+        <div><div class="l">칭찬</div><div class="v green">${rep.compliments}</div></div>
+        <div><div class="l">미션 달성</div><div class="v blue">${rep.missionAchievements}회</div></div>
+        <div><div class="l">학급 독서</div><div class="v">+${sessionBooks}권</div></div>
+      </div>
+      <p class="muted">독서 목표 달성 — ${w1}주차 ${metOf(w1)}/${students.length}명${
+        w2 !== w1 ? ` · ${w2}주차 ${metOf(w2)}/${students.length}명` : ""
+      } · 칭찬 참여 ${Object.keys(rep.givenCount).length}/${students.length}명</p>`;
+
+      // ③ 모둠 평균 점수 + 세션 TOP 5
+      const groupRows = schedule.groups
+        .map((g) => {
+          const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+          const sum = ids.reduce((a, id) => a + (rep.totals[String(id)] ?? 0), 0);
+          return { g: g.groupId, avg: sum / ids.length };
+        })
+        .sort((a, b) => b.avg - a.avg);
+      const groupHtml = `<table><thead><tr><th>모둠</th><th>세션 평균 점수</th></tr></thead><tbody>${groupRows
+        .map((r, i) => `<tr><td>${i === 0 ? "★ " : ""}${r.g}모둠</td><td><b>${r.avg.toFixed(1)}</b></td></tr>`)
+        .join("")}</tbody></table>`;
+      const top5 = [...students]
+        .map((s) => ({ name: s.name, total: rep.totals[String(s.id)] ?? 0 }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5);
+      const top5Html = `<table><thead><tr><th>순위</th><th>이름</th><th>세션 총점</th></tr></thead><tbody>${top5
+        .map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td><b>${r.total}</b></td></tr>`)
+        .join("")}</tbody></table>`;
+
+      // ④ 모둠 반성 — 세션 마지막 주말에 학생들이 남긴 글 (1기 등 기록 없으면 섹션 생략)
+      const reflHtml = rep.reflections.length
+        ? card(
+            `세션 모둠 반성 (${rep.reflections.length}건)`,
+            `<ul class="bubs">${rep.reflections
+              .map((r) => `<li class="bub"><b>${esc(nm(r.from))}</b> · ${esc(r.text)}</li>`)
+              .join("")}</ul>`
+          )
+        : "";
+
+      openPrintWindow(
+        `${sessionNo}기 세션 리포트`,
+        brandHeader(
+          `${sessionNo}기 세션 리포트`,
+          `${dateTitle(sessionStart)} ~ ${dateTitle(sessionEnd)} · 집계 ${rep.days}일${goalLine ? ` · 목표: ${esc(goalLine)}` : ""}`
+        ) +
+          card(`세션 하이라이트 (${w1}·${w2}주)`, `<table><tbody>${hiTiles}</tbody></table>`) +
+          card("활동 요약", statsHtml) +
+          `<div class="grid2">${card("모둠 평균 점수", groupHtml)}${card("세션 점수 TOP 5", top5Html)}</div>` +
+          reflHtml
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
     } finally {
@@ -375,11 +419,16 @@ export default function DailyReportPanel({
                 <div key={g.groupId} className="rounded-btn bg-ink-50 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-1">
                     <p className="text-sm font-bold text-ink-800">
-                      {gRank === 1 && "👑 "}
+                      {autoBestSet.has(g.groupId) && "👑 "}
                       {g.groupId}모둠
+                      {autoBestSet.has(g.groupId) && (
+                        <span className="ml-1.5 rounded-full bg-warn px-2 py-0.5 text-[10px] font-bold text-white">
+                          오늘의 모둠
+                        </span>
+                      )}
                       {gRank ? (
                         <span className="ml-1.5 rounded-full bg-warn-weak px-2 py-0.5 text-[10px] font-bold text-warn">
-                          {gRank}위
+                          교사 {gRank}위
                         </span>
                       ) : null}
                       {missionSet.has(g.groupId) && (
@@ -450,11 +499,7 @@ export default function DailyReportPanel({
               </p>
             </div>
           </div>
-          {notMet.length > 0 && (
-            <p className="mt-2 text-xs text-ink-600">
-              미달({notMet.length}): {notMet.map((s) => s.name).join(", ")}
-            </p>
-          )}
+          {/* 미달 명단은 표시하지 않음 — 달성 명수만 (낙인 방지, 사용자 결정) */}
         </div>
 
         {/* 오늘 점수 */}
@@ -502,15 +547,21 @@ export default function DailyReportPanel({
               )}
             </div>
             <div className="rounded-btn bg-ink-50 p-3">
-              <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠 순위</p>
+              <p className="text-sm font-bold text-ink-800">👑 오늘의 모둠 (총점 합계 1위)</p>
               <p className="mt-1 text-sm text-ink-700">
+                {(meta?.autoBestGroups ?? []).length ? (
+                  (meta!.autoBestGroups ?? []).map((g) => `${g}모둠`).join(", ")
+                ) : (
+                  <span className="text-ink-400">집계 후 자동 선정</span>
+                )}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-500">
+                교사 순위 점수:{" "}
                 {rankPairs.length ? (
-                  rankPairs
-                    .map(([g, r]) => `${r === 1 ? "👑 " : ""}${r}위 ${g}모둠`)
-                    .join(" · ")
+                  rankPairs.map(([g, r]) => `${r}위 ${g}모둠`).join(" · ")
                 ) : (
                   <span className="font-bold text-warn">
-                    ⚠️ 순위 미선정 — 순위 점수 0점. 선정 후 재집계하세요
+                    ⚠️ 미선정 — 순위 점수 0점. 선정 후 재집계하세요
                   </span>
                 )}
               </p>

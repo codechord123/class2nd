@@ -1,35 +1,35 @@
 "use client";
-// 홈 '내 현황' + 학급 스코어보드 — 이미 캐시되는 문서만 재사용 (추가 읽기 0).
-// 레드팀 결론: 홈에 '살아있는 숫자'가 없다 → 목표(배너) 다음에 현재(숫자)를 배치.
+// 홈 구성 (사용자 확정 레이아웃):
+//   ① 오늘 할 일 — 큰 타일 4개 (제일 중요한 행동이 제일 크게)
+//   ② 내 현황 + 우리 반 — 한 카드로 통합 (정보 대비 공간 낭비 제거)
+//   ③ 거북이 독서 통합 — 마라톤 + 내 통계 + 미션 독려 + 감상문 쓰기
+// 이미 캐시되는 문서만 재사용 (추가 읽기 0).
 import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useBalances } from "@/lib/query/wallet";
 import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
-import {
-  getS1WalletOf,
-  s1ClassGoldRemaining,
-  s1TotalOf,
-  s1BooksOf,
-} from "@/lib/staticData";
+import { getS1WalletOf, s1ClassGoldRemaining, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
+import TurtleMarathon from "@/components/reading/TurtleMarathon";
+import ReadingAlert from "@/components/reading/ReadingAlert";
+import { useUiText, uiTextOf } from "@/lib/uiText";
 
-// 컴팩트 스탯 타일 — 톤별 옅은 바탕색으로 서로 구별되게, 숫자는 크게 (살아있는 숫자)
-type Legacy = "slate" | "emerald" | "indigo" | "amber";
-const toneStyle: Record<Legacy, { tile: string; value: string }> = {
+type Tone = "slate" | "emerald" | "indigo" | "amber";
+const toneStyle: Record<Tone, { tile: string; value: string }> = {
   slate: { tile: "bg-ink-50", value: "text-ink-900" },
   emerald: { tile: "bg-success-weak", value: "text-success" },
   indigo: { tile: "bg-brand-weak", value: "text-brand-strong" },
   amber: { tile: "bg-warn-weak", value: "text-warn" },
 };
-function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: Legacy }) {
+function Stat({ label, value, sub, tone = "slate" }: { label: string; value: React.ReactNode; sub?: string; tone?: Tone }) {
   const s = toneStyle[tone];
   return (
     <div className={`rounded-btn px-2 py-2.5 text-center ${s.tile}`}>
-      <p className="text-[11px] leading-tight text-ink-500">{label}</p>
+      <p className="text-[11px] leading-tight text-ink-600">{label}</p>
       <p className={`tnum text-xl font-extrabold leading-tight ${s.value}`}>{value}</p>
       {sub && <p className="text-[10px] leading-tight text-ink-400">{sub}</p>}
     </div>
@@ -60,19 +60,64 @@ export default function MyStatus() {
     .filter(([k, v]) => /^\d+$/.test(k) && typeof v === "number")
     .reduce((a, [, v]) => a + (v as number), 0);
 
-  // 색 타일을 흰 카드로 감싼다 — 맨몸 타일이 회색 배경 위에 뜨면 카드 문법에서 벗어난다
-  const classBoard = (
-    <section className="rounded-card border border-ink-200 bg-white p-3 shadow-card">
-      <h2 className="text-sm font-bold text-ink-900">🏫 우리 반</h2>
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        <Stat label="🐢 학급 총 권수" value={classTotalBooks} sub={`2학기 +${s2Total}`} tone="emerald" />
-        <Stat label="🏅 학급 총점" value={classScore} tone="indigo" />
-        <Stat label="🥇 골드토큰" value={goldLeft} sub="학급 공용" tone="amber" />
-      </div>
+  const classTiles = (
+    <>
+      <Stat label="🐢 학급 권수" value={classTotalBooks} sub={`2학기 +${s2Total}`} tone="emerald" />
+      <Stat label="🏅 학급 총점" value={classScore} tone="indigo" />
+      <Stat label="🥇 골드" value={goldLeft} sub="학급 공용" tone="amber" />
+    </>
+  );
+
+  // 독서 통합 카드 — 마라톤 + 미션 독려 + (학생) 내 통계·CTA
+  // 독려 메시지는 문구 편집(classData/uiText)으로 교사가 수정 가능 — 날짜 기반 로테이션
+  const { data: uiText } = useUiText();
+  const cheers = uiTextOf(uiText, "home.cheers")
+    .split("\n")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const dayNum = Number(today.slice(8, 10));
+  const cheer = cheers[dayNum % Math.max(cheers.length, 1)] ?? "";
+  const readingCard = (myRead?: { weekRead: number; totalBooks: number }) => (
+    <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <TurtleMarathon bare />
+      {myRead && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-2.5">
+          <span className="text-sm text-ink-700">
+            🙋 나: 이번 주{" "}
+            <b className={myRead.weekRead >= quota ? "text-success" : "text-emerald-700"}>
+              {myRead.weekRead}/{quota}권
+            </b>{" "}
+            · 누적 <b>{myRead.totalBooks}권</b>
+          </span>
+          <a
+            href="/reading"
+            className="press shrink-0 rounded-btn bg-brand px-3 py-2 text-xs font-bold text-white"
+          >
+            ✍️ 감상문 쓰기
+          </a>
+        </div>
+      )}
+      {/* 주간 미션 진행 알림 + 참여 독려 한 줄 */}
+      {myRead && (
+        <div className="mt-2">
+          <ReadingAlert />
+        </div>
+      )}
+      <p className="mt-2 text-center text-[11px] text-emerald-700">💚 {cheer}</p>
     </section>
   );
 
-  if (role !== "student" || !studentId) return classBoard;
+  if (role !== "student" || !studentId) {
+    return (
+      <div className="space-y-4">
+        <section className="rounded-card border border-ink-200 bg-white p-3 shadow-card">
+          <h2 className="text-sm font-bold text-ink-900">🏫 우리 반</h2>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">{classTiles}</div>
+        </section>
+        {readingCard()}
+      </div>
+    );
+  }
 
   // 내 현황 (학생)
   const myWeekRead = weekBooks(stats, studentId, week);
@@ -97,52 +142,66 @@ export default function MyStatus() {
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
   const doneRead = myWeekRead >= quota;
-  const todos: { label: string; done: boolean }[] = [
-    { label: "부서장 평가", done: doneScores },
-    { label: "부서장 투표", done: doneMvp },
-    { label: "칭찬", done: doneComp },
-    { label: `독서 ${myWeekRead}/${quota}`, done: doneRead },
+  const todos: { icon: string; label: string; sub: string; done: boolean; href: string }[] = [
+    { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
+    { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
+    { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
+    {
+      icon: "🐢",
+      label: `독서 ${myWeekRead}/${quota}권`,
+      sub: "이번 주 미션",
+      done: doneRead,
+      href: "/reading",
+    },
   ];
-  const allDone = todos.every((t) => t.done);
+  const doneCount = todos.filter((t) => t.done).length;
 
   return (
-    <div className="space-y-3">
-      {/* 오늘 할 일 — 매일 열 이유를 홈 최상단에 */}
-      <a
-        href="/team"
-        className={`block rounded-card border p-3 shadow-card ${
-          allDone ? "border-success/40 bg-success-weak" : "border-ink-200 bg-white"
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-1.5">
-          <span className="text-sm font-bold text-ink-900">
-            {allDone ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
-          </span>
-          <span className="flex flex-wrap gap-1">
-            {todos.map((t) => (
-              <span
-                key={t.label}
-                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                  t.done ? "bg-success-weak text-success" : "bg-ink-100 text-ink-500"
-                }`}
-              >
-                {t.done ? "✓" : "○"} {t.label}
-              </span>
-            ))}
+    <div className="space-y-4">
+      {/* ① 오늘 할 일 — 큰 타일 (홈의 주인공) */}
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-bold text-ink-900">
+            {doneCount === todos.length ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
+          </h2>
+          <span className="text-xs font-bold text-ink-500">
+            {doneCount}/{todos.length} 완료
           </span>
         </div>
-      </a>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {todos.map((t) => (
+            <a
+              key={t.label}
+              href={t.href}
+              className={`press rounded-card border p-3 text-center transition-colors ${
+                t.done
+                  ? "border-success/40 bg-success-weak"
+                  : "border-ink-200 bg-white hover:border-brand/50 hover:bg-brand-weak/40"
+              }`}
+            >
+              <p className="text-2xl">{t.icon}</p>
+              <p className={`mt-1 text-sm font-extrabold ${t.done ? "text-success" : "text-ink-900"}`}>
+                {t.label}
+              </p>
+              <p className={`mt-0.5 text-[11px] font-bold ${t.done ? "text-success" : "text-brand"}`}>
+                {t.done ? "✓ 완료" : `${t.sub} →`}
+              </p>
+            </a>
+          ))}
+        </div>
+      </section>
 
+      {/* ② 내 현황 + 우리 반 — 한 카드 통합 */}
       <section className="rise rounded-card border border-ink-200 bg-white p-3 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-1">
-          <h2 className="text-sm font-bold text-ink-900">🙋 내 현황</h2>
+          <h2 className="text-sm font-bold text-ink-900">🙋 내 현황 · 🏫 우리 반</h2>
           {myGroup && (
             <span className="text-xs text-ink-400">
-              이번 주 나: <b className="text-brand">{myGroup.groupId}모둠 · {myRole} 지킴이</b>
+              이번 주 나: <b className="text-brand">{myGroup.groupId}모둠 · {myRole} 부서장</b>
             </span>
           )}
         </div>
-        <div className="mt-2 grid grid-cols-4 gap-1.5">
+        <div className="mt-2 grid grid-cols-4 gap-1.5 lg:grid-cols-7">
           <Stat label="누적 점수" value={typeof myScore === "number" ? myScore : 0} tone="indigo" />
           <Stat label="2학기 실버" value={mySilver} />
           <Stat label="이월 실버" value={myCarry} tone="amber" />
@@ -154,33 +213,12 @@ export default function MyStatus() {
             <p className="text-base font-extrabold leading-tight">🛒</p>
             <p className="text-[10px] font-bold leading-tight text-brand-strong">쓰러 가기 →</p>
           </a>
+          {classTiles}
         </div>
       </section>
 
-      {/* 🐢 거북이 독서 — 이번 주 + 누적 + 감상문 쓰기 */}
-      <a
-        href="/reading"
-        className="flex items-center justify-between gap-2 rounded-card border border-ink-200 bg-white p-3 shadow-card"
-      >
-        <span className="flex items-center gap-3">
-          <span className="text-2xl">🐢</span>
-          <span>
-            <span className="block text-sm font-bold text-emerald-800">거북이 독서</span>
-            <span className="block text-xs text-emerald-700">
-              이번 주{" "}
-              <b className={myWeekRead >= quota ? "text-success" : ""}>
-                {myWeekRead}/{quota}권
-              </b>{" "}
-              · 누적 <b>{myTotalBooks}권</b>
-            </span>
-          </span>
-        </span>
-        <span className="shrink-0 rounded-btn bg-brand px-3 py-2 text-xs font-bold text-white">
-          ✍️ 감상문 쓰기
-        </span>
-      </a>
-
-      {classBoard}
+      {/* ③ 거북이 독서 통합 — 마라톤 + 내 통계 + 미션·참여 독려 */}
+      {readingCard({ weekRead: myWeekRead, totalBooks: myTotalBooks })}
     </div>
   );
 }

@@ -18,7 +18,10 @@ import {
   useSaveMvp,
   useSavePeerNotes,
   useSaveToTeacher,
+  useSaveReflection,
 } from "@/lib/query/evaluation";
+import { BETA_END } from "@/components/BetaBanner";
+import { useUiText, uiTextOf } from "@/lib/uiText";
 import {
   useBestGroups,
   useComplimentCoverage,
@@ -78,6 +81,8 @@ export default function TeamPage() {
   const saveMvp = useSaveMvp(date, studentId);
   const savePeer = useSavePeerNotes(date, studentId);
   const saveToTeacher = useSaveToTeacher(date, studentId);
+  const saveReflection = useSaveReflection(date, studentId);
+  const { data: uiText } = useUiText(); // 문구 오버라이드 (교사 편집)
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
   // 받은 칭찬·바라는 점 — 가장 최근 집계일(어제 이하) 문서 1개
@@ -86,13 +91,14 @@ export default function TeamPage() {
   const { data: coverage } = useComplimentCoverage(date, role === "student");
   const setCoverage = useSetComplimentCoverage(date, studentId);
 
-  const [tab, setTab] = useState<"eval" | "stats">("eval");
+  const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
   const [compTo, setCompTo] = useState<number | null>(null);
   const [compText, setCompText] = useState("");
   const [sugTo, setSugTo] = useState<number | null>(null);
   const [sugText, setSugText] = useState("");
   const [sugOpen, setSugOpen] = useState(false);
   const [toTeacherText, setToTeacherText] = useState("");
+  const [reflText, setReflText] = useState("");
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
   const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
@@ -370,6 +376,9 @@ export default function TeamPage() {
             {(myRow.mission ?? 0) > 0 && (
               <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">🎯 미션 +{myRow.mission}</span>
             )}
+            {(myRow.boss ?? 0) > 0 && (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">👑 부서장 표 +{myRow.boss}</span>
+            )}
             {(myRow.mvp ?? 0) > 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">⭐ MVP +{myRow.mvp}</span>
             )}
@@ -428,7 +437,8 @@ export default function TeamPage() {
       <SubTabs
         tabs={[
           { key: "eval" as const, label: "🤝 평가·칭찬" },
-          { key: "stats" as const, label: "📒 내 기록·통계" },
+          { key: "me" as const, label: "📒 내 기록" },
+          { key: "group" as const, label: "👥 모둠·학급" },
         ]}
         active={tab}
         onChange={setTab}
@@ -473,14 +483,10 @@ export default function TeamPage() {
         </ul>
       </section>
 
-      {/* 오늘의 부서장 투표 — 칭호만 (MVP는 점수 합산으로 자동 선정) */}
+      {/* 오늘의 부서장 투표 — 받은 표 1표당 +1점 (사용자 확정) */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">👑 오늘의 부서장</h3>
-        <p className="mt-1 text-[13px] text-ink-600">
-          오늘 <b>가장 친절하게 모둠원들을 안내</b>하고 자기 부서 역할을 잘한 부서장 1명을
-          뽑아주세요. (오늘의 MVP는 그날 점수 합산으로 자동 선정 — 모둠 1위 +1점, 학급 1위 +2점
-          추가)
-        </p>
+        <p className="mt-1 text-[13px] text-ink-600">{uiTextOf(uiText, "team.bossDesc")}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {targets.map((t) => {
             const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
@@ -714,16 +720,77 @@ export default function TeamPage() {
           </button>
         </div>
       </section>
+
+      {/* 세션 모둠 반성 — 세션 마지막 주(짝수 주) 금~일에만 열림. 세션 리포트에 수록 */}
+      {(() => {
+        const dow = new Date(date + "T00:00:00+09:00").getUTCDay();
+        const reflectionOpen =
+          (week % 2 === 0 && (dow >= 5 || dow === 0)) || date <= BETA_END; // 베타 중엔 연습 가능
+        if (!reflectionOpen) return null;
+        const savedRefl = (myEval as Record<string, unknown> | undefined)?._reflection as
+          | string
+          | undefined;
+        return (
+          <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+            <h3 className="text-lg font-bold">📝 세션 모둠 반성</h3>
+            <p className="mt-1 text-[13px] text-ink-600">
+              {uiTextOf(uiText, "team.reflectionDesc")}
+            </p>
+            {savedRefl && (
+              <p className="mt-2 rounded-btn bg-brand-weak px-3 py-2 text-sm text-brand-strong">
+                💬 {savedRefl}
+                <button
+                  onClick={() => setReflText(savedRefl)}
+                  className="ml-2 text-xs text-brand underline"
+                >
+                  고치기
+                </button>
+              </p>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                value={reflText}
+                onChange={(e) => setReflText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                }}
+                placeholder="예: 서로 칭찬을 잘했어요. 다음엔 준비물을 더 잘 챙기고 싶어요"
+                className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() =>
+                  void (async () => {
+                    if (sending) return;
+                    setSending(true);
+                    try {
+                      await saveReflection(reflText);
+                      toast("📝 모둠 반성이 저장됐어요!", "success");
+                      setReflText("");
+                    } catch (e) {
+                      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+                    } finally {
+                      setSending(false);
+                    }
+                  })()
+                }
+                disabled={sending}
+                className="press shrink-0 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                저장
+              </button>
+            </div>
+          </section>
+        );
+      })()}
       </div>
 
       </div>)}
 
-      {tab === "stats" && (
-        <div className="space-y-4">
-          <MyRecord studentId={studentId} cumScores={cumScores} />
-          <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
-        </div>
-      )}
+      {/* 개인 통계 — 내 점수·독서·받은 마음 (사용자 결정: 모둠/개인 분리) */}
+      {tab === "me" && <MyRecord studentId={studentId} cumScores={cumScores} />}
+
+      {/* 모둠·학급 통계 — 오늘의 모둠 포함 횟수 등 */}
+      {tab === "group" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
 
       <p className="text-xs text-ink-400">
         ※ 점수는 매일 선생님 집계 후 반영돼요. 모둠이 바뀌어도 내 점수는 계속 쌓여요.

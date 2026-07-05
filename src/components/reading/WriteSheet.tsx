@@ -193,7 +193,7 @@ export default function WriteSheet({
             <Field label="인상 깊은 장면">
               <Textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder={prompts.scene} rows={4} />
             </Field>
-            <Field label="마음에 남는 문장 (인용)">
+            <Field label="마음에 남은 문장 (인용)">
               <Textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder={prompts.quote} rows={3} />
             </Field>
             <Field label="읽고 나서 든 생각과 느낌">

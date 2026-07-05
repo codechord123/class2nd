@@ -116,6 +116,24 @@ export function useSaveToTeacher(date: string, myId: number | null) {
   };
 }
 
+/** 세션 모둠 반성 — 세션 마지막 주말에 작성, 평가 문서의 _reflection 필드 (추가 읽기 0) */
+export function useSaveReflection(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (text: string) => {
+    if (myId == null) return;
+    if (!text.trim()) throw new Error("내용을 적어주세요.");
+    await setDoc(
+      doc(db(), "evaluations", date, "entries", String(myId)),
+      { _reflection: text.trim() },
+      { merge: true }
+    );
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
+      ...prev,
+      _reflection: text.trim(),
+    }));
+  };
+}
+
 // (모둠 간 평가 폐지 — 순위 점수는 교사 '오늘의 모둠'으로 대체. 관련 훅 제거)
 
 // ── 집계 결과 조회 (학생·교사 공용) ─────────────────────────────
@@ -142,6 +160,7 @@ export interface RangeReport {
   rank1ByGroup: Record<string, number>; // groupId → 오늘의 모둠(1위) 횟수
   givenCount: Record<string, number>; // studentId → 칭찬 보낸 횟수
   receivedCount: Record<string, number>; // studentId → 칭찬 받은 횟수
+  reflections: { from: number; text: string; date: string }[]; // 세션 모둠 반성
   days: number;
 }
 export function useRangeReport(start: string, end: string, enabled: boolean) {
@@ -162,6 +181,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       const missionByGroup: Record<string, number> = {};
       const givenCount: Record<string, number> = {};
       const receivedCount: Record<string, number> = {};
+      const reflections: RangeReport["reflections"] = [];
       let compliments = 0,
         suggestions = 0,
         missionAchievements = 0,
@@ -179,7 +199,9 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
           missionGroups?: number[];
           mvpWinners?: number[];
           ranks?: Record<string, number>;
+          reflections?: { from: number; text: string }[];
         };
+        for (const r of meta.reflections ?? []) reflections.push({ ...r, date: day.id });
         compliments += (meta.compliments ?? []).length;
         suggestions += (meta.peerSuggestions ?? []).length;
         for (const c of meta.compliments ?? []) {
@@ -204,6 +226,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
         rank1ByGroup,
         givenCount,
         receivedCount,
+        reflections,
         days,
       };
     },

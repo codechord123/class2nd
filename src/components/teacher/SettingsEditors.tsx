@@ -87,7 +87,7 @@ export function RankPointsEditor({
             <span className="text-sm text-ink-700">{medal(i)}</span>
             <NumberStepper
               value={pt}
-              min={0}
+              min={-20}
               max={20}
               onChange={(v) => onChange(value.map((p, j) => (j === i ? v : p)))}
             />
