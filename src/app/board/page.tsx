@@ -2,7 +2,7 @@
 // 건의 게시판 — 커뮤니티 게시판형 리빌드:
 //   목록(번호·제목·작성자·날짜·💬댓글수) → 클릭하면 상세 화면(본문+댓글 스레드).
 //   공지 상단 고정 · 검색 · 글쓰기 접기 · 더보기 페이지네이션.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
@@ -85,6 +85,17 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 답글 시작 — 답글의 답글은 같은 스레드에 @이름 멘션으로 (깊이 1 유지, 대화는 이어짐)
+  function startReply(parentId: number, mentionSid?: number | "teacher") {
+    setReplyTo(parentId);
+    if (mentionSid != null) {
+      const name = authorName(mentionSid);
+      setText((t) => (t.startsWith("@") ? t : `@${name} ${t}`));
+    }
+    inputRef.current?.focus();
+  }
 
   const comments = sug.comments ?? [];
   const parents = comments.filter((c) => c.replyTo == null);
@@ -118,16 +129,21 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   }
 
   return (
-    // 상세는 읽기용 — 데스크탑에서 글줄이 너무 길어지지 않게 폭 제한
-    <section className="mx-auto w-full max-w-3xl rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
-      <button
-        onClick={onBack}
-        className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
-      >
-        ✕ 닫기
-      </button>
+    // 큰 팝업 패널 — 위(닫기 바)·아래(댓글 입력)는 고정, 가운데 본문·댓글만 스크롤
+    <section className="flex min-h-0 w-full flex-col overflow-hidden rounded-card border border-ink-200 bg-white shadow-card">
+      <div className="flex shrink-0 items-center justify-between border-b border-ink-100 px-4 py-2.5 sm:px-5">
+        <p className="text-xs font-bold text-ink-400">📣 안건 · 💬 댓글 {comments.length}</p>
+        <button
+          onClick={onBack}
+          className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
+        >
+          ✕ 닫기
+        </button>
+      </div>
 
-      <div className="mt-3 border-b border-ink-100 pb-3">
+      {/* ── 스크롤 영역 (본문 + 댓글) ── */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+      <div className="border-b border-ink-100 pb-3">
         <div className="flex items-start gap-2">
           <StatusBadge sug={sug} />
           <h3 className="text-xl font-bold leading-snug [overflow-wrap:anywhere]">
@@ -375,7 +391,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                       <b className="text-xs font-bold text-ink-500">{authorName(c.studentId)}</b>
                       <span className="flex shrink-0 gap-2 text-xs">
                         <button
-                          onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+                          onClick={() =>
+                            replyTo === c.id ? setReplyTo(null) : startReply(c.id)
+                          }
                           className="font-medium text-brand hover:text-brand-strong"
                         >
                           답글
@@ -408,17 +426,28 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                           </b>
                           <Linkify text={r.text} />
                         </p>
-                        {(role === "teacher" ||
-                          (role === "student" && r.studentId === studentId)) && (
+                        <span className="flex shrink-0 gap-2 text-xs">
+                          {/* 답글의 답글 — 같은 스레드에 @이름 멘션으로 이어진다 */}
                           <button
-                            onClick={() =>
-                              void confirmDelete("답글을 삭제할까요?", () => deleteComment(sug, r.id))
-                            }
-                            className="shrink-0 text-xs text-ink-400 hover:text-danger"
+                            onClick={() => startReply(c.id, r.studentId)}
+                            className="font-medium text-brand hover:text-brand-strong"
                           >
-                            삭제
+                            답글
                           </button>
-                        )}
+                          {(role === "teacher" ||
+                            (role === "student" && r.studentId === studentId)) && (
+                            <button
+                              onClick={() =>
+                                void confirmDelete("답글을 삭제할까요?", () =>
+                                  deleteComment(sug, r.id)
+                                )
+                              }
+                              className="text-ink-400 hover:text-danger"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -428,19 +457,35 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           })}
         </ul>
 
-        {/* 댓글 입력 — 하단 고정감 */}
-        <div className="mt-3 flex items-center gap-1.5">
+      </div>
+      </div>
+      {/* ── 스크롤 영역 끝 ── */}
+
+      {/* 댓글 입력 — 팝업 하단 고정 (긴 토론을 읽다가도 바로 참여) */}
+      <div className="shrink-0 border-t border-ink-100 px-4 py-3 sm:px-5">
+        {replyTo != null && (
+          <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-500">
+            <span>
+              ↳ <b>{authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}</b>
+              님에게 답글 다는 중
+            </span>
+            <button
+              onClick={() => setReplyTo(null)}
+              className="font-bold text-ink-400 hover:text-danger"
+            >
+              ✕ 취소
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5">
           <input
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) void submitComment();
             }}
-            placeholder={
-              replyTo != null
-                ? `↳ ${authorName(comments.find((c) => c.id === replyTo)?.studentId ?? 0)}님에게 답글…`
-                : "댓글 달기…"
-            }
+            placeholder={replyTo != null ? "답글 달기…" : "댓글 달기…"}
             className="min-w-0 flex-1 rounded-btn bg-ink-100 px-3 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-brand/40"
           />
           <button
@@ -705,10 +750,14 @@ export default function BoardPage() {
       {selected &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/40 p-3 py-6 sm:py-10"
+            className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-2 sm:p-6"
             onClick={() => setSelectedId(null)}
           >
-            <div className="rise mx-auto w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+            {/* 큰 팝업 — 화면의 대부분을 쓰고, 내용이 길면 패널 안에서만 스크롤 */}
+            <div
+              className="rise flex max-h-[94vh] w-full max-w-4xl flex-col sm:max-h-[92vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
               <PostDetail sug={selected} onBack={() => setSelectedId(null)} />
             </div>
           </div>,
