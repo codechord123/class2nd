@@ -1,6 +1,7 @@
 "use client";
-// 우리 반 헌법·법률·역할 — 텍스트영역 → 조항 카드 리스트(모듈형).
-// 저장 스키마(classData/constitution: 문자열 배열)는 유지 → 기존 데이터 호환.
+// 우리 반 헌법·법률·역할.
+// 법률은 부서별로 나눠 아이들이 자기 부서 규칙을 만들 수 있게 한다 (사용자 확정).
+// 저장 스키마: articles·laws(미분류)·roles는 문자열 배열, lawsByDept는 부서명→배열 맵.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { ROLE_INFO } from "@/lib/roster";
@@ -20,10 +21,21 @@ const SUBTABS = [
 ] as const;
 type SubKey = (typeof SUBTABS)[number]["key"];
 
-const HEADING: Record<SubKey, string> = {
-  articles: "조",
-  laws: "법",
-  roles: "역할",
+// 부서 목록 — ROLE_INFO의 dept 필드가 저장 키. 순서·이모지·설명 이 배열이 단일 출처.
+const DEPTS = ROLE_INFO.map((r) => ({
+  key: r.dept, // "의장" | "법무부" | ...
+  emoji: r.emoji,
+  role: r.key, // 소통·질서·학습·건강·행정 — placeholder 힌트용
+  desc: r.desc,
+}));
+
+// 부서별 placeholder 힌트 — "OO법 N조 — ..." 형식 예시 (사용자 확정)
+const LAW_HINT: Record<string, string> = {
+  의장: "예: 소통법 1조 — 회의 시작 전 3분 간 침묵으로 마음을 모은다.",
+  법무부: "예: 질서법 1조 — 복도에서는 오른쪽 통행, 뛰지 않는다.",
+  교육부: "예: 학습법 1조 — 아침 자습 시간(8:40~9:00)은 조용히 학습한다.",
+  보건환경부: "예: 건강법 1조 — 급식 후 반드시 양치질을 한다.",
+  행정안전부: "예: 행정법 1조 — 유인물은 당일 가정으로 전달한다.",
 };
 
 export default function RulesPage() {
@@ -33,16 +45,26 @@ export default function RulesPage() {
   const { toast, confirm } = useFeedback();
 
   const [tab, setTab] = useState<SubKey>("articles");
+  const [selectedDept, setSelectedDept] = useState<string | null>(null); // 선택된 부서(법률 탭)
   const [editing, setEditing] = useState(false);
-  const [items, setItems] = useState<string[]>([]); // 편집 중인 조항 배열
+  const [items, setItems] = useState<string[]>([]);
 
   if (!c) return <SkeletonCard />;
 
-  // 역할 탭이 비어 있으면 기본 역할표를 보여준다
+  // 현재 보고 있는 조항 목록 계산
+  // - 헌법·역할: 기존과 동일
+  // - 법률: 부서를 선택했으면 그 부서 배열, 아니면 (그리드 화면이라 렌더 안 함)
+  const currentDeptLaws = (dept: string) => c.lawsByDept?.[dept] ?? [];
   const viewItems =
     tab === "roles" && c.roles.length === 0
       ? ROLE_INFO.map((r) => `${r.emoji} ${r.dept} [${r.key} 지킴이] — ${r.desc}`)
-      : c[tab];
+      : tab === "laws"
+        ? selectedDept
+          ? currentDeptLaws(selectedDept)
+          : []
+        : c[tab];
+
+  const showDeptGrid = tab === "laws" && !selectedDept;
 
   function startEdit() {
     setItems([...viewItems]);
@@ -51,12 +73,33 @@ export default function RulesPage() {
   function switchTab(next: SubKey) {
     setTab(next);
     setEditing(false);
+    setSelectedDept(null);
+  }
+  function selectDept(dept: string) {
+    setSelectedDept(dept);
+    setEditing(false);
+  }
+  function backToGrid() {
+    setSelectedDept(null);
+    setEditing(false);
   }
 
   async function saveEdit() {
     try {
       const cleaned = items.map((s) => s.trim()).filter(Boolean);
-      const next: Constitution = { ...c!, [tab]: cleaned };
+      let next: Constitution;
+      if (tab === "laws" && selectedDept) {
+        // 법률: 선택 부서의 배열만 갱신, 다른 부서·미분류는 보존
+        next = {
+          ...c!,
+          lawsByDept: { ...(c!.lawsByDept ?? {}), [selectedDept]: cleaned },
+        };
+      } else if (tab === "articles" || tab === "roles") {
+        next = { ...c!, [tab]: cleaned };
+      } else {
+        // laws 탭인데 부서 미선택 — 원래 도달 불가
+        return;
+      }
       await save(next);
       setEditing(false);
       toast("✅ 저장되었어요!");
@@ -73,6 +116,113 @@ export default function RulesPage() {
     setItems(next);
   };
 
+  // 편집 UI (헌법·역할·특정 부서 법률 공통)
+  const editingUI = (
+    <div className="mt-4 space-y-2">
+      {items.map((line, i) => (
+        <div key={i} className="flex items-start gap-2 rounded-card bg-ink-50 p-2.5">
+          <span className="tnum mt-2 w-7 shrink-0 text-center text-xs font-bold text-ink-400">
+            {i + 1}
+          </span>
+          <Textarea
+            value={line}
+            onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
+            rows={2}
+            placeholder={
+              tab === "laws" && selectedDept ? LAW_HINT[selectedDept] : "내용을 적어주세요"
+            }
+          />
+          <div className="flex shrink-0 flex-col gap-1">
+            <button
+              onClick={() => move(i, -1)}
+              disabled={i === 0}
+              className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
+              aria-label="위로"
+            >
+              ▲
+            </button>
+            <button
+              onClick={() => move(i, 1)}
+              disabled={i === items.length - 1}
+              className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
+              aria-label="아래로"
+            >
+              ▼
+            </button>
+          </div>
+          <button
+            onClick={() =>
+              void confirm({ title: "이 항목을 삭제할까요?", danger: true, confirmLabel: "삭제" }).then(
+                (ok) => ok && setItems(items.filter((_, j) => j !== i))
+              )
+            }
+            className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-weak"
+            aria-label="삭제"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => setItems([...items, ""])}
+        className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
+      >
+        + 항목 추가
+      </button>
+      <div className="flex gap-2 pt-1">
+        <Button onClick={() => void saveEdit()}>저장</Button>
+        <Button variant="ghost" onClick={() => setEditing(false)}>
+          취소
+        </Button>
+      </div>
+    </div>
+  );
+
+  // 부서 선택 그리드 (법률 탭 첫 화면)
+  const deptGrid = (
+    <div className="mt-4 space-y-3">
+      <p className="text-xs text-ink-500">
+        각 부서가 담당 영역의 법을 만들어요. 부서를 눌러 조항을 확인·편집하세요.
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {DEPTS.map((d) => {
+          const count = currentDeptLaws(d.key).length;
+          return (
+            <button
+              key={d.key}
+              onClick={() => selectDept(d.key)}
+              className="press flex flex-col items-center gap-1 rounded-card border border-ink-200 bg-white px-3 py-3 text-center hover:border-brand hover:bg-brand-weak/30"
+            >
+              <span className="text-2xl">{d.emoji}</span>
+              <span className="text-sm font-bold text-ink-900">{d.key}</span>
+              <span className="text-[11px] text-ink-500">{d.role} 지킴이</span>
+              <span className="tnum mt-0.5 rounded-full bg-brand-weak px-2 py-0.5 text-[11px] font-bold text-brand-strong">
+                {count}조
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* 미분류 잔재 (건의 채택으로 쌓인 laws 배열) — 있을 때만 안내 */}
+      {c.laws.length > 0 && (
+        <div className="rounded-card border border-amber-200 bg-amber-50/60 p-3">
+          <p className="text-xs font-bold text-amber-800">
+            📦 미분류 법률 {c.laws.length}개 (건의에서 채택된 초안)
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs text-amber-900">
+            {c.laws.slice(0, 5).map((l, i) => (
+              <li key={i}>· {l}</li>
+            ))}
+            {c.laws.length > 5 && <li>… 외 {c.laws.length - 5}개</li>}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+
+  // 부서 상세 헤더 (뒤로가기 + 부서명)
+  const deptDetail = selectedDept && DEPTS.find((d) => d.key === selectedDept);
+
   return (
     <div className="space-y-4">
       <Card
@@ -80,7 +230,8 @@ export default function RulesPage() {
         desc="학생들이 함께 만든 헌법·법률·역할이에요."
         action={
           role === "teacher" &&
-          !editing && (
+          !editing &&
+          !showDeptGrid && (
             <Button variant="secondary" size="sm" onClick={startEdit}>
               ✏️ 수정
             </Button>
@@ -88,66 +239,34 @@ export default function RulesPage() {
         }
       >
         <div className="mt-4">
-          <SegmentedControl tabs={SUBTABS as unknown as { key: SubKey; label: string }[]} active={tab} onChange={switchTab} />
+          <SegmentedControl
+            tabs={SUBTABS as unknown as { key: SubKey; label: string }[]}
+            active={tab}
+            onChange={switchTab}
+          />
         </div>
 
-        {editing ? (
-          <div className="mt-4 space-y-2">
-            {items.map((line, i) => (
-              <div key={i} className="flex items-start gap-2 rounded-card bg-ink-50 p-2.5">
-                <span className="tnum mt-2 w-7 shrink-0 text-center text-xs font-bold text-ink-400">
-                  {i + 1}
-                </span>
-                <Textarea
-                  value={line}
-                  onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
-                  rows={2}
-                  placeholder={`${HEADING[tab]} 내용을 적어주세요`}
-                />
-                <div className="flex shrink-0 flex-col gap-1">
-                  <button
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                    className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
-                    aria-label="위로"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    onClick={() => move(i, 1)}
-                    disabled={i === items.length - 1}
-                    className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
-                    aria-label="아래로"
-                  >
-                    ▼
-                  </button>
-                </div>
-                <button
-                  onClick={() =>
-                    void confirm({ title: "이 항목을 삭제할까요?", danger: true, confirmLabel: "삭제" }).then(
-                      (ok) => ok && setItems(items.filter((_, j) => j !== i))
-                    )
-                  }
-                  className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-weak"
-                  aria-label="삭제"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+        {/* 법률 탭: 부서 상세 진입 시 헤더 (뒤로가기) */}
+        {tab === "laws" && selectedDept && deptDetail && (
+          <div className="mt-4 flex items-center justify-between rounded-btn bg-brand-weak/40 px-3 py-2">
             <button
-              onClick={() => setItems([...items, ""])}
-              className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
+              onClick={backToGrid}
+              className="press text-xs font-bold text-brand-strong hover:text-brand"
             >
-              + 항목 추가
+              ← 부서 목록
             </button>
-            <div className="flex gap-2 pt-1">
-              <Button onClick={() => void saveEdit()}>저장</Button>
-              <Button variant="ghost" onClick={() => setEditing(false)}>
-                취소
-              </Button>
-            </div>
+            <p className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+              <span>{deptDetail.emoji}</span>
+              <span>{deptDetail.key}</span>
+              <span className="text-xs font-medium text-ink-500">· {deptDetail.role} 지킴이</span>
+            </p>
           </div>
+        )}
+
+        {showDeptGrid ? (
+          deptGrid
+        ) : editing ? (
+          editingUI
         ) : viewItems.length === 0 ? (
           <EmptyState
             emoji="📝"

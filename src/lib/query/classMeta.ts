@@ -178,13 +178,17 @@ export function useSaveTeacherMemo() {
 }
 
 // ── 헌법/법률/역할: classData/constitution ──────────────────────
+// laws는 하위호환용 배열(안건→법률 채택 시 미분류 잔재로 쌓임).
+// 실제 표시·편집은 부서별로 나뉜 lawsByDept를 쓴다 — 아이들이 자기 부서 소속감을
+// 갖고 학급 규칙을 만들 수 있게 (사용자 확정).
 export interface Constitution {
   articles: string[]; // 헌법
-  laws: string[]; // 법률
+  laws: string[]; // 미분류 법률 (건의 채택 잔재)
+  lawsByDept?: Record<string, string[]>; // 부서명(ROLE_INFO.dept) → 법률 조항 목록
   roles: string[]; // 역할
 }
 
-const EMPTY: Constitution = { articles: [], laws: [], roles: [] };
+const EMPTY: Constitution = { articles: [], laws: [], lawsByDept: {}, roles: [] };
 
 export function useConstitution() {
   return useQuery({
