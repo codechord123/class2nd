@@ -138,24 +138,25 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
 
   // 5) 거북이 응원 이벤트 — 10,000클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
   //    (사용자 확정: 반복 지급 아님. 학생 화면엔 클릭 수 비공개 — 교사 도구에서만 확인)
+  //    지급+마커를 한 트랜잭션으로 — 지급만 되고 마커가 안 남아 다음 날 또 주는 사고 차단.
   try {
     const clickRef = doc(d, "classData", "turtleClicks");
-    const clickSnap = await getDoc(clickRef);
-    if (clickSnap.exists()) {
-      const data = clickSnap.data();
-      const count = (data.count as number) ?? 0;
-      if (count >= CLICK_EVENT_GOAL && !data.eventGold) {
-        await setDoc(
-          doc(d, "s1Spends", "0_balances"),
-          { classGoldEarned: increment(CLICK_EVENT_GOLD) },
-          { merge: true }
-        );
-        await setDoc(clickRef, { eventGold: CLICK_EVENT_GOLD }, { merge: true });
-        result.clickGold = CLICK_EVENT_GOLD;
-      }
-    }
+    const paid = await runTransaction(d, async (tx) => {
+      const snap = await tx.get(clickRef);
+      if (!snap.exists()) return 0;
+      const data = snap.data();
+      if (((data.count as number) ?? 0) < CLICK_EVENT_GOAL || data.eventGold) return 0;
+      tx.set(
+        doc(d, "s1Spends", "0_balances"),
+        { classGoldEarned: increment(CLICK_EVENT_GOLD) },
+        { merge: true }
+      );
+      tx.set(clickRef, { eventGold: CLICK_EVENT_GOLD }, { merge: true });
+      return CLICK_EVENT_GOLD;
+    });
+    if (paid) result.clickGold = paid;
   } catch {
-    // 지급 실패는 다음 접속 때 재시도 (eventGold 마커가 안 남으므로 유실 없음)
+    // 지급 실패는 다음 접속 때 재시도 (트랜잭션이라 절반만 반영되는 일 없음)
   }
 
   // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
