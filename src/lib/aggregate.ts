@@ -255,22 +255,25 @@ async function aggregateDateInner(
   }
   const missionSet = new Set(missionGroups);
 
-  // 4-2) 모둠별 MVP: 각 모둠에서 최다 득표(1표 이상, 동점 모두) — MVP는 +1점
-  const mvpWinners: number[] = [];
+  // 4-2) 오늘의 부서장 (투표): 각 모둠 최다 득표(1표 이상, 동점 모두) — 칭호만, 점수 없음.
+  //      "가장 친절하게 모둠원들을 안내한 부서장" — 점수 보상이 없어 돌려 찍기 담합 유인도 없다.
+  const bossWinners: number[] = [];
   for (const g of schedule.groups) {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)];
     const max = Math.max(0, ...ids.map((id) => mvpVotes[id] ?? 0));
-    if (max > 0) mvpWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
+    if (max > 0) bossWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
   }
-  const mvpSet = new Set(mvpWinners);
 
   // 5) 학생별 행 구성 (기존 보너스는 유지)
-  //    total = 정량평가 + 오늘의모둠 순위 + 칭찬미션 + MVP + 독서 + 교사보너스
+  //    1차 기본 점수 = 정량평가 + 오늘의모둠 순위 + 칭찬미션 + 독서 + 교사보너스 (MVP 제외)
   const prevRows = (prevSnap.exists() ? prevSnap.data() : {}) as Record<
     string,
     DailyScoreRow | unknown
   >;
-  const rows: Record<number, DailyScoreRow> = {};
+  const baseParts: Record<
+    number,
+    { peer: number; groupRank: number; bonus: number; mission: number; read: number; sum: number }
+  > = {};
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
     const p = peer[s.id] ?? 0;
@@ -279,16 +282,42 @@ async function aggregateDateInner(
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
-    const mvp = mvpSet.has(s.id) ? 1 : 0;
     const read = readCount[s.id] ?? 0;
+    baseParts[s.id] = { peer: p, groupRank: gr, bonus, mission, read, sum: p + gr + bonus + mission + read };
+  }
+
+  // 5-1) 오늘의 MVP (사용자 확정 규칙): 투표가 아니라 그날 모든 점수(기본 점수) 합산으로 —
+  //      각 모둠 1위 +1점, 학급 전체 1위는 +2점 추가(모둠 1위 겸이므로 합 +3).
+  //      동점자 모두 인정, 기본 점수 0점 초과일 때만 (기록 없는 날 전원 MVP 방지).
+  const mvpPts: Record<number, number> = {};
+  const mvpWinners: number[] = []; // 모둠별 점수 1위(동점 포함) — ★ 표시·세션 '최다 MVP' 집계용
+  for (const g of schedule.groups) {
+    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    const max = Math.max(0, ...ids.map((id) => baseParts[id]?.sum ?? 0));
+    if (max > 0)
+      for (const id of ids)
+        if ((baseParts[id]?.sum ?? 0) === max) {
+          mvpPts[id] = 1;
+          mvpWinners.push(id);
+        }
+  }
+  const classMax = Math.max(0, ...students.map((s) => baseParts[s.id]?.sum ?? 0));
+  const classTop =
+    classMax > 0 ? students.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id) : [];
+  for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 2;
+
+  const rows: Record<number, DailyScoreRow> = {};
+  for (const s of students) {
+    const b = baseParts[s.id];
+    const mvp = mvpPts[s.id] ?? 0;
     rows[s.id] = {
-      peer: p,
-      groupRank: gr,
-      bonus,
-      mission,
+      peer: b.peer,
+      groupRank: b.groupRank,
+      bonus: b.bonus,
+      mission: b.mission,
       mvp,
-      read,
-      total: p + gr + bonus + mission + mvp + read,
+      read: b.read,
+      total: b.sum + mvp,
     };
   }
 
@@ -323,8 +352,10 @@ async function aggregateDateInner(
       _meta: {
         aggregatedAt: Date.now(),
         ranks,
-        mvpVotes,
-        mvpWinners,
+        mvpVotes, // 오늘의 부서장 득표 (투표 원본)
+        mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
+        classTop, // 학급 전체 1위 (+2 추가 대상)
+        bossWinners, // 오늘의 부서장 (투표 최다 — 칭호)
         missionGroups,
         compliments,
         peerSuggestions,
@@ -360,7 +391,7 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 }
 
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
-// · 최다 MVP(투표 최다) → 실버 1개
+// · 최다 MVP(그날 점수 모둠 1위 횟수 최다) → 실버 1개
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
 // · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개

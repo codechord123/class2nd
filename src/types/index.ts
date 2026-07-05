@@ -40,7 +40,7 @@ export interface DailyScoreRow {
   groupRank: number; // 오늘의 모둠 순위 → 개인 점수
   bonus: number; // 교사 보너스
   mission?: number; // 모둠 칭찬 미션(전원 칭찬받기) 달성 시 +1
-  mvp?: number; // 오늘의 모둠 MVP 선정 시 +1
+  mvp?: number; // 점수 MVP 보상 — 그날 기본 점수 모둠 1위 +1 · 학급 1위 +2 추가 (동점 모두)
   read?: number; // 그날 감상문 편수만큼 +1씩 (쓴 만큼 — 독서 자동 가점)
   total: number;
 }

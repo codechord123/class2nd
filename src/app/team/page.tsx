@@ -135,6 +135,11 @@ export default function TeamPage() {
     { studentId: myGroup.chair, role: "소통" },
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
   ].filter((t) => t.studentId !== studentId);
+  // 내 부서(역할) — 나는 이 부서의 부서장으로서 '내 부서 기준'으로 친구들을 평가한다
+  const myRole =
+    myGroup.chair === studentId
+      ? "소통"
+      : ((myGroup.members.find((m) => m.studentId === studentId)?.role as string) ?? "");
 
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
@@ -409,11 +414,13 @@ export default function TeamPage() {
       <div className="space-y-4 lg:flex lg:items-start lg:gap-4 lg:space-y-0">
       <div className="min-w-0 space-y-4 lg:flex-1">
 
-      {/* 모둠 내 상호평가 */}
+      {/* 모둠 내 상호평가 — 부서장 평가: 각자 자기 부서 기준으로 다른 모둠원을 평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="text-lg font-bold">🤝 우리 모둠 평가</h3>
+        <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
-          친구가 역할을 얼마나 잘 수행했는지 점수를 주세요. 누르면 바로 저장돼요.
+          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구들이 오늘{" "}
+          <b>{myRole}</b>을(를) 얼마나 잘 지켰는지 내 부서 기준으로 평가해요. 누르면 바로
+          저장돼요.
         </p>
         <ul className="mt-3 space-y-2">
           {targets.map((t) => (
@@ -424,7 +431,7 @@ export default function TeamPage() {
               <div className="flex items-center gap-2 text-[15px]">
                 <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
                 <b>{studentById.get(t.studentId)?.name}</b>
-                <span className="text-xs text-ink-500">{t.role} 지킴이</span>
+                <span className="text-xs text-ink-500">{t.role} 부서장</span>
               </div>
               <ScaleButtons
                 scale={settings.peerScale}
@@ -440,10 +447,14 @@ export default function TeamPage() {
         </ul>
       </section>
 
-      {/* 오늘의 모둠 MVP 투표 */}
+      {/* 오늘의 부서장 투표 — 칭호만 (MVP는 점수 합산으로 자동 선정) */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="text-lg font-bold">⭐ 오늘의 우리 모둠 MVP</h3>
-        <p className="mt-1 text-[13px] text-ink-600">오늘 가장 빛난 모둠 친구 1명을 뽑아주세요.</p>
+        <h3 className="text-lg font-bold">👑 오늘의 부서장</h3>
+        <p className="mt-1 text-[13px] text-ink-600">
+          오늘 <b>가장 친절하게 모둠원들을 안내</b>하고 자기 부서 역할을 잘한 부서장 1명을
+          뽑아주세요. (오늘의 MVP는 그날 점수 합산으로 자동 선정 — 모둠 1위 +1점, 학급 1위 +2점
+          추가)
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {targets.map((t) => {
             const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
@@ -464,7 +475,7 @@ export default function TeamPage() {
                     : "border-ink-200 bg-white text-ink-600 hover:border-warn/40"
                 }`}
               >
-                {selected && "⭐ "}
+                {selected && "👑 "}
                 {studentById.get(t.studentId)?.name}
               </button>
             );
@@ -484,7 +495,7 @@ export default function TeamPage() {
               {doneScores ? "✅" : "○"} 평가
             </span>
             <span className={doneMvp ? "text-success" : "text-ink-300"}>
-              {doneMvp ? "✅" : "○"} MVP
+              {doneMvp ? "✅" : "○"} 부서장
             </span>
             <span className={doneComp ? "text-success" : "text-ink-300"}>
               {doneComp ? "✅" : "○"} 칭찬

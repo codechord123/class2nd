@@ -84,7 +84,9 @@ export default function DailyReportPanel({ date }: { date: string }) {
 
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
-    mvpWinners?: number[];
+    mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
+    classTop?: number[]; // 학급 전체 1위 (+2 추가)
+    bossWinners?: number[]; // 오늘의 부서장 (투표 — 칭호)
     ranks?: Record<string, number>;
     missionGroups?: number[];
     compliments?: { from: number; to: number; text: string }[];
@@ -164,8 +166,23 @@ export default function DailyReportPanel({ date }: { date: string }) {
 </div>`;
           })
           .join("");
+        const bossLine =
+          (meta.bossWinners ?? []).length || (meta.classTop ?? []).length
+            ? `<p class="muted">${
+                (meta.classTop ?? []).length
+                  ? `학급 점수 1위(+2 추가): ${(meta.classTop ?? []).map((id) => esc(nm(id))).join(", ")}`
+                  : ""
+              }${
+                (meta.bossWinners ?? []).length
+                  ? `${(meta.classTop ?? []).length ? " · " : ""}오늘의 부서장(투표): ${(meta.bossWinners ?? []).map((id) => esc(nm(id))).join(", ")}`
+                  : ""
+              }</p>`
+            : "";
         sections.push(
-          card("모둠별 오늘 기록 — 점수·독서 (★=오늘의 MVP)", `<div class="grps">${groupsHtml}</div>`)
+          card(
+            "모둠별 오늘 기록 — 점수·독서 (★=오늘의 MVP·모둠 점수 1위)",
+            `<div class="grps">${groupsHtml}</div>${bossLine}`
+          )
         );
 
         // ── 2페이지: 정성 — 모둠별 칭찬·건의 (말풍선) + 바라는 점 ──
@@ -449,10 +466,20 @@ export default function DailyReportPanel({ date }: { date: string }) {
         <div className="mt-2 space-y-2">
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-btn bg-ink-50 p-3">
-              <p className="text-sm font-bold text-ink-800">⭐ 오늘의 MVP</p>
+              <p className="text-sm font-bold text-ink-800">⭐ 오늘의 MVP (점수 1위)</p>
               <p className="mt-1 text-sm text-ink-700">
                 {mvpNames.length ? mvpNames.join(", ") : <span className="text-ink-400">없음</span>}
               </p>
+              {(meta?.classTop ?? []).length > 0 && (
+                <p className="mt-0.5 text-xs text-warn">
+                  🏆 학급 1위(+2 추가): {(meta!.classTop ?? []).map(nm).join(", ")}
+                </p>
+              )}
+              {(meta?.bossWinners ?? []).length > 0 && (
+                <p className="mt-0.5 text-xs text-ink-500">
+                  👑 오늘의 부서장(투표): {(meta!.bossWinners ?? []).map(nm).join(", ")}
+                </p>
+              )}
             </div>
             <div className="rounded-btn bg-ink-50 p-3">
               <p className="text-sm font-bold text-ink-800">🥇 오늘의 모둠 순위</p>

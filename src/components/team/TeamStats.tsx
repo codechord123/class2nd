@@ -1,5 +1,5 @@
 "use client";
-// 통계: ① 누적 점수 ② MVP 선정 횟수(반 친구들이 뽑은 오늘의 모둠 MVP)
+// 통계: ① 누적 점수 ② MVP 횟수(그날 점수 합산 모둠 1위 — 동점 포함)
 //      ③ 오늘의 모둠 포함 횟수(선생님이 뽑은 오늘의 모둠에 들어간 횟수 = 팀 기여도)
 // 데이터 출처는 문서 2개(_cumulative + bestGroups) + 정적 자리표 — 추가 읽기 없음.
 import { students } from "@/lib/roster";
@@ -91,8 +91,8 @@ export default function TeamStats({
           unit="점"
         />
         <TopList
-          title="⭐ MVP 선정 횟수"
-          desc="반 친구들이 뽑은 오늘의 모둠 MVP"
+          title="⭐ MVP 횟수"
+          desc="그날 점수 합산 모둠 1위 (동점 포함)"
           counts={cum.mvpWins ?? {}}
           unit="회"
         />
