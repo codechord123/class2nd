@@ -81,6 +81,7 @@ export function BiweeklySettlePanel() {
           ...r.bestGroupMembers,
           ...r.readingTop,
           ...r.missionTopMembers,
+          ...r.growthTop,
         ]).size;
         const streakPaid = Object.keys(r.streakPoints).length;
         setMsg(`✅ ${period}기 정산 완료 — 실버 ${silverPaid}명 · 스트릭 보너스 ${streakPaid}명!`);
@@ -100,8 +101,8 @@ export function BiweeklySettlePanel() {
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🏆 세션(2주) 보상 정산</h2>
       <p className="mt-1 text-xs text-ink-500">
-        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원 각 1개. 보너스 점수:
-        독서 스트릭 — 목표 달성 주마다 연속 1·2·3점.
+        실버: 최다 MVP·최고 모둠 전원·최다 독서·최다 미션 모둠 전원·성장상(지난 세션 대비 총점
+        상승폭 최다, 2기부터) 각 1개. 보너스 점수: 독서 스트릭 — 목표 달성 주마다 연속 1·2·3점.
         <br />
         🤖 <b>자동 정산</b>: 세션이 끝나면(일요일 자정 기준) 다음 접속 때 자동으로 지급돼요.
         이 버튼은 수동 실행·결과 다시 보기용 — 같은 기를 다시 눌러도 이중 지급되지 않아요.
@@ -153,6 +154,10 @@ export function BiweeklySettlePanel() {
             ) : (
               "없음"
             )}
+          </p>
+          <p>
+            📈 성장상 (지난 세션 대비 상승폭 최다):{" "}
+            {result.growthTop.length ? <b>{names(result.growthTop)}</b> : "없음 (1기는 비교 대상 없음)"}
           </p>
           <p>
             🔥 독서 스트릭 보너스(누적 점수):{" "}

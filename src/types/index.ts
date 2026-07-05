@@ -8,6 +8,7 @@ export interface Student {
   isChair: boolean; // 의장 여부 (학기초 고정 5명)
   chairOfGroup?: number; // 의장일 경우 담당 모둠 (1~5)
   isWildcard?: boolean;
+  inactive?: boolean; // 전출 등으로 비활성 (classData/roster 오버라이드 — 평가·미션에서 제외)
 }
 
 // ── 자리배치 (정적 JSON: data/static/schedules-21w.json) ────────

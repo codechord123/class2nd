@@ -34,6 +34,26 @@ export const students: Student[] = Object.keys(genderMap).map((name, i) => ({
 
 export const studentById = new Map(students.map((s) => [s.id, s]));
 
+// ── 전학생·전출 오버라이드 (classData/roster 문서 — 코드 수정 없이 명단 반영) ──
+// 전입생은 전출간 친구의 번호를 이어받는 방식: 이름 변경 + 비밀번호 초기화로 처리.
+// 전출은 이름에 "(전출)" 표시 + inactive 플래그 (평가 대상·칭찬 미션에서 제외).
+const baseNames: Record<number, string> = Object.fromEntries(students.map((s) => [s.id, s.name]));
+
+export interface RosterOverrides {
+  renames?: Record<string, string>; // sid → 새 이름 (전입생 번호 승계)
+  inactive?: number[]; // 전출 등 비활성 번호
+}
+
+export function applyRosterOverrides(o: RosterOverrides): void {
+  const inactiveSet = new Set(o.inactive ?? []);
+  for (const s of students) {
+    const rename = o.renames?.[String(s.id)]?.trim();
+    s.name = rename || baseNames[s.id];
+    s.inactive = inactiveSet.has(s.id);
+    if (s.inactive) s.name = `${s.name} (전출)`;
+  }
+}
+
 export const ROLE_INFO = [
   { key: "소통", emoji: "👑", dept: "의장", desc: "모둠 토의 주재 / 말차례 배분 / 소외 챙기기" },
   { key: "질서", emoji: "👮", dept: "법무부", desc: "바른 자세 / 이동 시 질서 / 규칙 준수 점검" },

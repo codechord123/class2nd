@@ -240,6 +240,11 @@ export default function ShopAdmin() {
                     <span className="shrink-0 rounded-full bg-warn-weak px-2 py-0.5 text-xs font-bold text-warn">
                       {p.kind === "s2" ? "2학기" : "이월"} {p.r.amount}개
                     </span>
+                    {p.r.reserved && (
+                      <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-500">
+                        🕓 예약
+                      </span>
+                    )}
                   </span>
                   <span className="flex gap-1.5">
                     <button

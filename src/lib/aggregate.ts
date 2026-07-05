@@ -17,7 +17,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { students } from "@/lib/roster";
+import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
@@ -36,8 +36,10 @@ export interface AggregateResult {
 
 // ── 마일스톤 보상 (사용자 확정 규칙) ─────────────────────────────
 // · 누적 점수 25점이 모일 때마다 → 실버 1개 (자동 지급, 점수는 소모되지 않음)
-// · 실버를 25개 벌 때마다(자동 지급분 누적) → 학급 골드토큰 1개 적립
-// 지급 이력은 _cumulative에 저장(scoreSilverPaid·silverEarned·goldPaid) —
+// · 학급 전체가 자동 실버를 합산 25개 벌 때마다 → 학급 골드토큰 1개 적립
+//   (개인별 25개 기준에서 변경 — 골드는 학급 공동 재화라 적립도 학급 단위,
+//    첫 달부터 목표가 움직인다. 이전 개인별 지급분은 classGoldPaid 초기값으로 승계)
+// 지급 이력은 _cumulative에 저장(scoreSilverPaid·silverEarned·classGoldPaid) —
 // 재집계로 점수가 내려가도 이미 준 것은 회수하지 않는다(멱등·단조 증가).
 const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
@@ -75,9 +77,7 @@ async function grantMilestones(
   const d = db();
   const scorePaid = { ...((cum.scoreSilverPaid as Record<string, number>) ?? {}) };
   const earned = { ...((cum.silverEarned as Record<string, number>) ?? {}) };
-  const goldPaid = { ...((cum.goldPaid as Record<string, number>) ?? {}) };
   const silverGrant: Record<string, number> = {};
-  let goldDelta = 0;
 
   for (const s of students) {
     const sid = String(s.id);
@@ -89,16 +89,21 @@ async function grantMilestones(
       silverGrant[sid] = delta;
       scorePaid[sid] = entitled;
     }
-    // ② 자동 지급 실버 누적 25개 단위 → 학급 골드 적립
+    // 자동 지급 실버 개인별 기록 (골드 계산의 재료 + 통계용)
     const gained = (silverGrant[sid] ?? 0) + (extraSilver[sid] ?? 0);
     if (gained > 0) earned[sid] = (earned[sid] ?? 0) + gained;
-    const goldEntitled = Math.floor((earned[sid] ?? 0) / GOLD_PER_SILVER);
-    const gDelta = goldEntitled - (goldPaid[sid] ?? 0);
-    if (gDelta > 0) {
-      goldPaid[sid] = goldEntitled;
-      goldDelta += gDelta;
-    }
   }
+
+  // ② 학급 합산 자동 실버 25개 단위 → 학급 골드 적립.
+  //    classGoldPaid가 없으면(방식 전환 직후) 기존 개인별 goldPaid 합계를 승계 — 이중 지급 방지
+  const legacyGoldPaid = (cum.goldPaid as Record<string, number>) ?? {};
+  const classGoldPaid =
+    typeof cum.classGoldPaid === "number"
+      ? (cum.classGoldPaid as number)
+      : Object.values(legacyGoldPaid).reduce((a, b) => a + b, 0);
+  const totalEarned = Object.values(earned).reduce((a, b) => a + b, 0);
+  const goldEntitled = Math.floor(totalEarned / GOLD_PER_SILVER);
+  const goldDelta = Math.max(goldEntitled - classGoldPaid, 0);
 
   const writes: Promise<unknown>[] = [];
   const silverEntries = Object.entries(silverGrant);
@@ -132,7 +137,11 @@ async function grantMilestones(
     writes.push(
       setDoc(
         doc(d, "dailyScores", "_cumulative"),
-        { scoreSilverPaid: scorePaid, silverEarned: earned, goldPaid },
+        {
+          scoreSilverPaid: scorePaid,
+          silverEarned: earned,
+          classGoldPaid: classGoldPaid + goldDelta,
+        },
         { merge: true }
       )
     );
@@ -247,11 +256,16 @@ async function aggregateDateInner(
 
   // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
   //      (서로 칭찬하기를 매일 미션으로 — 협력하면 다 같이 이득)
+  //      전출(inactive) 학생은 '전원' 판정에서 제외 — 빈자리 때문에 미션이 막히지 않게
+  const activeIdsOf = (g: { chair: number; members: { studentId: number }[] }) =>
+    [g.chair, ...g.members.map((m) => m.studentId)].filter(
+      (id) => !studentById.get(id)?.inactive
+    );
   const complimentedIds = new Set(compliments.map((c) => c.to));
   const missionGroups: number[] = [];
   for (const g of schedule.groups) {
-    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
-    if (ids.every((id) => complimentedIds.has(id))) missionGroups.push(g.groupId);
+    const ids = activeIdsOf(g);
+    if (ids.length && ids.every((id) => complimentedIds.has(id))) missionGroups.push(g.groupId);
   }
   const missionSet = new Set(missionGroups);
 
@@ -259,7 +273,7 @@ async function aggregateDateInner(
   //      "가장 친절하게 모둠원들을 안내한 부서장" — 점수 보상이 없어 돌려 찍기 담합 유인도 없다.
   const bossWinners: number[] = [];
   for (const g of schedule.groups) {
-    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    const ids = activeIdsOf(g);
     const max = Math.max(0, ...ids.map((id) => mvpVotes[id] ?? 0));
     if (max > 0) bossWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
   }
@@ -292,7 +306,7 @@ async function aggregateDateInner(
   const mvpPts: Record<number, number> = {};
   const mvpWinners: number[] = []; // 모둠별 점수 1위(동점 포함) — ★ 표시·세션 '최다 MVP' 집계용
   for (const g of schedule.groups) {
-    const ids = [g.chair, ...g.members.map((m) => m.studentId)];
+    const ids = activeIdsOf(g);
     const max = Math.max(0, ...ids.map((id) => baseParts[id]?.sum ?? 0));
     if (max > 0)
       for (const id of ids)
@@ -301,9 +315,12 @@ async function aggregateDateInner(
           mvpWinners.push(id);
         }
   }
-  const classMax = Math.max(0, ...students.map((s) => baseParts[s.id]?.sum ?? 0));
+  const activeStudents = students.filter((s) => !s.inactive);
+  const classMax = Math.max(0, ...activeStudents.map((s) => baseParts[s.id]?.sum ?? 0));
   const classTop =
-    classMax > 0 ? students.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id) : [];
+    classMax > 0
+      ? activeStudents.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id)
+      : [];
   for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 2;
 
   const rows: Record<number, DailyScoreRow> = {};
@@ -392,6 +409,7 @@ export function dateRangeOfPeriod(period: number): [string, string] {
 
 // ── 세션(2주) 자동 보상 정산 ───────────────────────────────────
 // · 최다 MVP(그날 점수 모둠 1위 횟수 최다) → 실버 1개
+// · 성장상: 지난 세션 대비 세션 총점 상승폭 최다(양수만, 동점 모두) → 실버 1개 (2기부터)
 // · 최고 모둠(1위 최다) → 모둠원 전원 실버 1개
 // · 최다 거북이독서(두 주 합산 권수 최다) → 실버 1개
 // · 최다 칭찬미션 모둠(미션 달성 일수 최다) → 모둠원 전원 실버 1개
@@ -406,6 +424,7 @@ export interface SessionSettleResult {
   readingTop: number[]; // 최다 독서
   missionTopGroups: number[]; // 최다 미션 모둠
   missionTopMembers: number[];
+  growthTop: number[]; // 성장상 — 지난 세션 대비 총점 상승폭 최다 (2기부터)
   streakPoints: Record<string, number>; // studentId → 스트릭 보너스(누적 점수 가산)
   alreadySettled: boolean;
 }
@@ -442,6 +461,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       readingTop: data.readingTop ?? [],
       missionTopGroups: data.missionTopGroups ?? [],
       missionTopMembers: data.missionTopMembers ?? [],
+      growthTop: data.growthTop ?? [],
       streakPoints: data.streakPoints ?? {},
       alreadySettled: true,
     };
@@ -462,8 +482,10 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
   const mvpCount: Record<number, number> = {};
   const rank1Count: Record<number, number> = {};
   const missionCount: Record<number, number> = {};
+  const sessionTotals: Record<number, number> = {}; // 성장상 계산용 — 이번 세션 총점
   snap.forEach((day) => {
-    const meta = (day.data()._meta ?? {}) as {
+    const data = day.data();
+    const meta = (data._meta ?? {}) as {
       mvpWinners?: number[];
       ranks?: Record<string, number>;
       missionGroups?: number[];
@@ -472,11 +494,43 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     for (const [g, r] of Object.entries(meta.ranks ?? {}))
       if (r === 1) rank1Count[Number(g)] = (rank1Count[Number(g)] ?? 0) + 1;
     for (const g of meta.missionGroups ?? []) missionCount[g] = (missionCount[g] ?? 0) + 1;
+    for (const s of students) {
+      const row = data[String(s.id)] as DailyScoreRow | undefined;
+      if (row?.total != null) sessionTotals[s.id] = (sessionTotals[s.id] ?? 0) + row.total;
+    }
   });
 
   const mvps = topKeys(mvpCount);
   const bestGroups = topKeys(rank1Count);
   const missionTopGroups = topKeys(missionCount);
+
+  // 성장상 — 지난 세션 대비 총점 상승폭 최다 (양수만, 동점 모두). 1기는 비교 대상이 없어 없음.
+  // 지난 세션 집계 문서(최대 14개)를 정산 때 1회만 추가로 읽는다.
+  let growthTop: number[] = [];
+  if (period >= 2) {
+    const [ps, pe] = dateRangeOfPeriod(period - 1);
+    const prevSnap = await getDocs(
+      query(
+        collection(d, "dailyScores"),
+        where(documentId(), ">=", ps),
+        where(documentId(), "<=", pe)
+      )
+    );
+    const prevTotals: Record<number, number> = {};
+    prevSnap.forEach((day) => {
+      const data = day.data();
+      for (const s of students) {
+        const row = data[String(s.id)] as DailyScoreRow | undefined;
+        if (row?.total != null) prevTotals[s.id] = (prevTotals[s.id] ?? 0) + row.total;
+      }
+    });
+    const growth: Record<number, number> = {};
+    for (const s of students) {
+      const g = (sessionTotals[s.id] ?? 0) - (prevTotals[s.id] ?? 0);
+      if (g > 0) growth[s.id] = g;
+    }
+    growthTop = topKeys(growth);
+  }
 
   // 모둠원 전원 명단 (세션 내 모둠 구성은 고정 — 세션 첫 주 자리표 사용)
   const schedule = scheduleOfWeek(period * 2 - 1);
@@ -513,12 +567,13 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     }
   }
 
-  // 실버 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1)
+  // 실버 지급 개수 (최다 MVP 1 + 최고모둠 1 + 최다독서 1 + 최다미션모둠 1 + 성장상 1)
   const grant: Record<number, number> = {};
   for (const sid of mvps) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of bestGroupMembers) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of readingTop) grant[sid] = (grant[sid] ?? 0) + 1;
   for (const sid of missionTopMembers) grant[sid] = (grant[sid] ?? 0) + 1;
+  for (const sid of growthTop) grant[sid] = (grant[sid] ?? 0) + 1;
 
   const entries = Object.entries(grant);
   const hasStreak = Object.keys(streakPoints).length > 0;
@@ -533,6 +588,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       readingTop: [],
       missionTopGroups: [],
       missionTopMembers: [],
+      growthTop: [],
       streakPoints: {},
       alreadySettled: false,
     };
@@ -555,6 +611,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       readingTop,
       missionTopGroups,
       missionTopMembers,
+      growthTop,
       streakPoints,
       alreadySettled: true,
     };
@@ -604,6 +661,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       readingTop,
       missionTopGroups,
       missionTopMembers,
+      growthTop,
       streakPoints,
       mvpCount,
       rank1Count,
@@ -621,6 +679,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     readingTop,
     missionTopGroups,
     missionTopMembers,
+    growthTop,
     streakPoints,
     alreadySettled: false,
   };

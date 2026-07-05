@@ -19,6 +19,8 @@ import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
+import TransferPanel from "@/components/teacher/TransferPanel";
+import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
@@ -434,12 +436,16 @@ export default function TeacherPage() {
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         <PasswordResetPanel />
         <ReadingAdjustPanel />
+        <div className="lg:col-span-2">
+          <TransferPanel />
+        </div>
         {/* 학생 칩 25개가 넓게 퍼지는 카드는 전체 폭 */}
         <div className="lg:col-span-2">
           <BookletExportPanel />
         </div>
         <CsvExportPanel />
         <LinksEditor />
+        <CoinAuditPanel />
         <div className="lg:col-span-2">
           <TeacherMemoWidget />
         </div>

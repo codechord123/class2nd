@@ -129,12 +129,13 @@ export default function TeamPage() {
     return <SkeletonPage />;
   }
 
-  // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외
-  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)];
+  // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외. 전출(inactive) 학생도 제외
+  const isActive = (id: number) => !studentById.get(id)?.inactive;
+  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].filter(isActive);
   const targets = [
     { studentId: myGroup.chair, role: "소통" },
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
-  ].filter((t) => t.studentId !== studentId);
+  ].filter((t) => t.studentId !== studentId && isActive(t.studentId));
   // 내 부서(역할) — 나는 이 부서의 부서장으로서 '내 부서 기준'으로 친구들을 평가한다
   const myRole =
     myGroup.chair === studentId

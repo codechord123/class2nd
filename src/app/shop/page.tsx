@@ -64,12 +64,9 @@ export default function ShopPage() {
   const classGoldLeft =
     s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0);
 
-  // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청
+  // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청.
+  // 시간창 밖이면 '예약 담기' — 접수는 되고 승인은 똑같이 다음 날 아침 (깜빡 방지)
   async function submit() {
-    if (!requestOpen) {
-      toast(`지금은 신청할 수 없어요. ${windowLabel}에 다시 와줘요 🕓`, "warn");
-      return;
-    }
     const n = Number(amount);
     const name = item.trim();
     if (!name) {
@@ -86,16 +83,21 @@ export default function ShopPage() {
       return;
     }
     const ok = await confirm({
-      title: `"${name}" 신청할까요?`,
-      body: `${WALLET_LABEL[wallet]} 지갑에서 ${n}개가 나가요 (선생님 승인 후)`,
-      confirmLabel: "신청",
+      title: requestOpen ? `"${name}" 신청할까요?` : `"${name}" 예약으로 담을까요?`,
+      body: requestOpen
+        ? `${WALLET_LABEL[wallet]} 지갑에서 ${n}개가 나가요 (선생님 승인 후)`
+        : `지금은 신청 시간(${windowLabel})이 아니라 예약으로 담아요. ${WALLET_LABEL[wallet]} 지갑에서 ${n}개 — 선생님이 다음 날 아침에 승인해요.`,
+      confirmLabel: requestOpen ? "신청" : "예약 담기",
     });
     if (!ok) return;
     setBusy(true);
     try {
-      await createRequest(n, name);
+      await createRequest(n, name, "spend", { reserved: !requestOpen });
       setItem("");
-      toast("신청 완료! 선생님 승인을 기다려주세요.", "success");
+      toast(
+        requestOpen ? "신청 완료! 선생님 승인을 기다려주세요." : "🕓 예약 완료! 내일 아침에 승인돼요.",
+        "success"
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "신청에 실패했어요.", "error");
     } finally {
@@ -106,10 +108,6 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
-    if (!requestOpen) {
-      toast(`지금은 신청할 수 없어요. ${windowLabel}에 다시 와줘요 🕓`, "warn");
-      return;
-    }
     if (m.wallet === "gold") {
       if (m.price > classGoldLeft) {
         toast("학급 골드토큰이 부족해요.", "warn");
@@ -122,20 +120,29 @@ export default function ShopPage() {
         return;
       }
     }
+    const cost =
+      m.wallet === "gold"
+        ? `학급 골드토큰 ${m.price}개를 사용해요`
+        : `${WALLET_LABEL[wallet]} 지갑에서 ${m.price}개가 나가요`;
     const ok = await confirm({
-      title: `"${m.name}" 신청할까요?`,
-      body:
-        m.wallet === "gold"
-          ? `학급 골드토큰 ${m.price}개를 사용해요 (선생님 승인 후)`
-          : `${WALLET_LABEL[wallet]} 지갑에서 ${m.price}개가 나가요 (선생님 승인 후)`,
-      confirmLabel: "신청",
+      title: requestOpen ? `"${m.name}" 신청할까요?` : `"${m.name}" 예약으로 담을까요?`,
+      body: requestOpen
+        ? `${cost} (선생님 승인 후)`
+        : `지금은 신청 시간(${windowLabel})이 아니라 예약으로 담아요. ${cost} — 선생님이 다음 날 아침에 승인해요.`,
+      confirmLabel: requestOpen ? "신청" : "예약 담기",
     });
     if (!ok) return;
     setBusy(true);
     try {
-      if (m.wallet === "gold") await createGoldRequest(m.price, m.name, "gold");
-      else await createRequest(m.price, m.name);
-      toast(`"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`, "success");
+      if (m.wallet === "gold")
+        await createGoldRequest(m.price, m.name, "gold", { reserved: !requestOpen });
+      else await createRequest(m.price, m.name, "spend", { reserved: !requestOpen });
+      toast(
+        requestOpen
+          ? `"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`
+          : `🕓 "${m.name}" 예약 완료! 내일 아침에 승인돼요.`,
+        "success"
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "신청에 실패했어요.", "error");
     } finally {
@@ -213,11 +220,11 @@ export default function ShopPage() {
         onChange={setTab}
       />
 
-      {/* 신청 시간창 안내 — 토큰은 사용 전날 신청 (당일 신청 불가 시스템) */}
+      {/* 신청 시간창 안내 — 창 밖에는 '예약 담기'로 접수 (승인은 똑같이 다음 날 아침) */}
       {tab === "shop" && role === "student" && studentId && !requestOpen && (
         <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm text-warn">
-          🕓 토큰은 <b>쓰기 전날 {windowLabel}</b>에 신청해요 — 당일 신청은 안 돼요. 지금은
-          구경만! 승인은 다음 날 아침에 나요.
+          🕓 정식 신청 시간은 <b>{windowLabel}</b>이에요. 지금 담으면 <b>예약</b>으로
+          접수되고, 승인은 똑같이 다음 날 아침에 나요 — 깜빡할 걱정 없이 미리 담아두세요!
         </div>
       )}
 
@@ -255,12 +262,12 @@ export default function ShopPage() {
                 </div>
                 <button
                   onClick={() => void requestMenuItem(m)}
-                  disabled={busy || !requestOpen}
+                  disabled={busy}
                   className={`press shrink-0 rounded-btn px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40 ${
                     m.wallet === "gold" ? "bg-warn" : "bg-brand"
                   }`}
                 >
-                  신청
+                  {requestOpen ? "신청" : "🕓 예약"}
                 </button>
               </div>
             ))}
@@ -299,10 +306,10 @@ export default function ShopPage() {
               />
               <button
                 onClick={() => void submit()}
-                disabled={busy || !requestOpen}
+                disabled={busy}
                 className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                신청
+                {requestOpen ? "신청" : "🕓 예약"}
               </button>
             </div>
           )}
@@ -324,6 +331,7 @@ export default function ShopPage() {
                   <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
                   <span className="text-xs text-ink-500">
                     · {r.wallet === "s2" ? "2학기" : "이월"} 실버 {r.amount}개
+                    {r.reserved && " · 🕓 예약"}
                   </span>
                 </span>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE.pending}`}>

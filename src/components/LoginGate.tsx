@@ -12,6 +12,7 @@ import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth"
 import { firebaseAuth } from "@/lib/firebase";
 import { useSession } from "@/stores/session";
 import { students } from "@/lib/roster";
+import { ensureRosterOverrides } from "@/lib/rosterOverrides";
 import { studentLogin, teacherLogin, getStudentHint, requestPasswordReset } from "@/lib/auth";
 import { studentById } from "@/lib/roster";
 import Button from "@/components/ui/Button";
@@ -54,9 +55,16 @@ export default function LoginGate({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [role, authReady, fbUser, retryKey]);
 
+  // 명단 오버라이드(전학생 이름 변경·전출) — 인증 확정 후 1회 로드, 실패해도 기본 명단으로 진행
+  const [rosterReady, setRosterReady] = useState(false);
+  useEffect(() => {
+    if (!authReady || !fbUser) return;
+    void ensureRosterOverrides().finally(() => setRosterReady(true));
+  }, [authReady, fbUser]);
+
   if (!mounted) return null;
   if (role) {
-    if (!authReady || !fbUser) {
+    if (!authReady || !fbUser || !rosterReady) {
       return connErr ? (
         <div className="py-16 text-center">
           <p className="text-sm font-medium text-ink-500">
@@ -99,6 +107,20 @@ function LoginScreen({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [findState, setFindState] = useState<null | { hint: string | null; requested: boolean }>(null);
+
+  // 로그인 전 명단에도 전학생 이름이 보이게 — 익명 로그인 후 오버라이드 로드 (best-effort)
+  const [, setRosterVer] = useState(0);
+  useEffect(() => {
+    void (async () => {
+      try {
+        if (!firebaseAuth().currentUser) await signInAnonymously(firebaseAuth());
+        await ensureRosterOverrides();
+        setRosterVer((v) => v + 1);
+      } catch {
+        // 오프라인 등 — 기본 명단으로 표시
+      }
+    })();
+  }, []);
 
   async function findPassword() {
     setError("");

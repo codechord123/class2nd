@@ -31,6 +31,7 @@ export interface SpendRequest {
   status: "pending" | "approved" | "rejected";
   createdAt: number;
   type?: string;
+  reserved?: boolean; // 신청 시간창 밖 '예약 담기'로 접수됨 (승인 흐름은 동일)
 }
 
 /** 받은 것(+)/쓴 것(−)은 금액 부호가 아니라 기록 종류로 판단 — 지급 유형만 양수 */
@@ -74,7 +75,12 @@ export function useMyRequests(kind: WalletKind, myId: number | null) {
 
 export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
   const qc = useQueryClient();
-  return async (amount: number, item: string, type: "spend" | "gold" = "spend") => {
+  return async (
+    amount: number,
+    item: string,
+    type: "spend" | "gold" = "spend",
+    opts?: { reserved?: boolean } // 시간창 밖 예약 담기 — 승인 흐름은 동일, 표시만 구분
+  ) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!item.trim()) throw new Error("사고 싶은 것을 적어주세요.");
     if (!Number.isInteger(amount) || amount <= 0) throw new Error("개수를 확인해주세요.");
@@ -85,6 +91,7 @@ export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
       type,
       status: "pending",
       createdAt: Date.now(),
+      reserved: opts?.reserved ?? false,
     });
     void qc.invalidateQueries({ queryKey: ["spendRequests", kind, myId] });
   };
