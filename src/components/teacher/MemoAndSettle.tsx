@@ -2,7 +2,7 @@
 // 선생님 메모장 + 격주 MVP 정산 + 교사 보너스 (교사 탭 위젯 모음).
 import { useEffect, useState } from "react";
 import { useTeacherMemo, useSaveTeacherMemo } from "@/lib/query/classMeta";
-import { settleSession, setBonus, periodOfWeek, type SessionSettleResult } from "@/lib/aggregate";
+import { settleSession, addBonus, periodOfWeek, type SessionSettleResult } from "@/lib/aggregate";
 import { currentWeekNum } from "@/lib/schedule";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
@@ -211,16 +211,23 @@ export function BonusPanel() {
           className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-sm"
         />
         <button
-          onClick={() =>
-            void setBonus(date, sid, Number(bonus) || 0).then(
-              () => {
-                setMsg(`✅ ${studentById.get(sid)?.name} ${date} 보너스 ${bonus}점 반영`);
+          onClick={() => {
+            const delta = Number(bonus) || 0;
+            if (!delta) {
+              setMsg("⚠️ 0이 아닌 숫자를 입력해주세요 (예: 2 또는 -1).");
+              return;
+            }
+            void addBonus(date, sid, delta).then(
+              (newTotal) => {
+                setMsg(
+                  `✅ ${studentById.get(sid)?.name} ${date} 보너스 ${delta > 0 ? "+" : ""}${delta}점 (그날 합계 ${newTotal}점)`
+                );
                 void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
                 void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
               },
               (e: Error) => setMsg(`⚠️ ${e.message}`)
-            )
-          }
+            );
+          }}
           className="rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
         >
           반영

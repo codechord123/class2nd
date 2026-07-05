@@ -12,6 +12,7 @@ import {
   getDocs,
   increment,
   query,
+  runTransaction,
   setDoc,
   where,
 } from "firebase/firestore";
@@ -40,6 +41,31 @@ export interface AggregateResult {
 // 재집계로 점수가 내려가도 이미 준 것은 회수하지 않는다(멱등·단조 증가).
 const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
+
+// ── 집계 락 ─────────────────────────────────────────────────────
+// 집계·정산은 "읽고 → 계산 → 여러 문서에 쓰기"라 두 실행이 겹치면 늦게 쓴 쪽이
+// 먼저 쓴 쪽을 덮는다 (예: 교사 수동 재집계 + 자동 집계, 탭 2개).
+// classData/aggLock 문서를 트랜잭션으로 선점(60초 임대)해 한 번에 하나만 실행.
+// 교사 세션에서만 호출되는 경로라 규칙상 학생은 이 문서를 쓸 수 없다.
+const LOCK_LEASE_MS = 60_000;
+
+async function withAggLock<T>(job: string, fn: () => Promise<T>): Promise<T> {
+  const d = db();
+  const lockRef = doc(d, "classData", "aggLock");
+  await runTransaction(d, async (tx) => {
+    const snap = await tx.get(lockRef);
+    const until = snap.exists() ? ((snap.data().until as number) ?? 0) : 0;
+    if (until > Date.now())
+      throw new Error("다른 집계가 진행 중이에요. 잠시 후 다시 시도해주세요.");
+    tx.set(lockRef, { until: Date.now() + LOCK_LEASE_MS, job });
+  });
+  try {
+    return await fn();
+  } finally {
+    // 해제 실패해도 60초 뒤 임대가 만료되므로 영구 잠김은 없다
+    await setDoc(lockRef, { until: 0, job: "" }).catch(() => {});
+  }
+}
 
 async function grantMilestones(
   cum: Record<string, unknown>,
@@ -119,6 +145,14 @@ export async function aggregateDate(
   date: string,
   settings: ClassSettings,
   opts?: { skipIfEmpty?: boolean } // 자동 집계용: 기록이 전혀 없는 날(주말 등)은 문서를 만들지 않음
+): Promise<AggregateResult | null> {
+  return withAggLock(`aggregate:${date}`, () => aggregateDateInner(date, settings, opts));
+}
+
+async function aggregateDateInner(
+  date: string,
+  settings: ClassSettings,
+  opts?: { skipIfEmpty?: boolean }
 ): Promise<AggregateResult | null> {
   const d = db();
 
@@ -357,6 +391,10 @@ function topKeys(counts: Record<number, number>): number[] {
 }
 
 export async function settleSession(period: number): Promise<SessionSettleResult> {
+  return withAggLock(`settle:${period}`, () => settleSessionInner(period));
+}
+
+async function settleSessionInner(period: number): Promise<SessionSettleResult> {
   const d = db();
   const [start, end] = dateRangeOfPeriod(period);
   const marker = doc(d, "biweeklyScores", `session-${period}`);
@@ -468,6 +506,29 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       alreadySettled: false,
     };
   }
+  // 마커 선점 — 지급 '전'에 awardedAt부터 기록해, 두 실행(자동+수동, 탭 2개)이
+  // 겹쳐도 한쪽만 지급한다. 회수 불가 시스템이라 이중 지급이 최악의 사고.
+  const claimed = await runTransaction(d, async (tx) => {
+    const snap = await tx.get(marker);
+    if (snap.exists() && snap.data().awardedAt) return false;
+    tx.set(marker, { awardedAt: Date.now(), range: [start, end] });
+    return true;
+  });
+  if (!claimed) {
+    return {
+      period,
+      range: [start, end],
+      mvps,
+      bestGroups,
+      bestGroupMembers,
+      readingTop,
+      missionTopGroups,
+      missionTopMembers,
+      streakPoints,
+      alreadySettled: true,
+    };
+  }
+
   for (const [sid, n] of entries) {
     await addDoc(collection(d, "coinTxns"), {
       studentId: Number(sid),
@@ -502,19 +563,23 @@ export async function settleSession(period: number): Promise<SessionSettleResult
       "🏅 점수 25점 달성 보상"
     );
   }
-  await setDoc(marker, {
-    mvps,
-    bestGroups,
-    bestGroupMembers,
-    readingTop,
-    missionTopGroups,
-    missionTopMembers,
-    streakPoints,
-    mvpCount,
-    rank1Count,
-    range: [start, end],
-    awardedAt: Date.now(),
-  });
+  // 선점 시 만든 마커에 결과 상세를 병합 (awardedAt은 선점 시각 유지)
+  await setDoc(
+    marker,
+    {
+      mvps,
+      bestGroups,
+      bestGroupMembers,
+      readingTop,
+      missionTopGroups,
+      missionTopMembers,
+      streakPoints,
+      mvpCount,
+      rank1Count,
+      completedAt: Date.now(),
+    },
+    { merge: true }
+  );
 
   return {
     period,
@@ -530,39 +595,43 @@ export async function settleSession(period: number): Promise<SessionSettleResult
   };
 }
 
-// ── 교사 보너스 점수 (일일 집계 행 보정 + 누적 동기화) ───────────
-export async function setBonus(date: string, studentId: number, bonus: number): Promise<void> {
-  const d = db();
-  const [daySnap, cumSnap] = await Promise.all([
-    getDoc(doc(d, "dailyScores", date)),
-    getDoc(doc(d, "dailyScores", "_cumulative")),
-  ]);
-  const day = daySnap.exists() ? daySnap.data() : {};
-  const prevRow = (day[String(studentId)] as DailyScoreRow | undefined) ?? {
-    peer: 0,
-    groupRank: 0,
-    bonus: 0,
-    total: 0,
-  };
-  const newRow: DailyScoreRow = {
-    ...prevRow,
-    bonus,
-    total:
-      prevRow.peer +
-      prevRow.groupRank +
-      bonus +
-      (prevRow.mission ?? 0) +
-      (prevRow.mvp ?? 0) +
-      (prevRow.read ?? 0),
-  };
-  const cum = cumSnap.exists() ? cumSnap.data() : {};
-  const prevCum = typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;
-  await Promise.all([
-    setDoc(doc(d, "dailyScores", date), { [String(studentId)]: newRow }, { merge: true }),
-    setDoc(
-      doc(d, "dailyScores", "_cumulative"),
-      { [String(studentId)]: prevCum - prevRow.total + newRow.total },
-      { merge: true }
-    ),
-  ]);
+// ── 교사 보너스 점수 (델타 증감 — UI 문구 "더하거나 뺍니다"와 동일 의미) ──
+// 단일 트랜잭션: 일일 행과 누적을 같이 읽고 같이 쓴다.
+// (기존엔 절대값 대입 + 비트랜잭션이라, 재집계와 겹치면 누적이 어긋나거나
+//  같은 값을 두 번 눌러도 티가 안 나는 문제가 있었다)
+// 반환값: 반영 후 그날의 보너스 합계.
+export async function addBonus(date: string, studentId: number, delta: number): Promise<number> {
+  return withAggLock(`bonus:${date}:${studentId}`, async () => {
+    const d = db();
+    const dayRef = doc(d, "dailyScores", date);
+    const cumRef = doc(d, "dailyScores", "_cumulative");
+    return runTransaction(d, async (tx) => {
+      const [daySnap, cumSnap] = await Promise.all([tx.get(dayRef), tx.get(cumRef)]);
+      const day = daySnap.exists() ? daySnap.data() : {};
+      const prevRow = (day[String(studentId)] as DailyScoreRow | undefined) ?? {
+        peer: 0,
+        groupRank: 0,
+        bonus: 0,
+        total: 0,
+      };
+      const newBonus = (prevRow.bonus ?? 0) + delta;
+      const newRow: DailyScoreRow = {
+        ...prevRow,
+        bonus: newBonus,
+        total:
+          prevRow.peer +
+          prevRow.groupRank +
+          newBonus +
+          (prevRow.mission ?? 0) +
+          (prevRow.mvp ?? 0) +
+          (prevRow.read ?? 0),
+      };
+      const cum = cumSnap.exists() ? cumSnap.data() : {};
+      const prevCum =
+        typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;
+      tx.set(dayRef, { [String(studentId)]: newRow }, { merge: true });
+      tx.set(cumRef, { [String(studentId)]: prevCum - prevRow.total + newRow.total }, { merge: true });
+      return newBonus;
+    });
+  });
 }

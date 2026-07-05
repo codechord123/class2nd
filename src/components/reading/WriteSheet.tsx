@@ -36,7 +36,7 @@ export default function WriteSheet({
   onClose: () => void;
 }) {
   const { data: settings } = useSettings();
-  const saveReport = useSaveReport(studentId, week);
+  const saveReport = useSaveReport(studentId);
   const { toast, confirm } = useFeedback();
 
   const initialForm = initial?.form ?? EMPTY;

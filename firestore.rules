@@ -9,11 +9,21 @@ service cloud.firestore {
     function isAuthed() {
       return request.auth != null;
     }
+    // 이 sid의 studentAuth에 바인딩된 기기(uid)인가 — 소유자 검증 공용 함수
+    function ownsStudent(sid) {
+      return get(/databases/$(database)/documents/studentAuth/$(sid)).data.uid == request.auth.uid;
+    }
 
     // 교사 설정 (평가 척도 등) — 모두 읽기, 교사만 쓰기
     match /classData/{docId} {
       allow read: if isAuthed();
       allow write: if isTeacher();
+    }
+    // 예외: 감상문 삭제 시 학생이 '재집계 요청 날짜'만 남길 수 있게 (redoDates 필드 한정)
+    match /classData/autoRun {
+      allow create: if isAuthed() && request.resource.data.keys().hasOnly(['redoDates']);
+      allow update: if isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redoDates']);
     }
 
     // 참고: 자리 변경 승인 기록(swap)은 classData/seatSwaps-{week} 문서에 저장
@@ -21,13 +31,10 @@ service cloud.firestore {
 
     // 모둠 내 평가: evaluations/{date}/entries/{evaluatorId}
     // 대리 작성 차단: 본인 studentAuth에 바인딩된 uid로만 자기 평가 문서를 쓸 수 있다.
-    // (교사는 샘플 생성·정리를 위해 예외)
+    // 읽기도 본인 것만 — 남의 원시 평가·건의 원문 열람 차단 (익명성 보호). 교사는 전체.
     match /evaluations/{date}/entries/{evaluatorId} {
-      allow read: if isAuthed();
-      allow create, update: if isTeacher() || (
-        isAuthed() &&
-        get(/databases/$(database)/documents/studentAuth/$(evaluatorId)).data.uid == request.auth.uid
-      );
+      allow read: if isTeacher() || (isAuthed() && ownsStudent(evaluatorId));
+      allow create, update: if isTeacher() || (isAuthed() && ownsStudent(evaluatorId));
       allow delete: if isTeacher();
     }
 
@@ -48,17 +55,30 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // 학생이 만들 수 있는 원장 문서 = "본인 명의의 pending 사용 신청"뿐.
+    // (적립·승인·잔액 변경은 전부 교사 전용 — 자가 적립/타인 명의 신청 차단)
+    function isValidSpendRequest() {
+      return request.resource.data.status == "pending"
+        && (request.resource.data.type == "spend" || request.resource.data.type == "gold")
+        && request.resource.data.amount is int
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100
+        && ownsStudent(string(request.resource.data.studentId));
+    }
+
     // 코인/실버 원장 (2학기) — 잔액 문서(0_balances)는 학생이 생성도 못 하게 (리셋 직후 탈취 방지)
     match /coinTxns/{txnId} {
       allow read: if isAuthed();
-      allow create: if isTeacher() || (isAuthed() && txnId != "0_balances");
+      allow create: if isTeacher()
+        || (isAuthed() && txnId != "0_balances" && isValidSpendRequest());
       allow update, delete: if isTeacher();
     }
 
     // 1학기 이월 지갑 차감 원장 (원본은 GitHub 정적 JSON — 불변)
     match /s1Spends/{spendId} {
       allow read: if isAuthed();
-      allow create: if isTeacher() || (isAuthed() && spendId != "0_balances");
+      allow create: if isTeacher()
+        || (isAuthed() && spendId != "0_balances" && isValidSpendRequest());
       allow update, delete: if isTeacher();
     }
 
@@ -97,14 +117,44 @@ service cloud.firestore {
     }
 
     // 2학기 거북이 독서: 정식 감상문 + 임시저장(초안) + 권수 통계
+    // 감상문 문서의 소유자인가 (resource = 저장된 문서 기준)
+    function ownsReport() {
+      return ownsStudent(string(resource.data.studentId));
+    }
     match /readingReports/{reportId} {
-      allow read, create, update, delete: if isAuthed();
+      // 목록(limit 쿼리)을 전원이 읽는 구조라 read는 개방 — 비공개 글 내용 숨김은 앱에서.
+      allow read: if isAuthed();
+      // 등록은 본인 명의 + 정식본만 (isDraft=true를 여기 넣는 우회 차단)
+      allow create: if isTeacher() || (
+        isAuthed()
+        && ownsStudent(string(request.resource.data.studentId))
+        && request.resource.data.isDraft == false
+      );
+      // 수정: 작성자·교사는 전체, 그 외 학생은 comments 배열만 (댓글 달기/지우기)
+      allow update: if isTeacher()
+        || (isAuthed() && ownsReport())
+        || (isAuthed()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comments']));
+      allow delete: if isTeacher() || (isAuthed() && ownsReport());
     }
+    // 초안은 사적인 글 — 본인만 읽고 쓴다 (목록 쿼리는 where studentId==본인 필수)
     match /readingDrafts/{draftId} {
-      allow read, create, update, delete: if isAuthed();
+      allow read, delete: if isTeacher()
+        || (isAuthed() && ownsStudent(string(resource.data.studentId)));
+      allow create, update: if isTeacher()
+        || (isAuthed() && ownsStudent(string(request.resource.data.studentId)));
     }
+    // 권수 통계: 학생은 total/byWeek 증감만 — s1Adj(교사 보정)는 교사 전용
     match /readingStats/{docId} {
-      allow read, write: if isAuthed();
+      allow read: if isAuthed();
+      allow create: if isTeacher() || (
+        isAuthed() && request.resource.data.keys().hasOnly(['total', 'byWeek'])
+      );
+      allow update: if isTeacher() || (
+        isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['total', 'byWeek'])
+      );
+      allow delete: if isTeacher();
     }
 
     // 게시판/투표 (Phase 5에서 세분화 예정)

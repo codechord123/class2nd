@@ -53,7 +53,7 @@ export default function TeacherPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
   const [msg, setMsg] = useState("");
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
 
   // 설정 드래프트 — null이면 서버값 사용, 편집 시 모듈형 컨트롤이 직접 값 조작
   const [dPeer, setDPeer] = useState<number[] | null>(null);
@@ -98,9 +98,34 @@ export default function TeacherPage() {
             "success"
           );
         }
+        if (r.redoneDates.length) {
+          for (const dt of r.redoneDates)
+            void qc.invalidateQueries({ queryKey: ["dailyScores", dt] });
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          toast(
+            `♻️ 감상문 삭제 반영 재집계: ${r.redoneDates.map((dt) => dt.slice(5)).join(", ")}`,
+            "success"
+          );
+        }
+        if (r.missedRankDates.length)
+          toast(
+            `⚠️ 순위 미선정으로 순위 점수 0점 처리된 날: ${r.missedRankDates
+              .map((dt) => dt.slice(5))
+              .join(", ")} — 점수·집계에서 날짜 선택 후 순위 저장→재집계하면 반영돼요`,
+            "warn"
+          );
+        if (r.skippedRange)
+          toast(
+            `⚠️ ${r.skippedRange.days}일치(${r.skippedRange.from}~${r.skippedRange.to})는 소급 상한(14일)을 넘어 자동 집계에서 제외됐어요 — 필요하면 날짜별 수동 집계로 처리하세요`,
+            "warn"
+          );
       })
-      .catch(() => {
-        /* 자동 작업 실패는 조용히 — 아래 수동 버튼으로 언제든 가능 */
+      .catch((e: unknown) => {
+        // 자동 집계 실패를 조용히 삼키면 점수가 밀린 채 아무도 모른다 — 반드시 알린다
+        toast(
+          `⚠️ 자동 집계·정산 실패: ${e instanceof Error ? e.message : String(e)} — 점수·집계 탭에서 수동 실행해주세요`,
+          "error"
+        );
       });
   }, [settings, role, qc, toast]);
 
@@ -222,6 +247,17 @@ export default function TeacherPage() {
                 if (bestRanking.length === 0) {
                   toast("먼저 모둠을 순서대로 눌러주세요.", "warn");
                   return;
+                }
+                // 5개 미만 저장은 나머지 모둠 순위 점수 0점 — 실수(누락)인지 확인
+                if (bestRanking.length < 5) {
+                  const missing = [1, 2, 3, 4, 5].filter((g) => !bestRanking.includes(g));
+                  const ok = await confirm({
+                    title: `${bestRanking.length}개 모둠만 저장할까요?`,
+                    body: `${missing.join("·")}모둠은 순위 점수를 받지 못해요 (0점). 전체 순위를 매기려면 취소 후 모둠을 더 눌러주세요.`,
+                    confirmLabel: "이대로 저장",
+                    danger: true,
+                  });
+                  if (!ok) return;
                 }
                 try {
                   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);

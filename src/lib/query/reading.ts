@@ -19,6 +19,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 
 export interface ReadingReport2 {
   id: string;
@@ -161,7 +163,7 @@ export function useDeleteReport() {
   const qc = useQueryClient();
   return async (report: ReadingReport2) => {
     const d = db();
-    const { runTransaction } = await import("firebase/firestore");
+    const { runTransaction, arrayUnion } = await import("firebase/firestore");
     const key = String(report.studentId);
     const week = String(report.week);
     await runTransaction(d, async (tx) => {
@@ -178,6 +180,14 @@ export function useDeleteReport() {
         { merge: true }
       );
     });
+    // 이미 집계된 날의 글이었다면 read 점수가 남아 있으므로 재집계 요청을 남긴다
+    // (다음 교사 접속 때 autoRun이 그 날짜만 다시 집계 — 규칙상 redoDates 필드만 쓰기 허용).
+    // 실패해도 삭제 자체는 완료된 것이므로 조용히 넘어간다 (교사 수동 재집계로 복구 가능).
+    await setDoc(
+      doc(d, "classData", "autoRun"),
+      { redoDates: arrayUnion(kstDateOf(report.createdAt)) },
+      { merge: true }
+    ).catch(() => {});
     void qc.invalidateQueries({ queryKey: STATS_KEY });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
   };
@@ -198,7 +208,7 @@ export function useDeleteDraft(myId: number | null) {
  *  - draft=false → readingReports에 정식 등록(신규/승격 시 +1). draftId가 있으면 그 초안 삭제.
  *                  reportId가 있으면 기존 정식본 수정(+1 없음).
  */
-export function useSaveReport(myId: number | null, week: number) {
+export function useSaveReport(myId: number | null) {
   const qc = useQueryClient();
   return async (
     form: ReportForm,
@@ -212,6 +222,9 @@ export function useSaveReport(myId: number | null, week: number) {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
+    // 주차는 '저장하는 순간' 기준으로 재계산 — 페이지를 일요일 밤에 열어두고
+    // 월요일에 등록하면 화면에 들고 있던 주차가 한 주 늦어 통계가 어긋난다
+    const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
     // Firestore는 undefined 값을 거부하므로 isPrivate는 항상 boolean으로 정규화
     const base = { ...form, title: form.title.trim(), isPrivate: form.isPrivate ?? false };
 
