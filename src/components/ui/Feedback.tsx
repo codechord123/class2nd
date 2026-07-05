@@ -69,8 +69,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={{ toast, confirm }}>
       {children}
 
-      {/* 토스트 스택 (하단 고정) */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-1.5 px-4">
+      {/* 토스트 스택 — 헤더 바로 아래 우측 (시선이 머무는 콘텐츠 상단 근처, 하단 고립 방지) */}
+      <div className="pointer-events-none fixed inset-x-0 top-28 z-50 mx-auto flex max-w-3xl flex-col items-end gap-1.5 px-4 lg:max-w-5xl">
         {toasts.map((t) => (
           <div
             key={t.id}

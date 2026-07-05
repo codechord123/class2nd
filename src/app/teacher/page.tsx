@@ -330,7 +330,7 @@ export default function TeacherPage() {
       </>)}
 
       {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
-      {scoreTab === "report" && <DailyReportPanel date={date} />}
+      {scoreTab === "report" && <DailyReportPanel date={date} onDateChange={setDate} />}
 
       {/* 가끔 쓰는 도구들 — 2열로 스크롤 압축 */}
       {scoreTab === "reward" && (

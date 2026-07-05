@@ -171,22 +171,65 @@ function LoginScreen({
     ]);
   }
 
+  // 4자리 비밀번호 무차별 대입 완화 — 연속 5회 실패 시 이 기기에서 60초 쿨다운.
+  // (클라이언트 측 감속 장치 — 서버 측 차단은 아니지만 아이들 장난 수준은 충분히 막는다)
+  const FAIL_LIMIT = 5;
+  const COOLDOWN_MS = 60_000;
+  function cooldownLeft(sid: number): number {
+    try {
+      const until = Number(localStorage.getItem(`pw-cool-${sid}`) ?? 0);
+      return Math.max(0, until - Date.now());
+    } catch {
+      return 0;
+    }
+  }
+  function recordFail(sid: number) {
+    try {
+      const key = `pw-fail-${sid}`;
+      const n = Number(localStorage.getItem(key) ?? 0) + 1;
+      localStorage.setItem(key, String(n));
+      if (n >= FAIL_LIMIT) {
+        localStorage.setItem(`pw-cool-${sid}`, String(Date.now() + COOLDOWN_MS));
+        localStorage.setItem(key, "0");
+      }
+    } catch {
+      /* 저장 불가 환경 — 통과 */
+    }
+  }
+  function clearFails(sid: number) {
+    try {
+      localStorage.removeItem(`pw-fail-${sid}`);
+      localStorage.removeItem(`pw-cool-${sid}`);
+    } catch {}
+  }
+
   async function submit() {
     setError("");
     setNotice("");
+    if (mode === "student" && selectedId) {
+      const left = cooldownLeft(selectedId);
+      if (left > 0) {
+        setError(`비밀번호를 여러 번 틀렸어요 — ${Math.ceil(left / 1000)}초 후에 다시 시도해주세요.`);
+        return;
+      }
+    }
     setBusy(true);
     try {
       if (mode === "student") {
         if (!selectedId) throw new Error("이름을 선택해주세요.");
         const { firstTime } = await withTimeout(studentLogin(selectedId, password));
         if (firstTime) setNotice("첫 로그인! 지금 입력한 비밀번호가 등록되었어요.");
+        clearFails(selectedId);
         onLogin("student", selectedId);
       } else {
         await withTimeout(teacherLogin(email, password));
         onLogin("teacher");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "로그인에 실패했습니다.");
+      const msg = e instanceof Error ? e.message : "로그인에 실패했습니다.";
+      if (mode === "student" && selectedId && msg.includes("비밀번호가 올바르지"))
+        recordFail(selectedId);
+      setError(msg);
     } finally {
       setBusy(false);
     }

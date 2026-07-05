@@ -27,7 +27,13 @@ import SubTabs from "@/components/ui/SubTabs";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
-export default function DailyReportPanel({ date }: { date: string }) {
+export default function DailyReportPanel({
+  date,
+  onDateChange,
+}: {
+  date: string;
+  onDateChange?: (date: string) => void; // 리포트 탭에서 바로 날짜 이동 (오늘 집계 탭과 공유)
+}) {
   const { data: stats } = useReadingStats();
   const { data: today } = useDailyScores(date);
   const { data: settings } = useSettings();
@@ -307,7 +313,21 @@ export default function DailyReportPanel({ date }: { date: string }) {
   }
 
   return (
-    <Card title="🗒️ 리포트" desc={`${date} · ${week}주차`}>
+    <Card
+      title="🗒️ 리포트"
+      desc={`${date} · ${week}주차`}
+      action={
+        onDateChange ? (
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => e.target.value && onDateChange(e.target.value)}
+            className="rounded-btn border border-ink-300 px-2.5 py-1.5 text-sm"
+            aria-label="리포트 날짜 선택"
+          />
+        ) : undefined
+      }
+    >
       <div className="mt-3">
         <SubTabs<"day" | "week" | "student">
           tabs={[

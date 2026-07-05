@@ -95,10 +95,10 @@ function useDecidedToday() {
   });
 }
 
-/** 학생별 최근 기록 */
-function useStudentLedger(sid: number | null) {
+/** 학생별 최근 기록 — count는 '더보기'로 20씩 늘어난다 */
+function useStudentLedger(sid: number | null, count: number) {
   return useQuery({
-    queryKey: ["shopLedgerStudent", sid],
+    queryKey: ["shopLedgerStudent", sid, count],
     enabled: sid != null,
     queryFn: async (): Promise<Entry[]> => {
       const d = db();
@@ -107,12 +107,13 @@ function useStudentLedger(sid: number | null) {
           collection(d, coll),
           where("studentId", "==", sid),
           orderBy("createdAt", "desc"),
-          limit(20)
+          limit(count)
         );
       const [s2, s1] = await Promise.all([getDocs(make("coinTxns")), getDocs(make("s1Spends"))]);
       return [...mapDocs(s2, "s2"), ...mapDocs(s1, "s1")].sort((x, y) => y.createdAt - x.createdAt);
     },
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -168,11 +169,12 @@ export default function ShopAdmin() {
   const [mode, setMode] = useState<"date" | "week" | "student">("date");
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selSid, setSelSid] = useState<number | null>(null);
+  const [ledgerCount, setLedgerCount] = useState(20); // 학생별 더보기 — 20건씩
   const dayQ = useRangeLedger(
     mode === "date" ? selDate : mode === "week" ? shiftDate(today, -6) : null,
     mode === "date" && selDate ? shiftDate(selDate, 1) : mode === "week" ? shiftDate(today, 1) : null
   );
-  const studentQ = useStudentLedger(mode === "student" ? selSid : null);
+  const studentQ = useStudentLedger(mode === "student" ? selSid : null, ledgerCount);
   const ledgerEntries = (mode === "student" ? studentQ.data : dayQ.data) ?? [];
   const usageEntries = ledgerEntries.filter((e) => signedAmount(e.type, e.amount) < 0);
   const ledgerLoading = mode === "student" ? studentQ.isLoading : dayQ.isLoading;
@@ -321,7 +323,10 @@ export default function ShopAdmin() {
             {mode === "student" && (
               <select
                 value={selSid ?? ""}
-                onChange={(e) => setSelSid(e.target.value ? Number(e.target.value) : null)}
+                onChange={(e) => {
+                  setSelSid(e.target.value ? Number(e.target.value) : null);
+                  setLedgerCount(20); // 학생 바꾸면 더보기 범위 초기화
+                }}
                 className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
               >
                 <option value="">학생을 골라주세요</option>
@@ -350,12 +355,43 @@ export default function ShopAdmin() {
                 </p>
               )}
               {usageEntries.length > 0 && (
-                <ul className="space-y-1">
-                  {usageEntries.map((e) => (
-                    <EntryRow key={e.id} e={e} showDate={mode !== "date"} />
-                  ))}
-                </ul>
+                <>
+                  {/* 요약 스탯 행 — 목록만 있으면 밀도가 낮아 한눈 파악이 어려움 (디자이너 감사) */}
+                  <p className="mb-2 rounded-btn bg-ink-50 px-3 py-2 text-xs font-bold text-ink-600">
+                    사용 {usageEntries.length}건 · 실버{" "}
+                    {usageEntries
+                      .filter((e) => e.type !== "gold")
+                      .reduce((a, e) => a + e.amount, 0)}
+                    개
+                    {usageEntries.some((e) => e.type === "gold") && (
+                      <>
+                        {" "}
+                        · 골드{" "}
+                        {usageEntries
+                          .filter((e) => e.type === "gold")
+                          .reduce((a, e) => a + e.amount, 0)}
+                        개
+                      </>
+                    )}
+                  </p>
+                  <ul className="space-y-1">
+                    {usageEntries.map((e) => (
+                      <EntryRow key={e.id} e={e} showDate={mode !== "date"} />
+                    ))}
+                  </ul>
+                </>
               )}
+              {/* 학생별 더보기 — 20건 한도에 걸렸을 때 20건씩 추가 조회 */}
+              {mode === "student" &&
+                !ledgerLoading &&
+                ledgerEntries.length >= ledgerCount && (
+                  <button
+                    onClick={() => setLedgerCount((c) => c + 20)}
+                    className="press mt-2 w-full rounded-btn bg-ink-100 py-2 text-xs font-bold text-ink-600 hover:bg-ink-200"
+                  >
+                    더보기 (이전 기록 20건)
+                  </button>
+                )}
             </div>
           </div>
 
