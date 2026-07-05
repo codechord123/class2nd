@@ -11,6 +11,7 @@ import { useUiText } from "@/lib/uiText";
 // 탭별 시그니처 컬러 — "지금 어디에 있는지"를 색으로 인지
 export const TABS = [
   { href: "/rules", label: "헌법", accent: "bg-slate-600" },
+  { href: "/guide", label: "안내", accent: "bg-teal-600" },
   { href: "/", label: "개요", accent: "bg-brand" },
   { href: "/team", label: "Team", accent: "bg-orange-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
