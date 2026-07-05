@@ -14,7 +14,8 @@ export default function BetaBanner() {
       <span className="mr-1.5 rounded-full bg-violet-600 px-1.5 py-px text-[10px] font-bold text-white">
         BETA
       </span>
-      테스트 기간 (~7/20) · 지금 기록은 연습이에요 — 개학 전에 초기화돼요
+      테스트 기간 (~7/20) · 점수·상점 기록은 연습이에요 — 개학 전에 초기화돼요 · 🐢 독서
+      감상문은 진짜! 계속 쌓여요
     </div>
   );
 }

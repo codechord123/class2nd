@@ -476,7 +476,7 @@ export default function ReadingPage() {
             onClick={openNew}
             className="press flex w-full items-center justify-center gap-2 rounded-card bg-brand py-6 text-base font-extrabold text-white shadow-card"
           >
-            ✍️ 감상문 쓰기 ({week}주차)
+            ✍️ 감상문 쓰기 ({todayKST() < SEMESTER_START ? "🏖️ 방학 — 쓴 만큼 누적!" : `${week}주차`})
           </button>
           <p className="mt-2 text-center text-xs text-ink-400">
             버튼을 누르면 넓은 쓰기 화면이 열려요. 길게 써도 편해요!

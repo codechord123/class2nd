@@ -160,6 +160,64 @@ async function grantMilestones(
   return { silver: silverGrant, gold: goldDelta };
 }
 
+// ── 방학 독서 적립 (사용자 확정: 감상문은 상시 누적, 방학에도 1편 = 누적 1점) ──
+// 방학 감상문은 readingStats.byWeek["0"] 버킷에 쌓인다 (주간 통계 밖 — 스트릭·모둠
+// 대항·주간 보상은 개학(1주차)부터). 이 함수는 버킷과 vacReadPaid 마커의 차이만큼
+// 누적 점수에 반영한다 — 날짜와 무관하게 멱등이라 방학 중 교사가 드문드문 접속해도
+// 유실이 없고, 초기화로 _cumulative(마커 포함)가 지워져도 다음 실행이 전액 복원한다.
+// 삭제로 버킷이 줄면 음수 델타로 점수도 되돌린다 (이미 지급된 마일스톤 실버는 회수 없음).
+export interface VacationReadResult {
+  students: number; // 반영된 학생 수
+  points: number; // 반영된 점수 합 (음수 보정 포함)
+  milestoneSilver: number; // 이번 반영으로 지급된 마일스톤 실버 수
+}
+
+export async function payVacationReading(): Promise<VacationReadResult | null> {
+  return withAggLock("vacationRead", async () => {
+    const d = db();
+    const [statsSnap, cumSnap] = await Promise.all([
+      getDoc(doc(d, "readingStats", "main")),
+      getDoc(doc(d, "dailyScores", "_cumulative")),
+    ]);
+    const bucket =
+      ((statsSnap.exists() ? statsSnap.data().byWeek?.["0"] : undefined) as
+        | Record<string, number>
+        | undefined) ?? {};
+    const cum = (cumSnap.exists() ? cumSnap.data() : {}) as Record<string, unknown>;
+    const paid = (cum.vacReadPaid as Record<string, number>) ?? {};
+
+    const deltas: Record<string, number> = {};
+    for (const s of students) {
+      const sid = String(s.id);
+      const delta = (bucket[sid] ?? 0) - (paid[sid] ?? 0);
+      if (delta !== 0) deltas[sid] = delta;
+    }
+    const entries = Object.entries(deltas);
+    if (!entries.length) return null;
+
+    await setDoc(
+      doc(d, "dailyScores", "_cumulative"),
+      {
+        ...Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
+        vacReadPaid: Object.fromEntries(entries.map(([sid]) => [sid, bucket[sid] ?? 0])),
+      },
+      { merge: true }
+    );
+
+    // 갱신된 누적으로 마일스톤(25점 → 실버, 학급 실버 25 → 골드) 즉시 반영
+    const cumAfter: Record<string, unknown> = { ...cum };
+    for (const [sid, n] of entries)
+      cumAfter[sid] = (typeof cum[sid] === "number" ? (cum[sid] as number) : 0) + n;
+    const ms = await grantMilestones(cumAfter, {}, "🏅 점수 25점 달성 보상");
+
+    return {
+      students: entries.length,
+      points: entries.reduce((a, [, n]) => a + n, 0),
+      milestoneSilver: Object.values(ms.silver).reduce((a, b) => a + b, 0),
+    };
+  });
+}
+
 export async function aggregateDate(
   date: string,
   settings: ClassSettings,
@@ -246,9 +304,14 @@ async function aggregateDateInner(
       ? { [bestEntry.groupId]: 1 }
       : {};
 
+  // 개학 전(방학) 감상문은 일일 read 점수가 아니라 방학 적립(payVacationReading —
+  // 0주차 버킷 + vacReadPaid 마커)으로 누적 점수에 반영된다. 여기서 또 세면 이중 지급.
+  const countReads = date >= SEMESTER_START;
+
   // 기록이 전혀 없는 날(평가·감상문·순위 없음, 기존 집계도 없음)은 건너뛴다 —
   // 자동 집계가 주말·방학 날짜마다 빈 문서를 쌓지 않게 (기존 집계가 있으면 재집계해 0으로 보정)
-  if (opts?.skipIfEmpty && evalSnap.empty && reportSnap.empty && !prevSnap.exists() && !bestEntry)
+  const reportsRelevant = countReads && !reportSnap.empty;
+  if (opts?.skipIfEmpty && evalSnap.empty && !reportsRelevant && !prevSnap.exists() && !bestEntry)
     return null;
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
@@ -260,12 +323,13 @@ async function aggregateDateInner(
     for (const m of g.members) groupOfStudent[m.studentId] = g.groupId;
   }
 
-  // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로)
+  // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로, 개학 이후 날짜만)
   const readCount: Record<number, number> = {};
-  reportSnap.forEach((r) => {
-    const sid = r.data().studentId as number | undefined;
-    if (typeof sid === "number") readCount[sid] = (readCount[sid] ?? 0) + 1;
-  });
+  if (countReads)
+    reportSnap.forEach((r) => {
+      const sid = r.data().studentId as number | undefined;
+      if (typeof sid === "number") readCount[sid] = (readCount[sid] ?? 0) + 1;
+    });
 
   // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
   //      (서로 칭찬하기를 매일 미션으로 — 협력하면 다 같이 이득)

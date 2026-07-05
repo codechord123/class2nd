@@ -125,6 +125,14 @@ export default function TeacherPage() {
             `🎉 거북이 응원 10,000번 달성 — 깜짝 이벤트! 학급 골드 +${r.clickGold} 지급 (아이들에게 발표해 주세요)`,
             "success"
           );
+        if (r.vacationRead) {
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+          toast(
+            `🐢 방학 독서 적립: ${r.vacationRead.students}명 · 누적 점수 ${r.vacationRead.points > 0 ? "+" : ""}${r.vacationRead.points}점${r.vacationRead.milestoneSilver ? ` · 실버 ${r.vacationRead.milestoneSilver}개 자동 지급` : ""}`,
+            "success"
+          );
+        }
         if (r.skippedRange)
           toast(
             `⚠️ ${r.skippedRange.days}일치(${r.skippedRange.from}~${r.skippedRange.to})는 소급 상한(14일)을 넘어 자동 집계에서 제외됐어요 — 필요하면 날짜별 수동 집계로 처리하세요`,

@@ -14,8 +14,10 @@ import { shiftDate, todayKST } from "@/lib/date";
 import {
   aggregateDate,
   dateRangeOfPeriod,
+  payVacationReading,
   settleSession,
   type SessionSettleResult,
+  type VacationReadResult,
 } from "@/lib/aggregate";
 import type { ClassSettings } from "@/types";
 
@@ -37,6 +39,8 @@ export interface AutoRunResult {
   skippedRange?: { from: string; to: string; days: number };
   /** 거북이 응원 클릭 10,000번 달성으로 지급된 학급 골드 */
   clickGold?: number;
+  /** 방학 감상문 적립 결과 (0주차 버킷 → 누적 점수 반영) */
+  vacationRead?: VacationReadResult;
 }
 
 let inFlight: Promise<AutoRunResult | null> | null = null;
@@ -157,6 +161,15 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     if (paid) result.clickGold = paid;
   } catch {
     // 지급 실패는 다음 접속 때 재시도 (트랜잭션이라 절반만 반영되는 일 없음)
+  }
+
+  // 5.5) 방학 독서 적립 — 0주차 버킷과 지급 마커의 차이만큼 누적 점수 반영 (멱등).
+  //      개학 후에도 계속 돌린다: 방학 막판에 쓴 글·삭제 보정의 잔여 델타를 자연 청산 (0이면 no-op).
+  try {
+    const vr = await payVacationReading();
+    if (vr) result.vacationRead = vr;
+  } catch {
+    // 실패는 다음 접속 때 재시도 (마커 델타 방식이라 유실 없음)
   }
 
   // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)

@@ -7,7 +7,6 @@ import { useReadingStats } from "@/lib/query/reading";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { readingStreaks, weekBooks } from "@/lib/readingStreak";
-import { BETA_END } from "@/components/BetaBanner";
 
 export default function ReadingAlert() {
   const { role, studentId } = useSession();
@@ -16,8 +15,20 @@ export default function ReadingAlert() {
 
   if (role !== "student" || !studentId || !settings || !stats) return null;
   const today = todayKST();
-  // 방학(베타 종료 후 ~ 개학 전)에는 경고하지 않음
-  if (today < SEMESTER_START && today > BETA_END) return null;
+  // 개학 전(방학)에는 주간 미션·스트릭이 없다 — 쓴 만큼 쌓인다는 응원만 (사용자 확정)
+  if (today < SEMESTER_START) {
+    const vacBooks = weekBooks(stats, studentId, 0); // 0주차 = 방학 버킷
+    return (
+      <div className="rounded-btn bg-success-weak px-4 py-2.5 text-sm text-success">
+        🏖️ 방학 독서는 쓰는 만큼 그대로 쌓여요{vacBooks > 0 && (
+          <>
+            {" "}— 지금까지 <b>{vacBooks}권</b>, 전부 누적 점수 +{vacBooks}점!
+          </>
+        )}{" "}
+        주간 미션·연속 보너스는 개학하면 시작돼요 🔥
+      </div>
+    );
+  }
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings.weeklyReadingQuota;

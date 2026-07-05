@@ -49,6 +49,7 @@ export default function MyStatus() {
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
+  const vacation = today < SEMESTER_START; // 방학: 주간 미션 없음, 권수는 0주차 버킷에 누적
 
   // 학급 스코어보드 (전원 공통)
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
@@ -84,11 +85,20 @@ export default function MyStatus() {
       {myRead && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-2.5">
           <span className="text-sm text-ink-700">
-            🙋 나: 이번 주{" "}
-            <b className={myRead.weekRead >= quota ? "text-success" : "text-emerald-700"}>
-              {myRead.weekRead}/{quota}권
-            </b>{" "}
-            · 누적 <b>{myRead.totalBooks}권</b>
+            {vacation ? (
+              <>
+                🙋 나: 방학 동안 <b className="text-emerald-700">{myRead.weekRead}권</b> · 누적{" "}
+                <b>{myRead.totalBooks}권</b>
+              </>
+            ) : (
+              <>
+                🙋 나: 이번 주{" "}
+                <b className={myRead.weekRead >= quota ? "text-success" : "text-emerald-700"}>
+                  {myRead.weekRead}/{quota}권
+                </b>{" "}
+                · 누적 <b>{myRead.totalBooks}권</b>
+              </>
+            )}
           </span>
           <a
             href="/reading"
@@ -120,8 +130,8 @@ export default function MyStatus() {
     );
   }
 
-  // 내 현황 (학생)
-  const myWeekRead = weekBooks(stats, studentId, week);
+  // 내 현황 (학생) — 방학엔 0주차(방학) 버킷을 보여준다
+  const myWeekRead = weekBooks(stats, studentId, vacation ? 0 : week);
   const mySilver = s2Bal?.[String(studentId)] ?? 0;
   const myCarry =
     (getS1WalletOf(studentId)?.silverRemaining ?? 0) -
@@ -153,13 +163,21 @@ export default function MyStatus() {
     { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
     { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
     { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
-    {
-      icon: "🐢",
-      label: `독서 ${myWeekRead}/${quota}권`,
-      sub: "이번 주 미션",
-      done: doneRead,
-      href: "/reading",
-    },
+    vacation
+      ? {
+          // 방학: 주간 미션이 없으니 완료 개념 없는 누적 표시 (상점 타일과 동일 취급)
+          icon: "🐢",
+          label: `방학 독서 ${myWeekRead}권`,
+          sub: "1편 = 누적 +1점",
+          href: "/reading",
+        }
+      : {
+          icon: "🐢",
+          label: `독서 ${myWeekRead}/${quota}권`,
+          sub: "이번 주 미션",
+          done: doneRead,
+          href: "/reading",
+        },
     { icon: "🛒", label: "상점", sub: `실버 ${mySilver}개 쓰러 가기`, href: "/shop" },
   ];
   const checkable = todos.filter((t) => t.done !== undefined);

@@ -15,7 +15,7 @@ export default function BetaResetPanel() {
     if (busy) return;
     const ok1 = await confirm({
       title: "베타 기록을 전부 지울까요?",
-      body: "평가·점수·칭찬·독서(감상문/권수)·실버·건의·투표·자리신청 기록이 모두 삭제돼요.\n교사 설정·상점 메뉴·헌법·학생 비밀번호는 유지됩니다.",
+      body: "평가·점수·칭찬·실버·건의·투표·자리신청 기록이 삭제돼요.\n🐢 독서는 7/5 이후 감상문·권수·독서 점수가 유지되고, 그 전 연습분만 정리돼요.\n교사 설정·상점 메뉴·헌법·학생 비밀번호는 유지됩니다.",
       confirmLabel: "계속",
       danger: true,
     });
@@ -53,7 +53,9 @@ export default function BetaResetPanel() {
         <div>
           <p className="text-sm font-bold text-danger">🧨 베타 테스트 초기화</p>
           <p className="mt-0.5 text-xs text-ink-600">
-            테스트 기간의 학생 기록 전체를 삭제해요(설정·메뉴·비밀번호는 유지). 개학 전 새 출발용.
+            테스트 기간의 학생 기록을 삭제해요 (설정·메뉴·비밀번호 유지). 🐢 독서는 7/5부터
+            진짜 누적 — 그 이후 감상문·권수·독서 점수는 지워지지 않고, 연습분(7/5 전)만
+            정리돼요. 개학 전 새 출발용.
           </p>
         </div>
         <button

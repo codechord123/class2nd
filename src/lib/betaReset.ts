@@ -1,21 +1,28 @@
 "use client";
-// 베타 테스트 초기화 — 학생 활동 기록을 전부 삭제 (교사 전용).
-// 유지: 교사 설정(settings)·상점 메뉴·바로가기·헌법·메모·학생 비밀번호(studentAuth).
-// 삭제: 평가·점수·칭찬 커버리지·실버 원장·이월 사용·자리신청·독서(감상문/초안/통계)·
-//       건의·투표·세션 정산·오늘의모둠·비번 재설정 요청·거북이 응원 클릭(이벤트 마커 포함).
-import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
+// 베타 테스트 초기화 — 학생 활동 기록을 삭제 (교사 전용).
+// 유지: 교사 설정(settings)·상점 메뉴·바로가기·헌법·메모·학생 비밀번호(studentAuth)·
+//       🐢 독서 기록(감상문·초안·통계 — 방학 상시 누적, 사용자 확정. 단 아래 참고).
+// 삭제: 평가·점수·칭찬 커버리지·실버 원장·이월 사용·자리신청·건의·투표·세션 정산·
+//       오늘의모둠·비번 재설정 요청·거북이 응원 클릭(이벤트 마커 포함).
+// 독서 특례: 진짜 누적 시작일(READING_KEEP_FROM) 이전의 '연습' 감상문만 지우고,
+//       남은 감상문으로 통계(total·byWeek)를 재구축한다 — 방학 글은 0주차 버킷으로
+//       재배치되므로 개학 후 주간 통계(스트릭·모둠 대항)를 오염시키지 않는다.
+//       점수·실버가 지워져도 다음 교사 접속 때 방학 적립(payVacationReading)이
+//       0주차 버킷 전체를 다시 지급해 독서 점수·실버가 자동 복원된다.
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { todayKST } from "@/lib/date";
+import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+
+/** 거북이 독서 '진짜 누적' 시작일 — 이 날짜 전 감상문은 베타 연습으로 보고 지운다 */
+export const READING_KEEP_FROM = "2026-07-05";
 
 const SIMPLE_COLLECTIONS = [
-  "dailyScores", // _cumulative 포함
+  "dailyScores", // _cumulative 포함 (방학 독서 점수는 payVacationReading이 자동 복원)
   "biweeklyScores",
   "coinTxns", // 0_balances 포함
   "s1Spends",
   "seatChangeRequests",
-  "readingReports",
-  "readingDrafts",
-  "readingStats",
   "suggestions",
   "polls",
   "resetRequests",
@@ -88,6 +95,39 @@ export async function resetAllRecords(onProgress?: (msg: string) => void): Promi
   await deleteDoc(doc(d, "classData", "bestGroups")).catch(() => failed.push("bestGroups"));
   // 거북이 응원 클릭 — 카운트·이벤트 지급 마커까지 리셋 (개학 후 깜짝 이벤트를 처음부터)
   await deleteDoc(doc(d, "classData", "turtleClicks")).catch(() => failed.push("turtleClicks"));
+
+  // 4) 독서 정리 — 연습 감상문(READING_KEEP_FROM 이전)만 삭제 + 통계 재구축.
+  //    남는 감상문은 week 필드도 재배치(방학=0주차) — 삭제 시 차감 버킷이 어긋나지 않게.
+  onProgress?.("독서 기록 정리 중…");
+  try {
+    const [reports, statsSnap] = await Promise.all([
+      getDocs(collection(d, "readingReports")),
+      getDoc(doc(d, "readingStats", "main")),
+    ]);
+    const total: Record<string, number> = {};
+    const byWeek: Record<string, Record<string, number>> = {};
+    for (const r of reports.docs) {
+      const v = r.data();
+      const date = kstDateOf(Number(v.createdAt) || 0);
+      if (date < READING_KEEP_FROM) {
+        await deleteDoc(r.ref); // 베타 연습분
+        deleted++;
+        continue;
+      }
+      const sid = String(v.studentId);
+      const week = date < SEMESTER_START ? 0 : weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+      total[sid] = (total[sid] ?? 0) + 1;
+      (byWeek[String(week)] ??= {})[sid] = (byWeek[String(week)]?.[sid] ?? 0) + 1;
+      if (v.week !== week) await setDoc(r.ref, { week }, { merge: true });
+    }
+    // s1Adj(1학기 권수 교사 보정)는 실기록 — 재구축에서도 보존
+    const s1Adj = statsSnap.exists()
+      ? ((statsSnap.data().s1Adj as Record<string, number> | undefined) ?? {})
+      : {};
+    await setDoc(doc(d, "readingStats", "main"), { total, byWeek, s1Adj });
+  } catch {
+    failed.push("readingStats");
+  }
 
   return { deleted, failed: [...new Set(failed)] };
 }

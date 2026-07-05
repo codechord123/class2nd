@@ -224,8 +224,11 @@ export function useSaveReport(myId: number | null) {
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
     // 주차는 '저장하는 순간' 기준으로 재계산 — 페이지를 일요일 밤에 열어두고
-    // 월요일에 등록하면 화면에 들고 있던 주차가 한 주 늦어 통계가 어긋난다
-    const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
+    // 월요일에 등록하면 화면에 들고 있던 주차가 한 주 늦어 통계가 어긋난다.
+    // 개학 전(방학)은 0주차 버킷 — 총권수·마라톤에는 포함되지만 주간 통계(스트릭·
+    // 모둠 대항·주간 보상, 전부 1주차부터)를 오염시키지 않는다 (사용자 확정).
+    const week =
+      todayKST() < SEMESTER_START ? 0 : weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
     // Firestore는 undefined 값을 거부하므로 isPrivate는 항상 boolean으로 정규화
     const base = { ...form, title: form.title.trim(), isPrivate: form.isPrivate ?? false };
 

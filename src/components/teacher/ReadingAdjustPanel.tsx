@@ -47,7 +47,11 @@ export default function ReadingAdjustPanel() {
         }
         const curTotal = data.total?.[key] ?? 0;
         if (delta === -1 && curTotal <= 0) throw new Error("이미 0권이라 더 뺄 수 없어요.");
-        const week = String(weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS));
+        // 방학(개학 전) 보정은 0주차 버킷 — 종이 감상문 인정도 방학 누적 점수에 포함
+        const week =
+          todayKST() < SEMESTER_START
+            ? "0"
+            : String(weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS));
         const curWeek = data.byWeek?.[week]?.[key] ?? 0;
         tx.set(
           doc(d, "readingStats", "main"),
