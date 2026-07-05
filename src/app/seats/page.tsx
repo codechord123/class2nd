@@ -20,6 +20,7 @@ import {
   useCreateSeatRequest,
   seatChangeDeadline,
 } from "@/lib/query/seatChange";
+import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import type { RoleKey } from "@/types";
 
 export default function SeatsPage() {
@@ -56,9 +57,32 @@ export default function SeatsPage() {
   const deadline = seatChangeDeadline(weekMeta.weekStart);
   const deadlinePassed = new Date() > deadline;
 
+  // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
+  // (잔액 1개로 상점·자리 이중 신청 방지. 문서는 모두 캐시 공유 — 추가 읽기 거의 0)
+  const { data: s2Bal } = useBalances("s2");
+  const { data: myS2 } = useMyRequests("s2", role === "student" ? studentId : null);
+
   async function submitRequest() {
     if (busy) return;
     const cost = settings?.seatChangeCost ?? 1;
+    if (role === "student" && studentId) {
+      const balance = s2Bal?.[String(studentId)] ?? 0;
+      const shopHold = (myS2 ?? [])
+        .filter((r) => r.status === "pending" && r.type !== "gold")
+        .reduce((a, r) => a + r.amount, 0);
+      const seatHold = (weekRequests ?? []).filter(
+        (r) => r.studentId === studentId && r.status === "pending"
+      ).length * cost;
+      if (balance - shopHold - seatHold < cost) {
+        toast(
+          shopHold + seatHold > 0
+            ? `실버가 모자라요 — 승인 대기 중인 신청(${shopHold + seatHold}개)까지 계산했어요.`
+            : "실버가 모자라요. 먼저 실버를 모아주세요!",
+          "warn"
+        );
+        return;
+      }
+    }
     const ok = await confirm({
       title: "자리를 바꿀까요?",
       body: `${targetGroup}모둠 · ${targetRole} 지킴이로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,

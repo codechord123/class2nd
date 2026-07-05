@@ -63,6 +63,15 @@ export default function ShopPage() {
   // 골드 = 1학기 이월분 − 사용 + 실버 마일스톤 적립(실버 25개 벌 때마다 +1)
   const classGoldLeft =
     s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0);
+  // 잔액 홀드 — 승인 대기 중인 신청 금액은 이미 쓴 것으로 본다 (잔액 1개로 이중 신청 방지)
+  const holdOf = (reqs: { status: string; type?: string; amount: number }[] | undefined) =>
+    (reqs ?? [])
+      .filter((r) => r.status === "pending" && r.type !== "gold")
+      .reduce((a, r) => a + r.amount, 0);
+  const s2Hold = holdOf(myS2);
+  const s1Hold = holdOf(myS1);
+  const availOf = (w: WalletKind) =>
+    w === "s2" ? myS2Balance - s2Hold : myS1Remaining - s1Hold;
 
   // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청.
   // 시간창 밖이면 '예약 담기' — 접수는 되고 승인은 똑같이 다음 날 아침 (깜빡 방지)
@@ -77,9 +86,14 @@ export default function ShopPage() {
       toast("개수를 확인해주세요.", "warn");
       return;
     }
-    const max = wallet === "s2" ? myS2Balance : myS1Remaining;
+    const max = availOf(wallet);
     if (n > max) {
-      toast("가진 실버보다 많이 쓸 수 없어요.", "warn");
+      toast(
+        max < (wallet === "s2" ? myS2Balance : myS1Remaining)
+          ? "승인 기다리는 신청까지 계산하면 실버가 모자라요."
+          : "가진 실버보다 많이 쓸 수 없어요.",
+        "warn"
+      );
       return;
     }
     const ok = await confirm({
@@ -114,9 +128,14 @@ export default function ShopPage() {
         return;
       }
     } else {
-      const max = wallet === "s2" ? myS2Balance : myS1Remaining;
+      const max = availOf(wallet);
       if (m.price > max) {
-        toast("가진 실버보다 비싸요. 지갑을 바꾸거나 더 모아요!", "warn");
+        toast(
+          max < (wallet === "s2" ? myS2Balance : myS1Remaining)
+            ? "승인 기다리는 신청까지 계산하면 실버가 모자라요."
+            : "가진 실버보다 비싸요. 지갑을 바꾸거나 더 모아요!",
+          "warn"
+        );
         return;
       }
     }
@@ -193,7 +212,7 @@ export default function ShopPage() {
             </ul>
           </details>
           {tab === "shop" && (
-            <div className="mt-2 flex items-center gap-2 border-t border-ink-100 pt-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-2">
               <span className="shrink-0 text-xs text-ink-400">결제 지갑</span>
               {(["s2", "s1"] as const).map((w) => (
                 <button
@@ -206,6 +225,12 @@ export default function ShopPage() {
                   {w === "s2" ? `2학기 (${myS2Balance})` : `이월 (${myS1Remaining})`}
                 </button>
               ))}
+              {(s2Hold > 0 || s1Hold > 0) && (
+                <span className="text-[11px] text-ink-400">
+                  ⏳ 승인 대기로 잡힌 실버{s2Hold > 0 && ` 2학기 ${s2Hold}`}
+                  {s1Hold > 0 && ` 이월 ${s1Hold}`} — 쓸 수 있는 만큼만 신청돼요
+                </span>
+              )}
             </div>
           )}
         </section>

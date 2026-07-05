@@ -25,6 +25,7 @@ import {
   useSetComplimentCoverage,
 } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
+import MyRecord from "@/components/team/MyRecord";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -427,7 +428,7 @@ export default function TeamPage() {
       <SubTabs
         tabs={[
           { key: "eval" as const, label: "🤝 평가·칭찬" },
-          { key: "stats" as const, label: "📈 통계" },
+          { key: "stats" as const, label: "📒 내 기록·통계" },
         ]}
         active={tab}
         onChange={setTab}
@@ -717,7 +718,12 @@ export default function TeamPage() {
 
       </div>)}
 
-      {tab === "stats" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
+      {tab === "stats" && (
+        <div className="space-y-4">
+          <MyRecord studentId={studentId} cumScores={cumScores} />
+          <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+        </div>
+      )}
 
       <p className="text-xs text-ink-400">
         ※ 점수는 매일 선생님 집계 후 반영돼요. 모둠이 바뀌어도 내 점수는 계속 쌓여요.

@@ -61,6 +61,16 @@ export default function ReadingAlert() {
       </div>
     );
   }
+  // 주 중반(D-3~4)인데 아직 2권 이상 남음 — 마감 전 몰아치기 예방용 중간 페이스 점검
+  if (daysLeft <= 4 && shortfall >= 2) {
+    return (
+      <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm font-medium text-warn">
+        🐢 주 중반이에요 — 아직 <b>{shortfall}권</b> 남았어요 ({read}/{quota}권). 오늘 1권 읽으면
+        주말이 여유로워져요!
+        {streakChip}
+      </div>
+    );
+  }
   return (
     <div className="rounded-btn border border-ink-200 bg-white px-4 py-2.5 text-sm font-medium text-ink-600">
       🐢 이번 주 <b className="text-emerald-700">{shortfall}권</b> 남았어요 ({read}/{quota}권) —
