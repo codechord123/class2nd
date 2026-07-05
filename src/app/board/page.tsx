@@ -5,7 +5,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
-import { studentById } from "@/lib/roster";
+import { ROLE_INFO, studentById } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
 import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
@@ -71,6 +71,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [pickingDept, setPickingDept] = useState(false); // 법률 채택 시 부서 선택 중
 
   const { up, down } = reactionCounts(sug);
   const myReaction =
@@ -340,27 +341,52 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               </span>
             ) : (
               <button
+                onClick={() => setPickingDept((v) => !v)}
+                className="press rounded-full bg-ink-800 px-3 py-1 text-xs font-bold text-white"
+              >
+                📜 법률로 올리기{pickingDept ? " ▲" : ""}
+              </button>
+            ))}
+        </div>
+      )}
+
+      {/* 법률 채택: 담당 부서 선택 — 법률은 부서별 관리 (헌법 탭 법률 그리드와 연결) */}
+      {role === "teacher" && pickingDept && sug.status === "채택" && !sug.enactedAsLaw && (
+        <div className="mt-2 rounded-btn bg-ink-50 px-3 py-2.5">
+          <p className="text-xs font-bold text-ink-600">어느 부서의 법으로 등록할까요?</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {ROLE_INFO.map((r) => (
+              <button
+                key={r.dept}
                 onClick={async () => {
                   if (
                     !(await confirm({
-                      title: "이 안건을 학급 법률로 올릴까요?",
-                      body: `"${titleOf(sug)}" 이(가) 헌법 탭의 법률 목록에 추가돼요.`,
+                      title: `${r.dept}의 법으로 올릴까요?`,
+                      body: `"${titleOf(sug)}" 이(가) 헌법 탭 → 법률 → ${r.emoji} ${r.dept}에 추가돼요.`,
                       confirmLabel: "법률로 등록",
                     }))
                   )
                     return;
                   try {
-                    const n = await enactLaw(sug);
-                    toast(`📜 법률 제${n}조로 등록됐어요!`, "success");
+                    const n = await enactLaw(sug, r.dept);
+                    setPickingDept(false);
+                    toast(`📜 ${r.emoji} ${r.dept} · ${r.key}법 제${n}조로 등록됐어요!`, "success");
                   } catch (e) {
                     toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
                   }
                 }}
-                className="press rounded-full bg-ink-800 px-3 py-1 text-xs font-bold text-white"
+                className="press rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-700 hover:border-brand hover:bg-brand-weak/40"
               >
-                📜 법률로 올리기
+                {r.emoji} {r.dept}
               </button>
             ))}
+            <button
+              onClick={() => setPickingDept(false)}
+              className="press rounded-full px-2 py-1.5 text-xs font-bold text-ink-400 hover:text-danger"
+            >
+              ✕ 취소
+            </button>
+          </div>
         </div>
       )}
 

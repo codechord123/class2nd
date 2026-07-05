@@ -246,12 +246,16 @@ export function useReactSuggestion(myId: number | null) {
  */
 export function useEnactLaw() {
   const qc = useQueryClient();
-  return async (sug: Suggestion): Promise<number> => {
+  // dept: 담당 부서(ROLE_INFO.dept) — 법률은 부서별로 관리한다 (사용자 확정)
+  return async (sug: Suggestion, dept: string): Promise<number> => {
     const ref = doc(db(), "classData", "constitution");
     const snap = await getDoc(ref);
-    const c = (snap.exists() ? snap.data() : {}) as { laws?: string[] };
-    const laws = [...(c.laws ?? []), titleOf(sug)];
-    await setDoc(ref, { laws }, { merge: true });
+    const c = (snap.exists() ? snap.data() : {}) as {
+      lawsByDept?: Record<string, string[]>;
+    };
+    const laws = [...(c.lawsByDept?.[dept] ?? []), titleOf(sug)];
+    // merge: lawsByDept의 해당 부서 키만 깊은 병합 — 다른 부서·미분류(laws)는 보존
+    await setDoc(ref, { lawsByDept: { [dept]: laws } }, { merge: true });
     await updateDoc(doc(db(), "suggestions", sug.id), { enactedAsLaw: true });
     const patch = (prev: Suggestion[] | undefined) =>
       prev?.map((s) => (s.id === sug.id ? { ...s, enactedAsLaw: true } : s));
