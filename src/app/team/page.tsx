@@ -5,7 +5,7 @@
 //  · 점수는 학생(개인)에게 귀속 — 2주마다 모둠이 바뀌어도 누적 유지
 // 읽기 예산: 학생 1일 = 본인 평가 2문서 + 집계 2문서. 저장 후 재조회 없음.
 import { useSession } from "@/stores/session";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { studentById, ROLE_INFO } from "@/lib/roster";
 import { useSettings } from "@/lib/query/settings";
@@ -14,6 +14,7 @@ import {
   useSaveEvaluation,
   useDailyScores,
   useCumulativeScores,
+  useLatestAggregated,
   useSaveMvp,
   useSavePeerNotes,
   useSaveToTeacher,
@@ -78,6 +79,8 @@ export default function TeamPage() {
   const saveToTeacher = useSaveToTeacher(date, studentId);
   const { data: todayScores } = useDailyScores(date);
   const { data: cumScores } = useCumulativeScores();
+  // 받은 칭찬·바라는 점 — 가장 최근 집계일(어제 이하) 문서 1개
+  const { data: latestAgg } = useLatestAggregated(shiftDate(date, -1), role === "student");
   const { data: bestGroups } = useBestGroups();
   const { data: coverage } = useComplimentCoverage(date, role === "student");
   const setCoverage = useSetComplimentCoverage(date, studentId);
@@ -135,6 +138,11 @@ export default function TeamPage() {
 
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
+
+  // 받은 마음 — 가장 최근 집계일의 칭찬·바라는 점 중 내가 받은 것 (실명 표시)
+  const myReceivedComps = (latestAgg?.meta.compliments ?? []).filter((c) => c.to === studentId);
+  const myReceivedSugs = (latestAgg?.meta.peerSuggestions ?? []).filter((s) => s.to === studentId);
+  const fmtDay = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 
   // ── 칭찬(필수·자유 선택) / 건의(필요할 때만) ──────────────────
   // 미션: 모둠원 전원이 1번씩 칭찬받으면 전원 +1점. 그래서 '아직 칭찬 못 받은 친구'를
@@ -343,6 +351,49 @@ export default function TeamPage() {
         )}
       </section>
 
+      {/* 받은 마음 — 친구들이 보낸 칭찬·바라는 점을 본인에게 실명으로 전달 (집계 다음 날) */}
+      {(myReceivedComps.length > 0 || myReceivedSugs.length > 0) && latestAgg && (
+        <section className="rounded-card border border-pink-200 bg-white p-4 shadow-card">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-lg font-bold">💌 친구들이 보낸 마음</h3>
+            <span className="text-xs text-ink-400">{fmtDay(latestAgg.date)}</span>
+          </div>
+          {myReceivedComps.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {myReceivedComps.map((c, i) => (
+                <li
+                  key={`rc-${i}`}
+                  className="flex items-start gap-2 rounded-btn bg-pink-50 px-3 py-2 text-sm"
+                >
+                  <span className="shrink-0 font-bold text-pink-700">{name(c.from)}</span>
+                  <span className="min-w-0 flex-1 text-ink-700 [overflow-wrap:anywhere]">
+                    {c.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {myReceivedSugs.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-bold text-ink-500">🙋 친구가 나에게 바라는 점</p>
+              <ul className="mt-1.5 space-y-1.5">
+                {myReceivedSugs.map((s, i) => (
+                  <li
+                    key={`rs-${i}`}
+                    className="flex items-start gap-2 rounded-btn bg-sky-50 px-3 py-2 text-sm"
+                  >
+                    <span className="shrink-0 font-bold text-sky-700">{name(s.from)}</span>
+                    <span className="min-w-0 flex-1 text-ink-700 [overflow-wrap:anywhere]">
+                      {s.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       <SubTabs
         tabs={[
           { key: "eval" as const, label: "🤝 평가·칭찬" },
@@ -441,8 +492,9 @@ export default function TeamPage() {
           </span>
         </div>
         <p className="mt-1 text-[13px] text-ink-600">
-          오늘 고마웠던 친구를 골라 칭찬해요. 🌱 새싹 친구는 <b>아직 칭찬을 못 받은 친구</b> —
-          칭찬을 받으면 새싹이 사라져요!
+          오늘 고마웠던 친구를 골라 칭찬해요. 내가 쓴 칭찬은 <b>다음 날 그 친구에게 내 이름과
+          함께</b> 전달돼요. 🌱 새싹 친구는 <b>아직 칭찬을 못 받은 친구</b> — 칭찬을 받으면
+          새싹이 사라져요!
         </p>
         {/* 미션 진행 — 모둠원 전원 칭찬받기 */}
         <div
@@ -552,6 +604,8 @@ export default function TeamPage() {
             />
             <p className="mt-1 text-[11px] text-ink-400">
               건의는 칭찬 보내기를 누를 때 함께 전달돼요. 비워두면 안 보내져요.
+              <b className="text-sky-600"> 다음 날 그 친구에게 내 이름과 함께 보여요</b> — 예의
+              바르고 다정하게 부탁해요!
             </p>
           </div>
         )}

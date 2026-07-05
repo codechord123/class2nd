@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, doc, documentId, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { shiftDate } from "@/lib/date";
 import { students } from "@/lib/roster";
 import type { PeerEvaluation, DailyScoreRow } from "@/types";
 
@@ -207,6 +208,29 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       };
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** 받은 칭찬·바라는 점 표시용 — 어제부터 하루씩 거슬러 '가장 최근 집계일' 문서를 찾는다.
+ *  (documentId 내림차순 쿼리는 Firestore 미지원 — getDoc을 첫 히트에서 멈추는 방식이
+ *   평일엔 1회, 주말을 건넌 월요일엔 3회 읽기로 가장 싸다. 최대 5일 전까지만.) */
+export interface DailyMeta {
+  compliments?: { from: number; to: number; text: string }[];
+  peerSuggestions?: { from: number; to: number; text: string }[];
+}
+export function useLatestAggregated(before: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["latestDaily", before],
+    enabled,
+    queryFn: async (): Promise<{ date: string; meta: DailyMeta } | null> => {
+      for (let i = 0; i < 5; i++) {
+        const date = shiftDate(before, -i);
+        const snap = await getDoc(doc(db(), "dailyScores", date));
+        if (snap.exists()) return { date, meta: (snap.data()._meta ?? {}) as DailyMeta };
+      }
+      return null;
+    },
+    staleTime: 30 * 60 * 1000,
   });
 }
 
