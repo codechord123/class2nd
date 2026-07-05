@@ -12,9 +12,12 @@ import { useFeedback } from "@/components/ui/Feedback";
 import { s1TotalOf } from "@/lib/staticData";
 
 // 🍪 학급 응원 클릭 — 10,000번 모을 때마다 학급 골드 +1 (선생님 접속 때 자동 지급).
-// 쓰기 예산: 클릭은 로컬에 모았다가 20번마다(또는 화면 이탈 시) 한 번만 increment.
+// 쓰기 예산 설계: ① 읽기는 세션당 문서 1개(5분 캐시)로 미미 ② 쓰기는 50클릭당 1회 배칭
+// ③ 기기별 하루 상한(비 카운트 클릭은 애니메이션만) — 최악의 경우에도
+// 25명 × 300클릭 ÷ 50 = 하루 150쓰기 상한.
 const GOLD_PER_CLICKS = 10000;
-const FLUSH_EVERY = 20;
+const FLUSH_EVERY = 50;
+const DAILY_CAP = 300; // 기기당 하루 카운트 상한
 
 function useTurtleClicks() {
   return useQuery({
@@ -60,7 +63,23 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   // 학급 응원 클릭 카운터 — 서버값 + 이 세션에서 누른 만큼
   const { data: serverClicks } = useTurtleClicks();
   const [localClicks, setLocalClicks] = useState(0);
+  const [capped, setCapped] = useState(false);
   const pendingRef = useRef(0);
+  // 기기별 일일 상한 — localStorage에 오늘 카운트 저장
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+  const dayCount = useRef<number | null>(null);
+  const bumpDaily = (): boolean => {
+    try {
+      if (dayCount.current == null)
+        dayCount.current = Number(localStorage.getItem(`turtle-day-${todayKey}`) ?? 0);
+      if (dayCount.current >= DAILY_CAP) return false;
+      dayCount.current += 1;
+      localStorage.setItem(`turtle-day-${todayKey}`, String(dayCount.current));
+      return true;
+    } catch {
+      return true;
+    }
+  };
   const flush = useCallback(() => {
     const n = pendingRef.current;
     if (n <= 0) return;
@@ -114,7 +133,14 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
       <button
         type="button"
         onClick={() => {
-          setHopKey((k) => k + 1);
+          setHopKey((k) => k + 1); // 상한을 넘어도 애니메이션은 그대로 (재미 유지)
+          if (!bumpDaily()) {
+            if (!capped) {
+              setCapped(true);
+              toast("🐢 오늘 내 응원은 여기까지! 내일 또 눌러줘요 (기기당 하루 300번)", "warn");
+            }
+            return;
+          }
           setLocalClicks((c) => c + 1);
           pendingRef.current += 1;
           if (pendingRef.current >= FLUSH_EVERY) flush();

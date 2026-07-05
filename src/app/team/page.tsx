@@ -30,6 +30,7 @@ import {
 } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
 import MyRecord from "@/components/team/MyRecord";
+import GroupGoals from "@/components/team/GroupGoals";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -131,6 +132,7 @@ export default function TeamPage() {
             선생님은 <b>교사</b> 탭에서 집계·오늘의 모둠 선정·칭찬 인쇄를 관리할 수 있어요.
           </p>
         </section>
+        <GroupGoals />
         <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
       </div>
     );
@@ -834,8 +836,13 @@ export default function TeamPage() {
       {/* 개인 통계 — 내 점수·독서·받은 마음 (사용자 결정: 모둠/개인 분리) */}
       {tab === "me" && <MyRecord studentId={studentId} cumScores={cumScores} />}
 
-      {/* 모둠·학급 통계 — 오늘의 모둠 포함 횟수 등 */}
-      {tab === "group" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
+      {/* 모둠·학급 통계 — 모둠 대항전(공동 목표) + 학급 통계 */}
+      {tab === "group" && (
+        <div className="space-y-4">
+          <GroupGoals myStudentId={studentId} />
+          <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+        </div>
+      )}
 
       <p className="text-xs text-ink-400">
         ※ 점수는 매일 선생님 집계 후 반영돼요. 모둠이 바뀌어도 내 점수는 계속 쌓여요.

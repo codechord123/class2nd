@@ -240,6 +240,9 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
 export interface DailyMeta {
   compliments?: { from: number; to: number; text: string }[];
   peerSuggestions?: { from: number; to: number; text: string }[];
+  groupSums?: Record<string, number>; // 모둠별 총점 합계 (모둠 대항전 표시용)
+  autoBestGroups?: number[]; // 오늘의 모둠 (총점 1위)
+  missionGroups?: number[]; // 칭찬 미션 달성 모둠
 }
 export function useLatestAggregated(before: string, enabled: boolean) {
   return useQuery({
