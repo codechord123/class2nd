@@ -38,7 +38,8 @@ export interface Suggestion {
   studentId: number | "teacher"; // 교사가 쓴 글은 "teacher"
   title?: string; // 커뮤니티 게시판형 제목 (구버전 글은 없음)
   content: string;
-  isAnonymous: boolean;
+  isAnonymous: boolean; // (구버전 글 표시 호환용 — 새 글에서는 항상 false)
+  teacherOnly?: boolean; // 🔒 선생님만 보기 — 작성자 본인과 교사에게만 노출
   isAnnouncement?: boolean; // 공지 고정 (교사)
   status?: AgendaStatus; // 안건 상태 (기본 논의중)
   enactedAsLaw?: boolean; // 채택 후 학급 법률로 등록됨
@@ -97,7 +98,7 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
   return async (
     title: string,
     content: string,
-    isAnonymous: boolean,
+    teacherOnly: boolean, // 🔒 선생님만 보기 (익명 기능 대체 — 사용자 확정)
     isAnnouncement = false // 교사 전용 — 쓰면서 바로 공지로 고정
   ) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
@@ -107,7 +108,8 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
       studentId: myId,
       title: title.trim(),
       content: content.trim(),
-      isAnonymous,
+      isAnonymous: false,
+      teacherOnly,
       ...(isAnnouncement ? { isAnnouncement: true } : {}),
       comments: [],
       createdAt: Date.now(),

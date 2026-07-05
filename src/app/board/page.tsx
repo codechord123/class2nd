@@ -469,20 +469,25 @@ export default function BoardPage() {
   const [writing, setWriting] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [anon, setAnon] = useState(false);
+  const [teacherOnly, setTeacherOnly] = useState(false); // 🔒 선생님만 보기 (익명 대체)
   const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
+  const canSee = (p: Suggestion) =>
+    !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
+
   const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
-  const selected = all.find((p) => p.id === selectedId);
+  const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
     setBusy(true);
     try {
-      await post(title, content, role === "teacher" ? false : anon, role === "teacher" && announce);
+      await post(title, content, role === "student" && teacherOnly, role === "teacher" && announce);
       setTitle("");
       setContent("");
+      setTeacherOnly(false);
       setAnnounce(false);
       setWriting(false);
       toast("✅ 등록되었어요!");
@@ -501,7 +506,7 @@ export default function BoardPage() {
     return `${titleOf(p)} ${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
   };
   const pinned = (announcements ?? []).filter(matches);
-  const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(matches);
+  const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(canSee).filter(matches);
   // 검색 중에는 결과 전체, 평소엔 현재 페이지 분량만
   const pageItems = kw ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
   const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
@@ -530,6 +535,11 @@ export default function BoardPage() {
               </span>
             )}
             {!pin && <StatusBadge sug={p} />}
+            {p.teacherOnly && (
+              <span className="shrink-0 rounded bg-ink-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                🔒 선생님만
+              </span>
+            )}
             <b className="truncate text-[15px] text-ink-900">{titleOf(p)}</b>
             {p.enactedAsLaw && <span className="shrink-0 text-xs">📜</span>}
           </span>
@@ -597,8 +607,12 @@ export default function BoardPage() {
             <div className="flex items-center gap-3">
               {role === "student" ? (
                 <label className="flex items-center gap-1.5 text-sm text-ink-500">
-                  <input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} />
-                  익명으로
+                  <input
+                    type="checkbox"
+                    checked={teacherOnly}
+                    onChange={(e) => setTeacherOnly(e.target.checked)}
+                  />
+                  🔒 선생님만 보기 (몰래 전할 말)
                 </label>
               ) : (
                 <label className="flex items-center gap-1.5 text-sm text-ink-500">

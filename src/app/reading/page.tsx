@@ -575,7 +575,8 @@ export default function ReadingPage() {
               <EmptyState emoji="🐢" title="아직 감상문이 없어요" desc="첫 번째 주인공이 되어보세요!" />
             ))
           )}
-          <ul className="divide-y divide-ink-100">
+          {/* 2칼럼 목록 — 한 화면에 더 많은 감상문이 보이게 (사용자 요청). 모바일은 1칼럼 */}
+          <ul className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-2 [&>li]:border-b [&>li]:border-ink-100">
             {pageItems.map((r) =>
               isLocked(r) ? (
                 // 🔒 잠긴 행 — 제목·내용 비노출, 클릭해도 펼쳐지지 않음

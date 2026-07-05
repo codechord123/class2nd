@@ -42,8 +42,12 @@ export function useUiText() {
   return useQuery({
     queryKey: ["uiText"],
     queryFn: async (): Promise<Record<string, string>> => {
-      const snap = await getDoc(doc(db(), "classData", "uiText"));
-      return snap.exists() ? (snap.data() as Record<string, string>) : {};
+      try {
+        const snap = await getDoc(doc(db(), "classData", "uiText"));
+        return snap.exists() ? (snap.data() as Record<string, string>) : {};
+      } catch {
+        return {}; // 로그인 전 등 읽기 불가 — 기본 문구로 (재시도 소음 방지)
+      }
     },
     staleTime: 30 * 60 * 1000,
   });

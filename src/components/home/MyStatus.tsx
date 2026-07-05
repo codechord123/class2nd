@@ -142,7 +142,13 @@ export default function MyStatus() {
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
   const doneRead = myWeekRead >= quota;
-  const todos: { icon: string; label: string; sub: string; done: boolean; href: string }[] = [
+  const todos: {
+    icon: string;
+    label: string;
+    sub: string;
+    done?: boolean; // undefined = 완료 개념 없는 바로가기 (상점)
+    href: string;
+  }[] = [
     { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
     { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
     { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
@@ -153,22 +159,27 @@ export default function MyStatus() {
       done: doneRead,
       href: "/reading",
     },
+    { icon: "🛒", label: "상점", sub: `실버 ${mySilver}개 쓰러 가기`, href: "/shop" },
   ];
-  const doneCount = todos.filter((t) => t.done).length;
+  const checkable = todos.filter((t) => t.done !== undefined);
+  const doneCount = checkable.filter((t) => t.done).length;
 
   return (
     <div className="space-y-4">
-      {/* ① 오늘 할 일 — 큰 타일 (홈의 주인공) */}
+      {/* ① 거북이 독서 통합 — 학급 미션(배너) 바로 아래 붙여서 최상단 (사용자 확정) */}
+      {readingCard({ weekRead: myWeekRead, totalBooks: myTotalBooks })}
+
+      {/* ② 오늘 할 일 — 큰 타일 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-ink-900">
-            {doneCount === todos.length ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
+            {doneCount === checkable.length ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
           </h2>
           <span className="text-xs font-bold text-ink-500">
-            {doneCount}/{todos.length} 완료
+            {doneCount}/{checkable.length} 완료
           </span>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {todos.map((t) => (
             <a
               key={t.label}
@@ -176,7 +187,9 @@ export default function MyStatus() {
               className={`press rounded-card border p-3 text-center transition-colors ${
                 t.done
                   ? "border-success/40 bg-success-weak"
-                  : "border-ink-200 bg-white hover:border-brand/50 hover:bg-brand-weak/40"
+                  : t.done === undefined
+                    ? "border-brand/30 bg-brand-weak/40 hover:bg-brand-weak"
+                    : "border-ink-200 bg-white hover:border-brand/50 hover:bg-brand-weak/40"
               }`}
             >
               <p className="text-2xl">{t.icon}</p>
@@ -191,7 +204,7 @@ export default function MyStatus() {
         </div>
       </section>
 
-      {/* ② 내 현황 + 우리 반 — 한 카드 통합 */}
+      {/* ③ 내 현황 + 우리 반 — 한 카드 통합 */}
       <section className="rise rounded-card border border-ink-200 bg-white p-3 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-1">
           <h2 className="text-sm font-bold text-ink-900">🙋 내 현황 · 🏫 우리 반</h2>
@@ -201,24 +214,13 @@ export default function MyStatus() {
             </span>
           )}
         </div>
-        <div className="mt-2 grid grid-cols-4 gap-1.5 lg:grid-cols-7">
+        <div className="mt-2 grid grid-cols-3 gap-1.5 lg:grid-cols-6">
           <Stat label="누적 점수" value={typeof myScore === "number" ? myScore : 0} tone="indigo" />
           <Stat label="2학기 실버" value={mySilver} />
           <Stat label="이월 실버" value={myCarry} tone="amber" />
-          <a
-            href="/shop"
-            className="press rounded-btn border border-brand/30 bg-brand-weak px-2 py-2 text-center hover:bg-brand/15"
-          >
-            <p className="text-[11px] leading-tight text-brand-strong">상점</p>
-            <p className="text-base font-extrabold leading-tight">🛒</p>
-            <p className="text-[10px] font-bold leading-tight text-brand-strong">쓰러 가기 →</p>
-          </a>
           {classTiles}
         </div>
       </section>
-
-      {/* ③ 거북이 독서 통합 — 마라톤 + 내 통계 + 미션·참여 독려 */}
-      {readingCard({ weekRead: myWeekRead, totalBooks: myTotalBooks })}
     </div>
   );
 }

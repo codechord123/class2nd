@@ -3,12 +3,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
+import { useUiText } from "@/lib/uiText";
 
-// 학생 화면 탭 구성 (요구사항 §2): 개요·Team·독서·건의·투표·자리·상점·헌법
+// 학생 화면 탭 구성 — 기본 순서는 헌법이 맨 앞 (학급 운영은 헌법부터 — 사용자 확정).
+// 이름·순서는 교사 화면 '탭 이름·순서'에서 수정 가능 (classData/uiText의 nav.* 키).
 // 모바일 가로 스크롤을 줄이기 위해 라벨은 짧게 유지 (레드팀 결론)
-// 내비게이션은 텍스트만 — 이모지는 콘텐츠 영역에만 써서 정식 프로그램의 인상을 만든다
-// 탭별 시그니처 컬러 — "지금 어디에 있는지"를 색으로 인지 (독서=에메랄드, 투표=보라…)
-const TABS = [
+// 탭별 시그니처 컬러 — "지금 어디에 있는지"를 색으로 인지
+export const TABS = [
+  { href: "/rules", label: "헌법", accent: "bg-slate-600" },
   { href: "/", label: "개요", accent: "bg-brand" },
   { href: "/team", label: "Team", accent: "bg-orange-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
@@ -16,8 +18,25 @@ const TABS = [
   { href: "/vote", label: "투표", accent: "bg-violet-500" },
   { href: "/seats", label: "자리", accent: "bg-amber-500" },
   { href: "/shop", label: "상점", accent: "bg-pink-500" },
-  { href: "/rules", label: "헌법", accent: "bg-slate-600" },
 ] as const;
+
+/** 교사 오버라이드(nav.order / nav.label.*) 적용한 탭 목록 */
+export function applyTabConfig(
+  uiText: Record<string, string> | undefined
+): { href: string; label: string; accent: string }[] {
+  const base = TABS.map((t) => ({
+    ...t,
+    label: uiText?.[`nav.label.${t.href}`]?.trim() || t.label,
+  }));
+  const orderStr = uiText?.["nav.order"]?.trim();
+  if (!orderStr) return base;
+  const order = orderStr.split(",").map((s) => s.trim());
+  return [...base].sort((a, b) => {
+    const ia = order.indexOf(a.href);
+    const ib = order.indexOf(b.href);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}
 
 export default function TabNav() {
   const pathname = usePathname();
@@ -37,10 +56,12 @@ export default function TabNav() {
     setShowFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
   }, []);
 
+  const { data: uiText } = useUiText();
+  const baseTabs = applyTabConfig(uiText);
   const tabs =
     mounted && role === "teacher"
-      ? [...TABS, { href: "/teacher", label: "교사", accent: "bg-ink-800" } as const]
-      : TABS;
+      ? [...baseTabs, { href: "/teacher", label: "교사", accent: "bg-ink-800" }]
+      : baseTabs;
   const tabCount = tabs.length;
 
   // 페이지 로드·탭 변경 시 활성 탭이 화면 밖이면 보이도록 스크롤.

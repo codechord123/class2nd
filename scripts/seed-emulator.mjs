@@ -38,7 +38,7 @@ await setDoc(doc(db, "classData", "settings"), {
   groupScale: [0, 1, 2],
   rankPoints: [5, 4, 3, 2, 1],
   weeklyReadingQuota: 3,
-  seatChangeCost: 1,
+  seatChangeCost: 10,
   requestOpenHour: 16,
   requestCloseHour: 24,
   readingGoal: 1250,

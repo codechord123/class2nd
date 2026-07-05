@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   groupScale: [-1, 0, 1],
   rankPoints: [5, 4, 3, 2, 1],
   weeklyReadingQuota: 3,
-  seatChangeCost: 1,
+  seatChangeCost: 10,
   readingGoal: 1250,
   readingCharLimit: 700,
   semesterStart: "2026-08-17",
