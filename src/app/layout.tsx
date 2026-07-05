@@ -24,7 +24,9 @@ export default function RootLayout({
       {/* 배경은 ink-100(옅은 회색) — 흰 카드가 배경과 분리되어 블록 경계가 또렷해진다 */}
       <body className="min-h-full flex flex-col bg-ink-100 text-ink-800">
         <Providers>
-          <header className="sticky top-0 z-20 border-b border-ink-200 bg-white/80 backdrop-blur-md">
+          {/* 브랜드 행은 스크롤과 함께 지나가고 탭만 상단 고정 — 작은 화면에서
+              상시 점유 높이를 132px → 60px대로 (레이아웃 감사 반영) */}
+          <header className="bg-white">
             <BetaBanner />
             <div className="mx-auto max-w-3xl px-4 lg:max-w-5xl">
               <div className="flex items-center justify-between py-3">
@@ -39,9 +41,13 @@ export default function RootLayout({
                 </h1>
                 <UserChip />
               </div>
-              <TabNav />
             </div>
           </header>
+          <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-md">
+            <div className="mx-auto max-w-3xl px-4 pt-2 lg:max-w-5xl">
+              <TabNav />
+            </div>
+          </div>
           <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4 lg:max-w-5xl">
             <LoginGate>{children}</LoginGate>
           </main>

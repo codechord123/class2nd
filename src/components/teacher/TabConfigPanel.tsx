@@ -10,6 +10,9 @@ import { useUiText } from "@/lib/uiText";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 
+/** 저장된 순서를 지워 기본 순서(코드의 TABS)로 복귀 — 이름 커스텀은 유지 */
+const RESET_PATCH = { "nav.order": "" };
+
 interface Row {
   href: string;
   defLabel: string;
@@ -19,9 +22,32 @@ interface Row {
 export default function TabConfigPanel() {
   const qc = useQueryClient();
   const { data: uiText } = useUiText();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function resetOrder() {
+    const ok = await confirm({
+      title: "탭 순서를 기본값으로 되돌릴까요?",
+      body: "저장했던 순서가 지워지고 기본 순서(헌법·개요·모둠·독서·상점·투표·건의·자리·안내)로 돌아가요. 바꾼 이름은 유지돼요.",
+      confirmLabel: "기본 순서로",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await setDoc(doc(db(), "classData", "uiText"), RESET_PATCH, { merge: true });
+      qc.setQueryData(["uiText"], (prev: Record<string, string> | undefined) => ({
+        ...(prev ?? {}),
+        ...RESET_PATCH,
+      }));
+      setRows(null); // 목록 다시 초기화 (기본 순서로)
+      toast("✅ 기본 순서로 되돌렸어요 — 새로고침하면 모든 화면에 반영돼요.", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "되돌리기에 실패했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // 현재 저장된 순서·이름으로 초기화 (1회)
   useEffect(() => {
@@ -110,13 +136,22 @@ export default function TabConfigPanel() {
               </li>
             ))}
           </ul>
-          <button
-            onClick={() => void save()}
-            disabled={busy}
-            className="press mt-3 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-          >
-            {busy ? "저장 중…" : "탭 구성 저장"}
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => void save()}
+              disabled={busy}
+              className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {busy ? "저장 중…" : "탭 구성 저장"}
+            </button>
+            <button
+              onClick={() => void resetOrder()}
+              disabled={busy}
+              className="press rounded-btn border border-ink-300 bg-white px-4 py-2 text-sm font-bold text-ink-600 disabled:opacity-50"
+            >
+              기본 순서로 되돌리기
+            </button>
+          </div>
         </>
       )}
     </Card>

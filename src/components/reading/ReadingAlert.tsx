@@ -15,17 +15,19 @@ export default function ReadingAlert() {
 
   if (role !== "student" || !studentId || !settings || !stats) return null;
   const today = todayKST();
-  // 개학 전(방학)에는 주간 미션·스트릭이 없다 — 쓴 만큼 쌓인다는 응원만 (사용자 확정)
+  // 개학 전(방학)에는 주간 미션·스트릭이 없다 — 짧은 한 줄만 (첫 화면 공간 확보)
   if (today < SEMESTER_START) {
     const vacBooks = weekBooks(stats, studentId, 0); // 0주차 = 방학 버킷
     return (
       <div className="rounded-btn bg-success-weak px-4 py-2.5 text-sm text-success">
-        🏖️ 방학 독서는 쓰는 만큼 그대로 쌓여요{vacBooks > 0 && (
+        🏖️ 방학 독서는 쓴 만큼 그대로 쌓여요
+        {vacBooks > 0 && (
           <>
-            {" "}— 지금까지 <b>{vacBooks}권</b>, 전부 누적 점수 +{vacBooks}점!
+            {" "}
+            (지금 <b>{vacBooks}권</b> = +{vacBooks}점)
           </>
         )}{" "}
-        주간 미션·연속 보너스는 개학하면 시작돼요 🔥
+        — 주간 미션·스트릭은 개학부터!
       </div>
     );
   }

@@ -5,20 +5,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { useUiText } from "@/lib/uiText";
 
-// 학생 화면 탭 구성 — 기본 순서는 헌법이 맨 앞 (학급 운영은 헌법부터 — 사용자 확정).
-// 이름·순서는 교사 화면 '탭 이름·순서'에서 수정 가능 (classData/uiText의 nav.* 키).
+// 학생 화면 탭 구성 — 기본 순서(B안, 레이아웃 감사 반영): 헌법은 맨 앞(상징 — 사용자
+// 확정 유지), 그다음은 사용 빈도순(개요·모둠·독서·상점 매일 → 투표·건의·자리 가끔),
+// 참조 문서인 안내는 맨 뒤. 이름·순서는 교사 '탭 이름·순서'에서 수정 가능(nav.* 키).
 // 모바일 가로 스크롤을 줄이기 위해 라벨은 짧게 유지 (레드팀 결론)
 // 탭별 시그니처 컬러 — "지금 어디에 있는지"를 색으로 인지
 export const TABS = [
   { href: "/rules", label: "헌법", accent: "bg-slate-600" },
-  { href: "/guide", label: "안내", accent: "bg-teal-600" },
   { href: "/", label: "개요", accent: "bg-brand" },
-  { href: "/team", label: "Team", accent: "bg-orange-500" },
+  { href: "/team", label: "모둠", accent: "bg-orange-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
-  { href: "/board", label: "건의", accent: "bg-sky-500" },
-  { href: "/vote", label: "투표", accent: "bg-violet-500" },
-  { href: "/seats", label: "자리", accent: "bg-amber-500" },
   { href: "/shop", label: "상점", accent: "bg-pink-500" },
+  { href: "/vote", label: "투표", accent: "bg-violet-500" },
+  { href: "/board", label: "건의", accent: "bg-sky-500" },
+  { href: "/seats", label: "자리", accent: "bg-amber-500" },
+  { href: "/guide", label: "안내", accent: "bg-teal-600" },
 ] as const;
 
 /** 교사 오버라이드(nav.order / nav.label.*) 적용한 탭 목록 */
