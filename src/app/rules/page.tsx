@@ -140,6 +140,43 @@ function LawClause({ text }: { text: string }) {
   );
 }
 
+// ── 법률 구조화 편집 (제목 + 항별 내용) ──────────────────────────
+const CIRCLED_NUMS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳".split("");
+export interface LawEdit {
+  title: string; // 조 제목(괄호 부제)
+  clauses: string[]; // 항별 내용 (① ② …)
+}
+/** 저장 문자열 "제N조(부제) ① … ② …" → 편집 구조 {title, clauses}.
+ *  <개정…>·[메타]는 편집 폼에서 다루지 않으므로 버린다 (표시엔 영향 없음). */
+function toLawEdit(text: string): LawEdit {
+  const main = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^\[.*\]$/.test(l))
+    .join(" ")
+    .replace(/\s+/g, " ");
+  const first = main.search(CIRCLED);
+  const head = (first >= 0 ? main.slice(0, first) : main).trim();
+  const title = head.match(/\(([^)]*)\)/)?.[1] ?? head.replace(/^제\s*\d+\s*조\s*/, "").trim();
+  const clauses =
+    first >= 0
+      ? main
+          .slice(first)
+          .split(/(?=[①-⑳])/)
+          .map((s) => s.replace(/^[①-⑳]\s*/, "").trim())
+          .filter(Boolean)
+      : [];
+  return { title, clauses: clauses.length ? clauses : [""] };
+}
+/** 편집 구조 → 저장 문자열 (조 번호는 순서대로 자동) */
+function fromLawEdit(law: LawEdit, idx: number): string {
+  const head = `제${idx + 1}조(${law.title.trim() || "제목"})`;
+  const parts = law.clauses.map((c) => c.trim()).filter(Boolean);
+  if (!parts.length) return head;
+  return `${head} ${parts.map((c, i) => `${CIRCLED_NUMS[i] ?? "①"} ${c}`).join(" ")}`;
+}
+const isEmptyLaw = (l: LawEdit) => !l.title.trim() && !l.clauses.some((c) => c.trim());
+
 export default function RulesPage() {
   const { role } = useSession();
   const { data: c } = useConstitution();
@@ -150,6 +187,7 @@ export default function RulesPage() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null); // 선택된 부서(법률 탭)
   const [editing, setEditing] = useState(false);
   const [items, setItems] = useState<string[]>([]);
+  const [lawItems, setLawItems] = useState<LawEdit[]>([]); // 법률 구조화 편집
   const [bulkOpen, setBulkOpen] = useState(false); // 붙여넣기 일괄 등록 열림
   const [bulkText, setBulkText] = useState("");
 
@@ -170,8 +208,11 @@ export default function RulesPage() {
 
   const showDeptGrid = tab === "laws" && !selectedDept;
 
+  const isLawEdit = tab === "laws" && selectedDept != null;
+
   function startEdit() {
-    setItems([...viewItems]);
+    if (isLawEdit) setLawItems(viewItems.map(toLawEdit));
+    else setItems([...viewItems]);
     setBulkOpen(false);
     setBulkText("");
     setEditing(true);
@@ -233,18 +274,19 @@ export default function RulesPage() {
 
   async function saveEdit() {
     try {
-      const cleaned = items.map((s) => s.trim()).filter(Boolean);
       let next: Constitution;
       if (tab === "laws" && selectedDept) {
-        // 법률: 선택 부서의 배열만 갱신, 다른 부서·미분류는 보존
+        // 법률: 구조화 편집 → 문자열 직렬화 (빈 조 제외), 선택 부서만 갱신
+        const laws = lawItems
+          .filter((l) => !isEmptyLaw(l))
+          .map((l, i) => fromLawEdit(l, i));
         next = {
           ...c!,
-          lawsByDept: { ...(c!.lawsByDept ?? {}), [selectedDept]: cleaned },
+          lawsByDept: { ...(c!.lawsByDept ?? {}), [selectedDept]: laws },
         };
       } else if (tab === "articles" || tab === "roles") {
-        next = { ...c!, [tab]: cleaned };
+        next = { ...c!, [tab]: items.map((s) => s.trim()).filter(Boolean) };
       } else {
-        // laws 탭인데 부서 미선택 — 원래 도달 불가
         return;
       }
       await save(next);
@@ -263,18 +305,34 @@ export default function RulesPage() {
     setItems(next);
   };
 
-  // 붙여넣기 → 조항 파싱 후 items에 반영 (교체 or 이어붙이기)
+  // 붙여넣기 → 조항 파싱 후 반영 (법률은 구조화, 그 외는 문자열 배열)
   function applyBulk(mode: "replace" | "append") {
     const parsed = parseBulk(bulkText);
     if (!parsed.length) {
       toast("붙여넣은 내용에서 조항을 찾지 못했어요.", "warn");
       return;
     }
-    setItems(mode === "replace" ? parsed : [...items.filter((x) => x.trim()), ...parsed]);
+    if (isLawEdit) {
+      const laws = parsed.map(toLawEdit);
+      setLawItems(mode === "replace" ? laws : [...lawItems.filter((l) => !isEmptyLaw(l)), ...laws]);
+    } else {
+      setItems(mode === "replace" ? parsed : [...items.filter((x) => x.trim()), ...parsed]);
+    }
     setBulkOpen(false);
     setBulkText("");
     toast(`✅ ${parsed.length}개 조항을 불러왔어요. 저장을 눌러 반영하세요.`);
   }
+
+  // 법률 구조화 편집 헬퍼
+  const patchLaw = (ci: number, patch: Partial<LawEdit>) =>
+    setLawItems(lawItems.map((x, j) => (j === ci ? { ...x, ...patch } : x)));
+  const setClause = (ci: number, hi: number, val: string) =>
+    patchLaw(ci, { clauses: lawItems[ci].clauses.map((x, j) => (j === hi ? val : x)) });
+  const addClause = (ci: number) => patchLaw(ci, { clauses: [...lawItems[ci].clauses, ""] });
+  const removeClause = (ci: number, hi: number) =>
+    patchLaw(ci, { clauses: lawItems[ci].clauses.filter((_, j) => j !== hi) });
+  const addLaw = () => setLawItems([...lawItems, { title: "", clauses: [""] }]);
+  const removeLaw = (ci: number) => setLawItems(lawItems.filter((_, j) => j !== ci));
 
   // 편집 UI (헌법·역할·특정 부서 법률 공통)
   const bulkPreviewN = parseBulk(bulkText).length;
@@ -294,14 +352,19 @@ export default function RulesPage() {
         {bulkOpen && (
           <div className="space-y-2 border-t border-brand/20 p-3">
             <p className="text-xs text-ink-500">
-              한글 문서에서 조항 전체를 복사해 붙여넣으세요. <b>빈 줄</b>로 조항이 나뉘고,
-              각 조항의 <b>첫 줄이 제목</b>이 돼요. [대괄호] 머리글은 자동 제외돼요.
+              {isLawEdit
+                ? "실제 법령·문서를 그대로 붙여넣으세요. 「제N조」로 시작하는 줄이 조 경계가 되고, ①②③ 항과 [메타]는 한 조로 묶여요."
+                : "한글 문서에서 조항 전체를 복사해 붙여넣으세요. 빈 줄로 조항이 나뉘고, 첫 줄이 제목이 돼요. [대괄호] 머리글은 자동 제외돼요."}
             </p>
             <Textarea
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
               rows={6}
-              placeholder={"제1조 (민주 학급의 선언)\n본 학급은 … 천명한다.\n\n제2조 (존엄과 가치)\n모든 학생은 …"}
+              placeholder={
+                isLawEdit && selectedDept
+                  ? LAW_HINT[selectedDept]
+                  : "제1조 (민주 학급의 선언)\n본 학급은 … 천명한다.\n\n제2조 (존엄과 가치)\n모든 학생은 …"
+              }
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={() => applyBulk("replace")} disabled={bulkPreviewN === 0}>
@@ -322,65 +385,122 @@ export default function RulesPage() {
         )}
       </div>
 
-      {items.map((line, i) => (
-        <div key={i} className="flex items-start gap-2 rounded-card bg-ink-50 p-2.5">
-          <span className="tnum mt-2 w-7 shrink-0 text-center text-xs font-bold text-ink-400">
-            {i + 1}
-          </span>
-          <Textarea
-            value={line}
-            onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
-            rows={3}
-            placeholder={
-              tab === "laws" && selectedDept
-                ? LAW_HINT[selectedDept]
-                : "제목 줄\n본문 (예: 제6조 (상호 존중) → 줄바꿈 → 모든 학생은 …)"
-            }
-          />
-          <div className="flex shrink-0 flex-col gap-1">
-            <button
-              onClick={() => move(i, -1)}
-              disabled={i === 0}
-              className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
-              aria-label="위로"
-            >
-              ▲
-            </button>
-            <button
-              onClick={() => move(i, 1)}
-              disabled={i === items.length - 1}
-              className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
-              aria-label="아래로"
-            >
-              ▼
-            </button>
-          </div>
+      {isLawEdit ? (
+        /* 법률 구조화 편집 — 조마다 제목 + 항별 내용 (①②③ 자동) */
+        <>
+          {lawItems.map((law, ci) => (
+            <div key={ci} className="rounded-card border border-ink-200 bg-white p-3">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 rounded bg-brand-weak px-2 py-1 text-xs font-bold text-brand-strong">
+                  제{ci + 1}조
+                </span>
+                <input
+                  value={law.title}
+                  onChange={(e) => patchLaw(ci, { title: e.target.value })}
+                  placeholder="조 제목 (예: 복도 통행)"
+                  className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm font-medium focus:border-brand focus:outline-none"
+                />
+                <button
+                  onClick={() => removeLaw(ci)}
+                  className="press flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-weak"
+                  aria-label="조 삭제"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {law.clauses.map((cl, hi) => (
+                  <div key={hi} className="flex items-start gap-2">
+                    <span className="mt-2 shrink-0 text-base font-bold text-brand">
+                      {CIRCLED_NUMS[hi] ?? "·"}
+                    </span>
+                    <Textarea
+                      value={cl}
+                      onChange={(e) => setClause(ci, hi, e.target.value)}
+                      rows={2}
+                      placeholder="항 내용을 적어주세요"
+                    />
+                    {law.clauses.length > 1 && (
+                      <button
+                        onClick={() => removeClause(ci, hi)}
+                        className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-400 hover:bg-danger-weak hover:text-danger"
+                        aria-label="항 삭제"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => addClause(ci)}
+                  className="press ml-6 text-xs font-bold text-brand hover:text-brand-strong"
+                >
+                  + 항 추가 ({CIRCLED_NUMS[law.clauses.length] ?? ""})
+                </button>
+              </div>
+            </div>
+          ))}
           <button
-            onClick={() =>
-              void confirm({ title: "이 항목을 삭제할까요?", danger: true, confirmLabel: "삭제" }).then(
-                (ok) => ok && setItems(items.filter((_, j) => j !== i))
-              )
-            }
-            className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-weak"
-            aria-label="삭제"
+            onClick={addLaw}
+            className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
           >
-            ✕
+            + 조 추가 (제{lawItems.length + 1}조)
           </button>
-        </div>
-      ))}
-      <button
-        onClick={() =>
-          setItems([
-            ...items,
-            // 법률은 대한민국 법령 형식 "제N조(제목) ① …" 템플릿을 미리 채운다
-            // (조 번호는 현재 항목 수 +1). 항이 여러 개면 줄바꿈으로 ② ③ 을 잇는다.
-            tab === "laws" && selectedDept ? `제${items.length + 1}조(제목) ① ` : "",
-          ])
-        }
-        className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
-      >
-        + 조항 추가{tab === "laws" && selectedDept ? ` (제${items.length + 1}조)` : ""}
-      </button>
+        </>
+      ) : (
+        <>
+          {items.map((line, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-card bg-ink-50 p-2.5">
+              <span className="tnum mt-2 w-7 shrink-0 text-center text-xs font-bold text-ink-400">
+                {i + 1}
+              </span>
+              <Textarea
+                value={line}
+                onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
+                rows={3}
+                placeholder="제목 줄&#10;본문 (예: 제6조 (상호 존중) → 줄바꿈 → 모든 학생은 …)"
+              />
+              <div className="flex shrink-0 flex-col gap-1">
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
+                  aria-label="위로"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => move(i, 1)}
+                  disabled={i === items.length - 1}
+                  className="press flex h-6 w-6 items-center justify-center rounded-md bg-ink-100 text-ink-500 disabled:opacity-30"
+                  aria-label="아래로"
+                >
+                  ▼
+                </button>
+              </div>
+              <button
+                onClick={() =>
+                  void confirm({
+                    title: "이 항목을 삭제할까요?",
+                    danger: true,
+                    confirmLabel: "삭제",
+                  }).then((ok) => ok && setItems(items.filter((_, j) => j !== i)))
+                }
+                className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-weak"
+                aria-label="삭제"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => setItems([...items, ""])}
+            className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
+          >
+            + 항목 추가
+          </button>
+        </>
+      )}
       <div className="flex items-center gap-2 pt-1">
         <Button onClick={() => void saveEdit()}>저장</Button>
         <Button variant="ghost" onClick={() => setEditing(false)}>
