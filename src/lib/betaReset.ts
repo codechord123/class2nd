@@ -26,6 +26,7 @@ const SIMPLE_COLLECTIONS = [
   "suggestions",
   "polls",
   "resetRequests",
+  "menuRequests",
 ];
 
 /** 베타 기간 날짜 목록 (evaluations/{date}/entries 하위컬렉션 열거용).

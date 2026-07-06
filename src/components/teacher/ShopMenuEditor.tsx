@@ -1,17 +1,73 @@
 "use client";
 // 상점 메뉴판 편집 — 아이들과 토의 후 그때그때 추가/수정/삭제 (고정 보상표 없음).
+// + 학생 메뉴 제안("이런 메뉴 만들어주세요") 검토: 메뉴판에 추가하거나 반려.
 import { useState } from "react";
-import { useShopMenu, useSaveShopMenu, type ShopMenuItem } from "@/lib/query/classMeta";
+import {
+  useShopMenu,
+  useSaveShopMenu,
+  useMenuRequests,
+  useDeleteMenuRequest,
+  type ShopMenuItem,
+  type MenuRequest,
+} from "@/lib/query/classMeta";
+import { studentById } from "@/lib/roster";
+import { useFeedback } from "@/components/ui/Feedback";
 
 export default function ShopMenuEditor() {
   const { data: menu } = useShopMenu();
   const save = useSaveShopMenu();
+  const { data: requests } = useMenuRequests(true);
+  const deleteRequest = useDeleteMenuRequest();
+  const { toast, confirm } = useFeedback();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("1");
   const [wallet, setWallet] = useState<"silver" | "gold">("silver");
   const [note, setNote] = useState("");
   const [editId, setEditId] = useState<number | null>(null); // 수정 중인 메뉴 id (null = 추가 모드)
   const [msg, setMsg] = useState("");
+  // 제안 → 메뉴판 추가 시 가격·지갑 입력 (제안 id별)
+  const [addingReq, setAddingReq] = useState<string | null>(null);
+  const [reqPrice, setReqPrice] = useState("1");
+  const [reqWallet, setReqWallet] = useState<"silver" | "gold">("silver");
+
+  // 학생 제안을 메뉴판에 추가 (가격·지갑 지정) 후 제안 삭제
+  async function acceptRequest(r: MenuRequest) {
+    try {
+      const item: ShopMenuItem = {
+        id: Date.now(),
+        name: r.name,
+        price: Math.max(1, Number(reqPrice) || 1),
+        wallet: reqWallet,
+        ...(r.note ? { note: r.note } : {}),
+      };
+      await save([...(menu ?? []), item]);
+      await deleteRequest(r.id);
+      setAddingReq(null);
+      setReqPrice("1");
+      setReqWallet("silver");
+      toast(`✅ "${r.name}" 을(를) 메뉴판에 올렸어요!`, "success");
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "추가 실패"}`, "error");
+    }
+  }
+
+  async function rejectRequest(r: MenuRequest) {
+    if (
+      !(await confirm({
+        title: `"${r.name}" 제안을 반려할까요?`,
+        body: "제안이 삭제돼요. (아이에게 따로 이유를 알려주면 좋아요)",
+        danger: true,
+        confirmLabel: "반려",
+      }))
+    )
+      return;
+    try {
+      await deleteRequest(r.id);
+      toast("반려했어요.");
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+    }
+  }
 
   function resetForm() {
     setEditId(null);
@@ -151,6 +207,84 @@ export default function ShopMenuEditor() {
         </ul>
       )}
       {msg && <p className="mt-2 text-sm">{msg}</p>}
+
+      {/* 학생 메뉴 제안 검토 — "이런 메뉴 만들어주세요" */}
+      {(requests?.length ?? 0) > 0 && (
+        <div className="mt-4 border-t border-ink-100 pt-3">
+          <h3 className="text-sm font-bold text-ink-800">
+            💡 학생 메뉴 제안{" "}
+            <span className="font-normal text-ink-400">({requests!.length}건)</span>
+          </h3>
+          <ul className="mt-2 space-y-2">
+            {requests!.map((r) => (
+              <li key={r.id} className="rounded-btn border border-ink-200 bg-ink-50 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+                      {studentById.get(r.studentId)?.name ?? `?${r.studentId}`}
+                    </span>{" "}
+                    <b className="text-sm text-ink-900">{r.name}</b>
+                    {r.note && <span className="ml-1 text-xs text-ink-500">· {r.note}</span>}
+                  </span>
+                  {addingReq !== r.id && (
+                    <span className="flex shrink-0 gap-1.5">
+                      <button
+                        onClick={() => {
+                          setAddingReq(r.id);
+                          setReqPrice("1");
+                          setReqWallet("silver");
+                        }}
+                        className="press rounded-btn bg-success px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        메뉴판에 추가
+                      </button>
+                      <button
+                        onClick={() => void rejectRequest(r)}
+                        className="press rounded-btn border border-danger/40 bg-white px-3 py-1.5 text-xs font-bold text-danger"
+                      >
+                        반려
+                      </button>
+                    </span>
+                  )}
+                </div>
+                {/* 가격·지갑 지정 후 확정 */}
+                {addingReq === r.id && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-200 pt-2">
+                    <span className="text-xs font-bold text-ink-500">가격</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={reqPrice}
+                      onChange={(e) => setReqPrice(e.target.value)}
+                      className="w-16 rounded-btn border border-ink-300 px-2 py-1.5 text-sm"
+                    />
+                    <select
+                      value={reqWallet}
+                      onChange={(e) => setReqWallet(e.target.value as "silver" | "gold")}
+                      className="rounded-btn border border-ink-300 px-2 py-1.5 text-sm"
+                    >
+                      <option value="silver">실버 (개인)</option>
+                      <option value="gold">골드 (학급 공용)</option>
+                    </select>
+                    <button
+                      onClick={() => void acceptRequest(r)}
+                      className="press rounded-btn bg-brand px-3 py-1.5 text-xs font-bold text-white"
+                    >
+                      확정
+                    </button>
+                    <button
+                      onClick={() => setAddingReq(null)}
+                      className="press rounded-btn px-2 py-1.5 text-xs font-bold text-ink-400"
+                    >
+                      취소
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -12,7 +12,11 @@ import {
   signedAmount,
   type WalletKind,
 } from "@/lib/query/wallet";
-import { useShopMenu } from "@/lib/query/classMeta";
+import {
+  useShopMenu,
+  useMyMenuRequests,
+  useCreateMenuRequest,
+} from "@/lib/query/classMeta";
 import { useSettings } from "@/lib/query/settings";
 import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
@@ -35,10 +39,10 @@ export default function ShopPage() {
 
   const [tab, setTab] = useState<"shop" | "history">("shop");
   const [wallet, setWallet] = useState<WalletKind>("s2");
-  const [amount, setAmount] = useState("1");
-  const [item, setItem] = useState("");
   const [busy, setBusy] = useState(false);
   const [directOpen, setDirectOpen] = useState(false);
+  const [menuName, setMenuName] = useState(""); // 메뉴 제안 이름
+  const [menuNote, setMenuNote] = useState(""); // 메뉴 제안 이유
   const [buyBurst, setBuyBurst] = useState(0); // 신청·예약 성공 juice
   const { toast, confirm } = useFeedback();
 
@@ -47,6 +51,8 @@ export default function ShopPage() {
   const { data: myS2 } = useMyRequests("s2", studentId);
   const { data: myS1 } = useMyRequests("s1", studentId);
   const { data: menu } = useShopMenu();
+  const { data: myMenuReqs } = useMyMenuRequests(studentId);
+  const createMenuRequest = useCreateMenuRequest(studentId);
   const { data: settings } = useSettings();
 
   // 신청 가능 시간대 (KST) — 교사는 제한 없음
@@ -77,46 +83,22 @@ export default function ShopPage() {
 
   // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청.
   // 시간창 밖이면 '예약 담기' — 접수는 되고 승인은 똑같이 다음 날 아침 (깜빡 방지)
-  async function submit() {
-    const n = Number(amount);
-    const name = item.trim();
-    if (!name) {
-      toast("사고 싶은 것을 적어주세요.", "warn");
+  // 메뉴 제안 — "이런 메뉴 만들어주세요" 건의 (실버 차감 없음)
+  async function proposeMenu() {
+    if (busy) return;
+    if (!menuName.trim()) {
+      toast("원하는 메뉴를 적어주세요.", "warn");
       return;
     }
-    if (!Number.isInteger(n) || n <= 0) {
-      toast("개수를 확인해주세요.", "warn");
-      return;
-    }
-    const max = availOf(wallet);
-    if (n > max) {
-      toast(
-        max < (wallet === "s2" ? myS2Balance : myS1Remaining)
-          ? "승인 기다리는 신청까지 계산하면 실버가 모자라요."
-          : "가진 실버보다 많이 쓸 수 없어요.",
-        "warn"
-      );
-      return;
-    }
-    const ok = await confirm({
-      title: requestOpen ? `"${name}" 신청할까요?` : `"${name}" 예약으로 담을까요?`,
-      body: requestOpen
-        ? `${WALLET_LABEL[wallet]} 지갑에서 ${n}개가 나가요 (선생님 승인 후)`
-        : `지금은 신청 시간(${windowLabel})이 아니라 예약으로 담아요. ${WALLET_LABEL[wallet]} 지갑에서 ${n}개 — 선생님이 다음 날 아침에 승인해요.`,
-      confirmLabel: requestOpen ? "신청" : "예약 담기",
-    });
-    if (!ok) return;
     setBusy(true);
     try {
-      await createRequest(n, name, "spend", { reserved: !requestOpen });
+      await createMenuRequest(menuName, menuNote);
+      setMenuName("");
+      setMenuNote("");
       setBuyBurst((k) => k + 1);
-      setItem("");
-      toast(
-        requestOpen ? "신청 완료! 선생님 승인을 기다려주세요." : "🕓 예약 완료! 내일 아침에 승인돼요.",
-        "success"
-      );
+      toast("💡 메뉴를 건의했어요! 선생님이 검토할 거예요.", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "신청에 실패했어요.", "error");
+      toast(e instanceof Error ? e.message : "건의에 실패했어요.", "error");
     } finally {
       setBusy(false);
     }
@@ -323,41 +305,55 @@ export default function ShopPage() {
         </section>
       )}
 
-      {/* 직접 입력 신청 — 메뉴판이 주인공, 직접 입력은 접어둠 */}
+      {/* 메뉴 제안 — "이런 메뉴 만들어주세요" 건의 (실버 차감 없음, 교사가 검토) */}
       {tab === "shop" && role === "student" && studentId && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <button
             onClick={() => setDirectOpen((v) => !v)}
             className="flex w-full items-center justify-between text-left"
           >
-            <span className="text-sm font-bold text-ink-700">🛒 메뉴에 없는 것 직접 신청</span>
+            <span className="text-sm font-bold text-ink-700">💡 이런 메뉴 만들어주세요</span>
             <span className="text-xs text-ink-400">{directOpen ? "접기 ▲" : "펼치기 ▼"}</span>
           </button>
           {directOpen && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="rounded-btn bg-ink-100 px-3 py-2 text-xs font-bold text-ink-500">
-                {WALLET_LABEL[wallet]}에서
-              </span>
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-ink-500">
+                갖고 싶은 메뉴를 선생님께 건의해요. 실버는 안 나가요 — 선생님이 좋다고 하면
+                메뉴판에 올라가요!
+              </p>
               <input
-                type="number"
-                min={1}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-20 rounded-btn border border-ink-300 px-3 py-2 text-[15px] focus:border-brand focus:outline-none"
+                value={menuName}
+                onChange={(e) => setMenuName(e.target.value)}
+                placeholder="원하는 메뉴 (예: 하루 반장 체험권)"
+                className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
               />
               <input
-                value={item}
-                onChange={(e) => setItem(e.target.value)}
-                placeholder="무엇에 쓸까요? (예: 간식 교환권 · 자리는 자리 탭에서!)"
-                className="min-w-40 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-[15px] focus:border-brand focus:outline-none"
+                value={menuNote}
+                onChange={(e) => setMenuNote(e.target.value)}
+                placeholder="왜 있으면 좋을까요? (선택)"
+                className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
               />
               <button
-                onClick={() => void submit()}
+                onClick={() => void proposeMenu()}
                 disabled={busy}
                 className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                {requestOpen ? "신청" : "🕓 예약"}
+                💡 메뉴 건의하기
               </button>
+              {/* 내가 낸 제안 */}
+              {(myMenuReqs?.length ?? 0) > 0 && (
+                <ul className="mt-2 space-y-1 border-t border-ink-100 pt-2">
+                  {myMenuReqs!.map((r) => (
+                    <li key={r.id} className="flex items-center gap-1.5 text-xs text-ink-600">
+                      <span className="rounded-full bg-warn-weak px-2 py-0.5 font-bold text-warn">
+                        ⏳ 검토 중
+                      </span>
+                      <b className="text-ink-800">{r.name}</b>
+                      {r.note && <span className="truncate text-ink-400">· {r.note}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </section>

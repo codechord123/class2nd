@@ -181,6 +181,14 @@ service cloud.firestore {
       allow read, create, update, delete: if isAuthed();
     }
 
+    // 메뉴 제안 — 학생이 "이런 메뉴 만들어주세요" 건의 (실버 차감 없음).
+    // 본인 명의로만 생성, 교사가 검토 후 삭제(메뉴판 추가 or 반려).
+    match /menuRequests/{reqId} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() && ownsStudent(string(request.resource.data.studentId));
+      allow delete: if isTeacher();
+    }
+
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
     match /complimentCoverage/{date} {
       allow read, create, update: if isAuthed();

@@ -1,7 +1,18 @@
 "use client";
 // 오늘의 모둠(교사 선정) + 헌법/법률/역할 — 모두 classData의 단일 문서(읽기 1회씩).
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // ── 오늘의 모둠 순위: classData/bestGroups = { [date]: { groupId(1위), chairId, ranking } } ──
@@ -122,6 +133,69 @@ export function useSaveShopMenu() {
   return async (items: ShopMenuItem[]) => {
     await setDoc(doc(db(), "classData", "shopMenu"), { items });
     qc.setQueryData(["shopMenu"], items);
+  };
+}
+
+// ── 메뉴 제안: menuRequests 컬렉션 — 학생이 "이런 메뉴 만들어주세요" 건의 ──
+// 실버 차감 없음. 교사가 검토 후 메뉴판(shopMenu)에 추가하거나 반려한다.
+export interface MenuRequest {
+  id: string;
+  studentId: number;
+  name: string; // 원하는 메뉴 이름
+  note?: string; // 왜 필요한지
+  createdAt: number;
+}
+
+/** 교사용 — 전체 메뉴 제안 (최신순) */
+export function useMenuRequests(enabled: boolean) {
+  return useQuery({
+    queryKey: ["menuRequests", "all"],
+    enabled,
+    queryFn: async (): Promise<MenuRequest[]> => {
+      const q = query(collection(db(), "menuRequests"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<MenuRequest, "id">) }));
+    },
+    staleTime: 3 * 60 * 1000,
+  });
+}
+
+/** 학생용 — 내가 낸 제안만 */
+export function useMyMenuRequests(myId: number | null) {
+  return useQuery({
+    queryKey: ["menuRequests", "mine", myId],
+    enabled: myId != null,
+    queryFn: async (): Promise<MenuRequest[]> => {
+      const q = query(collection(db(), "menuRequests"), where("studentId", "==", myId));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<MenuRequest, "id">) }))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    staleTime: 3 * 60 * 1000,
+  });
+}
+
+export function useCreateMenuRequest(myId: number | null) {
+  const qc = useQueryClient();
+  return async (name: string, note: string) => {
+    if (myId == null) throw new Error("로그인이 필요해요.");
+    if (!name.trim()) throw new Error("원하는 메뉴 이름을 적어주세요.");
+    await addDoc(collection(db(), "menuRequests"), {
+      studentId: myId,
+      name: name.trim(),
+      ...(note.trim() ? { note: note.trim() } : {}),
+      createdAt: Date.now(),
+    });
+    void qc.invalidateQueries({ queryKey: ["menuRequests"] });
+  };
+}
+
+export function useDeleteMenuRequest() {
+  const qc = useQueryClient();
+  return async (id: string) => {
+    await deleteDoc(doc(db(), "menuRequests", id));
+    void qc.invalidateQueries({ queryKey: ["menuRequests"] });
   };
 }
 
