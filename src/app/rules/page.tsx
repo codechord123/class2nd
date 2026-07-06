@@ -41,11 +41,17 @@ const LAW_HINT: Record<string, string> = {
 /** 부서의 법 이름 — 역할명 + 법 (질서 지킴이 → 질서법) */
 const lawNameOf = (dept: string) => `${DEPTS.find((d) => d.key === dept)?.role ?? ""}법`;
 
-/** 조항 텍스트를 제목 줄 / 본문으로 분리 — "제6조 (…)\n본문" 형식 표시용 */
+/** 조항 텍스트를 제목 줄 / 본문으로 분리.
+ *  ① 줄바꿈이 있으면 첫 줄 = 제목 (Gemini식 "제6조 (부제)\n본문")
+ *  ② 한 줄이면 "제N조 [N항] [(부제)]" 머리를 제목으로 자동 분리
+ *     ("제1조 1항 우리 반은…" → 제목 "제1조 1항" · 본문 "우리 반은…") */
+const CLAUSE_HEAD = /^(제\s*\d+\s*조(?:\s*제?\s*\d+\s*항)?(?:\s*\([^)]*\))?)\s*(.*)$/;
 function splitClause(line: string): { title: string; body: string } {
   const nl = line.indexOf("\n");
-  if (nl < 0) return { title: line, body: "" };
-  return { title: line.slice(0, nl).trim(), body: line.slice(nl + 1).trim() };
+  if (nl >= 0) return { title: line.slice(0, nl).trim(), body: line.slice(nl + 1).trim() };
+  const m = line.match(CLAUSE_HEAD);
+  if (m && m[2].trim()) return { title: m[1].trim(), body: m[2].trim() };
+  return { title: line, body: "" };
 }
 
 /** 붙여넣기 텍스트 → 조항 배열. 빈 줄로 조항 구분, [대괄호] 헤더 줄은 제거.
