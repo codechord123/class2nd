@@ -29,13 +29,13 @@ const DEPTS = ROLE_INFO.map((r) => ({
   desc: r.desc,
 }));
 
-// 부서별 placeholder 힌트 — "OO법 N조 N항 — ~이다" 형식 예시 (사용자 확정)
+// 부서별 placeholder 힌트 — 대한민국 법령 형식 "제N조(제목) ① … ② …" (사용자 확정)
 const LAW_HINT: Record<string, string> = {
-  의장: "예: 소통법 1조 1항 — 회의 시작 전 3분 간 침묵으로 마음을 모은다.",
-  법무부: "예: 질서법 1조 1항 — 복도에서는 오른쪽으로 걷고, 뛰지 않는다.",
-  교육부: "예: 학습법 1조 1항 — 아침 자습 시간(8:40~9:00)은 조용히 학습한다.",
-  보건환경부: "예: 건강법 1조 1항 — 급식 후 반드시 양치질을 한다.",
-  행정안전부: "예: 행정법 1조 1항 — 유인물은 당일 가정으로 전달한다.",
+  의장: "제1조(회의 진행) ① 회의 시작 전 3분 간 침묵으로 마음을 모은다.\n② 발언은 손을 들고 순서를 지킨다.",
+  법무부: "제1조(복도 통행) ① 복도에서는 오른쪽으로 걷는다.\n② 실내에서는 뛰거나 장난치지 않는다.",
+  교육부: "제1조(아침 자습) ① 아침 자습 시간(8:40~9:00)은 조용히 학습한다.",
+  보건환경부: "제1조(개인 위생) ① 급식 후 반드시 양치질을 한다.",
+  행정안전부: "제1조(유인물 전달) ① 유인물은 당일 가정으로 전달한다.",
 };
 
 /** 부서의 법 이름 — 역할명 + 법 (질서 지킴이 → 질서법) */
@@ -54,20 +54,90 @@ function splitClause(line: string): { title: string; body: string } {
   return { title: line, body: "" };
 }
 
-/** 붙여넣기 텍스트 → 조항 배열. 빈 줄로 조항 구분, [대괄호] 헤더 줄은 제거.
- *  각 조항은 "제목줄\n본문" 형태로 보존한다 (여러 줄이면 첫 줄이 제목). */
+/** 붙여넣기 텍스트 → 조항 배열.
+ *  ① "제N조"로 시작하는 줄이 있으면 그 줄을 조 경계로 삼는다 — 대한민국 법령처럼
+ *     한 조에 여러 항(①②③)과 빈 줄·[메타]가 섞여도 하나의 조로 묶는다.
+ *  ② "제N조"가 전혀 없으면 빈 줄로 나누는 기존 방식 (단순 목록용). */
+const HEAD_LINE = /^제\s*\d+\s*조/;
 function parseBulk(raw: string): string[] {
+  if (new RegExp(HEAD_LINE.source, "m").test(raw)) {
+    const out: string[] = [];
+    let cur: string | null = null;
+    for (const line of raw.split("\n")) {
+      const t = line.trim();
+      if (HEAD_LINE.test(t)) {
+        if (cur != null) out.push(cur);
+        cur = t;
+      } else if (cur != null && t) {
+        cur += "\n" + t; // 조항 내부 — 항·메타 유지, 빈 줄은 접음
+      }
+      // cur == null이고 머리글 아니면(예: [학급 헌법 조항]) 무시
+    }
+    if (cur != null) out.push(cur);
+    return out.map((s) => s.trim()).filter(Boolean);
+  }
+  // fallback: 빈 줄 분리 + [헤더] 제거
   return raw
-    .split(/\n\s*\n/) // 빈 줄로 블록 분리
+    .split(/\n\s*\n/)
     .map((block) =>
       block
         .split("\n")
         .map((l) => l.trim())
-        .filter((l) => l && !/^\[.*\]$/.test(l)) // 빈 줄·[헤더] 제거
+        .filter((l) => l && !/^\[.*\]$/.test(l))
         .join("\n")
     )
     .map((b) => b.trim())
     .filter(Boolean);
+}
+
+// ── 법률 조항 렌더 (대한민국 법령 형식) ─────────────────────────
+// "제4조(부제) ① …<개정…> ② …\n[전문개정…]" → 제목 + 항 목록 + 메타로 분해.
+const CIRCLED = /[①-⑳]/; // ①~⑳
+/** 텍스트의 <개정…>·<신설…> 조각을 연한 회색으로 인라인 렌더 */
+function withAmend(s: string, keyBase: string): React.ReactNode[] {
+  return s.split(/(<[^>]*>)/).map((part, i) =>
+    part.startsWith("<") ? (
+      <span key={`${keyBase}-${i}`} className="text-[11px] text-ink-400">
+        {part}
+      </span>
+    ) : (
+      <span key={`${keyBase}-${i}`}>{part}</span>
+    )
+  );
+}
+function LawClause({ text }: { text: string }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const meta = lines.filter((l) => /^\[.*\]$/.test(l)); // [전문개정…] 등
+  const main = lines.filter((l) => !/^\[.*\]$/.test(l)).join(" ").replace(/\s+/g, " ");
+  const first = main.search(CIRCLED);
+  const title = first >= 0 ? main.slice(0, first).trim() : main;
+  const items =
+    first >= 0
+      ? main.slice(first).split(/(?=[①-⑳])/).map((s) => s.trim()).filter(Boolean)
+      : [];
+  return (
+    <div>
+      <p className="text-[15px] font-bold text-ink-900">{title || "(제목 없음)"}</p>
+      {items.map((it, i) => {
+        const m = it.match(/^([①-⑳])\s*(.*)$/);
+        return (
+          <p key={i} className="mt-1.5 flex gap-1.5 text-sm text-ink-700">
+            <span className="shrink-0 font-bold text-brand">{m?.[1] ?? "·"}</span>
+            <span className="min-w-0">{withAmend(m?.[2] ?? it, `it-${i}`)}</span>
+          </p>
+        );
+      })}
+      {/* 항 번호가 없는 단순 법(옛 형식·한 문장)은 본문을 그대로 */}
+      {items.length === 0 && title !== main && (
+        <p className="mt-1 text-sm text-ink-700">{withAmend(main.slice(title.length).trim(), "b")}</p>
+      )}
+      {meta.map((mLine, i) => (
+        <p key={`m-${i}`} className="mt-1 text-[11px] text-ink-400">
+          {mLine}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 export default function RulesPage() {
@@ -302,16 +372,14 @@ export default function RulesPage() {
         onClick={() =>
           setItems([
             ...items,
-            // 법률은 "OO법 N조 N항 — ~이다" 형식이 관례 — 템플릿을 미리 채워
-            // 아이들(과 교사)이 형식을 고민하지 않고 내용만 쓰게 한다 (사용자 확정)
-            tab === "laws" && selectedDept
-              ? `${lawNameOf(selectedDept)} ${items.length + 1}조 1항 — `
-              : "",
+            // 법률은 대한민국 법령 형식 "제N조(제목) ① …" 템플릿을 미리 채운다
+            // (조 번호는 현재 항목 수 +1). 항이 여러 개면 줄바꿈으로 ② ③ 을 잇는다.
+            tab === "laws" && selectedDept ? `제${items.length + 1}조(제목) ① ` : "",
           ])
         }
         className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
       >
-        + 항목 추가{tab === "laws" && selectedDept ? ` (${lawNameOf(selectedDept)} ${items.length + 1}조)` : ""}
+        + 조항 추가{tab === "laws" && selectedDept ? ` (제${items.length + 1}조)` : ""}
       </button>
       <div className="flex items-center gap-2 pt-1">
         <Button onClick={() => void saveEdit()}>저장</Button>
@@ -453,18 +521,27 @@ export default function RulesPage() {
           />
         ) : (
           <ol className="mt-4 space-y-2">
-            {viewItems.map((line, i) => {
-              // "제6조 (제목)\n본문" → 제목 굵게 + 본문 연하게. 한 줄이면 제목만.
-              const { title, body } = splitClause(line);
-              return (
-                <li key={i} className="rounded-card bg-ink-50 px-4 py-3 leading-relaxed">
-                  <p className="text-[15px] font-bold text-ink-900">{title}</p>
-                  {body && (
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">{body}</p>
-                  )}
-                </li>
-              );
-            })}
+            {viewItems.map((line, i) => (
+              <li key={i} className="rounded-card bg-ink-50 px-4 py-3 leading-relaxed">
+                {tab === "laws" ? (
+                  // 법률: 대한민국 법령 형식 (제목 + ①②③ 항 + 메타)
+                  <LawClause text={line} />
+                ) : (
+                  // 헌법·역할: 제목 굵게 + 본문 연하게 (한 줄이면 제목만)
+                  (() => {
+                    const { title, body } = splitClause(line);
+                    return (
+                      <>
+                        <p className="text-[15px] font-bold text-ink-900">{title}</p>
+                        {body && (
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">{body}</p>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
+              </li>
+            ))}
           </ol>
         )}
       </Card>
