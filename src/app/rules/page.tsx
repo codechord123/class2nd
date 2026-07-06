@@ -29,14 +29,17 @@ const DEPTS = ROLE_INFO.map((r) => ({
   desc: r.desc,
 }));
 
-// 부서별 placeholder 힌트 — "OO법 N조 — ..." 형식 예시 (사용자 확정)
+// 부서별 placeholder 힌트 — "OO법 N조 N항 — ~이다" 형식 예시 (사용자 확정)
 const LAW_HINT: Record<string, string> = {
-  의장: "예: 소통법 1조 — 회의 시작 전 3분 간 침묵으로 마음을 모은다.",
-  법무부: "예: 질서법 1조 — 복도에서는 오른쪽 통행, 뛰지 않는다.",
-  교육부: "예: 학습법 1조 — 아침 자습 시간(8:40~9:00)은 조용히 학습한다.",
-  보건환경부: "예: 건강법 1조 — 급식 후 반드시 양치질을 한다.",
-  행정안전부: "예: 행정법 1조 — 유인물은 당일 가정으로 전달한다.",
+  의장: "예: 소통법 1조 1항 — 회의 시작 전 3분 간 침묵으로 마음을 모은다.",
+  법무부: "예: 질서법 1조 1항 — 복도에서는 오른쪽으로 걷고, 뛰지 않는다.",
+  교육부: "예: 학습법 1조 1항 — 아침 자습 시간(8:40~9:00)은 조용히 학습한다.",
+  보건환경부: "예: 건강법 1조 1항 — 급식 후 반드시 양치질을 한다.",
+  행정안전부: "예: 행정법 1조 1항 — 유인물은 당일 가정으로 전달한다.",
 };
+
+/** 부서의 법 이름 — 역할명 + 법 (질서 지킴이 → 질서법) */
+const lawNameOf = (dept: string) => `${DEPTS.find((d) => d.key === dept)?.role ?? ""}법`;
 
 export default function RulesPage() {
   const { role } = useSession();
@@ -164,10 +167,19 @@ export default function RulesPage() {
         </div>
       ))}
       <button
-        onClick={() => setItems([...items, ""])}
+        onClick={() =>
+          setItems([
+            ...items,
+            // 법률은 "OO법 N조 N항 — ~이다" 형식이 관례 — 템플릿을 미리 채워
+            // 아이들(과 교사)이 형식을 고민하지 않고 내용만 쓰게 한다 (사용자 확정)
+            tab === "laws" && selectedDept
+              ? `${lawNameOf(selectedDept)} ${items.length + 1}조 1항 — `
+              : "",
+          ])
+        }
         className="press w-full rounded-card border border-dashed border-ink-300 py-2.5 text-sm font-bold text-ink-500 hover:bg-ink-50"
       >
-        + 항목 추가
+        + 항목 추가{tab === "laws" && selectedDept ? ` (${lawNameOf(selectedDept)} ${items.length + 1}조)` : ""}
       </button>
       <div className="flex gap-2 pt-1">
         <Button onClick={() => void saveEdit()}>저장</Button>
@@ -229,9 +241,10 @@ export default function RulesPage() {
         title="🏛️ 우리 반 민주교실"
         desc="학생들이 함께 만든 헌법·법률·역할이에요."
         action={
+          // 법률 탭은 부서 헤더 바에 수정 버튼이 따로 있다 (중복 방지)
           role === "teacher" &&
           !editing &&
-          !showDeptGrid && (
+          tab !== "laws" && (
             <Button variant="secondary" size="sm" onClick={startEdit}>
               ✏️ 수정
             </Button>
@@ -246,20 +259,32 @@ export default function RulesPage() {
           />
         </div>
 
-        {/* 법률 탭: 부서 상세 진입 시 헤더 (뒤로가기) */}
+        {/* 법률 탭: 부서 상세 진입 시 헤더 (뒤로가기 + 수정 — 눈에 잘 띄는 위치에) */}
         {tab === "laws" && selectedDept && deptDetail && (
-          <div className="mt-4 flex items-center justify-between rounded-btn bg-brand-weak/40 px-3 py-2">
+          <div className="mt-4 flex items-center justify-between gap-2 rounded-btn bg-brand-weak/40 px-3 py-2">
             <button
               onClick={backToGrid}
-              className="press text-xs font-bold text-brand-strong hover:text-brand"
+              className="press shrink-0 text-xs font-bold text-brand-strong hover:text-brand"
             >
               ← 부서 목록
             </button>
-            <p className="flex items-center gap-1.5 text-sm font-bold text-ink-900">
+            <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-ink-900">
               <span>{deptDetail.emoji}</span>
               <span>{deptDetail.key}</span>
-              <span className="text-xs font-medium text-ink-500">· {deptDetail.role} 지킴이</span>
+              <span className="hidden text-xs font-medium text-ink-500 sm:inline">
+                · {lawNameOf(selectedDept)}
+              </span>
             </p>
+            {role === "teacher" && !editing ? (
+              <button
+                onClick={startEdit}
+                className="press shrink-0 rounded-btn bg-brand px-3 py-1.5 text-xs font-bold text-white"
+              >
+                ✏️ 수정
+              </button>
+            ) : (
+              <span className="w-14 shrink-0" />
+            )}
           </div>
         )}
 

@@ -153,6 +153,16 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             {titleOf(sug)}
           </h3>
         </div>
+        {sug.kind === "law" && (
+          <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700">
+            📜 법률 제안
+            {sug.lawDept && (
+              <span className="font-medium">
+                · {ROLE_INFO.find((r) => r.dept === sug.lawDept)?.emoji} {sug.lawDept} 담당
+              </span>
+            )}
+          </p>
+        )}
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-600">
           <span className="flex items-center gap-1.5">
             <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
@@ -353,7 +363,10 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       {/* 법률 채택: 담당 부서 선택 — 법률은 부서별 관리 (헌법 탭 법률 그리드와 연결) */}
       {role === "teacher" && pickingDept && sug.status === "채택" && !sug.enactedAsLaw && (
         <div className="mt-2 rounded-btn bg-ink-50 px-3 py-2.5">
-          <p className="text-xs font-bold text-ink-600">어느 부서의 법으로 등록할까요?</p>
+          <p className="text-xs font-bold text-ink-600">
+            어느 부서의 법으로 등록할까요?
+            {sug.lawDept && <span className="ml-1 text-violet-600">(제안 부서: {sug.lawDept})</span>}
+          </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {ROLE_INFO.map((r) => (
               <button
@@ -375,9 +388,14 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
                   }
                 }}
-                className="press rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-700 hover:border-brand hover:bg-brand-weak/40"
+                className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                  sug.lawDept === r.dept
+                    ? "bg-violet-600 text-white ring-2 ring-violet-300" // 학생이 제안한 부서 — 기본 추천
+                    : "border border-ink-200 bg-white text-ink-700 hover:border-brand hover:bg-brand-weak/40"
+                }`}
               >
                 {r.emoji} {r.dept}
+                {sug.lawDept === r.dept && " ✓"}
               </button>
             ))}
             <button
@@ -544,6 +562,8 @@ export default function BoardPage() {
   const [content, setContent] = useState("");
   const [teacherOnly, setTeacherOnly] = useState(false); // 🔒 선생님만 보기 (익명 대체)
   const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
+  const [postKind, setPostKind] = useState<"general" | "law">("general"); // 일반 안건 | 법률 제안
+  const [postDept, setPostDept] = useState<string | null>(null); // 법률 제안의 담당 부서
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
@@ -556,13 +576,25 @@ export default function BoardPage() {
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
+    if (postKind === "law" && !postDept) {
+      toast("어느 부서의 법인지 골라주세요! (제안이 채택되면 그 부서 법이 돼요)", "warn");
+      return;
+    }
     setBusy(true);
     try {
-      await post(title, content, role === "student" && teacherOnly, role === "teacher" && announce);
+      await post(
+        title,
+        content,
+        role === "student" && teacherOnly,
+        role === "teacher" && announce,
+        postKind === "law" && postDept ? { dept: postDept } : undefined
+      );
       setTitle("");
       setContent("");
       setTeacherOnly(false);
       setAnnounce(false);
+      setPostKind("general");
+      setPostDept(null);
       setWriting(false);
       setPostBurst((k) => k + 1);
       toast("✅ 등록되었어요!");
@@ -613,6 +645,11 @@ export default function BoardPage() {
             {p.teacherOnly && (
               <span className="shrink-0 rounded bg-ink-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
                 🔒 선생님만
+              </span>
+            )}
+            {p.kind === "law" && (
+              <span className="shrink-0 rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                📜 법률
               </span>
             )}
             <b className="truncate text-[15px] text-ink-900">{titleOf(p)}</b>
@@ -669,10 +706,57 @@ export default function BoardPage() {
 
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
+            {/* 종류 선택 — 일반 안건 vs 법률 제안 (법률은 채택되면 부서 법이 된다) */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { key: "general", label: "💬 일반 안건" },
+                  { key: "law", label: "📜 법률 제안" },
+                ] as const
+              ).map((k) => (
+                <button
+                  key={k.key}
+                  onClick={() => setPostKind(k.key)}
+                  className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                    postKind === k.key
+                      ? "bg-ink-800 text-white"
+                      : "bg-white text-ink-500 border border-ink-200"
+                  }`}
+                >
+                  {k.label}
+                </button>
+              ))}
+              {postKind === "law" && (
+                <span className="text-[11px] text-ink-400">
+                  채택되면 그 부서의 법이 돼요 → 부서를 골라주세요
+                </span>
+              )}
+            </div>
+            {postKind === "law" && (
+              <div className="flex flex-wrap gap-1.5">
+                {ROLE_INFO.map((r) => (
+                  <button
+                    key={r.dept}
+                    onClick={() => setPostDept(postDept === r.dept ? null : r.dept)}
+                    className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                      postDept === r.dept
+                        ? "bg-brand text-white"
+                        : "border border-ink-200 bg-white text-ink-600 hover:border-brand"
+                    }`}
+                  >
+                    {r.emoji} {r.dept}
+                  </button>
+                ))}
+              </div>
+            )}
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="안건 제목 (예: 사물함 정리 규칙을 정하자)"
+              placeholder={
+                postKind === "law"
+                  ? "법 내용 (예: 복도에서는 오른쪽으로 걷는다)"
+                  : "안건 제목 (예: 사물함 정리 규칙을 정하자)"
+              }
               className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
             />
             <textarea

@@ -42,6 +42,8 @@ export interface Suggestion {
   teacherOnly?: boolean; // 🔒 선생님만 보기 — 작성자 본인과 교사에게만 노출
   isAnnouncement?: boolean; // 공지 고정 (교사)
   status?: AgendaStatus; // 안건 상태 (기본 논의중)
+  kind?: "law"; // "law" = 법률 제안 (없으면 일반 안건)
+  lawDept?: string; // 법률 제안의 담당 부서 (ROLE_INFO.dept) — 채택 시 기본 선택
   enactedAsLaw?: boolean; // 채택 후 학급 법률로 등록됨
   agree?: Record<string, boolean>; // studentId → 찬성
   disagree?: Record<string, boolean>; // studentId → 반대
@@ -99,7 +101,8 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
     title: string,
     content: string,
     teacherOnly: boolean, // 🔒 선생님만 보기 (익명 기능 대체 — 사용자 확정)
-    isAnnouncement = false // 교사 전용 — 쓰면서 바로 공지로 고정
+    isAnnouncement = false, // 교사 전용 — 쓰면서 바로 공지로 고정
+    law?: { dept: string } // 법률 제안 — 담당 부서 지정 (채택 시 그 부서로 등록)
   ) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!title.trim()) throw new Error("제목을 입력해주세요.");
@@ -111,6 +114,7 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
       isAnonymous: false,
       teacherOnly,
       ...(isAnnouncement ? { isAnnouncement: true } : {}),
+      ...(law ? { kind: "law", lawDept: law.dept } : {}),
       comments: [],
       createdAt: Date.now(),
     });
