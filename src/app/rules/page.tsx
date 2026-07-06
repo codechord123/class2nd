@@ -87,6 +87,47 @@ export default function RulesPage() {
     setEditing(false);
   }
 
+  // 부서 하나의 법률 전체 삭제 (부서별 일괄)
+  async function clearDept(dept: string) {
+    if (
+      !(await confirm({
+        title: `${dept}의 법률을 모두 삭제할까요?`,
+        body: `${currentDeptLaws(dept).length}개 조항이 지워지고 되돌릴 수 없어요.`,
+        danger: true,
+        confirmLabel: "모두 삭제",
+      }))
+    )
+      return;
+    try {
+      await save({ ...c!, lawsByDept: { ...(c!.lawsByDept ?? {}), [dept]: [] } });
+      setEditing(false);
+      toast(`🗑️ ${dept} 법률을 모두 삭제했어요.`);
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
+    }
+  }
+
+  // 전 부서 + 미분류 법률 통합 삭제
+  async function clearAllLaws() {
+    const total =
+      Object.values(c!.lawsByDept ?? {}).reduce((a, v) => a + v.length, 0) + c!.laws.length;
+    if (
+      !(await confirm({
+        title: "모든 법률을 삭제할까요?",
+        body: `전 부서 + 미분류 ${total}개 조항이 모두 지워지고 되돌릴 수 없어요. (헌법·역할은 그대로예요)`,
+        danger: true,
+        confirmLabel: "전부 삭제",
+      }))
+    )
+      return;
+    try {
+      await save({ ...c!, lawsByDept: {}, laws: [] });
+      toast(`🗑️ 모든 법률(${total}개)을 삭제했어요.`);
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
+    }
+  }
+
   async function saveEdit() {
     try {
       const cleaned = items.map((s) => s.trim()).filter(Boolean);
@@ -181,11 +222,20 @@ export default function RulesPage() {
       >
         + 항목 추가{tab === "laws" && selectedDept ? ` (${lawNameOf(selectedDept)} ${items.length + 1}조)` : ""}
       </button>
-      <div className="flex gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1">
         <Button onClick={() => void saveEdit()}>저장</Button>
         <Button variant="ghost" onClick={() => setEditing(false)}>
           취소
         </Button>
+        {/* 부서 법률 일괄 삭제 — 법률 탭 부서 상세 편집일 때만 */}
+        {tab === "laws" && selectedDept && currentDeptLaws(selectedDept).length > 0 && (
+          <button
+            onClick={() => void clearDept(selectedDept)}
+            className="press ml-auto rounded-btn border border-danger/40 bg-white px-3 py-2 text-xs font-bold text-danger hover:bg-danger-weak"
+          >
+            🗑️ 이 부서 전체 삭제
+          </button>
+        )}
       </div>
     </div>
   );
@@ -215,6 +265,18 @@ export default function RulesPage() {
           );
         })}
       </div>
+      {/* 교사: 전 부서 통합 삭제 — 조항이 하나라도 있을 때만 */}
+      {role === "teacher" &&
+        (Object.values(c.lawsByDept ?? {}).some((v) => v.length > 0) || c.laws.length > 0) && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => void clearAllLaws()}
+              className="press rounded-btn border border-danger/40 bg-white px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-weak"
+            >
+              🗑️ 모든 법률 삭제
+            </button>
+          </div>
+        )}
       {/* 미분류 잔재 (건의 채택으로 쌓인 laws 배열) — 있을 때만 안내 */}
       {c.laws.length > 0 && (
         <div className="rounded-card border border-amber-200 bg-amber-50/60 p-3">

@@ -214,6 +214,17 @@ export function useDeleteSuggestion() {
   };
 }
 
+/** 여러 안건 일괄 삭제 (교사 전용) — 병렬 삭제 후 캐시 무효화 1회 */
+export function useDeleteSuggestions() {
+  const qc = useQueryClient();
+  return async (ids: string[]) => {
+    if (!ids.length) return;
+    await Promise.all(ids.map((id) => deleteDoc(doc(db(), "suggestions", id))));
+    void qc.invalidateQueries({ queryKey: ["suggestions"] });
+    void qc.invalidateQueries({ queryKey: ["announcements"] });
+  };
+}
+
 /** 찬성/반대 토글 — 같은 것 다시 누르면 취소, 반대편은 해제 (상호배타) */
 export function useReactSuggestion(myId: number | null) {
   const qc = useQueryClient();

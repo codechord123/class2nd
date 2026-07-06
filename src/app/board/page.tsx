@@ -17,6 +17,7 @@ import {
   useAnnouncements,
   usePostSuggestion,
   useDeleteSuggestion,
+  useDeleteSuggestions,
   useUpdateSuggestion,
   useAddComment,
   useDeleteComment,
@@ -554,7 +555,7 @@ export default function BoardPage() {
   const { data: posts } = useSuggestions(page * pageSize + 1);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(role === "teacher" ? "teacher" : studentId);
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
@@ -567,6 +568,10 @@ export default function BoardPage() {
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
+  // 교사 정리 모드 — 체크박스로 여러 안건 선택 후 일괄 삭제
+  const [manage, setManage] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const deleteMany = useDeleteSuggestions();
 
   // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
@@ -618,6 +623,44 @@ export default function BoardPage() {
   const pageItems = kw ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
   const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
 
+  // 정리 모드: 현재 화면에 보이는 글(공지 + 현재 페이지) 대상 선택·삭제
+  const manageTargets = [...pinned, ...pageItems];
+  const allPicked = manageTargets.length > 0 && manageTargets.every((p) => picked.has(p.id));
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setPicked(allPicked ? new Set() : new Set(manageTargets.map((p) => p.id)));
+  const exitManage = () => {
+    setManage(false);
+    setPicked(new Set());
+  };
+  async function deletePicked() {
+    if (picked.size === 0) {
+      toast("삭제할 안건을 골라주세요.", "warn");
+      return;
+    }
+    if (
+      !(await confirm({
+        title: `선택한 ${picked.size}개 안건을 삭제할까요?`,
+        body: "댓글도 함께 지워지고 되돌릴 수 없어요.",
+        danger: true,
+        confirmLabel: `${picked.size}개 삭제`,
+      }))
+    )
+      return;
+    try {
+      await deleteMany([...picked]);
+      toast(`🗑️ ${picked.size}개 안건을 삭제했어요.`);
+      exitManage();
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
+    }
+  }
+
   const Row = ({ p, pin }: { p: Suggestion; pin?: boolean }) => {
     const { up, down } = reactionCounts(p);
     const author = p.isAnonymous
@@ -625,13 +668,23 @@ export default function BoardPage() {
         ? `익명(${authorName(p.studentId)})`
         : "익명"
       : authorName(p.studentId);
+    const checked = picked.has(p.id);
     return (
       <button
-        onClick={() => setSelectedId(p.id)}
+        onClick={() => (manage ? togglePick(p.id) : setSelectedId(p.id))}
         className={`flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-ink-50 ${
-          pin ? "bg-amber-50/60" : ""
+          manage && checked ? "bg-brand-weak/40" : pin ? "bg-amber-50/60" : ""
         }`}
       >
+        {manage && (
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 text-xs font-bold ${
+              checked ? "border-brand bg-brand text-white" : "border-ink-300 bg-white"
+            }`}
+          >
+            {checked && "✓"}
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           {/* 1줄: 상태 + 제목 */}
           <span className="flex items-center gap-1.5">
@@ -673,7 +726,7 @@ export default function BoardPage() {
             💬 {p.comments!.length}
           </span>
         )}
-        <span className="shrink-0 text-sm text-ink-300">›</span>
+        {!manage && <span className="shrink-0 text-sm text-ink-300">›</span>}
       </button>
     );
   };
@@ -690,7 +743,26 @@ export default function BoardPage() {
               placeholder="검색"
               className="w-32 rounded-btn border border-ink-300 px-3 py-1.5 text-sm focus:border-brand focus:outline-none"
             />
-            {role != null && (
+            {role === "teacher" &&
+              (manage ? (
+                <button
+                  onClick={exitManage}
+                  className="press rounded-btn border border-ink-300 bg-white px-3 py-1.5 text-sm font-bold text-ink-600"
+                >
+                  정리 끝
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setManage(true);
+                    setWriting(false);
+                  }}
+                  className="press rounded-btn border border-ink-300 bg-white px-3 py-1.5 text-sm font-bold text-ink-600"
+                >
+                  🗑️ 정리
+                </button>
+              ))}
+            {role != null && !manage && (
               <span className="relative">
                 <button
                   onClick={() => setWriting((v) => !v)}
@@ -703,6 +775,32 @@ export default function BoardPage() {
             )}
           </div>
         </div>
+
+        {/* 정리 모드 액션 바 — 전체 선택 + 선택 삭제 */}
+        {manage && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 bg-ink-50 px-4 py-2.5">
+            <button
+              onClick={toggleAll}
+              className="press flex items-center gap-1.5 text-sm font-bold text-ink-600"
+            >
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded border-2 text-xs ${
+                  allPicked ? "border-brand bg-brand text-white" : "border-ink-300 bg-white"
+                }`}
+              >
+                {allPicked && "✓"}
+              </span>
+              전체 선택
+            </button>
+            <button
+              onClick={() => void deletePicked()}
+              disabled={picked.size === 0}
+              className="press rounded-btn bg-danger px-4 py-1.5 text-sm font-bold text-white disabled:opacity-40"
+            >
+              선택한 {picked.size}개 삭제
+            </button>
+          </div>
+        )}
 
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
