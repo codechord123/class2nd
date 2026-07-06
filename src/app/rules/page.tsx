@@ -41,6 +41,29 @@ const LAW_HINT: Record<string, string> = {
 /** 부서의 법 이름 — 역할명 + 법 (질서 지킴이 → 질서법) */
 const lawNameOf = (dept: string) => `${DEPTS.find((d) => d.key === dept)?.role ?? ""}법`;
 
+/** 조항 텍스트를 제목 줄 / 본문으로 분리 — "제6조 (…)\n본문" 형식 표시용 */
+function splitClause(line: string): { title: string; body: string } {
+  const nl = line.indexOf("\n");
+  if (nl < 0) return { title: line, body: "" };
+  return { title: line.slice(0, nl).trim(), body: line.slice(nl + 1).trim() };
+}
+
+/** 붙여넣기 텍스트 → 조항 배열. 빈 줄로 조항 구분, [대괄호] 헤더 줄은 제거.
+ *  각 조항은 "제목줄\n본문" 형태로 보존한다 (여러 줄이면 첫 줄이 제목). */
+function parseBulk(raw: string): string[] {
+  return raw
+    .split(/\n\s*\n/) // 빈 줄로 블록 분리
+    .map((block) =>
+      block
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !/^\[.*\]$/.test(l)) // 빈 줄·[헤더] 제거
+        .join("\n")
+    )
+    .map((b) => b.trim())
+    .filter(Boolean);
+}
+
 export default function RulesPage() {
   const { role } = useSession();
   const { data: c } = useConstitution();
@@ -51,6 +74,8 @@ export default function RulesPage() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null); // 선택된 부서(법률 탭)
   const [editing, setEditing] = useState(false);
   const [items, setItems] = useState<string[]>([]);
+  const [bulkOpen, setBulkOpen] = useState(false); // 붙여넣기 일괄 등록 열림
+  const [bulkText, setBulkText] = useState("");
 
   if (!c) return <SkeletonCard />;
 
@@ -71,6 +96,8 @@ export default function RulesPage() {
 
   function startEdit() {
     setItems([...viewItems]);
+    setBulkOpen(false);
+    setBulkText("");
     setEditing(true);
   }
   function switchTab(next: SubKey) {
@@ -160,9 +187,65 @@ export default function RulesPage() {
     setItems(next);
   };
 
+  // 붙여넣기 → 조항 파싱 후 items에 반영 (교체 or 이어붙이기)
+  function applyBulk(mode: "replace" | "append") {
+    const parsed = parseBulk(bulkText);
+    if (!parsed.length) {
+      toast("붙여넣은 내용에서 조항을 찾지 못했어요.", "warn");
+      return;
+    }
+    setItems(mode === "replace" ? parsed : [...items.filter((x) => x.trim()), ...parsed]);
+    setBulkOpen(false);
+    setBulkText("");
+    toast(`✅ ${parsed.length}개 조항을 불러왔어요. 저장을 눌러 반영하세요.`);
+  }
+
   // 편집 UI (헌법·역할·특정 부서 법률 공통)
+  const bulkPreviewN = parseBulk(bulkText).length;
   const editingUI = (
     <div className="mt-4 space-y-2">
+      {/* 붙여넣기 일괄 등록 — 한글 문서에서 조항 전체를 한 번에 */}
+      <div className="rounded-card border border-brand/30 bg-brand-weak/20">
+        <button
+          onClick={() => setBulkOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+        >
+          <span className="text-sm font-bold text-brand-strong">
+            📋 붙여넣기로 여러 조항 한 번에 등록
+          </span>
+          <span className="text-xs text-ink-400">{bulkOpen ? "접기 ▲" : "펼치기 ▼"}</span>
+        </button>
+        {bulkOpen && (
+          <div className="space-y-2 border-t border-brand/20 p-3">
+            <p className="text-xs text-ink-500">
+              한글 문서에서 조항 전체를 복사해 붙여넣으세요. <b>빈 줄</b>로 조항이 나뉘고,
+              각 조항의 <b>첫 줄이 제목</b>이 돼요. [대괄호] 머리글은 자동 제외돼요.
+            </p>
+            <Textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              rows={6}
+              placeholder={"제1조 (민주 학급의 선언)\n본 학급은 … 천명한다.\n\n제2조 (존엄과 가치)\n모든 학생은 …"}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => applyBulk("replace")} disabled={bulkPreviewN === 0}>
+                교체 ({bulkPreviewN}개)
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => applyBulk("append")}
+                disabled={bulkPreviewN === 0}
+              >
+                기존에 이어붙이기
+              </Button>
+              {bulkPreviewN > 0 && (
+                <span className="text-xs text-ink-500">{bulkPreviewN}개 조항 인식됨</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {items.map((line, i) => (
         <div key={i} className="flex items-start gap-2 rounded-card bg-ink-50 p-2.5">
           <span className="tnum mt-2 w-7 shrink-0 text-center text-xs font-bold text-ink-400">
@@ -171,9 +254,11 @@ export default function RulesPage() {
           <Textarea
             value={line}
             onChange={(e) => setItems(items.map((x, j) => (j === i ? e.target.value : x)))}
-            rows={2}
+            rows={3}
             placeholder={
-              tab === "laws" && selectedDept ? LAW_HINT[selectedDept] : "내용을 적어주세요"
+              tab === "laws" && selectedDept
+                ? LAW_HINT[selectedDept]
+                : "제목 줄\n본문 (예: 제6조 (상호 존중) → 줄바꿈 → 모든 학생은 …)"
             }
           />
           <div className="flex shrink-0 flex-col gap-1">
@@ -362,15 +447,18 @@ export default function RulesPage() {
           />
         ) : (
           <ol className="mt-4 space-y-2">
-            {viewItems.map((line, i) => (
-              <li
-                key={i}
-                className="flex gap-3 rounded-card bg-ink-50 px-4 py-3 text-sm leading-relaxed text-ink-700"
-              >
-                <span className="tnum shrink-0 font-bold text-brand">{i + 1}</span>
-                <span className="whitespace-pre-wrap">{line}</span>
-              </li>
-            ))}
+            {viewItems.map((line, i) => {
+              // "제6조 (제목)\n본문" → 제목 굵게 + 본문 연하게. 한 줄이면 제목만.
+              const { title, body } = splitClause(line);
+              return (
+                <li key={i} className="rounded-card bg-ink-50 px-4 py-3 leading-relaxed">
+                  <p className="text-[15px] font-bold text-ink-900">{title}</p>
+                  {body && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-600">{body}</p>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         )}
       </Card>
