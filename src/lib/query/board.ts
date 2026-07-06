@@ -268,7 +268,15 @@ export function useEnactLaw() {
     const c = (snap.exists() ? snap.data() : {}) as {
       lawsByDept?: Record<string, string[]>;
     };
-    const laws = [...(c.lawsByDept?.[dept] ?? []), titleOf(sug)];
+    const existing = c.lawsByDept?.[dept] ?? [];
+    const num = existing.length + 1;
+    // 법률 제안(kind=law)이면 "제N조(제목) ① … ② …" 형식으로 조 번호 부여,
+    // 구버전(일반 제목만) 안건은 제목 그대로 (하위호환)
+    const clause =
+      sug.kind === "law" && sug.content.trim()
+        ? `제${num}조(${sug.title?.trim() || "제목"}) ${sug.content.trim()}`
+        : titleOf(sug);
+    const laws = [...existing, clause];
     // merge: lawsByDept의 해당 부서 키만 깊은 병합 — 다른 부서·미분류(laws)는 보존
     await setDoc(ref, { lawsByDept: { [dept]: laws } }, { merge: true });
     await updateDoc(doc(db(), "suggestions", sug.id), { enactedAsLaw: true });

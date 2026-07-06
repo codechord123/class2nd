@@ -6,7 +6,9 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { ROLE_INFO, studentById } from "@/lib/roster";
+import { CIRCLED_NUMS, serializeClauses } from "@/lib/lawText";
 import Linkify from "@/components/ui/Linkify";
+import LawClause from "@/components/ui/LawClause";
 import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
@@ -283,6 +285,11 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               취소
             </button>
           </div>
+        </div>
+      ) : sug.kind === "law" ? (
+        // 법률 제안 — 항(①②③) 구조로 렌더 (제목은 위 h3에 이미 표시)
+        <div className="mt-3 rounded-card bg-violet-50/50 px-4 py-3">
+          <LawClause text={sug.content} />
         </div>
       ) : (
         <p className="mt-3 whitespace-pre-wrap text-base leading-8 text-ink-800 [overflow-wrap:anywhere]">
@@ -565,6 +572,8 @@ export default function BoardPage() {
   const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
   const [postKind, setPostKind] = useState<"general" | "law">("general"); // 일반 안건 | 법률 제안
   const [postDept, setPostDept] = useState<string | null>(null); // 법률 제안의 담당 부서
+  const [lawTitle, setLawTitle] = useState(""); // 법률 제안: 조 제목
+  const [lawClauses, setLawClauses] = useState<string[]>([""]); // 법률 제안: 항별 내용
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
@@ -581,21 +590,39 @@ export default function BoardPage() {
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
-    if (postKind === "law" && !postDept) {
-      toast("어느 부서의 법인지 골라주세요! (제안이 채택되면 그 부서 법이 돼요)", "warn");
-      return;
+    // 법률 제안: 부서 필수 + 조 제목 + 최소 1개 항. 제목/항을 title/content로 담는다.
+    let submitTitle = title;
+    let submitContent = content;
+    if (postKind === "law") {
+      if (!postDept) {
+        toast("어느 부서의 법인지 골라주세요! (제안이 채택되면 그 부서 법이 돼요)", "warn");
+        return;
+      }
+      if (!lawTitle.trim()) {
+        toast("조 제목을 적어주세요. (예: 복도 통행)", "warn");
+        return;
+      }
+      const body = serializeClauses(lawClauses);
+      if (!body) {
+        toast("항 내용을 하나 이상 적어주세요.", "warn");
+        return;
+      }
+      submitTitle = lawTitle.trim();
+      submitContent = body; // "① … ② …"
     }
     setBusy(true);
     try {
       await post(
-        title,
-        content,
+        submitTitle,
+        submitContent,
         role === "student" && teacherOnly,
         role === "teacher" && announce,
         postKind === "law" && postDept ? { dept: postDept } : undefined
       );
       setTitle("");
       setContent("");
+      setLawTitle("");
+      setLawClauses([""]);
       setTeacherOnly(false);
       setAnnounce(false);
       setPostKind("general");
@@ -830,40 +857,91 @@ export default function BoardPage() {
                 </span>
               )}
             </div>
-            {postKind === "law" && (
-              <div className="flex flex-wrap gap-1.5">
-                {ROLE_INFO.map((r) => (
-                  <button
-                    key={r.dept}
-                    onClick={() => setPostDept(postDept === r.dept ? null : r.dept)}
-                    className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
-                      postDept === r.dept
-                        ? "bg-brand text-white"
-                        : "border border-ink-200 bg-white text-ink-600 hover:border-brand"
-                    }`}
-                  >
-                    {r.emoji} {r.dept}
-                  </button>
-                ))}
-              </div>
+            {postKind === "law" ? (
+              /* 법률 제안 — 부서 + 조 제목 + 항별 내용 (헌법 탭과 같은 구조) */
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {ROLE_INFO.map((r) => (
+                    <button
+                      key={r.dept}
+                      onClick={() => setPostDept(postDept === r.dept ? null : r.dept)}
+                      className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                        postDept === r.dept
+                          ? "bg-brand text-white"
+                          : "border border-ink-200 bg-white text-ink-600 hover:border-brand"
+                      }`}
+                    >
+                      {r.emoji} {r.dept}
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-card border border-violet-200 bg-violet-50/40 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 rounded bg-violet-200 px-2 py-1 text-xs font-bold text-violet-800">
+                      제○조
+                    </span>
+                    <input
+                      value={lawTitle}
+                      onChange={(e) => setLawTitle(e.target.value)}
+                      placeholder="조 제목 (예: 복도 통행)"
+                      className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm font-medium focus:border-brand focus:outline-none"
+                    />
+                  </div>
+                  <p className="mt-1 pl-1 text-[11px] text-ink-400">
+                    조 번호는 채택될 때 자동으로 매겨져요.
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {lawClauses.map((cl, hi) => (
+                      <div key={hi} className="flex items-start gap-2">
+                        <span className="mt-2 shrink-0 text-base font-bold text-brand">
+                          {CIRCLED_NUMS[hi] ?? "·"}
+                        </span>
+                        <textarea
+                          value={cl}
+                          onChange={(e) =>
+                            setLawClauses(lawClauses.map((x, j) => (j === hi ? e.target.value : x)))
+                          }
+                          placeholder="항 내용을 적어주세요"
+                          rows={2}
+                          className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                        />
+                        {lawClauses.length > 1 && (
+                          <button
+                            onClick={() => setLawClauses(lawClauses.filter((_, j) => j !== hi))}
+                            className="press mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-400 hover:bg-danger-weak hover:text-danger"
+                            aria-label="항 삭제"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setLawClauses([...lawClauses, ""])}
+                      className="press ml-6 text-xs font-bold text-brand hover:text-brand-strong"
+                    >
+                      + 항 추가 ({CIRCLED_NUMS[lawClauses.length] ?? ""})
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="안건 제목 (예: 사물함 정리 규칙을 정하자)"
+                  className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
+                />
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="어떤 점을 바꾸면 좋을지, 왜 그런지 적어주세요. 친구들이 댓글로 토론하고 👍👎로 의견을 모아요."
+                  rows={4}
+                  className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
+                />
+              </>
             )}
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={
-                postKind === "law"
-                  ? "법 내용 (예: 복도에서는 오른쪽으로 걷는다)"
-                  : "안건 제목 (예: 사물함 정리 규칙을 정하자)"
-              }
-              className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
-            />
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="어떤 점을 바꾸면 좋을지, 왜 그런지 적어주세요. 친구들이 댓글로 토론하고 👍👎로 의견을 모아요."
-              rows={4}
-              className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
-            />
             <div className="flex items-center gap-3">
               {role === "student" ? (
                 <label className="flex items-center gap-1.5 text-sm text-ink-500">

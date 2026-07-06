@@ -6,6 +6,14 @@ import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { ROLE_INFO } from "@/lib/roster";
 import { useConstitution, useSaveConstitution, type Constitution } from "@/lib/query/classMeta";
+import {
+  CIRCLED_NUMS,
+  toLawEdit,
+  fromLawEdit,
+  isEmptyLaw,
+  type LawEdit,
+} from "@/lib/lawText";
+import LawClause from "@/components/ui/LawClause";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import SegmentedControl from "@/components/ui/SegmentedControl";
@@ -89,93 +97,6 @@ function parseBulk(raw: string): string[] {
     .map((b) => b.trim())
     .filter(Boolean);
 }
-
-// ── 법률 조항 렌더 (대한민국 법령 형식) ─────────────────────────
-// "제4조(부제) ① …<개정…> ② …\n[전문개정…]" → 제목 + 항 목록 + 메타로 분해.
-const CIRCLED = /[①-⑳]/; // ①~⑳
-/** 텍스트의 <개정…>·<신설…> 조각을 연한 회색으로 인라인 렌더 */
-function withAmend(s: string, keyBase: string): React.ReactNode[] {
-  return s.split(/(<[^>]*>)/).map((part, i) =>
-    part.startsWith("<") ? (
-      <span key={`${keyBase}-${i}`} className="text-[11px] text-ink-400">
-        {part}
-      </span>
-    ) : (
-      <span key={`${keyBase}-${i}`}>{part}</span>
-    )
-  );
-}
-function LawClause({ text }: { text: string }) {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const meta = lines.filter((l) => /^\[.*\]$/.test(l)); // [전문개정…] 등
-  const main = lines.filter((l) => !/^\[.*\]$/.test(l)).join(" ").replace(/\s+/g, " ");
-  const first = main.search(CIRCLED);
-  const title = first >= 0 ? main.slice(0, first).trim() : main;
-  const items =
-    first >= 0
-      ? main.slice(first).split(/(?=[①-⑳])/).map((s) => s.trim()).filter(Boolean)
-      : [];
-  return (
-    <div>
-      <p className="text-[15px] font-bold text-ink-900">{title || "(제목 없음)"}</p>
-      {items.map((it, i) => {
-        const m = it.match(/^([①-⑳])\s*(.*)$/);
-        return (
-          <p key={i} className="mt-1.5 flex gap-1.5 text-sm text-ink-700">
-            <span className="shrink-0 font-bold text-brand">{m?.[1] ?? "·"}</span>
-            <span className="min-w-0">{withAmend(m?.[2] ?? it, `it-${i}`)}</span>
-          </p>
-        );
-      })}
-      {/* 항 번호가 없는 단순 법(옛 형식·한 문장)은 본문을 그대로 */}
-      {items.length === 0 && title !== main && (
-        <p className="mt-1 text-sm text-ink-700">{withAmend(main.slice(title.length).trim(), "b")}</p>
-      )}
-      {meta.map((mLine, i) => (
-        <p key={`m-${i}`} className="mt-1 text-[11px] text-ink-400">
-          {mLine}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-// ── 법률 구조화 편집 (제목 + 항별 내용) ──────────────────────────
-const CIRCLED_NUMS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳".split("");
-export interface LawEdit {
-  title: string; // 조 제목(괄호 부제)
-  clauses: string[]; // 항별 내용 (① ② …)
-}
-/** 저장 문자열 "제N조(부제) ① … ② …" → 편집 구조 {title, clauses}.
- *  <개정…>·[메타]는 편집 폼에서 다루지 않으므로 버린다 (표시엔 영향 없음). */
-function toLawEdit(text: string): LawEdit {
-  const main = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l && !/^\[.*\]$/.test(l))
-    .join(" ")
-    .replace(/\s+/g, " ");
-  const first = main.search(CIRCLED);
-  const head = (first >= 0 ? main.slice(0, first) : main).trim();
-  const title = head.match(/\(([^)]*)\)/)?.[1] ?? head.replace(/^제\s*\d+\s*조\s*/, "").trim();
-  const clauses =
-    first >= 0
-      ? main
-          .slice(first)
-          .split(/(?=[①-⑳])/)
-          .map((s) => s.replace(/^[①-⑳]\s*/, "").trim())
-          .filter(Boolean)
-      : [];
-  return { title, clauses: clauses.length ? clauses : [""] };
-}
-/** 편집 구조 → 저장 문자열 (조 번호는 순서대로 자동) */
-function fromLawEdit(law: LawEdit, idx: number): string {
-  const head = `제${idx + 1}조(${law.title.trim() || "제목"})`;
-  const parts = law.clauses.map((c) => c.trim()).filter(Boolean);
-  if (!parts.length) return head;
-  return `${head} ${parts.map((c, i) => `${CIRCLED_NUMS[i] ?? "①"} ${c}`).join(" ")}`;
-}
-const isEmptyLaw = (l: LawEdit) => !l.title.trim() && !l.clauses.some((c) => c.trim());
 
 export default function RulesPage() {
   const { role } = useSession();
