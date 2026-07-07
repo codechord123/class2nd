@@ -23,8 +23,20 @@ import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import SubTabs from "@/components/ui/SubTabs";
+import type { DailyScoreRow } from "@/types";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
+
+// 점수 출처 분해 항목 — 화면·인쇄 공용 (변화된 점수 체계 반영: 사용자 요청)
+const PART_DEFS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
+  { key: "peer", icon: "🤝", label: "평가" },
+  { key: "groupRank", icon: "🏆", label: "순위" },
+  { key: "mission", icon: "💌", label: "미션" },
+  { key: "boss", icon: "👑", label: "득표" },
+  { key: "mvp", icon: "⭐", label: "MVP" },
+  { key: "read", icon: "🐢", label: "독서" },
+  { key: "bonus", icon: "🎁", label: "보너스" },
+];
 
 export default function DailyReportPanel({
   date,
@@ -87,6 +99,19 @@ export default function DailyReportPanel({
     .filter((r) => r.row)
     .sort((a, b) => b.row!.total - a.row!.total);
 
+  // 학생/모둠의 항목별 점수 분해 — dailyScores 행 재사용 (추가 읽기 0)
+  const rowOf = (id: number) => today?.[String(id)] as DailyScoreRow | undefined;
+  const groupParts = (ids: number[]) => {
+    const sums: Record<string, number> = {};
+    for (const p of PART_DEFS) sums[p.key] = 0;
+    for (const id of ids) {
+      const r = rowOf(id);
+      if (!r) continue;
+      for (const p of PART_DEFS) sums[p.key] += (r[p.key] as number | undefined) ?? 0;
+    }
+    return sums;
+  };
+
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
     mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
@@ -140,14 +165,14 @@ export default function DailyReportPanel({
       if (meta) {
         // ── 1페이지: 정량 — 모둠별 통합 (순위·MVP·점수·독서를 모둠 카드 하나에) ──
         // MVP·모둠 순위 별도 카드는 제거 (사용자 결정 — 모둠 카드에 배지·★로 담김)
-        const readTodayOf = (id: number) =>
-          (today?.[id] as { read?: number } | undefined)?.read ?? 0;
         const cumBooksOf = (id: number) =>
           s1BooksOf(stats, id) + (stats?.total?.[String(id)] ?? 0);
         // 점수 칸 미니 바 — 표가 숫자 나열이 아니라 분포로 읽히게
         const maxScore = Math.max(1, ...students.map((s) => totalOf(s.id)));
         const scoreCell = (n: number) =>
           `<td class="score"><span class="sbar" style="width:${Math.round((Math.max(n, 0) / maxScore) * 100)}%"></span><b>${n}</b></td>`;
+        // 항목별 분해 셀 — 0은 · 로 흐리게 (숫자 홍수 방지). 변화된 점수 체계 반영
+        const partCell = (v: number) => `<td>${v === 0 ? "·" : v > 0 ? `+${v}` : `<b>${v}</b>`}</td>`;
         const mvpSet = new Set(meta.mvpWinners ?? []);
         const groupsHtml = schedule.groups
           .map((g) => {
@@ -156,19 +181,20 @@ export default function DailyReportPanel({
             const gRank = meta.ranks?.[String(g.groupId)];
             const gSum = ids.reduce((a, id) => a + totalOf(id), 0);
             const rows = ids
-              .map(
-                (id) =>
-                  `<tr><td>${mvpSet.has(id) ? "★ " : ""}${esc(nm(id))}</td>${scoreCell(totalOf(id))}<td>${
-                    readTodayOf(id) || "·"
-                  }</td><td>${cumBooksOf(id)}</td></tr>`
-              )
+              .map((id) => {
+                const r = rowOf(id);
+                const parts = PART_DEFS.map((p) =>
+                  partCell((r?.[p.key] as number | undefined) ?? 0)
+                ).join("");
+                return `<tr><td>${mvpSet.has(id) ? "★ " : ""}${esc(nm(id))}</td>${parts}${scoreCell(totalOf(id))}<td>${cumBooksOf(id)}</td></tr>`;
+              })
               .join("");
             const bestBadge = isBest ? `<span class="badge gold">오늘의 모둠</span>` : "";
             const rankBadge = gRank ? `<span class="badge">교사 ${gRank}위</span>` : "";
             const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
             return `<div class="grp${isBest ? " win" : ""}">
   <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 합계 <b>${gSum}</b>점</span></div>
-  <table><thead><tr><th>이름</th><th>오늘 점수</th><th>오늘 독서</th><th>누적 독서</th></tr></thead><tbody>${rows}</tbody></table>
+  <table><thead><tr><th>이름</th><th>평가</th><th>순위</th><th>미션</th><th>득표</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th><th>누적독서</th></tr></thead><tbody>${rows}</tbody></table>
 </div>`;
           })
           .join("");
@@ -178,7 +204,7 @@ export default function DailyReportPanel({
           : "";
         sections.push(
           card(
-            "모둠별 오늘 기록 — 점수·독서 (★=모둠 점수 1위)",
+            "모둠별 오늘 기록 — 점수 출처 분해 (★=모둠 점수 1위)",
             `<div class="grps">${groupsHtml}</div>${mvpHi}`
           )
         );
@@ -449,6 +475,32 @@ export default function DailyReportPanel({
                       ))}
                     </p>
                   </div>
+                  {/* 모둠 점수 출처 분해 — 어떤 활동으로 받았는지 (변화된 체계 반영) */}
+                  {(() => {
+                    const sums = groupParts(memberIds);
+                    return (
+                      <p className="mt-1.5 flex flex-wrap gap-1">
+                        {PART_DEFS.map((p) => {
+                          const v = sums[p.key];
+                          return (
+                            <span
+                              key={p.key}
+                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                v > 0
+                                  ? "bg-white text-brand-strong"
+                                  : v < 0
+                                    ? "bg-danger-weak text-danger"
+                                    : "bg-white/60 text-ink-300"
+                              }`}
+                            >
+                              {p.icon}
+                              {p.label} <b className="tnum">{v > 0 ? `+${v}` : v}</b>
+                            </span>
+                          );
+                        })}
+                      </p>
+                    );
+                  })()}
                   {gComps.length > 0 && (
                     <ul className="mt-2 space-y-0.5 text-xs text-ink-700">
                       {gComps.map((c, i) => (

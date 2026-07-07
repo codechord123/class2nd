@@ -7,7 +7,7 @@
 import { useSession } from "@/stores/session";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { studentById, ROLE_INFO } from "@/lib/roster";
+import { students, studentById, ROLE_INFO } from "@/lib/roster";
 import { useSettings } from "@/lib/query/settings";
 import {
   useMyEvaluation,
@@ -31,6 +31,7 @@ import {
 import TeamStats from "@/components/team/TeamStats";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
+import GroupBreakdown from "@/components/team/GroupBreakdown";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -97,6 +98,9 @@ export default function TeamPage() {
   const setCoverage = useSetComplimentCoverage(date, studentId);
 
   const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
+  const [groupTab, setGroupTab] = useState<"vs" | "class">("vs"); // 모둠·학급 하위 탭
+  const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
+  const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
   const [compTo, setCompTo] = useState<number | null>(null);
   const [compText, setCompText] = useState("");
   const [sugTo, setSugTo] = useState<number | null>(null);
@@ -132,8 +136,46 @@ export default function TeamPage() {
             선생님은 <b>교사</b> 탭에서 집계·오늘의 모둠 선정·칭찬 인쇄를 관리할 수 있어요.
           </p>
         </section>
-        <GroupGoals />
-        <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+        <SubTabs
+          tabs={[
+            { key: "group" as const, label: "🏆 모둠·학급" },
+            { key: "student" as const, label: "🧑 개인별 기록" },
+          ]}
+          active={tView}
+          onChange={setTView}
+        />
+        {tView === "group" && (
+          <>
+            <GroupGoals />
+            <GroupBreakdown />
+            <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+          </>
+        )}
+        {tView === "student" && (
+          <>
+            {/* 학생 선택 → 그 학생의 '내 기록'(점수 출처 분해 포함)을 교사가 그대로 열람 */}
+            <div className="flex flex-wrap items-center gap-2 rounded-card border border-ink-200 bg-white p-3 shadow-card">
+              <span className="text-sm font-bold text-ink-700">🧑 학생 선택</span>
+              <select
+                value={tSid}
+                onChange={(e) => setTSid(Number(e.target.value))}
+                className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+              >
+                {students
+                  .filter((s) => !s.inactive)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.id}번 {s.name}
+                    </option>
+                  ))}
+              </select>
+              <span className="text-xs text-ink-400">
+                학생이 보는 &lsquo;내 기록&rsquo;과 같은 화면이에요 (점수 출처 분해 포함)
+              </span>
+            </div>
+            <MyRecord studentId={tSid} cumScores={cumScores} />
+          </>
+        )}
       </div>
     );
   }
@@ -861,11 +903,26 @@ export default function TeamPage() {
       {/* 개인 통계 — 내 점수·독서·받은 마음 (사용자 결정: 모둠/개인 분리) */}
       {tab === "me" && <MyRecord studentId={studentId} cumScores={cumScores} />}
 
-      {/* 모둠·학급 통계 — 모둠 대항전(공동 목표) + 학급 통계 */}
+      {/* 모둠·학급 통계 — 하위 탭으로 분리: 모둠 대항전(+점수 분해) / 학급 통계 (사용자 요청) */}
       {tab === "group" && (
         <div className="space-y-4">
-          <GroupGoals myStudentId={studentId} />
-          <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+          <SubTabs
+            tabs={[
+              { key: "vs" as const, label: "🏆 모둠 대항전" },
+              { key: "class" as const, label: "📊 학급 통계" },
+            ]}
+            active={groupTab}
+            onChange={setGroupTab}
+          />
+          {groupTab === "vs" && (
+            <>
+              <GroupGoals myStudentId={studentId} />
+              <GroupBreakdown myStudentId={studentId} />
+            </>
+          )}
+          {groupTab === "class" && (
+            <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
+          )}
         </div>
       )}
 

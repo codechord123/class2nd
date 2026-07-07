@@ -39,12 +39,29 @@ export default function UserChip() {
         </button>
       )}
       {preview ? (
-        <button
-          onClick={exitPreview}
-          className="press rounded-full bg-warn px-2.5 py-1 text-xs font-bold text-white"
-        >
-          ↩ 선생님으로
-        </button>
+        <>
+          {/* 미리보기 학생 전환 — 1번 외 어느 학생 화면이든 바로 확인 (사용자 요청) */}
+          <select
+            value={studentId ?? ""}
+            onChange={(e) => e.target.value && enterPreview(Number(e.target.value))}
+            className="rounded-full border border-warn/50 bg-warn-weak px-2 py-1 text-xs font-bold text-warn"
+            aria-label="미리보기 학생 선택"
+          >
+            {students
+              .filter((s) => !s.inactive)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id}번 {s.name}
+                </option>
+              ))}
+          </select>
+          <button
+            onClick={exitPreview}
+            className="press rounded-full bg-warn px-2.5 py-1 text-xs font-bold text-white"
+          >
+            ↩ 선생님으로
+          </button>
+        </>
       ) : (
         <>
           {role === "student" && (

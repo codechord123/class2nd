@@ -19,6 +19,7 @@ import LinksEditor from "@/components/teacher/LinksEditor";
 import { TeacherMemoWidget, BiweeklySettlePanel, BonusPanel } from "@/components/teacher/MemoAndSettle";
 import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
+import { SilverAdjustPanel, GoldAdjustPanel } from "@/components/teacher/AdjustPanels";
 import TransferPanel from "@/components/teacher/TransferPanel";
 import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
 import TurtleEventPanel from "@/components/teacher/TurtleEventPanel";
@@ -51,9 +52,10 @@ export default function TeacherPage() {
   const saveSettings = useSaveSettings();
   const qc = useQueryClient();
 
-  const [tTab, setTTab] = useState<"score" | "dashboard" | "approve" | "tools">("score");
+  const [tTab, setTTab] = useState<"score" | "adjust" | "approve" | "tools">("score");
   // 하위탭 — 긴 세로 스크롤 대신 목적별 분리 (사용자 요청)
-  const [scoreTab, setScoreTab] = useState<"today" | "report" | "reward">("today");
+  // 학급 현황판은 점수·집계의 하위 탭, 모든 보정은 최상위 '점수 조정' 탭 (사용자 확정)
+  const [scoreTab, setScoreTab] = useState<"today" | "dashboard" | "report" | "reward">("today");
   const [toolsTab, setToolsTab] = useState<"settings" | "manage">("settings");
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
@@ -210,7 +212,7 @@ export default function TeacherPage() {
       <SubTabs
         tabs={[
           { key: "score" as const, label: "📊 점수·집계" },
-          { key: "dashboard" as const, label: "🗂️ 학급 현황판" },
+          { key: "adjust" as const, label: "🛠 점수 조정" },
           { key: "approve" as const, label: "🎫 자리 승인" },
           { key: "tools" as const, label: "⚙️ 설정·도구" },
         ]}
@@ -218,18 +220,29 @@ export default function TeacherPage() {
         onChange={setTTab}
       />
 
-      {tTab === "dashboard" && <ClassDashboard />}
+      {/* 🛠 점수 조정 — 개인 점수·독서 권수·실버·골드 보정을 한 화면에 (사용자 확정) */}
+      {tTab === "adjust" && (
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+          <BonusPanel />
+          <ReadingAdjustPanel />
+          <SilverAdjustPanel />
+          <GoldAdjustPanel />
+        </div>
+      )}
 
       {tTab === "score" && (<>
       <SubTabs
         tabs={[
           { key: "today" as const, label: "📌 오늘 집계" },
+          { key: "dashboard" as const, label: "🗂️ 학급 현황판" },
           { key: "report" as const, label: "📄 리포트" },
           { key: "reward" as const, label: "🏆 보상·도구" },
         ]}
         active={scoreTab}
         onChange={setScoreTab}
       />
+
+      {scoreTab === "dashboard" && <ClassDashboard />}
 
       {scoreTab === "today" && (<>
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
@@ -243,7 +256,7 @@ export default function TeacherPage() {
         <h2 className="text-lg font-bold">👑 오늘의 모둠 순위</h2>
         <p className="mt-1 text-xs text-ink-600">
           잘한 순서대로 눌러주세요 (1위→5위) — 순위대로 5·4·3·2·1점, <b>1위는 +1점 더</b>.
-          저장 후 옆 <b>집계 실행</b>으로 반영돼요.
+          <b>저장하면 그날 집계까지 자동 실행</b>돼 바로 점수에 반영돼요.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {[1, 2, 3, 4, 5].map((g) => {
@@ -293,9 +306,19 @@ export default function TeacherPage() {
                     scheduleOfWeek(week).groups.find((g) => g.groupId === bestRanking[0])?.chair ??
                     0;
                   await setBestGroup(date, bestRanking, chairId);
-                  toast(
-                    `✅ ${date} 순위 저장: ${bestRanking.map((g, i) => `${i + 1}위 ${g}모둠`).join(" · ")} — 집계 실행 시 반영돼요`
-                  );
+                  // 저장 후 곧바로 그날 집계까지 — "저장했는데 점수에 반영이 안 돼요"
+                  // (저장→집계 2단계를 잊는 문제) 방지. 사용자 보고로 1단계로 통합.
+                  setBusy(true);
+                  try {
+                    await aggregateDate(date, settings!);
+                    void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
+                    void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+                    toast(
+                      `✅ ${date} 순위 저장 + 점수 반영 완료: ${bestRanking.map((g, i) => `${i + 1}위 ${g}모둠`).join(" · ")}`
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
                 } catch (e) {
                   toast(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
                 }
@@ -362,7 +385,6 @@ export default function TeacherPage() {
       {scoreTab === "reward" && (
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         <BiweeklySettlePanel />
-        <BonusPanel />
         <ScoreDiagnosisPanel />
         <SampleDataPanel date={date} />
       </div>
@@ -478,7 +500,6 @@ export default function TeacherPage() {
       {toolsTab === "manage" && (<>
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         <PasswordResetPanel />
-        <ReadingAdjustPanel />
         <div className="lg:col-span-2">
           <TransferPanel />
         </div>

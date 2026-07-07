@@ -6,7 +6,12 @@ import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { useReadingStats } from "@/lib/query/reading";
-import { useCumulativeScores, useLatestAggregated } from "@/lib/query/evaluation";
+import {
+  useCumulativeScores,
+  useDailyScores,
+  useLatestAggregated,
+  type DailyMeta,
+} from "@/lib/query/evaluation";
 
 function BarRow({
   label,
@@ -55,6 +60,10 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
+  // 오늘 집계가 이미 있으면 오늘 것을 보여준다 — 선생님이 준 오늘의 모둠 점수가
+  // 다음날까지 안 보이던 문제(사용자 보고) 수정. 둘 다 Team 탭 캐시 재사용 (추가 읽기 0).
+  const { data: todayScores } = useDailyScores(today);
+  const todayMeta = (todayScores as { _meta?: DailyMeta } | null | undefined)?._meta;
 
   const cumMap = (cum ?? {}) as Record<string, unknown>;
   const scoreOf = (id: number) => {
@@ -82,10 +91,13 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   const leader = groups.find((g) => g.score === maxScore && maxScore > 0);
   const gap = myGroup && leader && leader.groupId !== myGroup.groupId ? leader.score - myGroup.score : 0;
 
-  // 어제(최근 집계일)의 모둠 성적
-  const yGroupSums = latestAgg?.meta.groupSums ?? {};
-  const yBest = new Set(latestAgg?.meta.autoBestGroups ?? []);
-  const yMission = new Set(latestAgg?.meta.missionGroups ?? []);
+  // 최근 집계일의 모둠 성적 — 오늘 집계가 있으면 오늘, 없으면 어제 이하
+  const useToday = !!todayMeta?.groupSums && Object.keys(todayMeta.groupSums).length > 0;
+  const yMeta = useToday ? todayMeta! : latestAgg?.meta;
+  const yDate = useToday ? today : latestAgg?.date;
+  const yGroupSums = yMeta?.groupSums ?? {};
+  const yBest = new Set(yMeta?.autoBestGroups ?? []);
+  const yMission = new Set(yMeta?.missionGroups ?? []);
   const hasYesterday = Object.keys(yGroupSums).length > 0;
   const yMax = Math.max(0, ...Object.values(yGroupSums));
 
@@ -165,11 +177,13 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
           </div>
 
           {/* 최근 집계일의 모둠 성적 — 오늘의 모둠·미션 배지 */}
-          {hasYesterday && latestAgg && (
+          {hasYesterday && yDate && (
             <div>
               <p className="text-xs font-bold text-ink-600">
-                📅 최근 집계일 ({Number(latestAgg.date.slice(5, 7))}월{" "}
-                {Number(latestAgg.date.slice(8, 10))}일) 모둠 점수
+                📅 {yDate === today
+                  ? "오늘"
+                  : `최근 집계일 (${Number(yDate.slice(5, 7))}월 ${Number(yDate.slice(8, 10))}일)`}{" "}
+                모둠 점수
               </p>
               <div className="mt-1.5 space-y-1">
                 {Object.entries(yGroupSums)

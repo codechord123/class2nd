@@ -207,6 +207,38 @@ export function useGrantSilver() {
   };
 }
 
+/** 교사 실버 차감(−) — 잘못 지급 회수·규칙 위반 차감용.
+ *  트랜잭션으로 잔액을 읽어 음수를 막고, 원장(type "adjust" = 차감 표시)과
+ *  silverEarned(골드 적립 재료)도 함께 델타 반영해 지급의 완전한 역연산이 되게 한다. */
+export function useDeductSilver() {
+  const qc = useQueryClient();
+  return async (studentId: number, amount: number, note: string) => {
+    if (!Number.isInteger(amount) || amount <= 0) throw new Error("개수를 확인해주세요.");
+    const d = db();
+    const balRef = doc(d, "coinTxns", "0_balances");
+    await runTransaction(d, async (tx) => {
+      const snap = await tx.get(balRef);
+      const cur = (snap.exists() ? (snap.data()[String(studentId)] as number) : 0) ?? 0;
+      if (cur < amount) throw new Error(`잔액 부족 (현재 ${cur}개) — 차감할 수 없어요.`);
+      tx.set(balRef, { [studentId]: increment(-amount) }, { merge: true });
+      tx.set(doc(collection(d, "coinTxns")), {
+        studentId,
+        amount,
+        item: note || "교사 차감",
+        type: "adjust",
+        status: "approved",
+        createdAt: Date.now(),
+      });
+      tx.set(
+        doc(d, "dailyScores", "_cumulative"),
+        { silverEarned: { [String(studentId)]: increment(-amount) } },
+        { merge: true }
+      );
+    });
+    void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+  };
+}
+
 /** 교사 학급 골드 수동 조정(±) — 자동 적립과 별개로 classGoldBonus에 누적.
  *  트랜잭션으로 잔량을 읽어 음수(과다 감점)를 막는다. */
 export function useAdjustClassGold() {
