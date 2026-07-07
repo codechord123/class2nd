@@ -300,32 +300,44 @@ export default function DailyReportPanel({
       const card = (t: string, inner: string) =>
         `<div class="card"><div class="t">${t}</div>${inner}</div>`;
 
-      // ① 하이라이트 6종 — 화면의 타일 구성 그대로
-      const hiTiles = [
-        ["독서 MVP", readMax > 0 ? `${names(readTop)} (${readMax}권)` : "없음"],
-        ["오늘의 모둠 최다", bestMax > 0 ? `${bestGs.map((g) => `${g}모둠`).join(", ")} (${bestMax}회)` : "없음"],
-        ["MVP 최다", mvpMax > 0 ? `${names(mvpTop)} (${mvpMax}회)` : "없음"],
-        ["미션 최다 모둠", missionMax > 0 ? `${missionTop.map((g) => `${g}모둠`).join(", ")} (${missionMax}일)` : "없음"],
-        ["칭찬왕 (보내기)", giveMax > 0 ? `${names(giveTop)} (${giveMax}회)` : "없음"],
-        ["칭찬 많이 받은 친구", recvMax > 0 ? `${names(recvTop)} (${recvMax}회)` : "없음"],
-      ]
-        .map(([l, v]) => `<tr><td>${l}</td><td><b>${v}</b></td></tr>`)
-        .join("");
+      // ① 하이라이트 6종 — 화면 세션뷰의 타일 그대로 (아이콘 + 이름 + 부가)
+      const tile = (icon: string, label: string, value: string, sub: string) =>
+        `<div class="hitile"><div class="l">${icon} ${label}</div><div class="v">${value}</div>${
+          sub ? `<div class="s">${sub}</div>` : ""
+        }</div>`;
+      const hiGrid = `<div class="hitiles">
+        ${tile("🐢", "독서 MVP", readMax > 0 ? names(readTop) : "아직 없음", readMax > 0 ? `${readMax}권` : "")}
+        ${tile("👑", "오늘의 모둠 최다", bestMax > 0 ? bestGs.map((g) => `${g}모둠`).join(", ") : "아직 없음", bestMax > 0 ? `1위 ${bestMax}회` : "")}
+        ${tile("⭐", "MVP 최다", mvpMax > 0 ? names(mvpTop) : "아직 없음", mvpMax > 0 ? `${mvpMax}회` : "")}
+        ${tile("🎯", "미션 최다 모둠", missionMax > 0 ? missionTop.map((g) => `${g}모둠`).join(", ") : "아직 없음", missionMax > 0 ? `${missionMax}일 달성` : "")}
+        ${tile("💌", "칭찬왕 (보내기)", giveMax > 0 ? names(giveTop) : "아직 없음", giveMax > 0 ? `${giveMax}회` : "")}
+        ${tile("💖", "칭찬 많이 받은 친구", recvMax > 0 ? names(recvTop) : "아직 없음", recvMax > 0 ? `${recvMax}회` : "")}
+      </div>`;
 
-      // ② 활동 스탯 + 독서 달성률
+      // ② 활동 스탯(4타일) + 독서 목표 달성률 + 칭찬 배너 — 화면 구성 그대로
       const metOf = (w: number) =>
         students.filter((s) => weekBooks(stats, s.id, w) >= quota).length;
       const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
-      const statsHtml = `<div class="stats">
-        <div><div class="l">칭찬</div><div class="v green">${rep.compliments}</div></div>
-        <div><div class="l">미션 달성</div><div class="v blue">${rep.missionAchievements}회</div></div>
-        <div><div class="l">학급 독서</div><div class="v">+${sessionBooks}권</div></div>
-      </div>
-      <p class="muted">독서 목표 달성 — ${w1}주차 ${metOf(w1)}/${students.length}명${
-        w2 !== w1 ? ` · ${w2}주차 ${metOf(w2)}/${students.length}명` : ""
-      } · 칭찬 참여 ${Object.keys(rep.givenCount).length}/${students.length}명</p>`;
+      const st = (label: string, value: string, color: string) =>
+        `<div class="hitile" style="text-align:center"><div class="l">${label}</div><div class="v" style="font-size:19px;color:${color}">${value}</div></div>`;
+      const actStats = `<div class="hitiles" style="grid-template-columns:repeat(4,1fr)">
+        ${st("💌 칭찬", String(rep.compliments), "#e24c8b")}
+        ${st("🗣 칭찬 참여", `${Object.keys(rep.givenCount).length}/${students.length}`, "#191f28")}
+        ${st("🙋 건의", String(rep.suggestions), "#3182f6")}
+        ${st("🎯 미션 달성", `${rep.missionAchievements}회`, "#e0850b")}
+      </div>`;
+      const readingLine = `<p class="muted">📖 독서 목표 달성 — ${w1}주차 <b>${metOf(w1)}/${students.length}명</b>${
+        w2 !== w1 ? ` · ${w2}주차 <b>${metOf(w2)}/${students.length}명</b>` : ""
+      } · 세션 학급 <b>+${sessionBooks}권</b></p>`;
+      const noLove = students.filter((s) => !(rep.receivedCount[String(s.id)] > 0));
+      const loveBanner =
+        rep.days > 0
+          ? noLove.length === 0
+            ? `<p style="margin:8px 0 0;padding:8px 12px;border-radius:10px;background:#e6f7f1;color:#0ca678;font-weight:700;font-size:12px">💖 세션 동안 전원이 칭찬을 받았어요!</p>`
+            : `<p class="muted warn">💗 관심이 필요한 친구: ${noLove.map((s) => esc(s.name)).join(", ")} — 조회 때 한마디 해주세요.</p>`
+          : "";
 
-      // ③ 모둠 평균 점수 + 세션 TOP 5
+      // ③ 모둠 평균 점수(막대) + 세션 TOP 5(순위)
       const groupRows = schedule.groups
         .map((g) => {
           const ids = [g.chair, ...g.members.map((m) => m.studentId)];
@@ -333,16 +345,24 @@ export default function DailyReportPanel({
           return { g: g.groupId, avg: sum / ids.length };
         })
         .sort((a, b) => b.avg - a.avg);
-      const groupHtml = `<table><thead><tr><th>모둠</th><th>세션 평균 점수</th></tr></thead><tbody>${groupRows
-        .map((r, i) => `<tr><td>${i === 0 ? "★ " : ""}${r.g}모둠</td><td><b>${r.avg.toFixed(1)}</b></td></tr>`)
-        .join("")}</tbody></table>`;
+      const maxAvg = Math.max(1, ...groupRows.map((r) => r.avg));
+      const groupHtml = `<div class="bars">${groupRows
+        .map(
+          (r, i) =>
+            `<div class="bar"><span class="bl">${i === 0 ? "👑 " : ""}${r.g}모둠</span><span class="bt"><i class="${i === 0 ? "win" : ""}" style="width:${Math.max(4, (r.avg / maxAvg) * 100)}%"></i></span><span class="bv">${r.avg.toFixed(1)}</span></div>`
+        )
+        .join("")}</div>`;
+      const medals = ["🥇", "🥈", "🥉"];
       const top5 = [...students]
         .map((s) => ({ name: s.name, total: rep.totals[String(s.id)] ?? 0 }))
         .sort((a, b) => b.total - a.total)
         .slice(0, 5);
-      const top5Html = `<table><thead><tr><th>순위</th><th>이름</th><th>세션 총점</th></tr></thead><tbody>${top5
-        .map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td><b>${r.total}</b></td></tr>`)
-        .join("")}</tbody></table>`;
+      const top5Html = `<div class="rank">${top5
+        .map(
+          (r, i) =>
+            `<div class="rk"><span class="m">${medals[i] ?? i + 1}</span><span class="rn">${esc(r.name)}</span><span class="rv">${r.total}점</span></div>`
+        )
+        .join("")}</div>`;
 
       // ④ 모둠 반성 — 세션 마지막 주말에 학생들이 남긴 글 (1기 등 기록 없으면 섹션 생략)
       const reflHtml = rep.reflections.length
@@ -360,8 +380,8 @@ export default function DailyReportPanel({
           `${sessionNo}기 세션 리포트`,
           `${dateTitle(sessionStart)} ~ ${dateTitle(sessionEnd)} · 집계 ${rep.days}일${goalLine ? ` · 목표: ${esc(goalLine)}` : ""}`
         ) +
-          card(`세션 하이라이트 (${w1}·${w2}주)`, `<table><tbody>${hiTiles}</tbody></table>`) +
-          card("활동 요약", statsHtml) +
+          card(`세션 하이라이트 (${w1}·${w2}주)`, hiGrid) +
+          card("활동 요약", actStats + readingLine + loveBanner) +
           `<div class="grid2">${card("모둠 평균 점수", groupHtml)}${card("세션 점수 TOP 5", top5Html)}</div>` +
           reflHtml
       );

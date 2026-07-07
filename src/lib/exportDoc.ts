@@ -134,6 +134,24 @@ const PRINT_CSS = `
   .bc.praise { background: #fce6f0; color: #e24c8b; }
   .rsn { padding: 0 12px 6px; font-size: 10.5px; color: #8b95a1; }
   .rsn b { color: #7257d4; }
+  /* 세션 리포트 — 화면 세션뷰처럼 하이라이트 타일 + 모둠 평균 바 + TOP5 */
+  .hitiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hitile { border: 1px solid #eceef1; border-radius: 12px; padding: 9px 12px; background: #fbfcfd; }
+  .hitile .l { font-size: 10.5px; color: #8b95a1; font-weight: 700; margin-bottom: 2px; }
+  .hitile .v { font-size: 13px; font-weight: 800; color: #191f28; line-height: 1.35; }
+  .hitile .s { font-size: 10.5px; color: #aab3bf; margin-top: 1px; }
+  .bars { display: flex; flex-direction: column; gap: 6px; }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+  .bar .bl { width: 56px; shrink: 0; font-weight: 700; color: #3a4250; }
+  .bar .bt { flex: 1; height: 9px; background: #f2f4f6; border-radius: 999px; overflow: hidden; }
+  .bar .bt > i { display: block; height: 100%; background: #3182f6; border-radius: 999px; }
+  .bar .bt > i.win { background: #f59f00; }
+  .bar .bv { width: 32px; text-align: right; font-weight: 800; color: #191f28; }
+  .rank { display: flex; flex-direction: column; }
+  .rk { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 4px 0; border-top: 1px solid #f2f4f6; }
+  .rk:first-child { border-top: 0; }
+  .rk .m { width: 20px; text-align: center; }
+  .rk .rv { margin-left: auto; font-weight: 800; color: #3182f6; }
   /* 점수 미니 바 */
   .score { position: relative; }
   .score .sbar { position: absolute; left: 4px; top: 22%; bottom: 22%; border-radius: 4px;

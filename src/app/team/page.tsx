@@ -100,7 +100,7 @@ export default function TeamPage() {
   const setCoverage = useSetComplimentCoverage(date, studentId);
 
   const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
-  const [groupTab, setGroupTab] = useState<"vs" | "class">("vs"); // 모둠·학급 하위 탭
+  const [groupTab, setGroupTab] = useState<"recap" | "vs" | "breakdown" | "class">("recap"); // 모둠·학급 하위 탭
   const [meTab, setMeTab] = useState<"stats" | "hearts">("stats"); // 내 기록 하위 탭
   const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
   const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
@@ -1041,22 +1041,18 @@ export default function TeamPage() {
         <div className="space-y-4">
           <SubTabs
             tabs={[
-              { key: "vs" as const, label: "🏆 모둠 대항전" },
+              { key: "recap" as const, label: "🎉 오늘의 반" },
+              { key: "vs" as const, label: "🏆 대항전" },
+              { key: "breakdown" as const, label: "🔍 점수 분해" },
               { key: "class" as const, label: "📊 학급 통계" },
             ]}
             active={groupTab}
             onChange={setGroupTab}
           />
-          {groupTab === "vs" && (
-            <>
-              <ClassRecap myStudentId={studentId} />
-              <GroupGoals myStudentId={studentId} />
-              <GroupBreakdown myStudentId={studentId} />
-            </>
-          )}
-          {groupTab === "class" && (
-            <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
-          )}
+          {groupTab === "recap" && <ClassRecap myStudentId={studentId} />}
+          {groupTab === "vs" && <GroupGoals myStudentId={studentId} />}
+          {groupTab === "breakdown" && <GroupBreakdown myStudentId={studentId} />}
+          {groupTab === "class" && <TeamStats cumScores={cumScores} bestGroups={bestGroups} />}
         </div>
       )}
 
