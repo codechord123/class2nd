@@ -1,12 +1,14 @@
 "use client";
 // 🎉 오늘의 우리 반 — 학부모 리포트와 같은 뱃지 카드를 학생도 다같이 읽는 화면 (사용자 요청).
-// 하이라이트(오늘의 모둠·MVP) + 모둠별 뱃지 + 오늘의 칭찬. 읽기 전용.
+// 하위 토글: 모둠 파트(하이라이트+모둠별 뱃지) / 칭찬 파트(오늘 주고받은 칭찬). 읽기 전용.
 // 오늘 집계가 있으면 오늘, 없으면 최근 집계일 — Team 탭이 이미 캐시하는 문서 2개 재사용 (추가 읽기 0).
+import { useState } from "react";
 import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated, type DailyMeta } from "@/lib/query/evaluation";
 import { groupDayScore } from "@/lib/groupScore";
+import SubTabs from "@/components/ui/SubTabs";
 import type { DailyScoreRow } from "@/types";
 
 const nm = (id: number) => studentById.get(id)?.name ?? "?";
@@ -25,6 +27,7 @@ function Badge({ tone, children }: { tone: string; children: React.ReactNode }) 
 }
 
 export default function ClassRecap({ myStudentId }: { myStudentId?: number | null }) {
+  const [view, setView] = useState<"group" | "praise">("group");
   const today = todayKST();
   const { data: todayScores } = useDailyScores(today);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
@@ -69,6 +72,8 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
     return bs;
   };
 
+  const comps = meta.compliments ?? [];
+
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -76,6 +81,34 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
         <span className="text-xs text-ink-400">{isToday ? "오늘" : `${fmt} 기준`}</span>
       </div>
 
+      {/* 모둠 파트 / 칭찬 파트 나누기 (사용자 요청) */}
+      <div className="mt-3">
+        <SubTabs
+          tabs={[
+            { key: "group" as const, label: "👑 모둠" },
+            { key: "praise" as const, label: `💌 칭찬${comps.length ? ` ${comps.length}` : ""}` },
+          ]}
+          active={view}
+          onChange={setView}
+        />
+      </div>
+
+      {view === "praise" ? (
+        comps.length > 0 ? (
+          <ul className="mt-3 space-y-1.5">
+            {comps.map((c, i) => (
+              <li key={i} className="rounded-btn bg-pink-50 px-3 py-2 text-[13px] text-ink-800">
+                <b className="text-pink-700">{nm(c.from)}</b> → <b>{nm(c.to)}</b> · {c.text}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+            아직 오늘 주고받은 칭찬이 없어요 — 첫 칭찬의 주인공이 되어보세요!
+          </p>
+        )
+      ) : (
+        <>
       {/* 하이라이트 — 오늘의 모둠 · MVP */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="flex items-center gap-2.5 rounded-btn bg-warn-weak px-3 py-2.5">
@@ -158,18 +191,7 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
         })}
       </div>
 
-      {/* 오늘의 칭찬 — 다같이 읽기 */}
-      {(meta.compliments ?? []).length > 0 && (
-        <div className="mt-4">
-          <p className="text-xs font-bold text-pink-600">💌 오늘 주고받은 칭찬</p>
-          <ul className="mt-1.5 space-y-1">
-            {(meta.compliments ?? []).map((c, i) => (
-              <li key={i} className="rounded-btn bg-pink-50 px-3 py-1.5 text-[13px] text-ink-800">
-                <b className="text-pink-700">{nm(c.from)}</b> → <b>{nm(c.to)}</b> · {c.text}
-              </li>
-            ))}
-          </ul>
-        </div>
+        </>
       )}
     </section>
   );

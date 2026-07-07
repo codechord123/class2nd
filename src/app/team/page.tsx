@@ -41,6 +41,7 @@ import { useRef, useState } from "react";
 import type { DailyScoreRow } from "@/types";
 
 const roleEmoji = Object.fromEntries(ROLE_INFO.map((r) => [r.key, r.emoji]));
+const COMP_MIN = 10; // 칭찬 최소 글자 수 — "ㅇㅇ" 같은 한 글자 땡 방지 (사용자 확정)
 
 function ScaleButtons({
   scale,
@@ -292,8 +293,8 @@ export default function TeamPage() {
       toast("칭찬할 친구를 골라주세요.", "warn");
       return;
     }
-    if (!compText.trim()) {
-      toast("칭찬 내용을 적어주세요.", "warn");
+    if (compText.trim().length < COMP_MIN) {
+      toast(`칭찬은 ${COMP_MIN}글자 이상 적어주세요 (성의 있게!).`, "warn");
       return;
     }
     setSending(true);
@@ -393,6 +394,11 @@ export default function TeamPage() {
     if (!editPeer) return;
     if (!editPeer.text.trim()) {
       toast("내용을 적어주세요. 지우려면 삭제를 눌러요.", "warn");
+      return;
+    }
+    // 칭찬만 10글자 최소 (건의는 짧아도 됨)
+    if (editPeer.kind === "comp" && editPeer.text.trim().length < COMP_MIN) {
+      toast(`칭찬은 ${COMP_MIN}글자 이상 적어주세요.`, "warn");
       return;
     }
     try {
@@ -802,9 +808,12 @@ export default function TeamPage() {
           <input
             value={compText}
             onChange={(e) => setCompText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) void submitComp();
+            }}
             placeholder={
               compTo != null
-                ? `${name(compTo)}에게 칭찬 한마디`
+                ? `${name(compTo)}에게 칭찬 한마디 (${COMP_MIN}글자 이상)`
                 : "먼저 위에서 친구를 골라주세요"
             }
             className="min-w-0 flex-1 rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
@@ -812,7 +821,7 @@ export default function TeamPage() {
           <span className="relative shrink-0">
             <button
               onClick={() => void submitComp()}
-              disabled={sending}
+              disabled={sending || compText.trim().length < COMP_MIN}
               className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
             >
               {sending ? "저장 중…" : "칭찬 보내기"}
@@ -821,6 +830,14 @@ export default function TeamPage() {
             <JuiceBurst fireKey={compBurst} emojis={["💌", "✨", "💛"]} className="left-1/2 top-0" />
           </span>
         </div>
+        {/* 글자 수 힌트 — 10글자 미만이면 남은 글자, 충족하면 초록 체크 */}
+        {compTo != null && (
+          <p className={`mt-1 text-[11px] ${compText.trim().length >= COMP_MIN ? "text-emerald-600" : "text-ink-400"}`}>
+            {compText.trim().length >= COMP_MIN
+              ? `✓ 좋아요! (${compText.trim().length}글자)`
+              : `${COMP_MIN}글자 이상 — ${COMP_MIN - compText.trim().length}글자 더 써주세요`}
+          </p>
+        )}
         {sentComp.length > 0 && (
           <div className="mt-3">
             <p className="text-xs font-bold text-ink-500">
