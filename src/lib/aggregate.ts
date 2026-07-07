@@ -434,12 +434,17 @@ async function aggregateDateInner(
     };
   }
 
-  // 5-2) '오늘의 모둠' 타이틀 — 교사 순위 점수와 별개로, 최종 총점 모둠 합계 1위가 자동으로
-  //      받는다 (동점 모두, 합계 0 초과만). 교사 순위 점수는 그대로 합산에 들어간다 (사용자 확정)
+  // 5-2) '오늘의 모둠' 타이틀 — 최종 총점 모둠 합계 1위가 자동으로 받는다 (동점 모두).
+  //      교사 순위 점수는 모둠 합계에 '모둠당 1번만' 반영 (사용자 확정 — 개인별로 5번
+  //      합산하면 -2점 순위가 모둠 점수에서 -10점이 되어 다른 점수와 변별이 깨진다).
+  //      개인 행(rows)의 groupRank는 각자 그대로 — 개인 점수는 바뀌지 않는다.
   const groupSums: Record<number, number> = {};
   for (const g of schedule.groups) {
     const ids = activeIdsOf(g);
-    groupSums[g.groupId] = ids.reduce((a, id) => a + (rows[id]?.total ?? 0), 0);
+    const myRank = ranks[g.groupId];
+    const grOnce = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
+    groupSums[g.groupId] =
+      ids.reduce((a, id) => a + (rows[id]?.total ?? 0) - (rows[id]?.groupRank ?? 0), 0) + grOnce;
   }
   const bestSum = Math.max(0, ...Object.values(groupSums));
   const autoBestGroups =

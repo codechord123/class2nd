@@ -100,17 +100,27 @@ export default function DailyReportPanel({
     .sort((a, b) => b.row!.total - a.row!.total);
 
   // 학생/모둠의 항목별 점수 분해 — dailyScores 행 재사용 (추가 읽기 0)
+  // 선생님 순위 점수는 모둠 합계에 1번만 (사용자 확정 — 개인 행에는 각자 그대로)
   const rowOf = (id: number) => today?.[String(id)] as DailyScoreRow | undefined;
+  const grOnceOf = (ids: number[]) =>
+    ids.map((id) => rowOf(id)?.groupRank ?? 0).find((v) => v !== 0) ?? 0;
   const groupParts = (ids: number[]) => {
     const sums: Record<string, number> = {};
     for (const p of PART_DEFS) sums[p.key] = 0;
     for (const id of ids) {
       const r = rowOf(id);
       if (!r) continue;
-      for (const p of PART_DEFS) sums[p.key] += (r[p.key] as number | undefined) ?? 0;
+      for (const p of PART_DEFS)
+        if (p.key !== "groupRank") sums[p.key] += (r[p.key] as number | undefined) ?? 0;
     }
+    sums.groupRank = grOnceOf(ids);
     return sums;
   };
+  const groupTotal = (ids: number[]) =>
+    ids.reduce((a, id) => {
+      const r = rowOf(id);
+      return a + (r?.total ?? 0) - (r?.groupRank ?? 0);
+    }, 0) + grOnceOf(ids);
 
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
@@ -179,7 +189,7 @@ export default function DailyReportPanel({
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
             const isBest = autoBestSet.has(g.groupId); // 총점 합계 1위 = 오늘의 모둠 (자동)
             const gRank = meta.ranks?.[String(g.groupId)];
-            const gSum = ids.reduce((a, id) => a + totalOf(id), 0);
+            const gSum = groupTotal(ids); // 순위 점수는 모둠당 1번만
             const rows = ids
               .map((id) => {
                 const r = rowOf(id);

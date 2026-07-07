@@ -227,7 +227,8 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
       )}
       <p className="mt-3 text-[11px] text-ink-400">
         모둠 점수는 부서장 평가·부서장 표·선생님 순위·독서·미션을 모두 합친 값이에요 — 모둠이
-        같이 움직여야 올라가요! ({students.length}명 · 현재 모둠 기준)
+        같이 움직여야 올라가요! 일일 모둠 점수에서 <b>선생님 순위 점수는 모둠당 1번만</b>{" "}
+        들어가요. ({students.length}명 · 현재 모둠 기준)
       </p>
     </section>
   );

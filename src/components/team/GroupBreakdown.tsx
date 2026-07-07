@@ -56,19 +56,28 @@ export default function GroupBreakdown({
   const schedule = scheduleOfWeek(week);
   const rowOf = (id: number) => rows[String(id)] as DailyScoreRow | undefined;
 
+  // 선생님 순위 점수는 모둠 합계에 1번만 (사용자 확정 — 개인 점수에는 각자 그대로)
   const groups = schedule.groups.map((g) => {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
       (id) => !studentById.get(id)?.inactive
     );
     const sums: Record<string, number> = {};
     let total = 0;
+    let grOnce = 0; // 모둠원 전원 동일값 — 첫 0 아닌 값 하나만 쓴다
     for (const p of PARTS) sums[p.key] = 0;
     for (const id of ids) {
       const r = rowOf(id);
       if (!r) continue;
-      for (const p of PARTS) sums[p.key] += (r[p.key] as number | undefined) ?? 0;
-      total += r.total ?? 0;
+      for (const p of PARTS) {
+        const v = (r[p.key] as number | undefined) ?? 0;
+        if (p.key === "groupRank") {
+          if (grOnce === 0 && v !== 0) grOnce = v;
+        } else sums[p.key] += v;
+      }
+      total += (r.total ?? 0) - (r.groupRank ?? 0);
     }
+    sums.groupRank = grOnce;
+    total += grOnce;
     return { groupId: g.groupId, ids, sums, total };
   });
   if (groups.every((g) => g.total === 0) && !dateProp) return null;
@@ -126,7 +135,8 @@ export default function GroupBreakdown({
           })}
       </div>
       <p className="mt-2 text-[11px] text-ink-400">
-        모둠원 점수를 항목별로 합친 값이에요 — 어떤 활동이 모둠 점수를 만들었는지 볼 수 있어요.
+        모둠원 점수를 항목별로 합친 값이에요. 단, <b>선생님 순위 점수는 모둠당 1번만</b> 들어가요
+        (개인 점수에는 각자 그대로).
       </p>
     </section>
   );

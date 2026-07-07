@@ -32,6 +32,7 @@ import TeamStats from "@/components/team/TeamStats";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
+import ReceivedNotes from "@/components/team/ReceivedNotes";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -99,6 +100,7 @@ export default function TeamPage() {
 
   const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
   const [groupTab, setGroupTab] = useState<"vs" | "class">("vs"); // 모둠·학급 하위 탭
+  const [meTab, setMeTab] = useState<"stats" | "hearts">("stats"); // 내 기록 하위 탭
   const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
   const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
   const [tDate, setTDate] = useState(todayKST()); // 교사 모둠 기록 날짜별 보기
@@ -209,6 +211,7 @@ export default function TeamPage() {
               </span>
             </div>
             <MyRecord studentId={tSid} cumScores={cumScores} />
+            <ReceivedNotes studentId={tSid} />
           </>
         )}
       </div>
@@ -935,8 +938,21 @@ export default function TeamPage() {
 
       </div>)}
 
-      {/* 개인 통계 — 내 점수·독서·받은 마음 (사용자 결정: 모둠/개인 분리) */}
-      {tab === "me" && <MyRecord studentId={studentId} cumScores={cumScores} />}
+      {/* 개인 통계 — 하위 탭: 내 기록(점수 분해) / 받은 마음(칭찬·건의 날짜별) */}
+      {tab === "me" && (
+        <div className="space-y-4">
+          <SubTabs
+            tabs={[
+              { key: "stats" as const, label: "📒 내 기록" },
+              { key: "hearts" as const, label: "💌 받은 마음" },
+            ]}
+            active={meTab}
+            onChange={setMeTab}
+          />
+          {meTab === "stats" && <MyRecord studentId={studentId} cumScores={cumScores} />}
+          {meTab === "hearts" && <ReceivedNotes studentId={studentId} />}
+        </div>
+      )}
 
       {/* 모둠·학급 통계 — 하위 탭으로 분리: 모둠 대항전(+점수 분해) / 학급 통계 (사용자 요청) */}
       {tab === "group" && (
