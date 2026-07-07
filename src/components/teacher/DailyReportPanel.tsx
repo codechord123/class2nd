@@ -24,16 +24,24 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import SubTabs from "@/components/ui/SubTabs";
 import type { DailyScoreRow } from "@/types";
+import { groupDayScore, type GroupDayScore } from "@/lib/groupScore";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
-// 점수 출처 분해 항목 — 화면·인쇄 공용 (변화된 점수 체계 반영: 사용자 요청)
+// 개인 행 분해 항목 — 인쇄 표 열 (개인 점수는 전 항목 각자 그대로)
 const PART_DEFS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
   { key: "peer", icon: "🤝", label: "평가" },
   { key: "groupRank", icon: "🏆", label: "순위" },
   { key: "mission", icon: "💌", label: "미션" },
   { key: "boss", icon: "👑", label: "득표" },
   { key: "mvp", icon: "⭐", label: "MVP" },
+  { key: "read", icon: "🐢", label: "독서" },
+  { key: "bonus", icon: "🎁", label: "보너스" },
+];
+// 모둠 점수 반영 항목 (lib/groupScore 규칙) — 화면 모둠별 칩
+const GROUP_PARTS: { key: keyof GroupDayScore; icon: string; label: string }[] = [
+  { key: "rankOnce", icon: "🏆", label: "순위(1회)" },
+  { key: "missionOnce", icon: "💌", label: "미션" },
   { key: "read", icon: "🐢", label: "독서" },
   { key: "bonus", icon: "🎁", label: "보너스" },
 ];
@@ -99,28 +107,11 @@ export default function DailyReportPanel({
     .filter((r) => r.row)
     .sort((a, b) => b.row!.total - a.row!.total);
 
-  // 학생/모둠의 항목별 점수 분해 — dailyScores 행 재사용 (추가 읽기 0)
-  // 선생님 순위 점수는 모둠 합계에 1번만 (사용자 확정 — 개인 행에는 각자 그대로)
+  // 학생/모둠의 항목별 점수 분해 — dailyScores 행 재사용 (추가 읽기 0).
+  // 모둠 점수 규칙은 lib/groupScore 단일 출처 (내부 상호평가·MVP 제외, 순위·미션 1회)
   const rowOf = (id: number) => today?.[String(id)] as DailyScoreRow | undefined;
-  const grOnceOf = (ids: number[]) =>
-    ids.map((id) => rowOf(id)?.groupRank ?? 0).find((v) => v !== 0) ?? 0;
-  const groupParts = (ids: number[]) => {
-    const sums: Record<string, number> = {};
-    for (const p of PART_DEFS) sums[p.key] = 0;
-    for (const id of ids) {
-      const r = rowOf(id);
-      if (!r) continue;
-      for (const p of PART_DEFS)
-        if (p.key !== "groupRank") sums[p.key] += (r[p.key] as number | undefined) ?? 0;
-    }
-    sums.groupRank = grOnceOf(ids);
-    return sums;
-  };
-  const groupTotal = (ids: number[]) =>
-    ids.reduce((a, id) => {
-      const r = rowOf(id);
-      return a + (r?.total ?? 0) - (r?.groupRank ?? 0);
-    }, 0) + grOnceOf(ids);
+  const groupScoreOf = (ids: number[]) =>
+    groupDayScore((today ?? {}) as Record<string, unknown>, ids);
 
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
@@ -187,9 +178,9 @@ export default function DailyReportPanel({
         const groupsHtml = schedule.groups
           .map((g) => {
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
-            const isBest = autoBestSet.has(g.groupId); // 총점 합계 1위 = 오늘의 모둠 (자동)
+            const isBest = autoBestSet.has(g.groupId); // 모둠 점수 1위 = 오늘의 모둠 (자동)
             const gRank = meta.ranks?.[String(g.groupId)];
-            const gSum = groupTotal(ids); // 순위 점수는 모둠당 1번만
+            const gSum = groupScoreOf(ids).total; // 모둠 점수 규칙 (groupScore 단일 출처)
             const rows = ids
               .map((id) => {
                 const r = rowOf(id);
@@ -203,7 +194,7 @@ export default function DailyReportPanel({
             const rankBadge = gRank ? `<span class="badge">교사 ${gRank}위</span>` : "";
             const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
             return `<div class="grp${isBest ? " win" : ""}">
-  <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 합계 <b>${gSum}</b>점</span></div>
+  <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 점수 <b>${gSum}</b>점</span></div>
   <table><thead><tr><th>이름</th><th>평가</th><th>순위</th><th>미션</th><th>득표</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th><th>누적독서</th></tr></thead><tbody>${rows}</tbody></table>
 </div>`;
           })
@@ -485,13 +476,13 @@ export default function DailyReportPanel({
                       ))}
                     </p>
                   </div>
-                  {/* 모둠 점수 출처 분해 — 어떤 활동으로 받았는지 (변화된 체계 반영) */}
+                  {/* 모둠 점수 분해 — 반영 항목 칩 + 합계 (개인 전용 항목은 표에서 확인) */}
                   {(() => {
-                    const sums = groupParts(memberIds);
+                    const gs = groupScoreOf(memberIds);
                     return (
-                      <p className="mt-1.5 flex flex-wrap gap-1">
-                        {PART_DEFS.map((p) => {
-                          const v = sums[p.key];
+                      <p className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {GROUP_PARTS.map((p) => {
+                          const v = gs[p.key] as number;
                           return (
                             <span
                               key={p.key}
@@ -508,6 +499,9 @@ export default function DailyReportPanel({
                             </span>
                           );
                         })}
+                        <span className="rounded-full bg-ink-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          = 모둠 점수 <b className="tnum">{gs.total}</b>점
+                        </span>
                       </p>
                     );
                   })()}

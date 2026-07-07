@@ -23,6 +23,7 @@ import { weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow } from "@/types";
+import { groupDayScore } from "@/lib/groupScore";
 
 export interface AggregateResult {
   date: string;
@@ -437,17 +438,14 @@ async function aggregateDateInner(
     };
   }
 
-  // 5-2) '오늘의 모둠' 타이틀 — 최종 총점 모둠 합계 1위가 자동으로 받는다 (동점 모두).
-  //      교사 순위 점수는 모둠 합계에 '모둠당 1번만' 반영 (사용자 확정 — 개인별로 5번
-  //      합산하면 -2점 순위가 모둠 점수에서 -10점이 되어 다른 점수와 변별이 깨진다).
-  //      개인 행(rows)의 groupRank는 각자 그대로 — 개인 점수는 바뀌지 않는다.
+  // 5-2) '오늘의 모둠' 타이틀 — 모둠 점수(groupDayScore 규칙) 1위가 자동으로 받는다.
+  //      규칙(사용자 확정): 내부 상호평가(peer·boss)·MVP는 개인 점수 전용(담합 방지),
+  //      선생님 순위·칭찬 미션은 모둠당 1회, 독서·보너스는 합산.
+  //      개인 행(rows)은 전 항목 각자 그대로 — 개인 점수는 바뀌지 않는다.
   const groupSums: Record<number, number> = {};
   for (const g of schedule.groups) {
     const ids = activeIdsOf(g);
-    const myRank = ranks[g.groupId];
-    const grOnce = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
-    groupSums[g.groupId] =
-      ids.reduce((a, id) => a + (rows[id]?.total ?? 0) - (rows[id]?.groupRank ?? 0), 0) + grOnce;
+    groupSums[g.groupId] = groupDayScore(rows as unknown as Record<string, unknown>, ids).total;
   }
   const bestSum = Math.max(0, ...Object.values(groupSums));
   const autoBestGroups =
@@ -501,6 +499,7 @@ async function aggregateDateInner(
       groupCum[k] = (groupCum[k] ?? 0) - (Number(prevGS[k]) || 0) + (groupSums[g.groupId] ?? 0);
     }
     cumAny.groupCum = groupCum;
+    cumAny.groupCumRule = 2; // 회계 규칙 버전 — autoRun이 구규칙 누적을 감지해 재전환하는 마커
   }
 
   // ── 칭찬 연속 보너스 (사용자 확정) ─────────────────────────────

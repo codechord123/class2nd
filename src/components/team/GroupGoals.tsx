@@ -12,7 +12,7 @@ import {
   useLatestAggregated,
   type DailyMeta,
 } from "@/lib/query/evaluation";
-import type { DailyScoreRow } from "@/types";
+import { groupDayScore } from "@/lib/groupScore";
 
 function BarRow({
   label,
@@ -115,15 +115,7 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
       const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
         (id) => !studentById.get(id)?.inactive
       );
-      let grOnce = 0;
-      let sum = 0;
-      for (const id of ids) {
-        const r = srcRows[String(id)] as DailyScoreRow | undefined;
-        if (!r) continue;
-        sum += (r.total ?? 0) - (r.groupRank ?? 0);
-        if (!grOnce && r.groupRank) grOnce = r.groupRank;
-      }
-      yGroupSums[String(g.groupId)] = sum + grOnce;
+      yGroupSums[String(g.groupId)] = groupDayScore(srcRows, ids).total;
     }
   const yMax = Math.max(0, ...Object.values(yGroupSums));
   const yBest = new Set(
@@ -261,9 +253,9 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
         </div>
       )}
       <p className="mt-3 text-[11px] text-ink-400">
-        모둠 점수는 부서장 평가·부서장 표·선생님 순위·독서·미션을 모두 합친 값이에요 — 모둠이
-        같이 움직여야 올라가요! 일일 모둠 점수에서 <b>선생님 순위 점수는 모둠당 1번만</b>{" "}
-        들어가요. ({students.length}명 · 현재 모둠 기준)
+        모둠 점수 = <b>선생님 순위(모둠당 1회) + 칭찬 미션(달성 시 +1) + 독서 + 보너스</b>.
+        서로 주고받는 부서장 평가·득표·MVP는 <b>개인 점수에만</b> 들어가요 — 몰아주기로는
+        모둠 순위가 안 바뀌어요! ({students.length}명 · 현재 모둠 기준)
       </p>
     </section>
   );

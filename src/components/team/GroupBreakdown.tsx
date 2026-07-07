@@ -5,16 +5,19 @@ import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
-import type { DailyScoreRow } from "@/types";
+import { groupDayScore, type GroupDayScore } from "@/lib/groupScore";
 
-const PARTS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
-  { key: "peer", icon: "🤝", label: "모둠 평가" },
-  { key: "groupRank", icon: "🏆", label: "선생님 순위" },
-  { key: "mission", icon: "💌", label: "칭찬 미션" },
-  { key: "boss", icon: "👑", label: "부서장 득표" },
-  { key: "mvp", icon: "⭐", label: "MVP" },
+// 모둠 점수에 들어가는 항목 vs 개인 점수 전용 항목 (담합 방지 — 사용자 확정)
+const COUNTED: { key: keyof GroupDayScore; icon: string; label: string }[] = [
+  { key: "rankOnce", icon: "🏆", label: "선생님 순위" },
+  { key: "missionOnce", icon: "💌", label: "칭찬 미션" },
   { key: "read", icon: "🐢", label: "독서" },
   { key: "bonus", icon: "🎁", label: "보너스" },
+];
+const PERSONAL_ONLY: { key: keyof GroupDayScore; icon: string; label: string }[] = [
+  { key: "peer", icon: "🤝", label: "모둠 평가" },
+  { key: "boss", icon: "👑", label: "부서장 득표" },
+  { key: "mvp", icon: "⭐", label: "MVP" },
 ];
 
 export default function GroupBreakdown({
@@ -54,33 +57,15 @@ export default function GroupBreakdown({
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
-  const rowOf = (id: number) => rows[String(id)] as DailyScoreRow | undefined;
 
-  // 선생님 순위 점수는 모둠 합계에 1번만 (사용자 확정 — 개인 점수에는 각자 그대로)
+  // 모둠 점수 규칙은 lib/groupScore가 단일 출처 — 집계·대항전·리포트와 항상 동일
   const groups = schedule.groups.map((g) => {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
       (id) => !studentById.get(id)?.inactive
     );
-    const sums: Record<string, number> = {};
-    let total = 0;
-    let grOnce = 0; // 모둠원 전원 동일값 — 첫 0 아닌 값 하나만 쓴다
-    for (const p of PARTS) sums[p.key] = 0;
-    for (const id of ids) {
-      const r = rowOf(id);
-      if (!r) continue;
-      for (const p of PARTS) {
-        const v = (r[p.key] as number | undefined) ?? 0;
-        if (p.key === "groupRank") {
-          if (grOnce === 0 && v !== 0) grOnce = v;
-        } else sums[p.key] += v;
-      }
-      total += (r.total ?? 0) - (r.groupRank ?? 0);
-    }
-    sums.groupRank = grOnce;
-    total += grOnce;
-    return { groupId: g.groupId, ids, sums, total };
+    return { groupId: g.groupId, ids, score: groupDayScore(rows, ids) };
   });
-  if (groups.every((g) => g.total === 0) && !dateProp) return null;
+  if (groups.every((g) => g.score.total === 0) && !dateProp) return null;
 
   const fmtDay = `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
   const isToday = date === today;
@@ -95,9 +80,10 @@ export default function GroupBreakdown({
       </div>
       <div className="mt-3 space-y-2">
         {[...groups]
-          .sort((a, b) => b.total - a.total)
+          .sort((a, b) => b.score.total - a.score.total)
           .map((g) => {
             const mine = myStudentId != null && g.ids.includes(myStudentId);
+            const personal = PERSONAL_ONLY.filter((p) => (g.score[p.key] as number) !== 0);
             return (
               <div
                 key={g.groupId}
@@ -108,12 +94,12 @@ export default function GroupBreakdown({
                     {g.groupId}모둠{mine && " ★"}
                   </p>
                   <p className="text-xs text-ink-500">
-                    합계 <b className="tnum text-sm text-ink-900">{g.total}</b>점
+                    모둠 점수 <b className="tnum text-sm text-ink-900">{g.score.total}</b>점
                   </p>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {PARTS.map((p) => {
-                    const v = g.sums[p.key];
+                  {COUNTED.map((p) => {
+                    const v = g.score[p.key] as number;
                     return (
                       <span
                         key={p.key}
@@ -130,13 +116,24 @@ export default function GroupBreakdown({
                     );
                   })}
                 </div>
+                {personal.length > 0 && (
+                  <p className="mt-1 text-[10px] text-ink-400">
+                    개인 점수에만:{" "}
+                    {personal
+                      .map((p) => {
+                        const v = g.score[p.key] as number;
+                        return `${p.icon} ${p.label} ${v > 0 ? `+${v}` : v}`;
+                      })
+                      .join(" · ")}
+                  </p>
+                )}
               </div>
             );
           })}
       </div>
       <p className="mt-2 text-[11px] text-ink-400">
-        모둠원 점수를 항목별로 합친 값이에요. 단, <b>선생님 순위 점수는 모둠당 1번만</b> 들어가요
-        (개인 점수에는 각자 그대로).
+        모둠 점수 = <b>선생님 순위(1회) + 칭찬 미션(달성 +1) + 독서 + 보너스</b>. 서로 주고받는
+        평가·득표·MVP는 개인 점수에만 들어가요 — 몰아주기 방지!
       </p>
     </section>
   );

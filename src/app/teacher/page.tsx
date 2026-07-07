@@ -136,6 +136,11 @@ export default function TeacherPage() {
             "success"
           );
         }
+        if (r.groupCumMigrated) {
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          void qc.invalidateQueries({ queryKey: ["dailyScores", todayKST()] });
+          toast("📊 모둠 대항전 누적이 새 회계(누적 모둠 점수)로 자동 전환됐어요.", "success");
+        }
         if (r.skippedRange)
           toast(
             `⚠️ ${r.skippedRange.days}일치(${r.skippedRange.from}~${r.skippedRange.to})는 소급 상한(14일)을 넘어 자동 집계에서 제외됐어요 — 필요하면 날짜별 수동 집계로 처리하세요`,

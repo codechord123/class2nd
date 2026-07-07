@@ -41,6 +41,8 @@ export interface AutoRunResult {
   clickGold?: number;
   /** 방학 감상문 적립 결과 (0주차 버킷 → 누적 점수 반영) */
   vacationRead?: VacationReadResult;
+  /** 누적 모둠 점수(groupCum) 자동 마이그레이션 실행됨 — 화면 캐시 무효화 필요 */
+  groupCumMigrated?: boolean;
 }
 
 let inFlight: Promise<AutoRunResult | null> | null = null;
@@ -62,6 +64,23 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
   const yesterday = shiftDate(today, -1);
   const markerRef = doc(d, "classData", "autoRun");
 
+  // 0) 누적 모둠 점수(groupCum) 마이그레이션 — 누적 문서에 없거나 회계 규칙이
+  //    구버전이면 오늘을 재집계해 최신 규칙으로 전환한다. 하루 1회 선점과 무관하게
+  //    검사(문서 1개 읽기, 최신이면 no-op) — 교사가 화면만 열어도 전환되게.
+  let groupCumMigrated = false;
+  try {
+    const cumSnap = await getDoc(doc(d, "dailyScores", "_cumulative"));
+    if (cumSnap.exists()) {
+      const c = cumSnap.data();
+      if (!c.groupCum || ((c.groupCumRule as number | undefined) ?? 1) < 2) {
+        const r = await aggregateDate(today, settings, { skipIfEmpty: true });
+        if (r) groupCumMigrated = true;
+      }
+    }
+  } catch {
+    // 실패 시 다음 접속 때 재시도 (멱등)
+  }
+
   // 1) 오늘 몫 선점 — 다른 탭/기기가 이미 실행했으면 조용히 종료.
   //    redoDates(감상문 삭제 재집계 요청)는 회수하면서 비운다 — 이중 처리 방지.
   const claimed = await runTransaction(d, async (tx) => {
@@ -81,7 +100,17 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       settledThrough: (m.settledThrough as number | undefined) ?? 0,
     };
   });
-  if (!claimed) return null;
+  if (!claimed)
+    return groupCumMigrated
+      ? {
+          aggregatedDates: [],
+          settledPeriods: [],
+          settleResults: [],
+          redoneDates: [],
+          missedRankDates: [],
+          groupCumMigrated: true,
+        }
+      : null;
 
   const result: AutoRunResult = {
     aggregatedDates: [],
@@ -89,6 +118,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     settleResults: [],
     redoneDates: [],
     missedRankDates: [],
+    groupCumMigrated,
   };
   // 평가자는 있는데 순위가 비어 있으면 순위 점수가 통째로 0 — 조용히 넘어가지 않고 경고 수집
   const noteMissedRank = (date: string, r: { evaluatorCount: number; groupRanks: Record<number, number> }) => {
