@@ -467,7 +467,12 @@ async function aggregateDateInner(
   const prevMeta =
     (prevSnap.exists()
       ? (prevSnap.data()._meta as
-          | { mvpVotes?: Record<string, number>; mvpWinners?: number[] }
+          | {
+              mvpVotes?: Record<string, number>;
+              mvpWinners?: number[];
+              groupSums?: Record<string, number>;
+              groupCumApplied?: boolean;
+            }
           | undefined)
       : undefined) ?? {};
   const mvpWins = { ...cum.mvpWins };
@@ -482,6 +487,20 @@ async function aggregateDateInner(
   for (const s of students) {
     const prevTotal = (prevRows[String(s.id)] as DailyScoreRow | undefined)?.total ?? 0;
     cum[String(s.id)] = (cum[String(s.id)] ?? 0) - prevTotal + rows[s.id].total;
+  }
+
+  // 누적 모둠 점수 — 일일 모둠 점수(순위 1회 반영)를 모둠 자리(1~5)별로 누적.
+  // 개인 누적의 합은 순위 점수가 인원수만큼 들어가 대항전 지표로 부적합 (사용자 확정).
+  // 멱등: 이 날이 이전 집계에서 누적에 반영됐으면(groupCumApplied) 그 몫을 빼고 새로 더한다.
+  {
+    const cumAny = cum as Record<string, unknown>;
+    const groupCum = { ...((cumAny.groupCum as Record<string, number> | undefined) ?? {}) };
+    const prevGS = prevMeta.groupCumApplied ? (prevMeta.groupSums ?? {}) : {};
+    for (const g of schedule.groups) {
+      const k = String(g.groupId);
+      groupCum[k] = (groupCum[k] ?? 0) - (Number(prevGS[k]) || 0) + (groupSums[g.groupId] ?? 0);
+    }
+    cumAny.groupCum = groupCum;
   }
 
   // ── 칭찬 연속 보너스 (사용자 확정) ─────────────────────────────
@@ -542,7 +561,8 @@ async function aggregateDateInner(
         classTop, // 학급 전체 1위 (+2 추가 대상)
         bossWinners, // 오늘의 부서장 (투표 최다 — 칭호)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
-        groupSums, // 모둠별 총점 합계 (리포트 표시용)
+        groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
+        groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
         missionGroups,
         compliments,
         peerSuggestions,

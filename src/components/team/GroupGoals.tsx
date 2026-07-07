@@ -12,6 +12,7 @@ import {
   useLatestAggregated,
   type DailyMeta,
 } from "@/lib/query/evaluation";
+import type { DailyScoreRow } from "@/types";
 
 function BarRow({
   label,
@@ -71,6 +72,11 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
     return typeof v === "number" ? v : 0;
   };
 
+  // 누적 모둠 점수 — 일일 모둠 점수(순위 1회 반영)의 합 (_cumulative.groupCum).
+  // 아직 새 방식으로 집계된 날이 없으면 기존 지표(개인 누적 합)로 폴백.
+  const groupCumMap = cumMap.groupCum as Record<string, number> | undefined;
+  const useLeague = !!groupCumMap && Object.keys(groupCumMap).length > 0;
+
   // 현재 모둠 구성 기준 (전출 학생 제외)
   const groups = schedule.groups.map((g) => {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
@@ -79,7 +85,9 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
     return {
       groupId: g.groupId,
       ids,
-      score: ids.reduce((a, id) => a + scoreOf(id), 0),
+      score: useLeague
+        ? (groupCumMap![String(g.groupId)] ?? 0)
+        : ids.reduce((a, id) => a + scoreOf(id), 0),
       weekBooksSum: ids.reduce((a, id) => a + weekBooks(stats, id, week), 0),
     };
   });
@@ -91,15 +99,40 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   const leader = groups.find((g) => g.score === maxScore && maxScore > 0);
   const gap = myGroup && leader && leader.groupId !== myGroup.groupId ? leader.score - myGroup.score : 0;
 
-  // 최근 집계일의 모둠 성적 — 오늘 집계가 있으면 오늘, 없으면 어제 이하
-  const useToday = !!todayMeta?.groupSums && Object.keys(todayMeta.groupSums).length > 0;
+  // 최근 집계일의 모둠 성적 — 오늘 집계가 있으면 오늘, 없으면 어제 이하.
+  // 점수는 저장된 groupSums 대신 행에서 실시간 재계산 (순위 1회 규칙) —
+  // 규칙 변경 전에 집계된 날도 화면·분해 카드와 항상 같은 값을 보여주기 위해.
+  const useToday = !!todayMeta;
   const yMeta = useToday ? todayMeta! : latestAgg?.meta;
   const yDate = useToday ? today : latestAgg?.date;
-  const yGroupSums = yMeta?.groupSums ?? {};
-  const yBest = new Set(yMeta?.autoBestGroups ?? []);
-  const yMission = new Set(yMeta?.missionGroups ?? []);
-  const hasYesterday = Object.keys(yGroupSums).length > 0;
+  const srcRows = (useToday ? (todayScores as Record<string, unknown>) : latestAgg?.rows) ?? null;
+  const ySchedule = yDate
+    ? scheduleOfWeek(weekOfDate(yDate, SEMESTER_START, TOTAL_WEEKS))
+    : schedule;
+  const yGroupSums: Record<string, number> = {};
+  if (srcRows)
+    for (const g of ySchedule.groups) {
+      const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
+        (id) => !studentById.get(id)?.inactive
+      );
+      let grOnce = 0;
+      let sum = 0;
+      for (const id of ids) {
+        const r = srcRows[String(id)] as DailyScoreRow | undefined;
+        if (!r) continue;
+        sum += (r.total ?? 0) - (r.groupRank ?? 0);
+        if (!grOnce && r.groupRank) grOnce = r.groupRank;
+      }
+      yGroupSums[String(g.groupId)] = sum + grOnce;
+    }
   const yMax = Math.max(0, ...Object.values(yGroupSums));
+  const yBest = new Set(
+    Object.entries(yGroupSums)
+      .filter(([, v]) => v === yMax && yMax > 0)
+      .map(([k]) => Number(k))
+  );
+  const yMission = new Set(yMeta?.missionGroups ?? []);
+  const hasYesterday = Object.values(yGroupSums).some((v) => v !== 0);
 
   const hasAny = maxScore > 0 || maxBooks > 0 || hasYesterday;
 
@@ -133,9 +166,11 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
         </p>
       ) : (
         <div className="mt-3 space-y-4">
-          {/* 누적 점수 대항 */}
+          {/* 누적 점수 대항 — 새 방식: 일일 모둠 점수(순위 1회)의 누적 */}
           <div>
-            <p className="text-xs font-bold text-ink-600">🏅 누적 점수 (모둠 합계)</p>
+            <p className="text-xs font-bold text-ink-600">
+              {useLeague ? "🏅 누적 모둠 점수 (일일 모둠 점수의 합)" : "🏅 누적 점수 (모둠 합계)"}
+            </p>
             <div className="mt-1.5 space-y-1">
               {[...groups]
                 .sort((a, b) => b.score - a.score)
