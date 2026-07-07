@@ -29,7 +29,7 @@ export const UI_TEXT_CATALOG: UiTextEntry[] = [
   {
     key: "team.bossDesc",
     label: "Team · 오늘의 부서장 투표 안내문",
-    def: "오늘 가장 친절하게 모둠원들을 안내하고 자기 부서 역할을 잘한 부서장 1명을 뽑아주세요. 받은 표는 1표당 +1점이 돼요!",
+    def: "오늘 자기 부서 일을 가장 잘한 친구 1명을 뽑고, 왜 잘했는지 이유를 꼭 적어주세요. 가장 많이 뽑힌 친구가 오늘의 부서장이 되어 +1점을 받아요!",
   },
   {
     key: "team.reflectionDesc",

@@ -49,16 +49,19 @@ export function useSaveEvaluation(date: string, myId: number | null) {
 // ── 오늘의 모둠 MVP 투표 + 칭찬 (같은 평가 문서의 "_" 필드에 저장 — 추가 읽기 0) ──
 export function useSaveMvp(date: string, myId: number | null) {
   const qc = useQueryClient();
-  return async (mvpId: number) => {
+  // reason: 왜 그 친구가 오늘 부서 일을 잘했는지 (인기투표 억제 — 사용자 확정).
+  // 취소(mvpId=0)면 이유도 함께 비운다.
+  return async (mvpId: number, reason = "") => {
     if (myId == null) return;
-    await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), { _mvp: mvpId }, {
+    const patch = { _mvp: mvpId, _mvpReason: mvpId ? reason.trim() : "" };
+    await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), patch, {
       merge: true,
     }).catch((e) => {
       throw friendlyWriteError(e);
     });
     qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
       ...prev,
-      _mvp: mvpId,
+      ...patch,
     }));
   };
 }

@@ -33,8 +33,9 @@ const PART_DEFS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
   { key: "peer", icon: "🤝", label: "평가" },
   { key: "groupRank", icon: "🏆", label: "순위" },
   { key: "mission", icon: "💌", label: "미션" },
-  { key: "boss", icon: "👑", label: "득표" },
+  { key: "boss", icon: "🙌", label: "부서장" },
   { key: "mvp", icon: "⭐", label: "MVP" },
+  { key: "best", icon: "👑", label: "모둠1위" },
   { key: "read", icon: "🐢", label: "독서" },
   { key: "bonus", icon: "🎁", label: "보너스" },
 ];
@@ -195,7 +196,7 @@ export default function DailyReportPanel({
             const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
             return `<div class="grp${isBest ? " win" : ""}">
   <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 점수 <b>${gSum}</b>점</span></div>
-  <table><thead><tr><th>이름</th><th>평가</th><th>순위</th><th>미션</th><th>득표</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th><th>누적독서</th></tr></thead><tbody>${rows}</tbody></table>
+  <table><thead><tr><th>이름</th><th>평가</th><th>순위</th><th>미션</th><th>부서장</th><th>MVP</th><th>모둠1위</th><th>독서</th><th>보너스</th><th>합계</th><th>누적독서</th></tr></thead><tbody>${rows}</tbody></table>
 </div>`;
           })
           .join("");

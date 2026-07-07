@@ -115,7 +115,9 @@ export default function TeamPage() {
   const [gaugeBurst, setGaugeBurst] = useState(0); // 실버 게이지 응원 juice
   const [reflBurst, setReflBurst] = useState(0); // 모둠 반성 저장 juice
   const [sending, setSending] = useState(false); // 보내기 더블클릭 중복 전송 방지
-  const [mvpBusy, setMvpBusy] = useState(false); // MVP 저장 중 추가 클릭 무시
+  const [mvpBusy, setMvpBusy] = useState(false); // 부서장 투표 저장 중 추가 클릭 무시
+  const [bossPick, setBossPick] = useState<number | null>(null); // 부서장 투표 대상(제출 전)
+  const [bossReason, setBossReason] = useState(""); // 부서장 투표 이유(필수)
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
   const [editPeer, setEditPeer] = useState<{ kind: "comp" | "sug"; tid: string; text: string } | null>(null);
   const { toast, confirm } = useFeedback();
@@ -305,6 +307,31 @@ export default function TeamPage() {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
       setSending(false);
+    }
+  }
+
+  // 오늘의 부서장 투표 — 대상 + 이유(필수)를 함께 저장 (인기투표 억제)
+  async function submitBoss() {
+    if (mvpBusy) return;
+    const rec = (myEval as Record<string, unknown> | undefined) ?? {};
+    const target = bossPick ?? (typeof rec._mvp === "number" && rec._mvp > 0 ? (rec._mvp as number) : null);
+    if (target == null) {
+      toast("먼저 부서장을 골라주세요.", "warn");
+      return;
+    }
+    if (!bossReason.trim()) {
+      toast("왜 오늘 부서 일을 잘했는지 이유를 적어주세요.", "warn");
+      return;
+    }
+    setMvpBusy(true);
+    try {
+      await saveMvp(target, bossReason.trim());
+      setBossPick(null);
+      toast("🙌 오늘의 부서장 투표 완료!", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+    } finally {
+      setMvpBusy(false);
     }
   }
 
@@ -605,37 +632,90 @@ export default function TeamPage() {
         </ul>
       </section>
 
-      {/* 오늘의 부서장 투표 — 받은 표 1표당 +1점 (사용자 확정) */}
+      {/* 오늘의 부서장 투표 — '그날 부서 일을 가장 잘한 사람'. 최다 득표자 고정 +1점.
+          이유를 반드시 적게 해서 인기투표를 억제한다 (사용자 확정). */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h3 className="text-lg font-bold">👑 오늘의 부서장</h3>
+        <h3 className="text-lg font-bold">🙌 오늘의 부서장</h3>
         <p className="mt-1 text-[13px] text-ink-600">{uiTextOf(uiText, "team.bossDesc")}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {targets.map((t) => {
-            const selected = (myEval as Record<string, unknown> | undefined)?._mvp === t.studentId;
-            return (
-              <button
-                // 선택 시 리마운트 → 왕관 칩이 통통 (juice)
-                key={`${t.studentId}-${selected}`}
-                onClick={() => {
-                  if (mvpBusy || !firstClick(`mvp-${t.studentId}`)) return;
-                  setMvpBusy(true);
-                  // 선택 결과는 칩 색으로 충분 — 토스트를 띄우지 않는다 (연타 시 화면을 가리는 문제)
-                  void saveMvp(selected ? 0 : t.studentId)
-                    .catch((e: Error) => toast(`⚠️ 저장 실패: ${e.message}`, "error"))
-                    .finally(() => setMvpBusy(false));
-                }}
-                className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
-                  selected
-                    ? "badge-pop border-warn bg-warn text-white"
-                    : "border-ink-200 bg-white text-ink-600 hover:border-warn/40"
-                }`}
-              >
-                {selected && "👑 "}
-                {studentById.get(t.studentId)?.name}
-              </button>
-            );
-          })}
-        </div>
+        {(() => {
+          const rec = (myEval as Record<string, unknown> | undefined) ?? {};
+          const votedId = typeof rec._mvp === "number" && rec._mvp > 0 ? (rec._mvp as number) : null;
+          const votedReason = (rec._mvpReason as string) ?? "";
+          return (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {targets.map((t) => {
+                  const picked = bossPick === t.studentId || (bossPick == null && votedId === t.studentId);
+                  return (
+                    <button
+                      key={t.studentId}
+                      onClick={() => {
+                        setBossPick(t.studentId);
+                        if (votedId !== t.studentId) setBossReason("");
+                        else setBossReason(votedReason);
+                      }}
+                      className={`press rounded-full border px-3 py-1.5 text-sm font-medium ${
+                        picked
+                          ? "border-warn bg-warn text-white"
+                          : "border-ink-200 bg-white text-ink-600 hover:border-warn/40"
+                      }`}
+                    >
+                      {picked && "🙌 "}
+                      {studentById.get(t.studentId)?.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {(bossPick != null || votedId != null) && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    value={bossPick != null ? bossReason : votedReason}
+                    onChange={(e) => {
+                      if (bossPick == null) setBossPick(votedId);
+                      setBossReason(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) void submitBoss();
+                    }}
+                    placeholder="왜 오늘 부서 일을 잘했나요? (예: 준비물을 꼼꼼히 챙겼어요)"
+                    className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={() => void submitBoss()}
+                    disabled={mvpBusy}
+                    className="press shrink-0 rounded-btn bg-warn px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {votedId != null && bossPick == null ? "완료" : "투표"}
+                  </button>
+                  {votedId != null && (
+                    <button
+                      onClick={() => {
+                        if (mvpBusy) return;
+                        setMvpBusy(true);
+                        void saveMvp(0)
+                          .then(() => {
+                            setBossPick(null);
+                            setBossReason("");
+                            toast("투표를 취소했어요.");
+                          })
+                          .catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
+                          .finally(() => setMvpBusy(false));
+                      }}
+                      className="press shrink-0 rounded-btn border border-ink-300 bg-white px-3 py-2 text-sm font-bold text-ink-500"
+                    >
+                      취소
+                    </button>
+                  )}
+                </div>
+              )}
+              {votedId != null && bossPick == null && (
+                <p className="mt-2 text-xs text-ink-500">
+                  ✓ <b>{studentById.get(votedId)?.name}</b>에게 투표함 · 이유: {votedReason || "—"}
+                </p>
+              )}
+            </>
+          );
+        })()}
       </section>
       </div>
 

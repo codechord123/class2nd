@@ -47,6 +47,9 @@ export interface AggregateResult {
 // silverEarned는 델타(increment)로만 쓴다 — 수동 지급 경로와 겹쳐도 증분이 유실되지 않게.
 const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
+// 독서 하루 점수 상한 — 감상문을 몰아 써도 그날 점수는 이만큼까지만 (권수 기록은 캡 없음).
+// 순위표(설정)처럼 자주 바꾸진 않아 상수로 둔다 (사용자 확정: 2권).
+const DAILY_READ_CAP = 2;
 
 // ── 집계 락 ─────────────────────────────────────────────────────
 // 집계·정산은 "읽고 → 계산 → 여러 문서에 쓰기"라 두 실행이 겹치면 늦게 쓴 쪽이
@@ -262,6 +265,7 @@ async function aggregateDateInner(
   const peerSuggestions: { from: number; to: number; text: string }[] = [];
   const toTeacher: { from: number; text: string }[] = [];
   const reflections: { from: number; text: string }[] = []; // 세션 모둠 반성 (마지막 주말 작성)
+  const bossReasons: { from: number; to: number; text: string }[] = []; // 부서장 투표 이유 (인기투표 억제·리포트 근거)
   evalSnap.forEach((entry) => {
     const data = entry.data();
     const from = Number(entry.id);
@@ -270,8 +274,11 @@ async function aggregateDateInner(
       if (Number(targetId) === from) continue; // 자기 점수 무효 (조작 방지)
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
-    if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from)
+    if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from) {
       mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 취소, 자기 투표 무효
+      const reason = (data._mvpReason as string | undefined)?.trim();
+      if (reason) bossReasons.push({ from, to: data._mvp, text: reason });
+    }
     // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments) — 자기 칭찬 무효
     const legacy = data._compliment as { to: number; text: string } | undefined;
     if (legacy?.text && legacy.to !== from)
@@ -350,8 +357,9 @@ async function aggregateDateInner(
   }
   const missionSet = new Set(missionGroups);
 
-  // 4-2) 오늘의 부서장 (투표): 각 모둠 최다 득표(1표 이상, 동점 모두) — 칭호만, 점수 없음.
-  //      "가장 친절하게 모둠원들을 안내한 부서장" — 점수 보상이 없어 돌려 찍기 담합 유인도 없다.
+  // 4-2) 오늘의 부서장 (투표): 각 모둠 최다 득표(1표 이상, 동점 모두).
+  //      "그날 부서 일을 가장 잘한 사람" — 최다 득표자에게 고정 +1점 (득표수 비례 아님).
+  //      투표 시 이유를 필수로 받아(UI) 인기투표를 억제한다 (사용자 확정).
   const bossWinners: number[] = [];
   for (const g of schedule.groups) {
     const ids = activeIdsOf(g);
@@ -360,8 +368,8 @@ async function aggregateDateInner(
   }
 
   // 5) 학생별 행 구성 (기존 보너스는 유지)
-  //    1차 기본 점수 = 부서장평가 + 선생님 모둠순위 + 칭찬미션 + 독서 + 부서장 득표 + 교사보너스
-  //    (부서장 득표는 1표당 +1점 — 사용자 확정)
+  //    1차 기본 점수 = 부서장평가 + 선생님 모둠순위 + 칭찬미션 + 독서(2권 캡) + 부서장(고정+1) + 교사보너스
+  //    (MVP·오늘의 모둠 보너스는 이 기본 점수 확정 후 별도 단계에서 가산 — 순환 방지)
   const prevRows = (prevSnap.exists() ? prevSnap.data() : {}) as Record<
     string,
     DailyScoreRow | unknown
@@ -378,6 +386,9 @@ async function aggregateDateInner(
       sum: number;
     }
   > = {};
+  // 오늘의 부서장 = 각 모둠 최다 득표자 (bossWinners). 점수는 득표수 비례가 아니라
+  // 고정 +1 (사용자 확정 — 몰표로 점수를 부풀리는 인기투표 방지)
+  const bossSet = new Set(bossWinners);
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
     const p = peer[s.id] ?? 0;
@@ -386,8 +397,9 @@ async function aggregateDateInner(
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
     const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
-    const boss = mvpVotes[s.id] ?? 0;
-    const read = readCount[s.id] ?? 0;
+    const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1
+    // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지만 점수 (권수 기록은 캡 없음)
+    const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP);
     baseParts[s.id] = {
       peer: p,
       groupRank: gr,
@@ -420,7 +432,8 @@ async function aggregateDateInner(
     classMax > 0
       ? activeStudents.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id)
       : [];
-  for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 2;
+  // 학급 1위는 모둠 1위(+1)를 겸하므로, 학급 가산 +1을 더해 합 +2 (사용자 확정)
+  for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 1;
 
   const rows: Record<number, DailyScoreRow> = {};
   for (const s of students) {
@@ -434,6 +447,7 @@ async function aggregateDateInner(
       boss: b.boss,
       mvp,
       read: b.read,
+      best: 0, // 오늘의 모둠 보너스는 아래에서 선정 후 가산
       total: b.sum + mvp,
     };
   }
@@ -442,6 +456,7 @@ async function aggregateDateInner(
   //      규칙(사용자 확정): 내부 상호평가(peer·boss)·MVP는 개인 점수 전용(담합 방지),
   //      선생님 순위·칭찬 미션은 모둠당 1회, 독서·보너스는 합산.
   //      개인 행(rows)은 전 항목 각자 그대로 — 개인 점수는 바뀌지 않는다.
+  //      best(오늘의 모둠 보너스)는 아직 0이라 모둠 점수·MVP 판정에 영향 없음(순환 차단).
   const groupSums: Record<number, number> = {};
   for (const g of schedule.groups) {
     const ids = activeIdsOf(g);
@@ -454,6 +469,16 @@ async function aggregateDateInner(
           .filter(([, v]) => v === bestSum)
           .map(([k]) => Number(k))
       : [];
+
+  // 5-3) 오늘의 모둠 → 개인 +1 (맨 마지막 가산 — 사용자 확정).
+  //      모둠 점수·MVP 선정이 모두 끝난 뒤라 이 보너스가 그 판정에 되먹임되지 않는다.
+  const bestGroupSet = new Set(autoBestGroups);
+  for (const s of students) {
+    if (bestGroupSet.has(groupOfStudent[s.id]) && !studentById.get(s.id)?.inactive) {
+      rows[s.id].best = 1;
+      rows[s.id].total += 1;
+    }
+  }
 
   // 6) 저장: 그날 문서 1개 + 누적 문서 1개 (이전 집계분 빼고 더해 멱등)
   type CumDoc = Record<string, number> & {
@@ -558,7 +583,8 @@ async function aggregateDateInner(
         mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
         classTop, // 학급 전체 1위 (+2 추가 대상)
-        bossWinners, // 오늘의 부서장 (투표 최다 — 칭호)
+        bossWinners, // 오늘의 부서장 (투표 최다 — 고정 +1점)
+        bossReasons, // 부서장 투표 이유 (인기투표 억제 근거 — 리포트 표시)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
@@ -936,6 +962,8 @@ export async function addBonus(date: string, studentId: number, delta: number): 
         total: 0,
       };
       const newBonus = (prevRow.bonus ?? 0) + delta;
+      // total은 전 항목 합 — boss·best를 빠뜨리면 교사 보너스를 줄 때 그 학생의
+      // 부서장·오늘의 모둠 점수가 사라진다 (기존 boss 누락 버그도 함께 수정).
       const newRow: DailyScoreRow = {
         ...prevRow,
         bonus: newBonus,
@@ -944,8 +972,10 @@ export async function addBonus(date: string, studentId: number, delta: number): 
           prevRow.groupRank +
           newBonus +
           (prevRow.mission ?? 0) +
+          (prevRow.boss ?? 0) +
           (prevRow.mvp ?? 0) +
-          (prevRow.read ?? 0),
+          (prevRow.read ?? 0) +
+          (prevRow.best ?? 0),
       };
       const cum = cumSnap.exists() ? cumSnap.data() : {};
       const prevCum =
