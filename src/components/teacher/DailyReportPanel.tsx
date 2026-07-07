@@ -28,17 +28,6 @@ import { groupDayScore, type GroupDayScore } from "@/lib/groupScore";
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
-// 개인 행 분해 항목 — 인쇄 표 열 (개인 점수는 전 항목 각자 그대로)
-const PART_DEFS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
-  { key: "peer", icon: "🤝", label: "평가" },
-  { key: "groupRank", icon: "🏆", label: "순위" },
-  { key: "mission", icon: "💌", label: "미션" },
-  { key: "boss", icon: "🙌", label: "부서장" },
-  { key: "mvp", icon: "⭐", label: "MVP" },
-  { key: "best", icon: "👑", label: "모둠1위" },
-  { key: "read", icon: "🐢", label: "독서" },
-  { key: "bonus", icon: "🎁", label: "보너스" },
-];
 // 모둠 점수 반영 항목 (lib/groupScore 규칙) — 화면 모둠별 칩
 const GROUP_PARTS: { key: keyof GroupDayScore; icon: string; label: string }[] = [
   { key: "rankOnce", icon: "🏆", label: "순위(1회)" },
@@ -124,6 +113,7 @@ export default function DailyReportPanel({
     missionGroups?: number[];
     compliments?: { from: number; to: number; text: string }[];
     peerSuggestions?: { from: number; to: number; text: string }[];
+    bossReasons?: { from: number; to: number; text: string }[];
     toTeacher?: { from: number; text: string }[];
   } | null;
   const autoBestSet = new Set(meta?.autoBestGroups ?? []);
@@ -165,50 +155,66 @@ export default function DailyReportPanel({
       const sections = [readingCard];
 
       if (meta) {
-        // ── 1페이지: 정량 — 모둠별 통합 (순위·MVP·점수·독서를 모둠 카드 하나에) ──
-        // MVP·모둠 순위 별도 카드는 제거 (사용자 결정 — 모둠 카드에 배지·★로 담김)
-        const cumBooksOf = (id: number) =>
-          s1BooksOf(stats, id) + (stats?.total?.[String(id)] ?? 0);
-        // 점수 칸 미니 바 — 표가 숫자 나열이 아니라 분포로 읽히게
-        const maxScore = Math.max(1, ...students.map((s) => totalOf(s.id)));
-        const scoreCell = (n: number) =>
-          `<td class="score"><span class="sbar" style="width:${Math.round((Math.max(n, 0) / maxScore) * 100)}%"></span><b>${n}</b></td>`;
-        // 항목별 분해 셀 — 0은 · 로 흐리게 (숫자 홍수 방지). 변화된 점수 체계 반영
-        const partCell = (v: number) => `<td>${v === 0 ? "·" : v > 0 ? `+${v}` : `<b>${v}</b>`}</td>`;
-        const mvpSet = new Set(meta.mvpWinners ?? []);
+        // ── 1페이지: 학부모용 — '받은 것만' 뱃지로 (숫자표 대신, 3초에 읽히게) ──
+        const praisedSet = new Set((meta.compliments ?? []).map((c) => c.to));
+        const bossReasons = meta.bossReasons ?? [];
+        // 학생 한 명의 뱃지 — 0점 항목은 숨기고 획득한 것만
+        const kidBadges = (id: number): string => {
+          const r = rowOf(id);
+          if (!r) return "";
+          const bs: string[] = [];
+          if ((meta.classTop ?? []).includes(id)) bs.push(`<span class="bc mvp">⭐ 오늘의 MVP</span>`);
+          else if ((r.mvp ?? 0) > 0) bs.push(`<span class="bc mvp">⭐ MVP</span>`);
+          if ((r.best ?? 0) > 0) bs.push(`<span class="bc best">👑 오늘의 모둠</span>`);
+          if ((r.boss ?? 0) > 0) bs.push(`<span class="bc boss">🙌 오늘의 부서장</span>`);
+          if ((r.read ?? 0) > 0) bs.push(`<span class="bc read">🐢 독서 ${r.read}권</span>`);
+          if (praisedSet.has(id)) bs.push(`<span class="bc praise">💌 칭찬 받음</span>`);
+          if ((r.bonus ?? 0) > 0) bs.push(`<span class="bc best">🎁 선생님 +${r.bonus}</span>`);
+          return bs.join("");
+        };
+        // 반 전체 하이라이트 — 오늘의 모둠 + 오늘의 MVP
+        const bestNames = (meta.autoBestGroups ?? []).map((g) => `${g}모둠`).join(", ") || "—";
+        const mvpNamesTop = (meta.classTop ?? []).map(nm).join(", ") || "—";
+        const highlights = `<div class="hlrow">
+  <div class="hl gold"><span class="ic">👑</span><div><div class="k">오늘의 모둠</div><div class="v">${esc(bestNames)}</div></div></div>
+  <div class="hl star"><span class="ic">⭐</span><div><div class="k">오늘의 MVP</div><div class="v">${esc(mvpNamesTop)}</div></div></div>
+</div>`;
         const groupsHtml = schedule.groups
           .map((g) => {
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
-            const isBest = autoBestSet.has(g.groupId); // 모둠 점수 1위 = 오늘의 모둠 (자동)
-            const gRank = meta.ranks?.[String(g.groupId)];
-            const gSum = groupScoreOf(ids).total; // 모둠 점수 규칙 (groupScore 단일 출처)
+            const isBest = autoBestSet.has(g.groupId);
+            const gSum = groupScoreOf(ids).total;
             const rows = ids
               .map((id) => {
-                const r = rowOf(id);
-                const parts = PART_DEFS.map((p) =>
-                  partCell((r?.[p.key] as number | undefined) ?? 0)
-                ).join("");
-                return `<tr><td>${mvpSet.has(id) ? "★ " : ""}${esc(nm(id))}</td>${parts}${scoreCell(totalOf(id))}<td>${cumBooksOf(id)}</td></tr>`;
+                const badges = kidBadges(id);
+                const score = totalOf(id);
+                // 뱃지가 없으면 응원 멘트 (낙인 대신 격려 — 사용자 확정)
+                const tail = badges
+                  ? `<span class="bs">${badges}</span>`
+                  : `<span class="q">${score > 0 ? "오늘도 성실히 참여했어요" : "내일의 주인공을 응원해요 🌱"}</span>`;
+                const row = `<div class="kid"><span class="nm">${esc(nm(id))}</span><span class="pt${score > 0 ? "" : " z"}">${score}</span>${tail}</div>`;
+                // 부서장이면 추천 이유를 바로 아래 (인기투표 아님을 학부모가 알 수 있게)
+                if ((rowOf(id)?.boss ?? 0) > 0) {
+                  const rs = bossReasons.filter((r) => r.to === id);
+                  if (rs.length)
+                    return (
+                      row +
+                      `<div class="rsn">🙌 <b>${esc(nm(id))}</b> 부서장 — “${esc(rs[0].text)}” (${rs.length}명 추천)</div>`
+                    );
+                }
+                return row;
               })
               .join("");
             const bestBadge = isBest ? `<span class="badge gold">오늘의 모둠</span>` : "";
-            const rankBadge = gRank ? `<span class="badge">교사 ${gRank}위</span>` : "";
-            const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">미션 +1</span>` : "";
+            const missionBadge = missionSet.has(g.groupId) ? `<span class="badge">🎯 칭찬 미션</span>` : "";
             return `<div class="grp${isBest ? " win" : ""}">
-  <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${rankBadge}${missionBadge}</span><span class="gsum">모둠 점수 <b>${gSum}</b>점</span></div>
-  <table><thead><tr><th>이름</th><th>평가</th><th>순위</th><th>미션</th><th>부서장</th><th>MVP</th><th>모둠1위</th><th>독서</th><th>보너스</th><th>합계</th><th>누적독서</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="h"><span class="gname">${g.groupId}모둠${bestBadge}${missionBadge}</span><span class="gsum">모둠 점수 <b>${gSum}</b>점</span></div>
+  <div class="kids">${rows}</div>
 </div>`;
           })
           .join("");
-        // 오늘의 학급 MVP 하이라이트 — 표에 없는 유일한 요약 (사용자 결정: 한 줄 정리는 제거)
-        const mvpHi = (meta.classTop ?? []).length
-          ? `<p style="margin:10px 0 0;padding:8px 12px;border-radius:10px;background:#fff4e0;font-weight:800;font-size:13px;color:#c2410c">🏆 오늘의 학급 MVP: ${(meta.classTop ?? []).map((id) => esc(nm(id))).join(", ")}</p>`
-          : "";
         sections.push(
-          card(
-            "모둠별 오늘 기록 — 점수 출처 분해 (★=모둠 점수 1위)",
-            `<div class="grps wide">${groupsHtml}</div>${mvpHi}`
-          )
+          card("오늘 우리 반 — 아이별 기록", `${highlights}<div class="grps wide">${groupsHtml}</div>`)
         );
 
         // ── 2페이지: 정성 — 모둠별 칭찬·건의 (말풍선) + 바라는 점 ──

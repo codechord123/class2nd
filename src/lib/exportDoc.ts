@@ -110,6 +110,30 @@ const PRINT_CSS = `
   .badge { display: inline-block; border-radius: 999px; padding: 1.5px 8px; font-size: 10px;
            font-weight: 700; background: #e8f2fe; color: #2272eb; margin-left: 4px; }
   .badge.gold { background: #f59f00; color: #fff; }
+  /* 학부모용 뱃지 카드 (일간 리포트) — 숫자표 대신 '받은 것만' 뱃지로 */
+  .hlrow { display: flex; gap: 8px; margin: 0 0 10px; }
+  .hl { flex: 1; border-radius: 12px; padding: 9px 13px; display: flex; gap: 10px; align-items: center; }
+  .hl .ic { font-size: 19px; line-height: 1; }
+  .hl .k { font-size: 10.5px; color: #8b95a1; font-weight: 700; }
+  .hl .v { font-size: 15px; font-weight: 800; margin-top: 1px; }
+  .hl.gold { background: #fdf0d9; } .hl.gold .v { color: #e0850b; }
+  .hl.star { background: #e8f1ff; } .hl.star .v { color: #3182f6; }
+  .kids { display: flex; flex-direction: column; }
+  .kid { display: flex; align-items: center; gap: 8px; padding: 5.5px 12px; border-top: 1px solid #f2f4f6; }
+  .kid:first-child { border-top: 0; }
+  .kid .nm { font-weight: 700; font-size: 12.5px; min-width: 60px; }
+  .kid .pt { font-weight: 800; font-size: 12px; color: #3182f6; background: #e8f1ff; border-radius: 6px; padding: 1px 7px; }
+  .kid .pt.z { color: #aab3bf; background: #f2f4f6; }
+  .kid .bs { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .kid .q { margin-left: auto; font-size: 11px; color: #aab3bf; }
+  .bc { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .bc.mvp { background: #e8f1ff; color: #3182f6; }
+  .bc.best { background: #fdf0d9; color: #e0850b; }
+  .bc.boss { background: #ece7fb; color: #7257d4; }
+  .bc.read { background: #e2f6ee; color: #0f9e6e; }
+  .bc.praise { background: #fce6f0; color: #e24c8b; }
+  .rsn { padding: 0 12px 6px; font-size: 10.5px; color: #8b95a1; }
+  .rsn b { color: #7257d4; }
   /* 점수 미니 바 */
   .score { position: relative; }
   .score .sbar { position: absolute; left: 4px; top: 22%; bottom: 22%; border-radius: 4px;
