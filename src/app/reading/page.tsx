@@ -62,21 +62,36 @@ function ReportBody({
 
   // 복붙·속성 작성 신호 — 선생님에게만 (학생 화면엔 안 보임)
   const suspicion = role === "teacher" ? reportSuspicion(r) : null;
+  const pasteCount = r.pasteCount ?? 0;
 
   return (
     <>
-      {suspicion && (suspicion.paste || suspicion.fast) && (
-        <div className="mb-3 rounded-btn bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
-          🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
-          {[
-            suspicion.paste && `붙여넣기 ${r.pastedChars}자`,
-            suspicion.fast && `빠른 작성 (${Math.round((r.writeMs ?? 0) / 1000)}초)`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          <span className="ml-1 text-ink-400">— 복붙·AI 작성 의심 신호예요.</span>
-        </div>
-      )}
+      {suspicion &&
+        (suspicion.paste || suspicion.fast ? (
+          // 강한 의심 — 붙여넣기 비율 큼 또는 속성 작성
+          <div className="mb-3 rounded-btn bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+            🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
+            {[
+              (pasteCount > 0 || (r.pastedChars ?? 0) > 0) &&
+                `붙여넣기 ${pasteCount}회 · ${r.pastedChars ?? 0}자`,
+              suspicion.fast && `빠른 작성 (${Math.round((r.writeMs ?? 0) / 1000)}초)`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            <span className="ml-1 text-ink-400">— 복붙·AI 작성 의심 신호예요.</span>
+          </div>
+        ) : pasteCount > 0 ? (
+          // 약한 신호도 그대로 — 글자 수와 관계없이 '붙여넣기 행위'를 선생님이 바로 보게
+          <div className="mb-3 rounded-btn bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+            📋 붙여넣기 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b>
+            <span className="ml-1 text-ink-400">— 선생님만 보여요. 직접 쓴 글인지 확인해보세요.</span>
+          </div>
+        ) : suspicion.measured ? null : (
+          // 배포 전 작성분 — 신호 자체가 없음
+          <div className="mb-3 rounded-btn bg-ink-50 px-3 py-1.5 text-[12px] text-ink-400">
+            ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
+          </div>
+        ))}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
@@ -624,15 +639,26 @@ export default function ReadingPage() {
                       {/* 1줄: 책 제목 + 잠금 */}
                       <span className="flex items-center gap-1.5">
                         {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
-                        {/* 선생님만 — 복붙·속성 작성 의심 표시 */}
+                        {/* 선생님만 — 복붙 행위 표시. 강한 의심은 🚩, 작은 붙여넣기도 📋로 */}
                         {role === "teacher" &&
                           (() => {
                             const sp = reportSuspicion(r);
-                            return sp.paste || sp.fast ? (
-                              <span className="shrink-0 text-xs" title="복붙·AI 작성 의심">
-                                🚩
-                              </span>
-                            ) : null;
+                            if (sp.paste || sp.fast)
+                              return (
+                                <span className="shrink-0 text-xs" title="복붙·AI 작성 의심">
+                                  🚩
+                                </span>
+                              );
+                            if ((r.pasteCount ?? 0) > 0)
+                              return (
+                                <span
+                                  className="shrink-0 text-xs"
+                                  title={`붙여넣기 ${r.pasteCount}회 · ${r.pastedChars ?? 0}자`}
+                                >
+                                  📋
+                                </span>
+                              );
+                            return null;
                           })()}
                         <b className="truncate text-[15px] text-ink-900">{r.title}</b>
                       </span>
