@@ -32,6 +32,7 @@ import TeamStats from "@/components/team/TeamStats";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
+import ClassRecap from "@/components/team/ClassRecap";
 import ReceivedNotes from "@/components/team/ReceivedNotes";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
@@ -151,6 +152,7 @@ export default function TeamPage() {
         />
         {tView === "group" && (
           <>
+            <ClassRecap />
             <GroupGoals />
             {/* 날짜별 모둠 기록 — 지난 날의 분해도 넘겨보며 확인 (사용자 요청) */}
             <div className="flex flex-wrap items-center gap-2 rounded-card border border-ink-200 bg-white p-3 shadow-card">
@@ -1047,6 +1049,7 @@ export default function TeamPage() {
           />
           {groupTab === "vs" && (
             <>
+              <ClassRecap myStudentId={studentId} />
               <GroupGoals myStudentId={studentId} />
               <GroupBreakdown myStudentId={studentId} />
             </>

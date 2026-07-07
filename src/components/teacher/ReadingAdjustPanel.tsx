@@ -5,7 +5,7 @@
 // runTransaction으로 서버 값을 읽고 보정(클릭당 문서 1회 읽기) —
 // 낡은 캐시로 인한 음수 총권수, 주간 카운트 음수를 원천 차단한다.
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
@@ -28,6 +28,32 @@ export default function ReadingAdjustPanel() {
   const s1Cur = s1Base + (stats?.s1Adj?.[key] ?? 0);
   const s2Cur = stats?.total?.[key] ?? 0;
   const current = sem === "s1" ? s1Cur : s2Cur;
+
+  // 실물 진단 — 실제 감상문(초안 제외) 수를 세어 통계와 다른 학생을 찾는다.
+  // 유령 권수(지운 글·콘솔 삭제 흔적)를 교사가 눈으로 보게 (문서 1회, 캐시).
+  const { data: realCounts } = useQuery({
+    queryKey: ["readingRealCounts"],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const snap = await getDocs(collection(db(), "readingReports"));
+      const c: Record<string, number> = {};
+      snap.forEach((docu) => {
+        const v = docu.data();
+        if (v.isDraft) return;
+        const k = String(v.studentId);
+        c[k] = (c[k] ?? 0) + 1;
+      });
+      return c;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const mismatches = realCounts
+    ? students
+        .map((s) => {
+          const k = String(s.id);
+          return { id: s.id, stat: stats?.total?.[k] ?? 0, real: realCounts[k] ?? 0 };
+        })
+        .filter((m) => m.stat !== m.real)
+    : [];
 
   async function adjust(delta: 1 | -1) {
     if (busy) return;
@@ -116,6 +142,7 @@ export default function ReadingAdjustPanel() {
         if (a !== b) changed.push(`${studentById.get(Number(k))?.name ?? k}번 ${b}→${a}`);
       }
       await qc.invalidateQueries({ queryKey: ["readingStats"] });
+      void qc.invalidateQueries({ queryKey: ["readingRealCounts"] });
       toast(
         changed.length
           ? `✅ 재계산 완료 — 바뀐 권수: ${changed.join(", ")}`
@@ -186,18 +213,41 @@ export default function ReadingAdjustPanel() {
         </button>
       </div>
 
-      {/* 유령 권수 정리 — 지운 글·초안이 남긴 숫자를 실물 기준으로 리셋 */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
-        <button
-          onClick={() => void recount()}
-          disabled={busy}
-          className="press rounded-btn border border-warn/50 bg-white px-3 py-2 text-sm font-bold text-warn disabled:opacity-40"
-        >
-          🔄 실물 기준 재계산
-        </button>
-        <span className="text-[11px] text-ink-400">
-          작성자 없는 권수(지운 글·초안 흔적)가 보이면 눌러주세요 — 실제 감상문 수로 맞춰져요.
-        </span>
+      {/* 유령 권수 진단 + 정리 — 통계와 실제 감상문 수가 다른 학생을 보여주고 한 번에 맞춤 */}
+      <div className="mt-3 border-t border-ink-100 pt-3">
+        {mismatches.length > 0 ? (
+          <div className="rounded-btn bg-rose-50 p-3">
+            <p className="text-sm font-bold text-rose-600">
+              ⚠️ 2학기 권수가 실제 감상문 수와 다른 학생 {mismatches.length}명
+            </p>
+            <p className="mt-1 text-xs text-ink-700">
+              {mismatches
+                .map((m) => `${studentById.get(m.id)?.name ?? m.id}: 표시 ${m.stat} → 실제 ${m.real}`)
+                .join(" · ")}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-500">
+              지운 글·초안 흔적이 남긴 유령 권수예요. 아래 재계산을 누르면 실제 감상문 수로 맞춰져요.
+            </p>
+          </div>
+        ) : realCounts ? (
+          <p className="text-[11px] text-emerald-600">✓ 2학기 권수가 실제 감상문 수와 모두 일치해요.</p>
+        ) : null}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => void recount()}
+            disabled={busy}
+            className={`press rounded-btn px-3 py-2 text-sm font-bold disabled:opacity-40 ${
+              mismatches.length > 0
+                ? "bg-rose-500 text-white"
+                : "border border-warn/50 bg-white text-warn"
+            }`}
+          >
+            🔄 실물 기준 재계산
+          </button>
+          <span className="text-[11px] text-ink-400">
+            실제 감상문(임시저장 제외) 수로 2학기 총·주별 권수를 다시 맞춰요.
+          </span>
+        </div>
       </div>
     </section>
   );

@@ -243,8 +243,10 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
 export interface DailyMeta {
   compliments?: { from: number; to: number; text: string }[];
   peerSuggestions?: { from: number; to: number; text: string }[];
+  bossReasons?: { from: number; to: number; text: string }[]; // 오늘의 부서장 추천 이유
   groupSums?: Record<string, number>; // 모둠별 총점 합계 (모둠 대항전 표시용)
   autoBestGroups?: number[]; // 오늘의 모둠 (총점 1위)
+  classTop?: number[]; // 학급 전체 1위 = 오늘의 MVP
   missionGroups?: number[]; // 칭찬 미션 달성 모둠
 }
 export function useLatestAggregated(before: string, enabled: boolean) {
