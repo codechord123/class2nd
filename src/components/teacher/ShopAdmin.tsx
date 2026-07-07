@@ -10,7 +10,8 @@ import { collection, getDocs, limit, orderBy, query, where } from "firebase/fire
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { todayKST, kstDateOf, shiftDate } from "@/lib/date";
-import { s1Wallet, getS1WalletOf, s1ClassGoldRemaining } from "@/lib/staticData";
+import { s1Wallet, getS1WalletOf } from "@/lib/staticData";
+import { classGoldLeft } from "@/lib/gold";
 import {
   useBalances,
   usePendingRequests,
@@ -175,7 +176,7 @@ export default function ShopAdmin() {
   const { data: s1Used } = useBalances("s1");
   const balanceOf = (p: (typeof pending)[number]): number =>
     p.r.type === "gold"
-      ? s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0)
+      ? classGoldLeft(s1Used)
       : p.kind === "s2"
         ? (s2Bal?.[String(p.r.studentId)] ?? 0)
         : (getS1WalletOf(p.r.studentId)?.silverRemaining ?? 0) -

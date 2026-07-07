@@ -9,7 +9,8 @@ import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useBalances } from "@/lib/query/wallet";
 import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
-import { getS1WalletOf, s1ClassGoldRemaining, s1TotalOf, s1BooksOf } from "@/lib/staticData";
+import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
+import { classGoldLeft } from "@/lib/gold";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
@@ -54,10 +55,7 @@ export default function MyStatus() {
   // 학급 스코어보드 (전원 공통)
   const s2Total = Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
   const classTotalBooks = s1TotalOf(stats) + s2Total;
-  const goldLeft =
-    s1ClassGoldRemaining -
-    ((s1Used?.classGoldUsed as number | undefined) ?? 0) +
-    ((s1Used?.classGoldEarned as number | undefined) ?? 0);
+  const goldLeft = classGoldLeft(s1Used as Record<string, number> | undefined);
   const classScore = Object.entries((cum ?? {}) as Record<string, unknown>)
     .filter(([k, v]) => /^\d+$/.test(k) && typeof v === "number")
     .reduce((a, [, v]) => a + (v as number), 0);

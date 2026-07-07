@@ -20,7 +20,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getS1WalletOf, s1ClassGoldRemaining } from "@/lib/staticData";
+import { getS1WalletOf } from "@/lib/staticData";
+import { classGoldLeft } from "@/lib/gold";
 
 export type WalletKind = "s2" | "s1"; // 2학기 실버 | 1학기 이월
 
@@ -140,11 +141,8 @@ export function useDecideRequest(kind: WalletKind) {
 
       if (req.type === "gold") {
         const balSnap = await tx.get(balRef);
-        const bal = balSnap.exists() ? balSnap.data() : {};
-        const left =
-          s1ClassGoldRemaining -
-          ((bal.classGoldUsed as number) ?? 0) +
-          ((bal.classGoldEarned as number) ?? 0);
+        const bal = (balSnap.exists() ? balSnap.data() : {}) as Record<string, number>;
+        const left = classGoldLeft(bal);
         if (left < req.amount)
           throw new Error(`학급 골드 부족으로 승인할 수 없어요 (남은 ${left}개).`);
         tx.set(balRef, { classGoldUsed: increment(req.amount) }, { merge: true });
@@ -206,5 +204,23 @@ export function useGrantSilver() {
       { merge: true }
     );
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+  };
+}
+
+/** 교사 학급 골드 수동 조정(±) — 자동 적립과 별개로 classGoldBonus에 누적.
+ *  트랜잭션으로 잔량을 읽어 음수(과다 감점)를 막는다. */
+export function useAdjustClassGold() {
+  const qc = useQueryClient();
+  return async (delta: number) => {
+    const d = db();
+    const balRef = doc(d, "s1Spends", "0_balances");
+    await runTransaction(d, async (tx) => {
+      const snap = await tx.get(balRef);
+      const u = (snap.exists() ? snap.data() : {}) as Record<string, number>;
+      if (classGoldLeft(u) + delta < 0)
+        throw new Error(`학급 골드가 부족해요 (현재 ${classGoldLeft(u)}개).`);
+      tx.set(balRef, { classGoldBonus: increment(delta) }, { merge: true });
+    });
+    void qc.invalidateQueries({ queryKey: ["balances", "s1"] });
   };
 }

@@ -22,6 +22,7 @@ import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import TransferPanel from "@/components/teacher/TransferPanel";
 import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
 import TurtleEventPanel from "@/components/teacher/TurtleEventPanel";
+import ClassDashboard from "@/components/teacher/ClassDashboard";
 import UiTextPanel from "@/components/teacher/UiTextPanel";
 import TabConfigPanel from "@/components/teacher/TabConfigPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
@@ -50,7 +51,7 @@ export default function TeacherPage() {
   const saveSettings = useSaveSettings();
   const qc = useQueryClient();
 
-  const [tTab, setTTab] = useState<"score" | "approve" | "tools">("score");
+  const [tTab, setTTab] = useState<"score" | "dashboard" | "approve" | "tools">("score");
   // 하위탭 — 긴 세로 스크롤 대신 목적별 분리 (사용자 요청)
   const [scoreTab, setScoreTab] = useState<"today" | "report" | "reward">("today");
   const [toolsTab, setToolsTab] = useState<"settings" | "manage">("settings");
@@ -209,12 +210,15 @@ export default function TeacherPage() {
       <SubTabs
         tabs={[
           { key: "score" as const, label: "📊 점수·집계" },
+          { key: "dashboard" as const, label: "🗂️ 학급 현황판" },
           { key: "approve" as const, label: "🎫 자리 승인" },
           { key: "tools" as const, label: "⚙️ 설정·도구" },
         ]}
         active={tTab}
         onChange={setTTab}
       />
+
+      {tTab === "dashboard" && <ClassDashboard />}
 
       {tTab === "score" && (<>
       <SubTabs

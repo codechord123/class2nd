@@ -3,7 +3,8 @@
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
-import { s1ClassGoldRemaining, getS1WalletOf } from "@/lib/staticData";
+import { getS1WalletOf } from "@/lib/staticData";
+import { classGoldLeft } from "@/lib/gold";
 import ShopAdmin from "@/components/teacher/ShopAdmin";
 import {
   useBalances,
@@ -68,9 +69,8 @@ export default function ShopPage() {
   const myS1Remaining = studentId
     ? (getS1WalletOf(studentId)?.silverRemaining ?? 0) - (s1Used?.[String(studentId)] ?? 0)
     : 0;
-  // 골드 = 1학기 이월분 − 사용 + 실버 마일스톤 적립(실버 25개 벌 때마다 +1)
-  const classGoldLeft =
-    s1ClassGoldRemaining - (s1Used?.classGoldUsed ?? 0) + (s1Used?.classGoldEarned ?? 0);
+  // 골드 잔량 = 이월분 − 사용 + 자동 적립 + 교사 보너스 (단일 헬퍼)
+  const goldLeft = classGoldLeft(s1Used);
   // 잔액 홀드 — 승인 대기 중인 신청 금액은 이미 쓴 것으로 본다 (잔액 1개로 이중 신청 방지)
   const holdOf = (reqs: { status: string; type?: string; amount: number }[] | undefined) =>
     (reqs ?? [])
@@ -118,7 +118,7 @@ export default function ShopPage() {
         );
         return;
       }
-      if (m.price > classGoldLeft) {
+      if (m.price > goldLeft) {
         toast("학급 골드토큰이 부족해요.", "warn");
         return;
       }
@@ -187,7 +187,7 @@ export default function ShopPage() {
             </div>
             <div className="px-1">
               <p className="text-[11px] text-ink-400">골드 · 공용</p>
-              <p className="tnum text-xl font-extrabold text-warn">{classGoldLeft}</p>
+              <p className="tnum text-xl font-extrabold text-warn">{goldLeft}</p>
             </div>
           </div>
           {/* 버는 법 — 경제가 쓰기 전용으로 보이지 않게 */}
