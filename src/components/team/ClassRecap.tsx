@@ -95,13 +95,41 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
 
       {view === "praise" ? (
         comps.length > 0 ? (
-          <ul className="mt-3 space-y-1.5">
-            {comps.map((c, i) => (
-              <li key={i} className="rounded-btn bg-pink-50 px-3 py-2 text-[13px] text-ink-800">
-                <b className="text-pink-700">{nm(c.from)}</b> → <b>{nm(c.to)}</b> · {c.text}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 space-y-2">
+            {/* 받는 사람의 모둠별로 묶어서 — 한 줄 나열보다 읽기 편하게 (사용자 요청) */}
+            {schedule.groups.map((g) => {
+              const memberSet = new Set([g.chair, ...g.members.map((m) => m.studentId)]);
+              const gComps = comps.filter((c) => memberSet.has(c.to));
+              if (gComps.length === 0) return null;
+              const mine = myStudentId != null && memberSet.has(myStudentId);
+              return (
+                <div
+                  key={g.groupId}
+                  className={`overflow-hidden rounded-btn border ${
+                    mine ? "border-pink-200 bg-pink-50/40" : "border-ink-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 border-b border-ink-100 bg-ink-50/60 px-3 py-1.5">
+                    <span className="text-sm font-bold">
+                      {g.groupId}모둠{mine && " ★"}
+                    </span>
+                    <span className="ml-auto rounded-full bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold text-pink-600">
+                      💌 {gComps.length}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-ink-50">
+                    {gComps.map((c, i) => (
+                      <li key={i} className="px-3 py-1.5 text-[13px] text-ink-800">
+                        <b className="text-pink-700">{nm(c.from)}</b> →{" "}
+                        <b className={c.to === myStudentId ? "text-brand" : ""}>{nm(c.to)}</b> ·{" "}
+                        {c.text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
             아직 오늘 주고받은 칭찬이 없어요 — 첫 칭찬의 주인공이 되어보세요!
