@@ -1,11 +1,15 @@
 "use client";
 // 내 기록 — "내가 어떻게 하고 있는지 한 곳에서" (학생 페르소나 1건).
-// 이미 캐시되는 문서만 재사용: 누적 점수 문서(점수·MVP·득표) + readingStats(주별 권수).
+// 이미 캐시되는 문서만 재사용: 누적 점수 문서(점수·MVP·득표) + readingStats(주별 권수)
+// + 최근 집계일 문서(점수 출처 분해 — Team 탭과 캐시 공유, 추가 읽기 0).
 import { useReadingStats } from "@/lib/query/reading";
+import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
+import { useSettings } from "@/lib/query/settings";
 import { s1BooksOf } from "@/lib/staticData";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { weekBooks } from "@/lib/readingStreak";
+import { weekBooks, readingStreaks } from "@/lib/readingStreak";
+import type { DailyScoreRow } from "@/types";
 
 export default function MyRecord({
   studentId,
@@ -15,9 +19,16 @@ export default function MyRecord({
   cumScores: Record<string, unknown> | null | undefined;
 }) {
   const { data: stats } = useReadingStats();
+  const { data: settings } = useSettings();
+  const today = todayKST();
+  // Team 탭이 이미 캐시하는 두 문서 재사용 (추가 읽기 0):
+  // 오늘 집계가 있으면 오늘 것을, 없으면(아침 등) 최근 집계일 것을 보여준다.
+  const { data: todayScores } = useDailyScores(today);
+  const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
   const cum = (cumScores ?? {}) as {
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
+    compStreak?: Record<string, number>;
   } & Record<string, unknown>;
   const sid = String(studentId);
   const score = typeof cum[sid] === "number" ? (cum[sid] as number) : 0;
@@ -25,11 +36,36 @@ export default function MyRecord({
   const bossVotes = cum.mvpVotesTotal?.[sid] ?? 0;
   const totalBooks = s1BooksOf(stats, studentId) + (stats?.total?.[sid] ?? 0);
 
-  const curWeek = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
+  const curWeek = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const weeks = Array.from({ length: curWeek }, (_, i) => i + 1);
   const perWeek = weeks.map((w) => weekBooks(stats, studentId, w));
   const maxW = Math.max(1, ...perWeek);
   const hasAny = score !== 0 || totalBooks > 0 || mvpWins > 0 || bossVotes > 0;
+
+  // ── 점수 출처 분해 — "내 점수가 어디서 왔는지" (사용자 요청) ──
+  // 집계일의 내 행(dailyScores/{date})을 항목별로 풀어서 보여준다.
+  const todayRow = (todayScores as Record<string, unknown> | null | undefined)?.[sid] as
+    | DailyScoreRow
+    | undefined;
+  const myRow = todayRow ?? (latestAgg?.rows?.[sid] as DailyScoreRow | undefined);
+  const aggDate = todayRow ? today : latestAgg?.date;
+  const parts = myRow
+    ? [
+        { icon: "🤝", label: "모둠 평가", v: myRow.peer ?? 0 },
+        { icon: "🏆", label: "모둠 순위", v: myRow.groupRank ?? 0 },
+        { icon: "💌", label: "칭찬 미션", v: myRow.mission ?? 0 },
+        { icon: "👑", label: "부서장 득표", v: myRow.boss ?? 0 },
+        { icon: "⭐", label: "MVP 보상", v: myRow.mvp ?? 0 },
+        { icon: "🐢", label: "독서", v: myRow.read ?? 0 },
+        { icon: "🎁", label: "선생님 보너스", v: myRow.bonus ?? 0 },
+      ]
+    : [];
+  // 스트릭 현황 — 칭찬 연속(매일 칭찬 보내기) + 독서 연속(주간 목표 달성)
+  const quota = settings?.weeklyReadingQuota ?? 3;
+  const compStreak = cum.compStreak?.[sid] ?? 0;
+  const vacation = today < SEMESTER_START;
+  const readStreak = vacation ? 0 : readingStreaks(stats, studentId, quota, curWeek).current;
+  const fmtDay = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 
   const tiles = [
     { label: "🏅 누적 점수", value: score, cls: "bg-brand-weak text-brand-strong" },
@@ -55,6 +91,49 @@ export default function MyRecord({
               </div>
             ))}
           </div>
+
+          {/* 점수 출처 분해 — 최근 집계일 기준 항목별 (사용자 요청) */}
+          {myRow && aggDate && (
+            <div className="mt-3 rounded-btn bg-ink-50 p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-1">
+                <p className="text-xs font-bold text-ink-700">🔍 내 점수, 어디서 왔을까?</p>
+                <span className="text-[10px] text-ink-400">최근 집계일 {fmtDay(aggDate)} 기준</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {parts.map((p) => (
+                  <span
+                    key={p.label}
+                    className={`rounded-full px-2 py-1 text-[11px] font-bold ${
+                      p.v > 0
+                        ? "bg-brand-weak text-brand-strong"
+                        : p.v < 0
+                          ? "bg-danger-weak text-danger"
+                          : "bg-white text-ink-400"
+                    }`}
+                  >
+                    {p.icon} {p.label}{" "}
+                    <b className="tnum">{p.v > 0 ? `+${p.v}` : p.v}</b>
+                  </span>
+                ))}
+                <span className="rounded-full bg-ink-900 px-2 py-1 text-[11px] font-bold text-white">
+                  = 그날 합계 <b className="tnum">{myRow.total ?? 0}</b>점
+                </span>
+              </div>
+              {/* 스트릭 — 연속 기록이 점수가 되는 규칙 안내 */}
+              <div className="mt-2 flex flex-wrap gap-1.5 border-t border-ink-200/60 pt-2">
+                <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
+                  🔥 칭찬 연속 <b className="tnum text-rose-500">{compStreak}</b>일
+                  <span className="text-ink-400"> — 5일 +1점 · 10일 +2점</span>
+                </span>
+                <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
+                  📚 독서 목표 연속 <b className="tnum text-emerald-600">{readStreak}</b>주
+                  <span className="text-ink-400">
+                    {vacation ? " — 개학 후 시작해요" : " — 정산 때 주당 최대 +3점"}
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* 주별 독서 막대 — byWeek 재사용, 이번 주는 파랑 강조 */}
           <p className="mt-3 text-xs font-bold text-ink-600">📖 주별 독서 권수</p>

@@ -1,16 +1,17 @@
 "use client";
 // 🗂️ 학급 현황판 — 교사가 학급 전체를 한 화면에서 내려다보며 관리 (사용자 확정).
 //  ① 학급 골드 카드: 자동 적립 + 교사 ± 보너스 조정
-//  ② 학생별 종합표: 누적점수·2학기실버·이월실버·독서권수 (클릭 → 상세)
-//  ③ 선택 학생: 상점 사용 내역(그 학생만 조회) + 실버 지급
+//  ② 학생별 종합표: 누적점수·2학기실버·이월실버·독서권수 (클릭 → 상세 팝업)
+//  ③ 선택 학생 팝업: 점수 주기·빼기(오늘 보너스) + 실버 지급 + 상점 사용 내역
 // 읽기 예산: 표는 이미 캐시되는 문서 4개(누적·s2잔액·s1사용·독서)만. 상세는 클릭 시.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { getS1WalletOf, s1BooksOf } from "@/lib/staticData";
-import { kstDateOf } from "@/lib/date";
+import { kstDateOf, todayKST } from "@/lib/date";
+import { addBonus } from "@/lib/aggregate";
 import { classGoldLeft } from "@/lib/gold";
 import {
   useBalances,
@@ -85,10 +86,13 @@ export default function ClassDashboard() {
   const grantSilver = useGrantSilver();
   const adjustGold = useAdjustClassGold();
   const { toast } = useFeedback();
+  const qc = useQueryClient();
 
   const [sel, setSel] = useState<number | null>(null);
   const [grantAmt, setGrantAmt] = useState("1");
   const [grantNote, setGrantNote] = useState("");
+  const [scoreAmt, setScoreAmt] = useState("1");
+  const [scoreBusy, setScoreBusy] = useState(false);
   const [goldBusy, setGoldBusy] = useState(false);
   const [sortKey, setSortKey] = useState<"id" | "score" | "silver" | "books">("id");
   const { data: ledger } = useStudentLedger(sel);
@@ -147,6 +151,32 @@ export default function ClassDashboard() {
       toast(`⚠️ ${e instanceof Error ? e.message : "지급 실패"}`, "error");
     }
     void kind;
+  }
+
+  // 일반 점수 주기·빼기 — 오늘 날짜의 교사 보너스(addBonus 트랜잭션)로 기록.
+  // 자동 집계가 덮어쓰지 않는 델타 방식이라 내일 재집계와도 안전하다.
+  async function adjustScore(sign: 1 | -1) {
+    if (sel == null || scoreBusy) return;
+    const n = Number(scoreAmt);
+    if (!Number.isInteger(n) || n <= 0) {
+      toast("점수는 1 이상의 정수여야 해요.", "warn");
+      return;
+    }
+    setScoreBusy(true);
+    const date = todayKST();
+    try {
+      const daySum = await addBonus(date, sel, sign * n);
+      toast(
+        `🏅 ${studentById.get(sel)?.name} 점수 ${sign > 0 ? "+" : "−"}${n} (오늘 보너스 합 ${daySum}점)`,
+        "success"
+      );
+      void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
+      void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "점수 조정 실패"}`, "error");
+    } finally {
+      setScoreBusy(false);
+    }
   }
 
   const th = (key: typeof sortKey, label: string, extra = "") => (
@@ -218,7 +248,7 @@ export default function ClassDashboard() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">🗂️ 학생별 현황</h2>
         <p className="mt-0.5 text-xs text-ink-600">
-          이름을 누르면 그 학생 상점 내역과 지급이 아래에 열려요. 열 제목을 누르면 정렬돼요.
+          이름을 누르면 점수·실버 지급과 상점 내역 팝업이 열려요. 열 제목을 누르면 정렬돼요.
         </p>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[440px] text-sm">
@@ -254,85 +284,135 @@ export default function ClassDashboard() {
         </div>
       </section>
 
-      {/* ③ 선택 학생 상세 — 상점 내역 + 실버 지급 */}
+      {/* ③ 선택 학생 상세 — 팝업 (점수 조정 + 실버 지급 + 상점 내역) */}
       {sel != null && (
-        <section className="rounded-card border border-brand/30 bg-brand-weak/10 p-4 shadow-card">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-ink-900">
-              {studentById.get(sel)?.name} 상세
-            </h3>
-            <button
-              onClick={() => setSel(null)}
-              className="press rounded-btn bg-ink-100 px-3 py-1 text-xs font-bold text-ink-500"
-            >
-              ✕ 닫기
-            </button>
-          </div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-3 sm:p-6"
+          onClick={() => setSel(null)}
+        >
+          <div
+            className="rise flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-card bg-white shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 상단바 — 이름 + 현재 수치 요약 + 닫기 */}
+            <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-3">
+              <h3 className="min-w-0 truncate text-base font-bold text-ink-900">
+                {studentById.get(sel)?.name}
+                <span className="ml-1.5 text-xs font-normal text-ink-400">
+                  🏅 <b className="tnum text-indigo-600">{cumScore(sel)}</b>점 · 💰{" "}
+                  <b className="tnum text-ink-700">{s2Silver(sel)}</b>개
+                </span>
+              </h3>
+              <button
+                onClick={() => setSel(null)}
+                className="press shrink-0 rounded-btn bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-500"
+              >
+                ✕ 닫기
+              </button>
+            </div>
 
-          {/* 실버 지급 */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-btn bg-white p-2.5">
-            <span className="text-xs font-bold text-ink-600">💰 실버 지급</span>
-            <input
-              type="number"
-              min={1}
-              value={grantAmt}
-              onChange={(e) => setGrantAmt(e.target.value)}
-              className="w-16 rounded-btn border border-ink-300 px-2 py-1.5 text-sm"
-            />
-            <input
-              value={grantNote}
-              onChange={(e) => setGrantNote(e.target.value)}
-              placeholder="사유 (선택)"
-              className="min-w-32 flex-1 rounded-btn border border-ink-300 px-2 py-1.5 text-sm"
-            />
-            <button
-              onClick={() => void grant("s2")}
-              className="press rounded-btn bg-brand px-4 py-1.5 text-sm font-bold text-white"
-            >
-              지급
-            </button>
-          </div>
-
-          {/* 상점 내역 */}
-          <p className="mt-3 text-xs font-bold text-ink-500">🧾 상점 내역 (최근 30건)</p>
-          {!ledger ? (
-            <p className="mt-1 text-sm text-ink-400">불러오는 중…</p>
-          ) : ledger.length === 0 ? (
-            <p className="mt-1 rounded-btn bg-white px-3 py-4 text-center text-sm text-ink-400">
-              아직 상점 기록이 없어요.
-            </p>
-          ) : (
-            <ul className="mt-1 space-y-1">
-              {ledger.map((e) => {
-                const v = signedAmount(e.type, e.amount);
-                return (
-                  <li
-                    key={e.id}
-                    className="flex items-center justify-between gap-2 rounded-btn bg-white px-3 py-2 text-sm"
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              {/* 일반 점수 주기·빼기 */}
+              <div className="rounded-btn bg-indigo-50 p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-700">🏅 점수 주기·빼기</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={scoreAmt}
+                    onChange={(e) => setScoreAmt(e.target.value)}
+                    className="w-16 rounded-btn border border-ink-300 bg-white px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    onClick={() => void adjustScore(-1)}
+                    disabled={scoreBusy}
+                    className="press rounded-btn bg-white px-3 py-1.5 text-sm font-bold text-danger shadow-card disabled:opacity-40"
                   >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-ink-700">{e.item}</span>
-                      <span className="shrink-0 text-[11px] text-ink-400">
-                        {e.type === "gold" ? "🥇골드" : e.wallet === "s2" ? "2학기" : "이월"} ·{" "}
-                        {fmtDate(e.createdAt)}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <b className={`tnum ${v > 0 ? "text-success" : "text-ink-700"}`}>
-                        {v > 0 ? `+${v}` : v}
-                      </b>
-                      {e.status !== "approved" && (
-                        <span className="rounded-full bg-warn-weak px-1.5 py-0.5 text-[10px] font-bold text-warn">
-                          {e.status === "pending" ? "대기" : "반려"}
-                        </span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                    − 빼기
+                  </button>
+                  <button
+                    onClick={() => void adjustScore(1)}
+                    disabled={scoreBusy}
+                    className="press rounded-btn bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white disabled:opacity-40"
+                  >
+                    + 주기
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-ink-400">
+                  오늘 날짜의 교사 보너스로 기록돼요 — 자동 집계와 겹쳐도 안전해요.
+                </p>
+              </div>
+
+              {/* 실버 지급 */}
+              <div className="rounded-btn bg-ink-50 p-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-ink-600">💰 실버 지급</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={grantAmt}
+                    onChange={(e) => setGrantAmt(e.target.value)}
+                    className="w-16 rounded-btn border border-ink-300 bg-white px-2 py-1.5 text-sm"
+                  />
+                  <input
+                    value={grantNote}
+                    onChange={(e) => setGrantNote(e.target.value)}
+                    placeholder="사유 (선택)"
+                    className="min-w-32 flex-1 rounded-btn border border-ink-300 bg-white px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    onClick={() => void grant("s2")}
+                    className="press rounded-btn bg-brand px-4 py-1.5 text-sm font-bold text-white"
+                  >
+                    지급
+                  </button>
+                </div>
+              </div>
+
+              {/* 상점 내역 */}
+              <div>
+                <p className="text-xs font-bold text-ink-500">🧾 상점 내역 (최근 30건)</p>
+                {!ledger ? (
+                  <p className="mt-1 text-sm text-ink-400">불러오는 중…</p>
+                ) : ledger.length === 0 ? (
+                  <p className="mt-1 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+                    아직 상점 기록이 없어요.
+                  </p>
+                ) : (
+                  <ul className="mt-1 space-y-1">
+                    {ledger.map((e) => {
+                      const v = signedAmount(e.type, e.amount);
+                      return (
+                        <li
+                          key={e.id}
+                          className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2 text-sm"
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-ink-700">{e.item}</span>
+                            <span className="shrink-0 text-[11px] text-ink-400">
+                              {e.type === "gold" ? "🥇골드" : e.wallet === "s2" ? "2학기" : "이월"} ·{" "}
+                              {fmtDate(e.createdAt)}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <b className={`tnum ${v > 0 ? "text-success" : "text-ink-700"}`}>
+                              {v > 0 ? `+${v}` : v}
+                            </b>
+                            {e.status !== "approved" && (
+                              <span className="rounded-full bg-warn-weak px-1.5 py-0.5 text-[10px] font-bold text-warn">
+                                {e.status === "pending" ? "대기" : "반려"}
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -248,11 +248,18 @@ export function useLatestAggregated(before: string, enabled: boolean) {
   return useQuery({
     queryKey: ["latestDaily", before],
     enabled,
-    queryFn: async (): Promise<{ date: string; meta: DailyMeta } | null> => {
+    queryFn: async (): Promise<{
+      date: string;
+      meta: DailyMeta;
+      rows: Record<string, unknown>; // studentId → DailyScoreRow (점수 출처 분해 표시용)
+    } | null> => {
       for (let i = 0; i < 5; i++) {
         const date = shiftDate(before, -i);
         const snap = await getDoc(doc(db(), "dailyScores", date));
-        if (snap.exists()) return { date, meta: (snap.data()._meta ?? {}) as DailyMeta };
+        if (snap.exists()) {
+          const data = snap.data();
+          return { date, meta: (data._meta ?? {}) as DailyMeta, rows: data };
+        }
       }
       return null;
     },
