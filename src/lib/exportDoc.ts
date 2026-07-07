@@ -91,6 +91,8 @@ const PRINT_CSS = `
   .cols > table { flex: 1; }
   /* 모둠 카드 — 1위(오늘의 모둠)는 금테 */
   .grps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* 분해 표(열 8+)가 든 카드는 전폭 1열 — 반폭에선 이름이 두 줄로 꺾인다 */
+  .grps.wide { grid-template-columns: 1fr; gap: 8px; }
   .grp { border: 1px solid #eceef1; border-radius: 14px; padding: 10px 12px;
          page-break-inside: avoid; }
   .grp.win { border: 1.5px solid #f59f00; background: #fffdf5; }
@@ -100,8 +102,11 @@ const PRINT_CSS = `
   .grp .gsum { font-size: 11px; color: #8b95a1; }
   .grp .gsum b { color: #191f28; font-size: 12.5px; }
   .grp table { margin-top: 4px; }
-  .grp th { font-size: 10px; padding: 2px 6px; }
+  .grp th { font-size: 10px; padding: 2px 6px; white-space: nowrap; }
   .grp td { font-size: 11.5px; padding: 3px 6px; }
+  /* 이름은 절대 두 줄로 꺾지 않는다 — 숫자 열이 대신 줄어들게 */
+  .grp td:first-child, .grp th:first-child { white-space: nowrap; }
+  .grps.wide .grp td:first-child { width: 72px; }
   .badge { display: inline-block; border-radius: 999px; padding: 1.5px 8px; font-size: 10px;
            font-weight: 700; background: #e8f2fe; color: #2272eb; margin-left: 4px; }
   .badge.gold { background: #f59f00; color: #fff; }

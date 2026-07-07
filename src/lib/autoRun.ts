@@ -140,8 +140,9 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     await setDoc(markerRef, { coveredUntil: yesterday, settledThrough: p - 1 }, { merge: true });
   }
 
-  // 5) 거북이 응원 이벤트 — 10,000클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
-  //    (사용자 확정: 반복 지급 아님. 학생 화면엔 클릭 수 비공개 — 교사 도구에서만 확인)
+  // 5) 거북이 응원 이벤트 — 목표 클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
+  //    목표 횟수는 교사가 도구에서 저장(classData/turtleClicks.goal, 기본 10,000).
+  //    지급 후 교사가 '다시 열기'로 재개설 가능 (이스터에그 반복 운영 — 사용자 요청).
   //    지급+마커를 한 트랜잭션으로 — 지급만 되고 마커가 안 남아 다음 날 또 주는 사고 차단.
   try {
     const clickRef = doc(d, "classData", "turtleClicks");
@@ -149,7 +150,8 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       const snap = await tx.get(clickRef);
       if (!snap.exists()) return 0;
       const data = snap.data();
-      if (((data.count as number) ?? 0) < CLICK_EVENT_GOAL || data.eventGold) return 0;
+      const goal = (data.goal as number) || CLICK_EVENT_GOAL;
+      if (((data.count as number) ?? 0) < goal || data.eventGold) return 0;
       tx.set(
         doc(d, "s1Spends", "0_balances"),
         { classGoldEarned: increment(CLICK_EVENT_GOLD) },

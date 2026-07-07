@@ -1,17 +1,21 @@
 "use client";
 // 전학생·전출 관리 — 코드 수정 없이 명단을 조정한다 (classData/roster 오버라이드).
-//   · 전입: 전출간 친구의 번호를 이어받기 → 이름 변경 + 비밀번호 초기화(비밀번호 관리)
+//   · 전입 처리(원클릭): 전출간 친구의 번호 이어받기 = 이름 변경 + 전출 해제 +
+//     기록 초기화(누적 점수·MVP·독서·2학기 실버·이월 실버 → 전부 0에서 새로 시작).
+//     자리는 그 번호의 자리표 자리를 그대로 물려받는다 (사용자 확정).
 //   · 전출: 비활성 표시 → 이름에 (전출) + 평가 대상·칭찬 미션 계산에서 제외
-// 자리표(21주 정적)는 그대로이므로, 전출생 자리는 다음 자리 배치 갱신 때 정리한다.
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/firebase";
 import { students, applyRosterOverrides, type RosterOverrides } from "@/lib/roster";
+import { getS1WalletOf, s1BooksByStudent } from "@/lib/staticData";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 
 export default function TransferPanel() {
   const { toast, confirm } = useFeedback();
+  const qc = useQueryClient();
   const [ov, setOv] = useState<RosterOverrides>({ renames: {}, inactive: [] });
   const [loaded, setLoaded] = useState(false);
   const [sid, setSid] = useState(1);
@@ -59,6 +63,86 @@ export default function TransferPanel() {
     const renames = { ...(ov.renames ?? {}) };
     delete renames[String(sid)];
     await save({ ...ov, renames }, `↩️ ${sid}번 이름을 원래대로 되돌림`);
+  }
+
+  // 전입 처리 — 번호 승계 + 기록 0에서 새로 시작 (사용자 확정).
+  // 초기화 대상: 누적 점수·MVP·득표·칭찬 연속, 독서(총·주별·1학기 보정), 2학기 실버 잔액,
+  // 이월 실버(사용량 = 이월분으로 채워 잔여 0). 과거 일일 기록 문서는 역사로 남는다.
+  async function enrollNew() {
+    const name = newName.trim();
+    if (!name) {
+      toast("전입생 이름을 먼저 입력해주세요.", "warn");
+      return;
+    }
+    const ok = await confirm({
+      title: `${sid}번에 "${name}" 전입 처리할까요?`,
+      body: `${sid}번의 누적 점수·MVP·독서·실버(2학기/이월)가 모두 0으로 초기화되고, 이름이 "${name}"(으)로 바뀌며 전출 표시가 해제돼요. 자리는 기존 ${sid}번 자리를 그대로 물려받아요. 이 초기화는 되돌릴 수 없어요.`,
+      confirmLabel: "전입 처리",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const d = db();
+      const key = String(sid);
+      // ① 명단: 이름 변경 + 전출 해제
+      const next: RosterOverrides = {
+        renames: { ...(ov.renames ?? {}), [key]: name },
+        inactive: (ov.inactive ?? []).filter((n) => n !== sid),
+      };
+      await setDoc(doc(d, "classData", "roster"), next);
+      setOv(next);
+      applyRosterOverrides(next);
+      // ② 누적 점수·타이틀·연속 기록 초기화
+      await setDoc(
+        doc(d, "dailyScores", "_cumulative"),
+        {
+          [key]: 0,
+          mvpWins: { [key]: 0 },
+          mvpVotesTotal: { [key]: 0 },
+          compStreak: { [key]: 0 },
+          silverEarned: { [key]: 0 },
+        },
+        { merge: true }
+      );
+      // ③ 독서: 2학기 총·주별 0, 1학기 권수는 보정으로 상쇄 (표시 = 실기록 + s1Adj)
+      const statsSnap = await getDoc(doc(d, "readingStats", "main"));
+      const stats = (statsSnap.exists() ? statsSnap.data() : {}) as {
+        byWeek?: Record<string, Record<string, number>>;
+      };
+      const byWeekZero: Record<string, Record<string, number>> = {};
+      for (const [w, m] of Object.entries(stats.byWeek ?? {}))
+        if (m?.[key]) byWeekZero[w] = { [key]: 0 };
+      await setDoc(
+        doc(d, "readingStats", "main"),
+        {
+          total: { [key]: 0 },
+          s1Adj: { [key]: -(s1BooksByStudent[key] ?? 0) },
+          byWeek: byWeekZero,
+        },
+        { merge: true }
+      );
+      // ④ 지갑: 2학기 실버 잔액 0 · 이월 실버 잔여 0(사용량 = 이월분)
+      await setDoc(doc(d, "coinTxns", "0_balances"), { [key]: 0 }, { merge: true });
+      await setDoc(
+        doc(d, "s1Spends", "0_balances"),
+        { [key]: getS1WalletOf(sid)?.silverRemaining ?? 0 },
+        { merge: true }
+      );
+      for (const qk of ["cumulativeScores", "readingStats"] as const)
+        void qc.invalidateQueries({ queryKey: [qk] });
+      void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+      void qc.invalidateQueries({ queryKey: ["balances", "s1"] });
+      setNewName("");
+      toast(
+        `✅ ${sid}번 "${name}" 전입 완료 — 기록이 0에서 시작해요. 비밀번호 관리에서 ${sid}번을 초기화해주세요.`,
+        "success"
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "전입 처리에 실패했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function toggleInactive() {
@@ -116,9 +200,16 @@ export default function TransferPanel() {
             <button
               onClick={() => void rename()}
               disabled={busy}
+              className="press rounded-btn border border-ink-300 bg-white px-3 py-2 text-sm font-bold text-ink-600 disabled:opacity-50"
+            >
+              이름만 변경
+            </button>
+            <button
+              onClick={() => void enrollNew()}
+              disabled={busy}
               className="press rounded-btn bg-brand px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
             >
-              이름 변경
+              🆕 전입 처리
             </button>
             <button
               onClick={() => void toggleInactive()}
@@ -150,10 +241,11 @@ export default function TransferPanel() {
           )}
 
           <p className="mt-3 rounded-btn bg-sky-50 p-3 text-[11px] leading-relaxed text-sky-800">
-            <b>전입생 절차</b>: ① 전출간 친구(또는 빈) 번호에 이름 변경 ② 비밀번호 관리에서 그
-            번호 초기화 ③ 필요하면 상점 탭에서 잔액 보정. <b>전출 처리</b>하면 평가·칭찬 미션
-            계산에서 빠지고 이름에 (전출)이 붙어요 — 자리표의 빈자리는 다음 자리 배치 때
-            정리해주세요.
+            <b>전입생 절차</b>: ① 전출간 친구(또는 빈) 번호를 고르고 이름 입력 → <b>🆕 전입
+            처리</b> 한 번이면 끝 — 점수·MVP·독서·실버가 전부 0에서 새로 시작하고, <b>자리는 그
+            번호의 자리를 그대로 물려받아요</b>. ② 비밀번호 관리에서 그 번호를 초기화해 새 비밀번호를
+            정해주세요. <b>전출 처리</b>하면 평가·칭찬 미션 계산에서 빠지고 이름에 (전출)이 붙어요 —
+            기록은 지워지지 않아요.
           </p>
         </>
       )}

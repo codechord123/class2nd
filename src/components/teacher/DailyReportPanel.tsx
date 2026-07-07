@@ -205,7 +205,7 @@ export default function DailyReportPanel({
         sections.push(
           card(
             "모둠별 오늘 기록 — 점수 출처 분해 (★=모둠 점수 1위)",
-            `<div class="grps">${groupsHtml}</div>${mvpHi}`
+            `<div class="grps wide">${groupsHtml}</div>${mvpHi}`
           )
         );
 

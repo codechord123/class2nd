@@ -17,21 +17,40 @@ const PARTS: { key: keyof DailyScoreRow; icon: string; label: string }[] = [
   { key: "bonus", icon: "🎁", label: "보너스" },
 ];
 
-export default function GroupBreakdown({ myStudentId }: { myStudentId?: number | null }) {
+export default function GroupBreakdown({
+  myStudentId,
+  date: dateProp,
+}: {
+  myStudentId?: number | null;
+  date?: string; // 지정 시 그 날짜 고정 (교사 날짜별 보기) — 미지정 시 오늘→최근 집계일
+}) {
   const today = todayKST();
-  const { data: todayScores } = useDailyScores(today);
-  const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
+  const target = dateProp ?? today;
+  const { data: targetScores } = useDailyScores(target);
+  const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), !dateProp);
 
-  // 오늘 집계 문서가 있으면 오늘 것 우선 (오늘의 모둠 점수가 바로 보이게 — 사용자 보고 반영)
-  const todayHasRows =
-    todayScores != null &&
-    Object.keys(todayScores).some((k) => /^\d+$/.test(k));
-  const rows = (todayHasRows ? todayScores : latestAgg?.rows) as
+  // 대상 날짜 집계 문서가 있으면 그것을, (오늘 모드에서) 없으면 최근 집계일로 폴백
+  const targetHasRows =
+    targetScores != null && Object.keys(targetScores).some((k) => /^\d+$/.test(k));
+  const rows = (targetHasRows ? targetScores : dateProp ? null : latestAgg?.rows) as
     | Record<string, unknown>
     | null
     | undefined;
-  const date = todayHasRows ? today : latestAgg?.date;
-  if (!rows || !date) return null;
+  const date = targetHasRows ? target : dateProp ? null : latestAgg?.date;
+  if (!rows || !date) {
+    // 날짜를 직접 고른 경우엔 침묵 대신 빈 상태를 보여준다 (탐색 피드백)
+    if (dateProp)
+      return (
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <h3 className="text-lg font-bold">🔍 모둠 점수, 어디서 왔을까?</h3>
+          <p className="mt-2 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+            {Number(dateProp.slice(5, 7))}월 {Number(dateProp.slice(8, 10))}일에는 집계 기록이
+            없어요.
+          </p>
+        </section>
+      );
+    return null;
+  }
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
@@ -52,7 +71,7 @@ export default function GroupBreakdown({ myStudentId }: { myStudentId?: number |
     }
     return { groupId: g.groupId, ids, sums, total };
   });
-  if (groups.every((g) => g.total === 0)) return null;
+  if (groups.every((g) => g.total === 0) && !dateProp) return null;
 
   const fmtDay = `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
   const isToday = date === today;

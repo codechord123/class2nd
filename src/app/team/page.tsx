@@ -101,6 +101,7 @@ export default function TeamPage() {
   const [groupTab, setGroupTab] = useState<"vs" | "class">("vs"); // 모둠·학급 하위 탭
   const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
   const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
+  const [tDate, setTDate] = useState(todayKST()); // 교사 모둠 기록 날짜별 보기
   const [compTo, setCompTo] = useState<number | null>(null);
   const [compText, setCompText] = useState("");
   const [sugTo, setSugTo] = useState<number | null>(null);
@@ -147,7 +148,41 @@ export default function TeamPage() {
         {tView === "group" && (
           <>
             <GroupGoals />
-            <GroupBreakdown />
+            {/* 날짜별 모둠 기록 — 지난 날의 분해도 넘겨보며 확인 (사용자 요청) */}
+            <div className="flex flex-wrap items-center gap-2 rounded-card border border-ink-200 bg-white p-3 shadow-card">
+              <span className="text-sm font-bold text-ink-700">📅 날짜별 모둠 기록</span>
+              <button
+                onClick={() => setTDate(shiftDate(tDate, -1))}
+                className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600"
+                aria-label="하루 전"
+              >
+                ◀
+              </button>
+              <input
+                type="date"
+                value={tDate}
+                max={todayKST()}
+                onChange={(e) => e.target.value && setTDate(e.target.value)}
+                className="rounded-btn border border-ink-300 px-2.5 py-1.5 text-sm"
+              />
+              <button
+                onClick={() => setTDate(shiftDate(tDate, 1))}
+                disabled={tDate >= todayKST()}
+                className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 disabled:opacity-30"
+                aria-label="하루 후"
+              >
+                ▶
+              </button>
+              {tDate !== todayKST() && (
+                <button
+                  onClick={() => setTDate(todayKST())}
+                  className="press rounded-btn bg-brand-weak px-3 py-1.5 text-xs font-bold text-brand-strong"
+                >
+                  오늘로
+                </button>
+              )}
+            </div>
+            <GroupBreakdown date={tDate} />
             <TeamStats cumScores={cumScores} bestGroups={bestGroups} />
           </>
         )}
