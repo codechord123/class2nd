@@ -6,13 +6,13 @@
 // 낡은 캐시로 인한 음수 총권수, 주간 카운트 음수를 원천 차단한다.
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { doc, runTransaction } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { useReadingStats, type ReadingStats } from "@/lib/query/reading";
 import { s1BooksByStudent } from "@/lib/staticData";
 import { useFeedback } from "@/components/ui/Feedback";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 
 export default function ReadingAdjustPanel() {
@@ -21,7 +21,7 @@ export default function ReadingAdjustPanel() {
   const [busy, setBusy] = useState(false);
   const { data: stats } = useReadingStats();
   const qc = useQueryClient();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
 
   const key = String(sid);
   const s1Base = s1BooksByStudent[key] ?? 0; // 1학기 실제 감상문 수 (정적)
@@ -71,6 +71,59 @@ export default function ReadingAdjustPanel() {
       );
     } catch (e) {
       toast(`⚠️ 보정 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 실사 재계산 — 실제 감상문(임시저장 제외)을 세어 2학기 통계를 처음부터 다시 만든다.
+  // '지운 글·잔존 초안이 남긴 유령 권수'를 한 번에 정리 (사용자 보고: 작성자 없는 +1).
+  // 주의: 여기서 ±로 넣은 2학기 수동 보정은 실물이 없으므로 함께 사라진다 (재보정 필요).
+  async function recount() {
+    if (busy) return;
+    const ok = await confirm({
+      title: "독서 권수를 실물 기준으로 재계산할까요?",
+      body: "모든 감상문(임시저장 제외)을 다시 세어 2학기 총권수·주별 권수를 새로 만들어요 — 지운 글이나 초안이 남긴 유령 권수가 정리돼요. 단, ± 버튼으로 넣었던 2학기 수동 보정(종이 감상문 인정 등)은 사라지니 재계산 후 다시 보정해주세요. 1학기 보정은 유지돼요.",
+      confirmLabel: "재계산",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const d = db();
+      const [reports, statsSnap] = await Promise.all([
+        getDocs(collection(d, "readingReports")),
+        getDoc(doc(d, "readingStats", "main")),
+      ]);
+      const total: Record<string, number> = {};
+      const byWeek: Record<string, Record<string, number>> = {};
+      reports.forEach((r) => {
+        const v = r.data();
+        if (v.isDraft) return; // 초안은 권수가 아니다
+        const sidKey = String(v.studentId);
+        const date = kstDateOf(Number(v.createdAt) || 0);
+        const w = String(date < SEMESTER_START ? 0 : weekOfDate(date, SEMESTER_START, TOTAL_WEEKS));
+        total[sidKey] = (total[sidKey] ?? 0) + 1;
+        (byWeek[w] ??= {})[sidKey] = (byWeek[w][sidKey] ?? 0) + 1;
+      });
+      const old = (statsSnap.exists() ? statsSnap.data() : {}) as ReadingStats;
+      // 전체 덮어쓰기 (merge 아님) — 유령 키를 지우는 게 목적. 1학기 보정만 보존.
+      await setDoc(doc(d, "readingStats", "main"), { total, byWeek, s1Adj: old.s1Adj ?? {} });
+      const changed: string[] = [];
+      for (const k of new Set([...Object.keys(old.total ?? {}), ...Object.keys(total)])) {
+        const b = old.total?.[k] ?? 0;
+        const a = total[k] ?? 0;
+        if (a !== b) changed.push(`${studentById.get(Number(k))?.name ?? k}번 ${b}→${a}`);
+      }
+      await qc.invalidateQueries({ queryKey: ["readingStats"] });
+      toast(
+        changed.length
+          ? `✅ 재계산 완료 — 바뀐 권수: ${changed.join(", ")}`
+          : "✅ 재계산 완료 — 실물과 이미 일치해요.",
+        "success"
+      );
+    } catch (e) {
+      toast(`⚠️ 재계산 실패: ${e instanceof Error ? e.message : String(e)}`, "error");
     } finally {
       setBusy(false);
     }
@@ -131,6 +184,20 @@ export default function ReadingAdjustPanel() {
         >
           +1
         </button>
+      </div>
+
+      {/* 유령 권수 정리 — 지운 글·초안이 남긴 숫자를 실물 기준으로 리셋 */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+        <button
+          onClick={() => void recount()}
+          disabled={busy}
+          className="press rounded-btn border border-warn/50 bg-white px-3 py-2 text-sm font-bold text-warn disabled:opacity-40"
+        >
+          🔄 실물 기준 재계산
+        </button>
+        <span className="text-[11px] text-ink-400">
+          작성자 없는 권수(지운 글·초안 흔적)가 보이면 눌러주세요 — 실제 감상문 수로 맞춰져요.
+        </span>
       </div>
     </section>
   );

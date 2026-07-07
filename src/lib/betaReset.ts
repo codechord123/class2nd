@@ -115,6 +115,7 @@ export async function resetAllRecords(onProgress?: (msg: string) => void): Promi
         deleted++;
         continue;
       }
+      if (v.isDraft) continue; // 잔존 초안 문서는 권수로 세지 않는다
       const sid = String(v.studentId);
       const week = date < SEMESTER_START ? 0 : weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
       total[sid] = (total[sid] ?? 0) + 1;

@@ -135,13 +135,18 @@ export default function WriteSheet({
         <span className="text-base font-extrabold text-ink-900">
           감상문 {editingReport ? "수정" : "쓰기"} · {week}주차
         </span>
-        <button
-          onClick={() => void submit(true)}
-          disabled={busy}
-          className="press rounded-btn bg-brand-weak px-3 py-1.5 text-sm font-bold text-brand-strong disabled:opacity-40"
-        >
-          임시저장
-        </button>
+        {/* 정식본 수정 중엔 임시저장 숨김 — 초안 복사본이 생겨 나중에 중복 등록(+1)되는 사고 방지 */}
+        {editingReport ? (
+          <span className="w-16" aria-hidden />
+        ) : (
+          <button
+            onClick={() => void submit(true)}
+            disabled={busy}
+            className="press rounded-btn bg-brand-weak px-3 py-1.5 text-sm font-bold text-brand-strong disabled:opacity-40"
+          >
+            임시저장
+          </button>
+        )}
       </header>
 
       {/* 본문 (스크롤) — 카드 2장: 책 정보 / 감상 */}

@@ -324,10 +324,13 @@ async function aggregateDateInner(
   }
 
   // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로, 개학 이후 날짜만)
+  //      임시저장 잔존 문서(isDraft)는 절대 세지 않는다 — 초안은 점수가 아니다 (사용자 확정)
   const readCount: Record<number, number> = {};
   if (countReads)
     reportSnap.forEach((r) => {
-      const sid = r.data().studentId as number | undefined;
+      const data = r.data();
+      if (data.isDraft) return;
+      const sid = data.studentId as number | undefined;
       if (typeof sid === "number") readCount[sid] = (readCount[sid] ?? 0) + 1;
     });
 
