@@ -16,7 +16,7 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 
 const EMPTY: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "",
-  tags: [], isPrivate: false,
+  authorIntent: "", connect: "", tags: [], isPrivate: false,
 };
 
 // 유도 질문 로테이션 — 매번 같은 질문이면 감상이 틀에 박힌다 (열 때마다 한 세트 무작위)
@@ -196,7 +196,7 @@ export default function WriteSheet({
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <div className="flex flex-wrap items-baseline justify-between gap-1">
             <h3 className="text-base font-extrabold text-ink-900">2. 감상을 남겨요</h3>
-            <span className="text-xs text-ink-600">네 칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
+            <span className="text-xs text-ink-600">칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
           </div>
           <div className="mt-3 space-y-3">
             <Field label="줄거리">
@@ -210,6 +210,23 @@ export default function WriteSheet({
             </Field>
             <Field label="읽고 나서 든 생각과 느낌">
               <Textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder={prompts.thoughts} rows={6} />
+            </Field>
+            {/* 생각 유도 질문 — 검색·복붙으로는 못 채우는 나만의 답 (사용자 요청) */}
+            <Field label="✍️ 작가는 왜 이 글을 썼을까?">
+              <Textarea
+                value={form.authorIntent ?? ""}
+                onChange={(e) => setForm({ ...form, authorIntent: e.target.value })}
+                placeholder="작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요"
+                rows={3}
+              />
+            </Field>
+            <Field label="🙋 이 책을 나와 연결하면?">
+              <Textarea
+                value={form.connect ?? ""}
+                onChange={(e) => setForm({ ...form, connect: e.target.value })}
+                placeholder="내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?"
+                rows={4}
+              />
             </Field>
           </div>
           <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-600">

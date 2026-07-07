@@ -69,6 +69,8 @@ export interface BookletEntry {
   scene?: string;
   quote?: string;
   thoughts?: string;
+  authorIntent?: string; // 작가는 왜 이 글을 썼을까?
+  connect?: string; // 이 책을 나와 연결하면?
 }
 
 export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
@@ -77,6 +79,7 @@ export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
     title: r.title, author: r.author, publisher: r.publisher,
     dateStr: `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`,
     summary: r.summary, scene: r.scene, quote: r.quote, thoughts: r.thoughts,
+    authorIntent: r.authorIntent, connect: r.connect,
   };
 }
 
@@ -116,6 +119,8 @@ export function openBooklet(
   ${sec("인상 깊은 장면", r.scene)}
   ${r.quote?.trim() ? `<blockquote>“${esc(r.quote)}”</blockquote>` : ""}
   ${sec("읽고 난 생각", r.thoughts)}
+  ${sec("작가는 왜 이 글을 썼을까?", r.authorIntent)}
+  ${sec("이 책을 나와 연결하면?", r.connect)}
 </div>`;
     })
     .join("\n");

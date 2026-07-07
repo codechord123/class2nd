@@ -74,6 +74,8 @@ function ReportBody({
         </div>
       )}
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
+      {r.authorIntent && <ReportSection label="작가는 왜 이 글을 썼을까?" text={r.authorIntent} />}
+      {r.connect && <ReportSection label="이 책을 나와 연결하면?" text={r.connect} />}
       {(onEdit || onDelete) && (
         <div className="mt-5 flex gap-2">
           {onEdit && (
@@ -245,7 +247,8 @@ export default function ReadingPage() {
     return {
       title: r.title, author: r.author ?? "", publisher: r.publisher ?? "",
       summary: r.summary ?? "", scene: r.scene ?? "", quote: r.quote ?? "",
-      thoughts: r.thoughts ?? "", tags: r.tags ?? [], isPrivate: r.isPrivate ?? false,
+      thoughts: r.thoughts ?? "", authorIntent: r.authorIntent ?? "", connect: r.connect ?? "",
+      tags: r.tags ?? [], isPrivate: r.isPrivate ?? false,
     };
   }
   const openSheet = (initial: WriteInitial | null) => {

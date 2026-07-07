@@ -32,6 +32,8 @@ export interface ReadingReport2 {
   scene: string; // 인상 깊은 장면
   quote: string; // 인용
   thoughts: string; // 느낀 점
+  authorIntent?: string; // 작가는 왜 이 글을 썼을까? (생각 유도 — 복붙 방지)
+  connect?: string; // 이 책을 나와 연결하면? (개인 연결 — 복붙 방지)
   isDraft: boolean;
   isPrivate?: boolean; // 🔒 선생님만 보기 (작성자 본인·교사에게만 내용 공개)
   tags?: string[]; // 책 종류 태그 (장르 분류)
@@ -55,11 +57,12 @@ export const BOOK_TAGS = [
 export type ReportForm = Pick<
   ReadingReport2,
   "title" | "author" | "publisher" | "summary" | "scene" | "quote" | "thoughts"
-> & { tags: string[]; isPrivate?: boolean };
+> & { tags: string[]; isPrivate?: boolean; authorIntent?: string; connect?: string };
 
-/** 정식 등록 최소 글자수 검사 대상 (1학기와 동일: 장면+인용+줄거리+느낀점) */
+/** 정식 등록 최소 글자수 검사 대상 — 장면+인용+줄거리+느낀점 + 작가의도·나와 연결(생각 유도) */
 export function reportBodyLength(f: ReportForm): number {
-  return (f.scene + f.quote + f.summary + f.thoughts).length;
+  return (f.scene + f.quote + f.summary + f.thoughts + (f.authorIntent ?? "") + (f.connect ?? ""))
+    .length;
 }
 
 /** { total: {sid: n}, byWeek: { [week]: {sid: n} } } — 권수는 쓴 만큼 그대로 (교사 ± 보정 포함)
