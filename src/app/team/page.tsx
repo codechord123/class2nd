@@ -201,7 +201,8 @@ export default function TeamPage() {
   const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
   const doneComp = Object.values(savedComp).some((v) => v?.trim());
 
-  async function submitPeerNotes() {
+  // 칭찬 보내기 (건의와 독립)
+  async function submitComp() {
     if (sending) return;
     if (compTo == null) {
       toast("칭찬할 친구를 골라주세요.", "warn");
@@ -211,25 +212,40 @@ export default function TeamPage() {
       toast("칭찬 내용을 적어주세요.", "warn");
       return;
     }
-    if (sugOpen && sugText.trim() && sugTo == null) {
-      toast("건의를 전할 친구를 골라주세요.", "warn");
-      return;
-    }
     setSending(true);
-    const compliments: Record<string, string> = { [compTo]: compText.trim() };
-    const suggestions: Record<string, string> = {};
-    if (sugOpen && sugTo != null && sugText.trim()) suggestions[sugTo] = sugText.trim();
     try {
-      await savePeer(compliments, suggestions);
+      await savePeer({ [compTo]: compText.trim() }, {});
       // 커버리지 갱신(best-effort) → 다른 친구 화면에서 '받음'으로. 실패해도 칭찬 저장엔 영향 없음
       void setCoverage(compTo).catch(() => {});
       setCompTo(null);
       setCompText("");
+      setCompBurst((k) => k + 1); // 💌 버스트
+      toast("💌 칭찬을 전달했어요!", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // 건의 보내기 (칭찬과 독립 — 따로 전달)
+  async function submitSug() {
+    if (sending) return;
+    if (sugTo == null) {
+      toast("건의를 전할 친구를 골라주세요.", "warn");
+      return;
+    }
+    if (!sugText.trim()) {
+      toast("건의 내용을 적어주세요.", "warn");
+      return;
+    }
+    setSending(true);
+    try {
+      await savePeer({}, { [sugTo]: sugText.trim() });
       setSugTo(null);
       setSugText("");
-      setSugOpen(false);
-      setCompBurst((k) => k + 1); // 💌 버스트
-      toast("💌 전달됐어요!", "success");
+      setCompBurst((k) => k + 1); // 🙋 전송 juice 공유
+      toast("🙋 건의를 전달했어요!", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
@@ -633,11 +649,11 @@ export default function TeamPage() {
           />
           <span className="relative shrink-0">
             <button
-              onClick={() => void submitPeerNotes()}
+              onClick={() => void submitComp()}
               disabled={sending}
               className="press rounded-btn bg-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
             >
-              {sending ? "저장 중…" : "보내기"}
+              {sending ? "저장 중…" : "칭찬 보내기"}
             </button>
             {/* 전송 성공 juice — 💌가 버튼 위로 터진다 */}
             <JuiceBurst fireKey={compBurst} emojis={["💌", "✨", "💛"]} className="left-1/2 top-0" />
@@ -684,14 +700,23 @@ export default function TeamPage() {
                 </button>
               ))}
             </div>
-            <input
-              value={sugText}
-              onChange={(e) => setSugText(e.target.value)}
-              placeholder="예: 준비물을 미리 챙겨오면 더 좋을 것 같아"
-              className="mt-2 w-full rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
-            />
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                value={sugText}
+                onChange={(e) => setSugText(e.target.value)}
+                placeholder="예: 준비물을 미리 챙겨오면 더 좋을 것 같아"
+                className="min-w-0 flex-1 rounded-btn border border-ink-200 bg-white px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() => void submitSug()}
+                disabled={sending}
+                className="press shrink-0 rounded-btn bg-sky-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {sending ? "저장 중…" : "건의 보내기"}
+              </button>
+            </div>
             <p className="mt-1 text-[11px] text-ink-400">
-              건의는 칭찬 보내기를 누를 때 함께 전달돼요. 비워두면 안 보내져요.
+              건의는 칭찬과 <b>따로</b> 보낼 수 있어요.
               <b className="text-sky-600"> 다음 날 그 친구에게 내 이름과 함께 보여요</b> — 예의
               바르고 다정하게 부탁해요!
             </p>

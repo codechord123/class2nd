@@ -181,12 +181,19 @@ export function useCreateMenuRequest(myId: number | null) {
   return async (name: string, note: string) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!name.trim()) throw new Error("원하는 메뉴 이름을 적어주세요.");
-    await addDoc(collection(db(), "menuRequests"), {
-      studentId: myId,
-      name: name.trim(),
-      ...(note.trim() ? { note: note.trim() } : {}),
-      createdAt: Date.now(),
-    });
+    try {
+      await addDoc(collection(db(), "menuRequests"), {
+        studentId: myId,
+        name: name.trim(),
+        ...(note.trim() ? { note: note.trim() } : {}),
+        createdAt: Date.now(),
+      });
+    } catch (e) {
+      // menuRequests 규칙이 아직 콘솔에 게시되지 않으면 permission-denied가 난다
+      if ((e as { code?: string })?.code === "permission-denied")
+        throw new Error("아직 준비 중인 기능이에요 — 선생님께 알려주세요! 🙂");
+      throw e;
+    }
     void qc.invalidateQueries({ queryKey: ["menuRequests"] });
   };
 }
