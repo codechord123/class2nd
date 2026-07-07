@@ -34,6 +34,10 @@ export interface ReadingReport2 {
   thoughts: string; // 느낀 점
   authorIntent?: string; // 작가는 왜 이 글을 썼을까? (생각 유도 — 복붙 방지)
   connect?: string; // 이 책을 나와 연결하면? (개인 연결 — 복붙 방지)
+  // 복붙·AI 의심 신호 (작성 순간에만 기록 — 소급 불가). 선생님만 참고.
+  pastedChars?: number; // 감상 칸에 붙여넣은 총 글자 수 (인용 칸 제외)
+  pasteCount?: number; // 붙여넣기 횟수
+  writeMs?: number; // 시트를 연 뒤 정식 등록까지 걸린 시간(ms)
   isDraft: boolean;
   isPrivate?: boolean; // 🔒 선생님만 보기 (작성자 본인·교사에게만 내용 공개)
   tags?: string[]; // 책 종류 태그 (장르 분류)
@@ -63,6 +67,20 @@ export type ReportForm = Pick<
 export function reportBodyLength(f: ReportForm): number {
   return (f.scene + f.quote + f.summary + f.thoughts + (f.authorIntent ?? "") + (f.connect ?? ""))
     .length;
+}
+
+/** 복붙·속성 작성 의심 신호 (선생님만 참고) — 붙여넣기 비율·작성 속도.
+ *  paste/fast 신호 계산은 이 함수 하나에 모아 임계값을 한곳에서 관리한다. */
+export function reportSuspicion(r: ReadingReport2): { paste: boolean; fast: boolean; measured: boolean } {
+  const bodyLen =
+    ((r.summary ?? "") + (r.scene ?? "") + (r.thoughts ?? "") + (r.authorIntent ?? "") + (r.connect ?? "")).length;
+  const measured = r.pastedChars != null || r.writeMs != null; // 배포 후 작성분만 신호 있음
+  const pasted = r.pastedChars ?? 0;
+  // 붙여넣기: 감상 본문의 40% 이상을 붙였고, 그 양이 30자 이상
+  const paste = pasted >= 30 && bodyLen > 0 && pasted >= bodyLen * 0.4;
+  // 속성 작성: 200자 이상을 글자당 0.12초보다 빠르게 (700자면 84초 미만 — 타이핑으로 불가)
+  const fast = bodyLen >= 200 && (r.writeMs ?? Infinity) < bodyLen * 120;
+  return { paste, fast, measured };
 }
 
 /** { total: {sid: n}, byWeek: { [week]: {sid: n} } } — 권수는 쓴 만큼 그대로 (교사 ± 보정 포함)
@@ -221,11 +239,16 @@ export function useSaveReport(myId: number | null) {
       draftId?: string; // 이어쓰던 초안
       reportId?: string; // 수정 중인 정식본
       origWeek?: number; // 정식본 수정 시 원래 주차
+      // 복붙·속성 작성 신호 (정식 등록·수정 시에만 기록) — 선생님 참고용
+      detect?: { pastedChars: number; pasteCount: number; writeMs: number };
     }
   ): Promise<string> => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
+    const detect = opts.detect
+      ? { pastedChars: opts.detect.pastedChars, pasteCount: opts.detect.pasteCount, writeMs: opts.detect.writeMs }
+      : {};
     // 주차는 '저장하는 순간' 기준으로 재계산 — 페이지를 일요일 밤에 열어두고
     // 월요일에 등록하면 화면에 들고 있던 주차가 한 주 늦어 통계가 어긋난다.
     // 개학 전(방학)은 0주차 버킷 — 총권수·마라톤에는 포함되지만 주간 통계(스트릭·
@@ -255,7 +278,7 @@ export function useSaveReport(myId: number | null) {
 
     // ── 정식본 수정 (권수 변화 없음, 주차 유지) ──
     if (opts.reportId) {
-      await setDoc(doc(d, "readingReports", opts.reportId), base, { merge: true });
+      await setDoc(doc(d, "readingReports", opts.reportId), { ...base, ...detect }, { merge: true });
       void qc.invalidateQueries({ queryKey: ["readingReports"] });
       return opts.reportId;
     }
@@ -267,6 +290,7 @@ export function useSaveReport(myId: number | null) {
       isDraft: false,
       createdAt: Date.now(),
       ...base,
+      ...detect,
     });
     if (opts.draftId) await deleteDoc(doc(d, "readingDrafts", opts.draftId));
 

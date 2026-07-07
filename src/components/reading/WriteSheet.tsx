@@ -1,7 +1,7 @@
 "use client";
 // 감상문 전용 전체화면 쓰기 시트 — 긴 글도 편하게. 넓은 입력 + 고정 상/하단 바.
 // 시인성: placeholder에만 의존하지 않고 항목마다 진한 라벨, 흰 입력칸 + 또렷한 테두리.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useSaveReport,
   reportBodyLength,
@@ -75,6 +75,26 @@ export default function WriteSheet({
   const [prompts] = useState(() => PROMPTS[Math.floor(Math.random() * PROMPTS.length)]);
   const [doneBurst, setDoneBurst] = useState(0); // 정식 등록 성공 juice
 
+  // 복붙·작성 시간 신호 (A·B) — 선생님 참고용. 학생 흐름은 막지 않는다.
+  const openedAt = useRef(0);
+  const pasted = useRef({ chars: 0, count: 0 });
+  const [pasteHint, setPasteHint] = useState(false); // 큰 붙여넣기 시 부드러운 안내
+  useEffect(() => {
+    openedAt.current = Date.now();
+  }, []);
+  // 감상 칸에 붙여넣기 → 글자 수·횟수 누적 (인용 칸은 책 문장 옮겨적기라 제외)
+  const onPasteBody = (e: React.ClipboardEvent) => {
+    const t = e.clipboardData.getData("text") ?? "";
+    if (t.length >= 8) {
+      pasted.current.chars += t.length;
+      pasted.current.count += 1;
+      if (t.length >= 30) {
+        setPasteHint(true);
+        window.setTimeout(() => setPasteHint(false), 4000);
+      }
+    }
+  };
+
   // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
   const dirty = JSON.stringify(form) !== JSON.stringify(initialForm);
   async function handleClose() {
@@ -104,7 +124,15 @@ export default function WriteSheet({
     try {
       if (!draft && bodyLen < charLimit)
         throw new Error(`본문은 ${charLimit}자 이상이어야 정식 등록할 수 있어요. (현재 ${bodyLen}자) 🐢`);
-      await saveReport(form, { draft, draftId, reportId });
+      // 정식 등록·수정 시에만 신호 기록 (임시저장은 미기록 — 이어쓰기 중이라 무의미)
+      const detect = draft
+        ? undefined
+        : {
+            pastedChars: pasted.current.chars,
+            pasteCount: pasted.current.count,
+            writeMs: openedAt.current ? Date.now() - openedAt.current : 0,
+          };
+      await saveReport(form, { draft, draftId, reportId, detect });
       toast(
         draft
           ? "💾 임시저장 완료! 나중에 이어서 쓸 수 있어요."
@@ -200,22 +228,24 @@ export default function WriteSheet({
           </div>
           <div className="mt-3 space-y-3">
             <Field label="줄거리">
-              <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder={prompts.summary} rows={5} />
+              <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} onPaste={onPasteBody} placeholder={prompts.summary} rows={5} />
             </Field>
             <Field label="인상 깊은 장면">
-              <Textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} placeholder={prompts.scene} rows={4} />
+              <Textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} onPaste={onPasteBody} placeholder={prompts.scene} rows={4} />
             </Field>
             <Field label="마음에 남은 문장 (인용)">
+              {/* 인용은 책 문장을 옮겨적는 칸이라 붙여넣기 감지에서 제외 */}
               <Textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder={prompts.quote} rows={3} />
             </Field>
             <Field label="읽고 나서 든 생각과 느낌">
-              <Textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} placeholder={prompts.thoughts} rows={6} />
+              <Textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} onPaste={onPasteBody} placeholder={prompts.thoughts} rows={6} />
             </Field>
             {/* 생각 유도 질문 — 검색·복붙으로는 못 채우는 나만의 답 (사용자 요청) */}
             <Field label="✍️ 작가는 왜 이 글을 썼을까?">
               <Textarea
                 value={form.authorIntent ?? ""}
                 onChange={(e) => setForm({ ...form, authorIntent: e.target.value })}
+                onPaste={onPasteBody}
                 placeholder="작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요"
                 rows={3}
               />
@@ -224,10 +254,16 @@ export default function WriteSheet({
               <Textarea
                 value={form.connect ?? ""}
                 onChange={(e) => setForm({ ...form, connect: e.target.value })}
+                onPaste={onPasteBody}
                 placeholder="내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?"
                 rows={4}
               />
             </Field>
+            {pasteHint && (
+              <p className="rounded-btn bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-700">
+                📋 붙여넣기가 감지됐어요 — 직접 쓴 글일수록 더 좋아요 🙂
+              </p>
+            )}
           </div>
           <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-600">
             <input

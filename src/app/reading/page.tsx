@@ -17,6 +17,7 @@ import {
   useDeleteDraft,
   useAddReportComment,
   useDeleteReportComment,
+  reportSuspicion,
   BOOK_TAGS,
   type ReportForm,
   type ReadingReport2,
@@ -59,8 +60,23 @@ function ReportBody({
   const name = (id: number | "teacher") =>
     id === "teacher" ? "선생님" : (studentById.get(id)?.name ?? "?");
 
+  // 복붙·속성 작성 신호 — 선생님에게만 (학생 화면엔 안 보임)
+  const suspicion = role === "teacher" ? reportSuspicion(r) : null;
+
   return (
     <>
+      {suspicion && (suspicion.paste || suspicion.fast) && (
+        <div className="mb-3 rounded-btn bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+          🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
+          {[
+            suspicion.paste && `붙여넣기 ${r.pastedChars}자`,
+            suspicion.fast && `빠른 작성 (${Math.round((r.writeMs ?? 0) / 1000)}초)`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          <span className="ml-1 text-ink-400">— 복붙·AI 작성 의심 신호예요.</span>
+        </div>
+      )}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
@@ -608,6 +624,16 @@ export default function ReadingPage() {
                       {/* 1줄: 책 제목 + 잠금 */}
                       <span className="flex items-center gap-1.5">
                         {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
+                        {/* 선생님만 — 복붙·속성 작성 의심 표시 */}
+                        {role === "teacher" &&
+                          (() => {
+                            const sp = reportSuspicion(r);
+                            return sp.paste || sp.fast ? (
+                              <span className="shrink-0 text-xs" title="복붙·AI 작성 의심">
+                                🚩
+                              </span>
+                            ) : null;
+                          })()}
                         <b className="truncate text-[15px] text-ink-900">{r.title}</b>
                       </span>
                       {/* 2줄: 작가 · 작성자 칩 · 작성일 (1학기 기록은 학기 배지) */}
