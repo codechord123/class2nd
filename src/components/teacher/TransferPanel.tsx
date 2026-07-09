@@ -151,7 +151,7 @@ export default function TransferPanel() {
     if (!turningOff) {
       const ok = await confirm({
         title: `${sid}번을 전출 처리할까요?`,
-        body: "이름에 (전출)이 붙고, 모둠 평가 대상·칭찬 미션 계산에서 빠져요. 점수·기록은 지워지지 않고, 언제든 해제할 수 있어요.",
+        body: "이름에 (전출)이 붙고, 부서장 평가 대상·칭찬 미션 계산에서 빠져요. 점수·기록은 지워지지 않고, 언제든 해제할 수 있어요.",
         confirmLabel: "전출 처리",
         danger: true,
       });

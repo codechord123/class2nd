@@ -532,7 +532,7 @@ export default function TeamPage() {
         {/* 오늘 점수 출처 — 별도 줄 */}
         {myRow ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
-            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🤝 모둠 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🤝 부서장 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
             {myRow.groupRank !== 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">🏆 순위 +{myRow.groupRank}</span>
             )}

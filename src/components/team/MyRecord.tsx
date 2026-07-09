@@ -51,7 +51,7 @@ export default function MyRecord({
   const aggDate = todayRow ? today : latestAgg?.date;
   const parts = myRow
     ? [
-        { icon: "🤝", label: "모둠 평가", v: myRow.peer ?? 0 },
+        { icon: "🤝", label: "부서장 평가", v: myRow.peer ?? 0 },
         { icon: "🏆", label: "모둠 순위", v: myRow.groupRank ?? 0 },
         { icon: "💌", label: "칭찬 미션", v: myRow.mission ?? 0 },
         { icon: "🙌", label: "오늘의 부서장", v: myRow.boss ?? 0 },

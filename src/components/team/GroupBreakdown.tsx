@@ -15,7 +15,7 @@ const COUNTED: { key: keyof GroupDayScore; icon: string; label: string }[] = [
   { key: "bonus", icon: "🎁", label: "보너스" },
 ];
 const PERSONAL_ONLY: { key: keyof GroupDayScore; icon: string; label: string }[] = [
-  { key: "peer", icon: "🤝", label: "모둠 평가" },
+  { key: "peer", icon: "🤝", label: "부서장 평가" },
   { key: "boss", icon: "👑", label: "부서장 득표" },
   { key: "mvp", icon: "⭐", label: "MVP" },
 ];
