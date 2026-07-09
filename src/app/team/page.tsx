@@ -75,7 +75,7 @@ export default function TeamPage() {
 
   const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
   const [groupTab, setGroupTab] = useState<"recap" | "vs" | "breakdown" | "class">("recap"); // 모둠·학급 하위 탭
-  const [meTab, setMeTab] = useState<"stats" | "eval" | "hearts">("stats"); // 내 기록 하위 탭
+  const [meTab, setMeTab] = useState<"stats" | "received">("stats"); // 내 기록 하위 탭
   const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
   const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
   const [tDate, setTDate] = useState(todayKST()); // 교사 모둠 기록 날짜별 보기
@@ -1035,15 +1035,19 @@ export default function TeamPage() {
           <SubTabs
             tabs={[
               { key: "stats" as const, label: "📒 내 기록" },
-              { key: "eval" as const, label: "🤝 받은 평가·이의제기" },
-              { key: "hearts" as const, label: "💌 받은 마음" },
+              { key: "received" as const, label: "💌 받은 것" },
             ]}
             active={meTab}
             onChange={setMeTab}
           />
           {meTab === "stats" && <MyRecord studentId={studentId} cumScores={cumScores} />}
-          {meTab === "eval" && <ReceivedPeerEval studentId={studentId} />}
-          {meTab === "hearts" && <ReceivedNotes studentId={studentId} />}
+          {meTab === "received" && (
+            // 받은 부서장 평가(+이의제기) + 받은 칭찬·건의를 한곳에 (스크롤·발견성 개선)
+            <div className="space-y-4">
+              <ReceivedPeerEval studentId={studentId} />
+              <ReceivedNotes studentId={studentId} />
+            </div>
+          )}
         </div>
       )}
 
