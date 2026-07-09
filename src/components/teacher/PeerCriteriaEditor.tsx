@@ -4,16 +4,57 @@
 import { useState } from "react";
 import { ROLE_INFO } from "@/lib/roster";
 import type { RoleKey } from "@/types";
-import { usePeerCriteria, useSavePeerCriteria, type PeerCriteria } from "@/lib/query/classMeta";
-import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
+import {
+  usePeerCriteria,
+  useSavePeerCriteria,
+  useConstitution,
+  useSaveConstitution,
+  type PeerCriteria,
+} from "@/lib/query/classMeta";
+import { DEFAULT_PEER_CRITERIA, DEPT_LAW_ARTICLES } from "@/lib/peerCriteria";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function PeerCriteriaEditor() {
   const { data: saved } = usePeerCriteria();
   const save = useSavePeerCriteria();
-  const { toast } = useFeedback();
+  const { data: constitution } = useConstitution();
+  const saveConstitution = useSaveConstitution();
+  const { toast, confirm } = useFeedback();
   const [draft, setDraft] = useState<PeerCriteria | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 부서장 평가 기준의 법률 조항 버전을 헌법의 부서별 법률(lawsByDept)에 추가 (중복 제외)
+  async function addToLaws() {
+    if (busy || !constitution) return;
+    const ok = await confirm({
+      title: "부서장 평가 기준을 법률로 추가할까요?",
+      body: "부서별 법률 조항으로 다듬은 문장을 헌법의 각 부서 법률에 넣어요 (이미 있는 문장은 건너뜀). 아이들이 만든 법률은 지워지지 않아요.",
+      confirmLabel: "법률에 추가",
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const lawsByDept = { ...(constitution.lawsByDept ?? {}) };
+      let added = 0;
+      for (const [dept, arts] of Object.entries(DEPT_LAW_ARTICLES)) {
+        const existing = lawsByDept[dept] ?? [];
+        const merged = [...existing];
+        for (const a of arts) {
+          if (!existing.includes(a)) {
+            merged.push(a);
+            added++;
+          }
+        }
+        lawsByDept[dept] = merged;
+      }
+      await saveConstitution({ ...constitution, lawsByDept });
+      toast(added > 0 ? `부서별 법률 ${added}개를 추가했어요.` : "이미 모두 법률에 있어요.", "success");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "추가에 실패했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const cur = draft ?? saved ?? DEFAULT_PEER_CRITERIA;
   const dirty = JSON.stringify(cur) !== JSON.stringify(saved ?? DEFAULT_PEER_CRITERIA);
@@ -90,6 +131,20 @@ export default function PeerCriteriaEditor() {
           className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           {busy ? "저장 중…" : "기준 저장"}
+        </button>
+      </div>
+      {/* 법률 만들기 활동 연동 — 평가 기준을 부서별 법률 조항으로 헌법에 추가 */}
+      <div className="rounded-btn border border-dashed border-brand/40 bg-brand-weak/30 p-3">
+        <p className="text-[13px] text-ink-600">
+          📜 이 평가 기준을 <b>부서별 법률</b>로 헌법에 넣을 수 있어요 (법률 만들기 활동용). 규범형
+          문장으로 다듬어 추가하고, 아이들이 만든 법률은 그대로 둬요.
+        </p>
+        <button
+          onClick={() => void addToLaws()}
+          disabled={busy}
+          className="press mt-2 rounded-btn bg-slate-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+        >
+          📜 부서별 법률로 추가
         </button>
       </div>
     </div>
