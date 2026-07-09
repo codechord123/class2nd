@@ -542,6 +542,9 @@ export default function TeamPage() {
             {(myRow.mission ?? 0) > 0 && (
               <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">🎯 미션 +{myRow.mission}</span>
             )}
+            {(myRow.comp ?? 0) > 0 && (
+              <span className="rounded-full bg-pink-100 px-2 py-0.5 text-pink-600">💌 칭찬 +{myRow.comp}</span>
+            )}
             {(myRow.boss ?? 0) > 0 && (
               <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">👑 부서장 표 +{myRow.boss}</span>
             )}

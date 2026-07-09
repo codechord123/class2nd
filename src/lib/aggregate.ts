@@ -22,8 +22,9 @@ import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
-import type { ClassSettings, DailyScoreRow } from "@/types";
+import type { ClassSettings, DailyScoreRow, RoleKey } from "@/types";
 import { groupDayScore } from "@/lib/groupScore";
+import { peerScoreFromChecks } from "@/lib/peerCriteria";
 
 export interface AggregateResult {
   date: string;
@@ -47,9 +48,13 @@ export interface AggregateResult {
 // silverEarned는 델타(increment)로만 쓴다 — 수동 지급 경로와 겹쳐도 증분이 유실되지 않게.
 const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
-// 독서 하루 점수 상한 — 감상문을 몰아 써도 그날 점수는 이만큼까지만 (권수 기록은 캡 없음).
-// 순위표(설정)처럼 자주 바꾸진 않아 상수로 둔다 (사용자 확정: 2권).
+// 독서 하루 점수 상한 — 감상문을 몰아 써도 그날 점수는 이만큼 권수까지만 (권수 기록은 캡 없음).
+// 순위표(설정)처럼 자주 바꾸진 않아 상수로 둔다 (사용자 확정: 2권, 3권 허용 시 부정 우려).
 const DAILY_READ_CAP = 2;
+// 감상문 1권당 점수 (사용자 확정: 개인 노력 비중을 높이려 1→2점).
+const READ_POINTS_PER_BOOK = 2;
+// 칭찬 개인 점수 상한 (present 모둠원 전원 칭찬 시 만점).
+const COMP_MAX = 2;
 
 // ── 집계 락 ─────────────────────────────────────────────────────
 // 집계·정산은 "읽고 → 계산 → 여러 문서에 쓰기"라 두 실행이 겹치면 늦게 쓴 쪽이
@@ -273,6 +278,8 @@ async function aggregateDateInner(
   const toTeacher: { from: number; text: string }[] = [];
   const reflections: { from: number; text: string }[] = []; // 세션 모둠 반성 (마지막 주말 작성)
   const bossReasons: { from: number; to: number; text: string }[] = []; // 부서장 투표 이유 (인기투표 억제·리포트 근거)
+  // 부서장 평가 O/X 상세 — 실명 공개·이의제기용 (수신자별로 접어 저장)
+  const peerChecksRaw: { from: number; to: number; checks: boolean[] }[] = [];
   evalSnap.forEach((entry) => {
     const data = entry.data();
     const from = Number(entry.id);
@@ -281,6 +288,12 @@ async function aggregateDateInner(
       if (Number(targetId) === from) continue; // 자기 점수 무효 (조작 방지)
       if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
     }
+    // O/X 체크 상세 (신버전) — 점수는 위 숫자 필드로 이미 합산됨. 여기선 표시·이의제기용만.
+    const pc = data._peerChecks as Record<string, boolean[]> | undefined;
+    if (pc)
+      for (const [to, checks] of Object.entries(pc))
+        if (Number(to) !== from && Array.isArray(checks))
+          peerChecksRaw.push({ from, to: Number(to), checks: checks.map(Boolean) });
     if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from) {
       mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 취소, 자기 투표 무효
       const reason = (data._mvpReason as string | undefined)?.trim();
@@ -333,10 +346,28 @@ async function aggregateDateInner(
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
   const groupOfStudent: Record<number, number> = {};
+  const roleOf: Record<number, RoleKey> = {};
   for (const g of schedule.groups) {
     groupOfStudent[g.chair] = g.groupId;
-    for (const m of g.members) groupOfStudent[m.studentId] = g.groupId;
+    roleOf[g.chair] = "소통"; // 의장 = 소통 부서장
+    for (const m of g.members) {
+      groupOfStudent[m.studentId] = g.groupId;
+      roleOf[m.studentId] = m.role;
+    }
   }
+
+  // 부서장 평가 O/X 상세를 수신자별로 접는다 — 실명 공개·이의제기용 (점수는 peer[]로 이미 합산).
+  const peerDetail: Record<
+    string,
+    { from: number; dept: RoleKey; checks: boolean[]; score: number }[]
+  > = {};
+  for (const pc of peerChecksRaw)
+    (peerDetail[String(pc.to)] ??= []).push({
+      from: pc.from,
+      dept: roleOf[pc.from],
+      checks: pc.checks,
+      score: peerScoreFromChecks(pc.checks),
+    });
 
   // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로, 개학 이후 날짜만)
   //      임시저장 잔존 문서(isDraft)는 절대 세지 않는다 — 초안은 점수가 아니다 (사용자 확정)
@@ -365,6 +396,25 @@ async function aggregateDateInner(
   }
   const missionSet = new Set(missionGroups);
 
+  // 4-1b) 칭찬 개인 점수(comp) — '하는 것'에 개인 점수를 준다 (사용자 확정).
+  //   comp = 내림(2 × 칭찬한 present 모둠원 수 / present 모둠원 수), 최대 2.
+  //   만점을 받으려면 present 모둠원 '전원'을 칭찬해야 하므로, 편 갈라 배제하면 본인이 손해다.
+  //   present 모둠원 수(T)는 결석·전출을 자동으로 뺀다 → 결석 규칙과 자연히 연결.
+  const givenTo: Record<number, Set<number>> = {};
+  for (const c of compliments) (givenTo[c.from] ??= new Set()).add(c.to);
+  const comp: Record<number, number> = {};
+  for (const g of schedule.groups) {
+    const ids = activeIdsOf(g);
+    const idSet = new Set(ids);
+    for (const id of ids) {
+      const T = ids.length - 1; // 자신 제외한 present 모둠원 수
+      if (T <= 0) continue;
+      const given = givenTo[id];
+      const c = given ? [...given].filter((to) => to !== id && idSet.has(to)).length : 0;
+      comp[id] = Math.min(Math.floor((2 * c) / T), COMP_MAX);
+    }
+  }
+
   // 4-2) 오늘의 부서장 (투표): 각 모둠 최다 득표(1표 이상, 동점 모두).
   //      "그날 부서 일을 가장 잘한 사람" — 최다 득표자에게 고정 +1점 (득표수 비례 아님).
   //      투표 시 이유를 필수로 받아(UI) 인기투표를 억제한다 (사용자 확정).
@@ -389,6 +439,7 @@ async function aggregateDateInner(
       groupRank: number;
       bonus: number;
       mission: number;
+      comp: number;
       boss: number;
       read: number;
       sum: number;
@@ -409,16 +460,19 @@ async function aggregateDateInner(
     const bonus = prevRow?.bonus ?? 0;
     const mission = !absent && missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
     const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1 (결석은 bossSet에서 이미 제외)
-    // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지만 점수 (권수 기록은 캡 없음)
-    const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP);
+    // 칭찬 개인 점수 — 결석 학생은 칭찬을 못 하니 자연히 0 (comp에 없음)
+    const cm = comp[s.id] ?? 0;
+    // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지, 권당 READ_POINTS_PER_BOOK점 (권수 기록은 캡 없음)
+    const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP) * READ_POINTS_PER_BOOK;
     baseParts[s.id] = {
       peer: p,
       groupRank: gr,
       bonus,
       mission,
+      comp: cm,
       boss,
       read,
-      sum: p + gr + bonus + mission + boss + read,
+      sum: p + gr + bonus + mission + cm + boss + read,
     };
   }
 
@@ -455,6 +509,7 @@ async function aggregateDateInner(
       groupRank: b.groupRank,
       bonus: b.bonus,
       mission: b.mission,
+      comp: b.comp,
       boss: b.boss,
       mvp,
       read: b.read,
@@ -628,6 +683,7 @@ async function aggregateDateInner(
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
         missionGroups,
+        peerDetail, // 부서장 평가 O/X 상세 (수신자별 — 실명 공개·이의제기용)
         compliments,
         peerSuggestions,
         toTeacher,
@@ -1016,6 +1072,7 @@ export async function addBonus(date: string, studentId: number, delta: number): 
           prevRow.groupRank +
           newBonus +
           (prevRow.mission ?? 0) +
+          (prevRow.comp ?? 0) +
           (prevRow.boss ?? 0) +
           (prevRow.mvp ?? 0) +
           (prevRow.read ?? 0) +

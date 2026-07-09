@@ -14,6 +14,7 @@ export interface GroupDayScore {
   bonus: number; // 교사 보너스 합
   // 참고용 — 개인 점수에만 들어가는 항목의 모둠 합 (화면 안내 표시)
   peer: number;
+  comp: number; // 칭찬하기 개인 점수 (몰아주기 무관 — 개인 전용)
   boss: number;
   mvp: number;
 }
@@ -29,6 +30,7 @@ export function groupDayScore(
     read: 0,
     bonus: 0,
     peer: 0,
+    comp: 0,
     boss: 0,
     mvp: 0,
   };
@@ -40,6 +42,7 @@ export function groupDayScore(
     s.read += r.read ?? 0;
     s.bonus += r.bonus ?? 0;
     s.peer += r.peer ?? 0;
+    s.comp += r.comp ?? 0;
     s.boss += r.boss ?? 0;
     s.mvp += r.mvp ?? 0;
   }

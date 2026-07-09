@@ -14,6 +14,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import type { RoleKey } from "@/types";
+import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
 
 // ── 오늘의 모둠 순위: classData/bestGroups = { [date]: { groupId(1위), chairId, ranking } } ──
 // ranking = [1위 모둠, 2위 모둠, …] — 집계에서 rankPoints(기본 5·4·3·2·1점) 배분.
@@ -42,6 +44,31 @@ export function useSetBestGroup() {
       ...prev,
       [date]: entry,
     }));
+  };
+}
+
+// ── 부서장 평가 O/X 기준: classData/peerCriteria = { [role]: string[] } ──
+// 교사가 부서별 기준을 편집(추가/삭제/수정). 미설정이면 코드 기본값(DEFAULT_PEER_CRITERIA).
+export type PeerCriteria = Record<RoleKey, string[]>;
+
+export function usePeerCriteria() {
+  return useQuery({
+    queryKey: ["peerCriteria"],
+    queryFn: async (): Promise<PeerCriteria> => {
+      const snap = await getDoc(doc(db(), "classData", "peerCriteria"));
+      return snap.exists()
+        ? { ...DEFAULT_PEER_CRITERIA, ...(snap.data() as Partial<PeerCriteria>) }
+        : DEFAULT_PEER_CRITERIA;
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useSavePeerCriteria() {
+  const qc = useQueryClient();
+  return async (criteria: PeerCriteria) => {
+    await setDoc(doc(db(), "classData", "peerCriteria"), criteria);
+    qc.setQueryData(["peerCriteria"], criteria);
   };
 }
 

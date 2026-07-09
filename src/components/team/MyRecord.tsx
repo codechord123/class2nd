@@ -53,7 +53,8 @@ export default function MyRecord({
     ? [
         { icon: "🤝", label: "부서장 평가", v: myRow.peer ?? 0 },
         { icon: "🏆", label: "모둠 순위", v: myRow.groupRank ?? 0 },
-        { icon: "💌", label: "칭찬 미션", v: myRow.mission ?? 0 },
+        { icon: "🎯", label: "칭찬 미션", v: myRow.mission ?? 0 },
+        { icon: "💌", label: "칭찬하기", v: myRow.comp ?? 0 },
         { icon: "🙌", label: "오늘의 부서장", v: myRow.boss ?? 0 },
         { icon: "⭐", label: "MVP", v: myRow.mvp ?? 0 },
         { icon: "👑", label: "오늘의 모둠", v: myRow.best ?? 0 },

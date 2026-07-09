@@ -40,7 +40,8 @@ export interface DailyScoreRow {
   peer: number; // 모둠 내 받은 점수 합 (부서장 상호평가)
   groupRank: number; // 선생님이 매긴 오늘의 모둠 순위 → 개인 점수
   bonus: number; // 교사 보너스
-  mission?: number; // 모둠 칭찬 미션(전원 칭찬받기) 달성 시 +1
+  mission?: number; // 모둠 칭찬 미션(전원 칭찬받기) 달성 시 +1 (팀 점수)
+  comp?: number; // 칭찬 개인 점수 — 내림(2×칭찬한수/present 모둠원수), 최대 2 (몰아주기 없이 전원 칭찬해야 만점)
   boss?: number; // 오늘의 부서장(최다 득표자) 고정 +1 (몰표 방지 — 득표수 비례 폐지)
   mvp?: number; // 그날 기본 점수 모둠 1위 +1 · 학급 1위 +1 추가 (합 +2, 동점 모두)
   read?: number; // 그날 감상문 편수 (하루 2권까지만 점수 — 권수 기록은 캡 없음)
