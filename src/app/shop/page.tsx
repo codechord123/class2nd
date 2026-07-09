@@ -3,6 +3,8 @@
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
 import { useState } from "react";
 import { useSession } from "@/stores/session";
+import { todayKST } from "@/lib/date";
+import { SEMESTER_START } from "@/lib/schedule";
 import { getS1WalletOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
 import ShopAdmin from "@/components/teacher/ShopAdmin";
@@ -38,8 +40,10 @@ export default function ShopPage() {
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
 
+  // 베타(개학 전): 2학기 실버·골드는 사용 불가 — 이월(1학기) 코인만 쓸 수 있다(사용자 확정).
+  const beta = todayKST() < SEMESTER_START;
   const [tab, setTab] = useState<"shop" | "history">("shop");
-  const [wallet, setWallet] = useState<WalletKind>("s2");
+  const [wallet, setWallet] = useState<WalletKind>(beta ? "s1" : "s2");
   const [busy, setBusy] = useState(false);
   const [directOpen, setDirectOpen] = useState(false);
   const [menuName, setMenuName] = useState(""); // 메뉴 제안 이름
@@ -107,6 +111,10 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
+    if (beta && m.wallet === "gold") {
+      toast("개학 전(베타)이라 골드는 아직 못 써요 — 이월 실버만 쓸 수 있어요! 🐢", "warn");
+      return;
+    }
     if (m.wallet === "gold") {
       // 골드는 학급 공용 재화 — 사용 신청은 학급 회장만 (사용자 확정, 설정에서 지정)
       if (role === "student" && studentId !== settings?.presidentId) {
@@ -213,7 +221,7 @@ export default function ShopPage() {
           {tab === "shop" && (
             <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-2">
               <span className="shrink-0 text-xs text-ink-400">결제 지갑</span>
-              {(["s2", "s1"] as const).map((w) => (
+              {(beta ? (["s1"] as const) : (["s2", "s1"] as const)).map((w) => (
                 <button
                   key={w}
                   onClick={() => setWallet(w)}
@@ -224,6 +232,11 @@ export default function ShopPage() {
                   {w === "s2" ? `2학기 (${myS2Balance})` : `이월 (${myS1Remaining})`}
                 </button>
               ))}
+              {beta && (
+                <span className="rounded-full bg-brand-weak px-2 py-1 text-[11px] font-bold text-brand-strong">
+                  🐢 개학 전이라 이월 실버만 써요
+                </span>
+              )}
               {(s2Hold > 0 || s1Hold > 0) && (
                 <span className="text-[11px] text-ink-400">
                   ⏳ 승인 대기로 잡힌 실버{s2Hold > 0 && ` 2학기 ${s2Hold}`}

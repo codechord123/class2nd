@@ -19,7 +19,7 @@ import {
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { weekOfDate } from "@/lib/date";
+import { todayKST, weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow, RoleKey } from "@/types";
@@ -86,6 +86,9 @@ async function grantMilestones(
   extraSilver: Record<string, number>, // 이번에 다른 자동 경로로 지급된 실버(세션 보상)
   reason: string
 ): Promise<{ silver: Record<string, number>; gold: number }> {
+  // 베타(개학 전)엔 2학기 실버·골드를 지급하지 않는다 — 개학부터 진짜(사용자 확정).
+  // 점수(누적)는 그대로 쌓이되 실버는 0으로 유지되어, 베타 초기화 후 자동 복원도 막힌다.
+  if (todayKST() < SEMESTER_START) return { silver: {}, gold: 0 };
   const d = db();
   const scorePaid = { ...((cum.scoreSilverPaid as Record<string, number>) ?? {}) };
   const earned = { ...((cum.silverEarned as Record<string, number>) ?? {}) };

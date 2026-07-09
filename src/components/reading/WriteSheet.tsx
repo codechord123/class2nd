@@ -78,21 +78,35 @@ export default function WriteSheet({
   // 복붙·작성 시간 신호 (A·B) — 선생님 참고용. 학생 흐름은 막지 않는다.
   const openedAt = useRef(0);
   const pasted = useRef({ chars: 0, count: 0 });
+  const justPasted = useRef(false); // onPaste 직후 onChange 중복 집계 방지
   const [pasteHint, setPasteHint] = useState(false); // 큰 붙여넣기 시 부드러운 안내
   useEffect(() => {
     openedAt.current = Date.now();
   }, []);
+  const flagInsert = (n: number) => {
+    pasted.current.chars += n;
+    pasted.current.count += 1;
+    if (n >= 30) {
+      setPasteHint(true);
+      window.setTimeout(() => setPasteHint(false), 4000);
+    }
+  };
   // 감상 칸에 붙여넣기 → 글자 수·횟수 누적 (인용 칸은 책 문장 옮겨적기라 제외)
   const onPasteBody = (e: React.ClipboardEvent) => {
+    justPasted.current = true; // 곧 onChange가 뒤따르므로 그쪽 집계는 건너뛴다
     const t = e.clipboardData.getData("text") ?? "";
-    if (t.length >= 8) {
-      pasted.current.chars += t.length;
-      pasted.current.count += 1;
-      if (t.length >= 30) {
-        setPasteHint(true);
-        window.setTimeout(() => setPasteHint(false), 4000);
-      }
+    if (t.length >= 8) flagInsert(t.length);
+  };
+  // 입력량이 한 번에 크게 늘면(붙여넣기·자동삽입·받아쓰기 등) 방식과 무관하게 삽입으로 본다.
+  // 디벗(iPad)에서 붙여넣기가 onPaste를 안 태우는 경우까지 잡는 핵심 신호.
+  const BULK_INSERT = 15;
+  const noteInsert = (oldV: string, newV: string) => {
+    if (justPasted.current) {
+      justPasted.current = false; // onPaste에서 이미 집계함
+      return;
     }
+    const delta = newV.length - oldV.length;
+    if (delta >= BULK_INSERT) flagInsert(delta);
   };
 
   // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
@@ -228,23 +242,23 @@ export default function WriteSheet({
           </div>
           <div className="mt-3 space-y-3">
             <Field label="줄거리">
-              <Textarea value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} onPaste={onPasteBody} placeholder={prompts.summary} rows={5} />
+              <Textarea value={form.summary} onChange={(e) => { noteInsert(form.summary, e.target.value); setForm({ ...form, summary: e.target.value }); }} onPaste={onPasteBody} placeholder={prompts.summary} rows={5} />
             </Field>
             <Field label="인상 깊은 장면">
-              <Textarea value={form.scene} onChange={(e) => setForm({ ...form, scene: e.target.value })} onPaste={onPasteBody} placeholder={prompts.scene} rows={4} />
+              <Textarea value={form.scene} onChange={(e) => { noteInsert(form.scene, e.target.value); setForm({ ...form, scene: e.target.value }); }} onPaste={onPasteBody} placeholder={prompts.scene} rows={4} />
             </Field>
             <Field label="마음에 남은 문장 (인용)">
               {/* 인용은 책 문장을 옮겨적는 칸이라 붙여넣기 감지에서 제외 */}
               <Textarea value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder={prompts.quote} rows={3} />
             </Field>
             <Field label="읽고 나서 든 생각과 느낌">
-              <Textarea value={form.thoughts} onChange={(e) => setForm({ ...form, thoughts: e.target.value })} onPaste={onPasteBody} placeholder={prompts.thoughts} rows={6} />
+              <Textarea value={form.thoughts} onChange={(e) => { noteInsert(form.thoughts, e.target.value); setForm({ ...form, thoughts: e.target.value }); }} onPaste={onPasteBody} placeholder={prompts.thoughts} rows={6} />
             </Field>
             {/* 생각 유도 질문 — 검색·복붙으로는 못 채우는 나만의 답 (사용자 요청) */}
             <Field label="✍️ 작가는 왜 이 글을 썼을까?">
               <Textarea
                 value={form.authorIntent ?? ""}
-                onChange={(e) => setForm({ ...form, authorIntent: e.target.value })}
+                onChange={(e) => { noteInsert(form.authorIntent ?? "", e.target.value); setForm({ ...form, authorIntent: e.target.value }); }}
                 onPaste={onPasteBody}
                 placeholder="작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요"
                 rows={3}
@@ -253,7 +267,7 @@ export default function WriteSheet({
             <Field label="🙋 이 책을 나와 연결하면?">
               <Textarea
                 value={form.connect ?? ""}
-                onChange={(e) => setForm({ ...form, connect: e.target.value })}
+                onChange={(e) => { noteInsert(form.connect ?? "", e.target.value); setForm({ ...form, connect: e.target.value }); }}
                 onPaste={onPasteBody}
                 placeholder="내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?"
                 rows={4}
