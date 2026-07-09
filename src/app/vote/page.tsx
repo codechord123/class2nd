@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById, students } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
+import VoteBoardTabs from "@/components/VoteBoardTabs";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -493,6 +494,7 @@ export default function VotePage() {
 
   return (
     <div className="space-y-4">
+      <VoteBoardTabs current="vote" />
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
           <h3 className="text-lg font-bold">🗳️ 투표 게시판</h3>

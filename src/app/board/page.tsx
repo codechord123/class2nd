@@ -8,6 +8,7 @@ import { useSession } from "@/stores/session";
 import { ROLE_INFO, studentById } from "@/lib/roster";
 import { CIRCLED_NUMS, serializeClauses } from "@/lib/lawText";
 import Linkify from "@/components/ui/Linkify";
+import VoteBoardTabs from "@/components/VoteBoardTabs";
 import LawClause from "@/components/ui/LawClause";
 import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
@@ -760,6 +761,7 @@ export default function BoardPage() {
 
   return (
     <div className="space-y-4">
+      <VoteBoardTabs current="board" />
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
           <h3 className="text-lg font-bold">📬 안건·토론</h3>

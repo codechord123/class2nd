@@ -16,8 +16,8 @@ export const TABS = [
   { href: "/team", label: "모둠", accent: "bg-orange-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
   { href: "/shop", label: "상점", accent: "bg-pink-500" },
-  { href: "/vote", label: "투표", accent: "bg-violet-500" },
-  { href: "/board", label: "건의", accent: "bg-sky-500" },
+  // 투표·건의를 한 탭으로 — 페이지 상단 스위처로 오간다. alt: 이 경로에서도 탭이 활성화됨.
+  { href: "/vote", label: "투표·건의", accent: "bg-violet-500", alt: "/board" },
   { href: "/seats", label: "자리", accent: "bg-amber-500" },
   { href: "/guide", label: "안내", accent: "bg-teal-600" },
 ] as const;
@@ -25,7 +25,7 @@ export const TABS = [
 /** 교사 오버라이드(nav.order / nav.label.*) 적용한 탭 목록 */
 export function applyTabConfig(
   uiText: Record<string, string> | undefined
-): { href: string; label: string; accent: string }[] {
+): { href: string; label: string; accent: string; alt?: string }[] {
   const base = TABS.map((t) => ({
     ...t,
     label: uiText?.[`nav.label.${t.href}`]?.trim() || t.label,
@@ -106,8 +106,11 @@ export default function TabNav() {
       >
         <ul className="flex gap-1.5 pb-2 text-sm whitespace-nowrap">
           {tabs.map((t) => {
+            const alt = (t as { alt?: string }).alt;
             const active =
-              t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
+              t.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(t.href) || (alt ? pathname.startsWith(alt) : false);
             return (
               <li key={t.href}>
                 <Link
