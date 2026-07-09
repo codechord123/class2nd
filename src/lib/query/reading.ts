@@ -301,22 +301,25 @@ export function useSaveReport(myId: number | null) {
     });
     if (opts.draftId) await deleteDoc(doc(d, "readingDrafts", opts.draftId));
 
-    await setDoc(
-      doc(d, "readingStats", "main"),
-      { total: { [myId]: increment(1) }, byWeek: { [week]: { [myId]: increment(1) } } },
-      { merge: true }
-    );
-    qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
-      const p = prev ?? {};
-      return {
-        ...p,
-        total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
-        byWeek: {
-          ...p.byWeek,
-          [week]: { ...p.byWeek?.[week], [myId]: (p.byWeek?.[week]?.[myId] ?? 0) + 1 },
-        },
-      };
-    });
+    // 교사 저자(id 0)의 글은 학생 권수·마라톤 통계에 넣지 않는다 (예시·모델용)
+    if (myId > 0) {
+      await setDoc(
+        doc(d, "readingStats", "main"),
+        { total: { [myId]: increment(1) }, byWeek: { [week]: { [myId]: increment(1) } } },
+        { merge: true }
+      );
+      qc.setQueryData(STATS_KEY, (prev: ReadingStats | undefined) => {
+        const p = prev ?? {};
+        return {
+          ...p,
+          total: { ...p.total, [myId]: (p.total?.[myId] ?? 0) + 1 },
+          byWeek: {
+            ...p.byWeek,
+            [week]: { ...p.byWeek?.[week], [myId]: (p.byWeek?.[week]?.[myId] ?? 0) + 1 },
+          },
+        };
+      });
+    }
     void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
     return ref.id;

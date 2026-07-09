@@ -39,6 +39,11 @@ type Tab = "write" | "list";
 // 게시판 통합용 — 1학기 정적 감상문을 2학기 형태에 얹은 것 (s1=true면 수정·삭제·댓글 없음)
 type ListReport = ReadingReport2 & { s1?: boolean; s1Date?: string };
 
+// 교사 저자 센티넬 — 학생 번호는 1~25이므로 0을 '선생님'으로 쓴다 (권수·마라톤엔 미포함)
+const TEACHER_READER_ID = 0;
+const authorNameOf = (id: number) =>
+  id === TEACHER_READER_ID ? "선생님" : (studentById.get(id)?.name ?? "?");
+
 // ── 감상문 본문 + 댓글 ───────────────────────────────────────────
 function ReportBody({
   r,
@@ -262,15 +267,17 @@ export default function ReadingPage() {
   const { role, studentId } = useSession();
   const { toast, confirm } = useFeedback();
   const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
+  // 교사도 독서 감상문을 쓸 수 있게 — 저자 id 0(=선생님) 센티넬. 학생 권수·마라톤엔 안 섞인다.
+  const authorId = role === "teacher" ? TEACHER_READER_ID : studentId;
 
   const { data: stats } = useReadingStats();
   // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (fetch는 현재 페이지까지 +1로 다음 페이지 존재 탐지)
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const { data: reports } = useRecentReports(page * pageSize + 1);
-  const { data: myDrafts } = useMyDrafts(studentId);
+  const { data: myDrafts } = useMyDrafts(authorId);
   const deleteReport = useDeleteReport();
-  const deleteDraft = useDeleteDraft(studentId);
+  const deleteDraft = useDeleteDraft(authorId);
 
   const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
   const [search, setSearch] = useState("");
@@ -354,7 +361,7 @@ export default function ReadingPage() {
       // 잠긴 글은 내용이 검색으로 새어나가지 않게 이름만 대상
       const hay = isLocked(r)
         ? (studentById.get(r.studentId)?.name ?? "").toLowerCase()
-        : `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${studentById.get(r.studentId)?.name ?? ""}`.toLowerCase();
+        : `${r.title} ${r.author} ${r.summary} ${r.thoughts} ${(r.tags ?? []).join(" ")} ${authorNameOf(r.studentId)}`.toLowerCase();
       return hay.includes(kw);
     });
 
@@ -451,7 +458,7 @@ export default function ReadingPage() {
               )}
               <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-600 lg:justify-center">
                 <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
-                  {studentById.get(r.studentId)?.name}
+                  {authorNameOf(r.studentId)}
                 </span>
                 {r.s1 ? (
                   <span className="tnum">1학기 · {r.s1Date}</span>
@@ -500,9 +507,9 @@ export default function ReadingPage() {
           </div>
         </section>
         {/* 전체화면 쓰기 시트 — 상세에서 수정 눌러도 열리도록 유지 */}
-        {sheetOpen && studentId && (
+        {sheetOpen && authorId != null && (
           <WriteSheet
-            studentId={studentId}
+            studentId={authorId}
             week={week}
             initial={sheetInitial}
             onClose={() => setSheetOpen(false)}
@@ -536,8 +543,8 @@ export default function ReadingPage() {
         onChange={setTab}
       />
 
-      {/* ✍️ 쓰기 — 런처(버튼) + 내 임시저장. 실제 작성은 전체화면 시트 */}
-      {tab === "write" && studentId && (
+      {/* ✍️ 쓰기 — 런처(버튼) + 내 임시저장. 실제 작성은 전체화면 시트 (교사도 작성 가능) */}
+      {tab === "write" && authorId != null && (
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <button
             onClick={openNew}
@@ -652,7 +659,7 @@ export default function ReadingPage() {
                     <BookCover r={r} size="sm" locked />
                     <span className="flex min-w-0 flex-1 items-center gap-2">
                       <span className="shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold text-ink-500">
-                        {studentById.get(r.studentId)?.name}
+                        {authorNameOf(r.studentId)}
                       </span>
                       <span className="text-sm font-bold text-ink-400">🔒 비공개 글</span>
                     </span>
@@ -699,7 +706,7 @@ export default function ReadingPage() {
                         {r.author && <span className="max-w-[9rem] truncate">{r.author}</span>}
                         {r.author && <span>·</span>}
                         <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
-                          {studentById.get(r.studentId)?.name}
+                          {authorNameOf(r.studentId)}
                         </span>
                         {r.s1 ? (
                           <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">
@@ -748,9 +755,9 @@ export default function ReadingPage() {
       )}
 
       {/* 전체화면 쓰기 시트 */}
-      {sheetOpen && studentId && (
+      {sheetOpen && authorId != null && (
         <WriteSheet
-          studentId={studentId}
+          studentId={authorId}
           week={week}
           initial={sheetInitial}
           onClose={() => setSheetOpen(false)}

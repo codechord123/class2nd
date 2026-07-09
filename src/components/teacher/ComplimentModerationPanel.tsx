@@ -5,6 +5,7 @@ import { useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { studentById } from "@/lib/roster";
+import { shiftDate, todayKST } from "@/lib/date";
 import { aggregateDate } from "@/lib/aggregate";
 import { useSettings } from "@/lib/query/settings";
 import { useDailyScores, type DailyMeta } from "@/lib/query/evaluation";
@@ -13,7 +14,9 @@ import { useFeedback } from "@/components/ui/Feedback";
 
 const norm = (s: string) => s.trim().replace(/\s+/g, "").toLowerCase();
 
-export default function ComplimentModerationPanel({ date }: { date: string }) {
+export default function ComplimentModerationPanel({ initialDate }: { initialDate?: string }) {
+  // 자체 날짜 이동 — 어제 것도 바로 확인 (칭찬은 날짜별로 쌓여서, 오늘만 보면 어제 표시가 안 보임)
+  const [date, setDate] = useState(initialDate ?? todayKST());
   const { data: settings } = useSettings();
   const { data: dayDoc } = useDailyScores(date);
   const qc = useQueryClient();
@@ -65,13 +68,38 @@ export default function ComplimentModerationPanel({ date }: { date: string }) {
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-bold">💌 칭찬 점검</h3>
-        <span className="text-xs text-ink-400">{fmt(date)} · 총 {compliments.length}건</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setDate(shiftDate(date, -1))}
+            className="press rounded-btn bg-ink-100 px-2.5 py-1 text-sm font-bold text-ink-600"
+            aria-label="하루 전"
+          >
+            ◀
+          </button>
+          <span className="tnum text-sm font-bold text-ink-700">{fmt(date)}</span>
+          <button
+            onClick={() => setDate(shiftDate(date, 1))}
+            disabled={date >= todayKST()}
+            className="press rounded-btn bg-ink-100 px-2.5 py-1 text-sm font-bold text-ink-600 disabled:opacity-30"
+            aria-label="하루 후"
+          >
+            ▶
+          </button>
+          {date !== todayKST() && (
+            <button
+              onClick={() => setDate(todayKST())}
+              className="press rounded-btn bg-brand-weak px-2.5 py-1 text-xs font-bold text-brand-strong"
+            >
+              오늘
+            </button>
+          )}
+        </div>
       </div>
       <p className="mt-1 text-[13px] text-ink-500">
-        복붙(🚩 같은 문구 반복)·무관한 칭찬을 삭제하면 <b>재집계로 점수가 되돌아가요</b>. 삭제 전
-        오늘 집계가 되어 있어야 목록이 보여요.
+        복붙(🚩 같은 문구 반복)·무관한 칭찬을 삭제하면 <b>재집계로 점수가 되돌아가요</b>. 어제 것도{" "}
+        <b>◀</b>로 넘겨 확인해요 (칭찬은 날짜별로 쌓여요). 집계가 된 날만 목록이 보여요.
       </p>
       {compliments.length === 0 ? (
         <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
