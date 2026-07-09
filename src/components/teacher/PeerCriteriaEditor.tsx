@@ -12,6 +12,7 @@ import {
   type PeerCriteria,
 } from "@/lib/query/classMeta";
 import { DEFAULT_PEER_CRITERIA, DEPT_LAW_ARTICLES } from "@/lib/peerCriteria";
+import { composeClause, serializeClauses } from "@/lib/lawText";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function PeerCriteriaEditor() {
@@ -36,19 +37,20 @@ export default function PeerCriteriaEditor() {
     try {
       const lawsByDept = { ...(constitution.lawsByDept ?? {}) };
       let added = 0;
-      for (const [dept, arts] of Object.entries(DEPT_LAW_ARTICLES)) {
+      for (const [dept, art] of Object.entries(DEPT_LAW_ARTICLES)) {
         const existing = lawsByDept[dept] ?? [];
-        const merged = [...existing];
-        for (const a of arts) {
-          if (!existing.includes(a)) {
-            merged.push(a);
-            added++;
-          }
+        // 같은 제목의 조가 이미 있으면 건너뜀 (다시 눌러도 중복 안 됨)
+        if (existing.some((l) => l.includes(`(${art.title})`))) {
+          lawsByDept[dept] = existing;
+          continue;
         }
-        lawsByDept[dept] = merged;
+        // 대한민국 법령 형식: 기존 법률 다음 번호로 "제N조(제목) ① … ② …"
+        const clause = composeClause(existing.length + 1, art.title, serializeClauses(art.clauses));
+        lawsByDept[dept] = [...existing, clause];
+        added++;
       }
       await saveConstitution({ ...constitution, lawsByDept });
-      toast(added > 0 ? `부서별 법률 ${added}개를 추가했어요.` : "이미 모두 법률에 있어요.", "success");
+      toast(added > 0 ? `부서별 법률 ${added}개 조를 추가했어요.` : "이미 모두 법률에 있어요.", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "추가에 실패했어요.", "error");
     } finally {
