@@ -92,25 +92,6 @@ function ReportBody({
             ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
           </div>
         ))}
-      {/* 원문 웹 검색 (선생님만) — 복붙 글은 원본(책·블로그)이 그대로 떠서 증거가 된다.
-          작성 순간 신호가 없는 과거 글도 소급 확인 가능 (사용자 요청). */}
-      {role === "teacher" &&
-        (() => {
-          const body = ((r.summary || r.scene || r.thoughts || "") as string).trim().slice(0, 50);
-          if (body.length < 12) return null;
-          const url = `https://www.google.com/search?q=${encodeURIComponent(`"${body}"`)}`;
-          return (
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-3 inline-flex items-center gap-1 rounded-btn bg-ink-100 px-3 py-1.5 text-[12px] font-bold text-ink-600 hover:bg-ink-200"
-            >
-              🔍 원문 검색{" "}
-              <span className="font-normal text-ink-400">— 복붙이면 원본이 떠요 (증거 확인)</span>
-            </a>
-          );
-        })()}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
@@ -381,12 +362,31 @@ export default function ReadingPage() {
       // 스크롤해도 "무슨 책, 누구 글"이라는 맥락이 화면에서 사라지지 않는다
       <div className="mx-auto w-full max-w-3xl space-y-3 lg:grid lg:max-w-none lg:grid-cols-[300px_1fr] lg:items-start lg:gap-4 lg:space-y-0">
         <div className="space-y-3 lg:sticky lg:top-32">
-        <button
-          onClick={() => setSelectedId(null)}
-          className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
-        >
-          ← 목록으로
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setSelectedId(null)}
+            className="press rounded-btn bg-ink-100 px-3 py-1.5 text-sm font-bold text-ink-600 hover:bg-ink-200"
+          >
+            ← 목록으로
+          </button>
+          {/* 원문 웹 검색 (선생님만) — 복붙 글은 원본이 그대로 떠서 소급 증거가 된다 */}
+          {role === "teacher" &&
+            (() => {
+              const body = ((r.summary || r.scene || r.thoughts || "") as string).trim().slice(0, 50);
+              if (body.length < 12) return null;
+              const url = `https://www.google.com/search?q=${encodeURIComponent(`"${body}"`)}`;
+              return (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="press inline-flex items-center gap-1 rounded-btn bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800 hover:bg-amber-200"
+                >
+                  🔍 원문 검색
+                </a>
+              );
+            })()}
+        </div>
         {/* 책 정보 카드 — 독서 앱 문법: 표지가 왼쪽 앵커, 제목·저자가 그 옆 */}
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card sm:p-5">
           {/* lg(2단)에서는 사이드 카드답게 표지를 위로 세로 배치 */}
