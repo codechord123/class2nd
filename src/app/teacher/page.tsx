@@ -43,6 +43,7 @@ import NumberStepper from "@/components/ui/NumberStepper";
 import { RankPointsEditor } from "@/components/teacher/SettingsEditors";
 import PeerCriteriaEditor from "@/components/teacher/PeerCriteriaEditor";
 import AppealPanel from "@/components/teacher/AppealPanel";
+import ComplimentModerationPanel from "@/components/teacher/ComplimentModerationPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -254,6 +255,9 @@ export default function TeacherPage() {
       {scoreTab === "today" && (<>
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
+
+      {/* 칭찬 점검 — 복붙·무관 칭찬 삭제 시 재집계로 점수 되돌림 */}
+      <ComplimentModerationPanel date={date} />
 
       {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 리포트 위, 한 행(2열)에 */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
