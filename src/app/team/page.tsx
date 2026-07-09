@@ -24,11 +24,13 @@ import { BETA_END } from "@/components/BetaBanner";
 import { useUiText, uiTextOf } from "@/lib/uiText";
 import JuiceBurst from "@/components/ui/Juice";
 import {
+  useAttendance,
   useBestGroups,
   useComplimentCoverage,
   useSetComplimentCoverage,
 } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
+import AttendancePanel from "@/components/team/AttendancePanel";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
@@ -97,6 +99,7 @@ export default function TeamPage() {
   // 받은 칭찬·바라는 점 — 가장 최근 집계일(어제 이하) 문서 1개
   const { data: latestAgg } = useLatestAggregated(shiftDate(date, -1), role === "student");
   const { data: bestGroups } = useBestGroups();
+  const { data: attendance } = useAttendance();
   const { data: coverage } = useComplimentCoverage(date, role === "student");
   const setCoverage = useSetComplimentCoverage(date, studentId);
 
@@ -153,6 +156,7 @@ export default function TeamPage() {
         />
         {tView === "group" && (
           <>
+            <AttendancePanel />
             <ClassRecap />
             <GroupGoals />
             {/* 날짜별 모둠 기록 — 지난 날의 분해도 넘겨보며 확인 (사용자 요청) */}
@@ -230,9 +234,13 @@ export default function TeamPage() {
     return <SkeletonPage />;
   }
 
-  // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외. 전출(inactive) 학생도 제외
+  // 우리 모둠 전원(의장 포함) / 평가 대상은 나를 제외. 전출(inactive) 학생도 제외.
+  // 오늘 결석한 친구는 '전원 칭찬' 미션 대상에서 빠진다 — 집계와 같은 규칙 (막힘 방지)
+  const absentSet = new Set(attendance?.[date] ?? []);
   const isActive = (id: number) => !studentById.get(id)?.inactive;
-  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].filter(isActive);
+  const allMembers = [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].filter(
+    (id) => isActive(id) && !absentSet.has(id)
+  );
   const targets = [
     { studentId: myGroup.chair, role: "소통" },
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
@@ -271,7 +279,8 @@ export default function TeamPage() {
       .filter(([, v]) => v?.trim())
       .map(([k]) => Number(k)),
   ]);
-  const notReceived = (tid: number) => !receivedSet.has(tid);
+  // 결석한 친구는 🌱(미션 대상)에서 제외 — 집계 규칙과 일치
+  const notReceived = (tid: number) => !receivedSet.has(tid) && !absentSet.has(tid);
   // 아직 칭찬 못 받은 우리 모둠원(나 포함 전원 기준) → 미션 대상
   const uncoveredMembers = allMembers.filter((id) => notReceived(id));
   // 내가 칭찬할 수 있는 대상(나 제외): 아직 못 받은 친구를 앞으로

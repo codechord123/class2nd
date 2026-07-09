@@ -242,7 +242,7 @@ async function aggregateDateInner(
   const dayEndMs = dayStartMs + 86400000;
 
   // 1) 원시 평가 읽기 (교사 1회 — 최대 25문서)
-  const [evalSnap, prevSnap, cumSnap, bestSnap, reportSnap] = await Promise.all([
+  const [evalSnap, prevSnap, cumSnap, bestSnap, reportSnap, attSnap] = await Promise.all([
     getDocs(collection(d, "evaluations", date, "entries")),
     getDoc(doc(d, "dailyScores", date)), // 재집계 시 이전분 차감용
     getDoc(doc(d, "dailyScores", "_cumulative")),
@@ -254,7 +254,14 @@ async function aggregateDateInner(
         where("createdAt", "<", dayEndMs)
       )
     ),
+    getDoc(doc(d, "classData", "attendance")), // 그날 결석 명단 — 팀 활동에서 제외
   ]);
+
+  // 결석 학생 — 그날 칭찬·평가를 못 하므로 모둠 '전원' 판정·팀 보상에서 빼야
+  // 남은 모둠원이 미션을 달성할 수 있다 (교사가 기록, 전출과 달리 그 날짜만 제외).
+  const absentSet = new Set<number>(
+    (attSnap.exists() ? ((attSnap.data() as Record<string, number[]>)[date] ?? []) : []).map(Number)
+  );
 
   // 2) 모둠 내 점수: 받은 평가 합 (+ MVP 득표 집계)
   //    "_"로 시작하는 키는 점수가 아닌 부가 필드(_mvp, _compliment)
@@ -344,10 +351,11 @@ async function aggregateDateInner(
 
   // 4-1) 모둠 칭찬 미션: 모둠원 전원이 칭찬을 1개 이상 받으면 그 모둠 전원 +1점
   //      (서로 칭찬하기를 매일 미션으로 — 협력하면 다 같이 이득)
-  //      전출(inactive) 학생은 '전원' 판정에서 제외 — 빈자리 때문에 미션이 막히지 않게
+  //      전출(inactive) 학생 + 그날 결석(absentSet) 학생은 '전원' 판정에서 제외 —
+  //      빈자리·결석 때문에 미션이 막히지 않게 (결석 제외는 boss·MVP·오늘의 모둠 판정에도 공통 적용)
   const activeIdsOf = (g: { chair: number; members: { studentId: number }[] }) =>
     [g.chair, ...g.members.map((m) => m.studentId)].filter(
-      (id) => !studentById.get(id)?.inactive
+      (id) => !studentById.get(id)?.inactive && !absentSet.has(id)
     );
   const complimentedIds = new Set(compliments.map((c) => c.to));
   const missionGroups: number[] = [];
@@ -391,13 +399,16 @@ async function aggregateDateInner(
   const bossSet = new Set(bossWinners);
   for (const s of students) {
     const prevRow = prevRows[String(s.id)] as DailyScoreRow | undefined;
+    // 결석 학생은 그날 팀 활동에서 빠진다 — 순위·미션·부서장 등 팀 점수 미부여
+    // (교사 보너스만 유지). 남을 막지도, 팀 보상을 받지도 않는다 (사용자 확정).
+    const absent = absentSet.has(s.id);
     const p = peer[s.id] ?? 0;
     // 순위에 든 모둠 소속이면 그 순위 점수 — 교사 1위 모둠은 +1점 더
-    const myRank = ranks[groupOfStudent[s.id]];
+    const myRank = absent ? undefined : ranks[groupOfStudent[s.id]];
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
-    const mission = missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
-    const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1
+    const mission = !absent && missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
+    const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1 (결석은 bossSet에서 이미 제외)
     // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지만 점수 (권수 기록은 캡 없음)
     const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP);
     baseParts[s.id] = {
@@ -426,7 +437,7 @@ async function aggregateDateInner(
           mvpWinners.push(id);
         }
   }
-  const activeStudents = students.filter((s) => !s.inactive);
+  const activeStudents = students.filter((s) => !s.inactive && !absentSet.has(s.id));
   const classMax = Math.max(0, ...activeStudents.map((s) => baseParts[s.id]?.sum ?? 0));
   const classTop =
     classMax > 0
@@ -474,7 +485,11 @@ async function aggregateDateInner(
   //      모둠 점수·MVP 선정이 모두 끝난 뒤라 이 보너스가 그 판정에 되먹임되지 않는다.
   const bestGroupSet = new Set(autoBestGroups);
   for (const s of students) {
-    if (bestGroupSet.has(groupOfStudent[s.id]) && !studentById.get(s.id)?.inactive) {
+    if (
+      bestGroupSet.has(groupOfStudent[s.id]) &&
+      !studentById.get(s.id)?.inactive &&
+      !absentSet.has(s.id)
+    ) {
       rows[s.id].best = 1;
       rows[s.id].total += 1;
     }
@@ -495,6 +510,7 @@ async function aggregateDateInner(
               mvpVotes?: Record<string, number>;
               mvpWinners?: number[];
               autoBestGroups?: number[];
+              autoBestMembers?: number[]; // 그 날 best=1 받은 실제 명단 (재집계 차감용)
               groupSums?: Record<string, number>;
               groupCumApplied?: boolean;
             }
@@ -510,18 +526,22 @@ async function aggregateDateInner(
     mvpVotesTotal[String(sid)] = (mvpVotesTotal[String(sid)] ?? 0) + n;
 
   // 오늘의 모둠 포함 횟수(팀 기여도) — 실제 오늘의 모둠(autoBestGroups) 모둠원 전원 +1.
-  // 멱등: 같은 날 재집계 시 이전 _meta.autoBestGroups 몫을 빼고 새로 더한다 (같은 날 = 같은 자리표).
-  const bestGroupWins = { ...cum.bestGroupWins };
+  // 멱등: 같은 날 재집계 시 이전에 실제로 준 명단(_meta.autoBestMembers)을 빼고 새로 더한다.
+  //   ※ 명단을 그때그때 activeIdsOf로 다시 계산하면, 결석이 두 집계 사이에 바뀔 때
+  //     차감 집합과 가산 집합이 어긋나 유령 카운트가 남는다 → 저장된 명단으로 차감해야 안전.
+  //     (구버전 문서엔 명단이 없으니 autoBestGroups로 폴백 — 그 시점엔 결석 개념이 없었음)
   const membersOfGid = (gid: number) => {
     const g = schedule.groups.find((x) => x.groupId === gid);
     return g ? activeIdsOf(g) : [];
   };
-  for (const gid of prevMeta.autoBestGroups ?? [])
-    for (const sid of membersOfGid(gid))
-      bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) - 1;
-  for (const gid of autoBestGroups)
-    for (const sid of membersOfGid(gid))
-      bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) + 1;
+  const autoBestMembers = autoBestGroups.flatMap(membersOfGid);
+  const prevBestMembers =
+    prevMeta.autoBestMembers ?? (prevMeta.autoBestGroups ?? []).flatMap(membersOfGid);
+  const bestGroupWins = { ...cum.bestGroupWins };
+  for (const sid of prevBestMembers)
+    bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) - 1;
+  for (const sid of autoBestMembers)
+    bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) + 1;
 
   for (const s of students) {
     const prevTotal = (prevRows[String(s.id)] as DailyScoreRow | undefined)?.total ?? 0;
@@ -571,9 +591,11 @@ async function aggregateDateInner(
       for (const s of students) {
         const sid = String(s.id);
         const prev = base[sid] ?? 0;
-        const next = isSchoolDay ? (senders.has(s.id) ? prev + 1 : 0) : prev;
+        // 결석은 연속을 끊지 않는다 — 아파서 못 온 날 스트릭이 0이 되지 않게 유지(사용자 확정)
+        const absent = absentSet.has(s.id);
+        const next = absent ? prev : isSchoolDay ? (senders.has(s.id) ? prev + 1 : 0) : prev;
         if (next > 0) newStreak[sid] = next;
-        if (isSchoolDay) {
+        if (isSchoolDay && !absent) {
           if (next === 5) newBonus[sid] = 1;
           else if (next === 10) newBonus[sid] = 2;
           if (newBonus[sid]) compStreakBonus[sid] = newBonus[sid];
@@ -602,6 +624,7 @@ async function aggregateDateInner(
         bossWinners, // 오늘의 부서장 (투표 최다 — 고정 +1점)
         bossReasons, // 부서장 투표 이유 (인기투표 억제 근거 — 리포트 표시)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
+        autoBestMembers, // best=1 받은 실제 명단 (재집계 시 결석 변동에도 멱등 차감)
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
         missionGroups,

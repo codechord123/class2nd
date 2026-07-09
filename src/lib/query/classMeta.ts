@@ -45,6 +45,37 @@ export function useSetBestGroup() {
   };
 }
 
+// ── 결석: classData/attendance = { [date]: number[] }(그날 결석한 학생 번호) ──
+// 결석하면 그날 칭찬·평가를 못 하므로, 모둠 '전원 칭찬' 미션이 막히고 팀 보상 판정도
+// 왜곡된다. 교사가 결석을 기록하면 집계가 그 학생을 그날 모둠 활동에서 제외한다
+// (전출 inactive와 같은 취급이되 '그 날짜만'). bestGroups와 같은 단일 문서 패턴.
+export interface Attendance {
+  [date: string]: number[];
+}
+
+export function useAttendance() {
+  return useQuery({
+    queryKey: ["attendance"],
+    queryFn: async (): Promise<Attendance> => {
+      const snap = await getDoc(doc(db(), "classData", "attendance"));
+      return snap.exists() ? (snap.data() as Attendance) : {};
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSetAttendance() {
+  const qc = useQueryClient();
+  return async (date: string, absentIds: number[]) => {
+    const ids = [...new Set(absentIds)].sort((a, b) => a - b);
+    await setDoc(doc(db(), "classData", "attendance"), { [date]: ids }, { merge: true });
+    qc.setQueryData(["attendance"], (prev: Attendance | undefined) => ({
+      ...prev,
+      [date]: ids,
+    }));
+  };
+}
+
 // ── 오늘의 칭찬 커버리지: complimentCoverage/{date} = { 칭찬한사람: 대상 } ──
 // 학생이 남의 평가를 읽지 않고도 '아직 칭찬 못 받은 친구'를 알 수 있게 하는 최소 문서.
 // (관계는 UI에 노출하지 않고 '받은 사람 집합'만 사용)
