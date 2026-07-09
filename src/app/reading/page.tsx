@@ -86,7 +86,14 @@ function ReportBody({
             📋 붙여넣기 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b>
             <span className="ml-1 text-ink-400">— 선생님만 보여요. 직접 쓴 글인지 확인해보세요.</span>
           </div>
-        ) : suspicion.measured ? null : (
+        ) : suspicion.measured ? (
+          // 신호는 있는데 의심 없음 — '직접 작성' 긍정 확인을 보여준다 (본인 작성 여부 확인용)
+          <div className="mb-3 rounded-btn bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-700">
+            ✍️ 직접 작성한 것으로 보여요 —{" "}
+            {(r.writeMs ?? 0) > 0 && `작성 ${Math.max(1, Math.round((r.writeMs ?? 0) / 60000))}분 · `}
+            붙여넣기 {r.pasteCount ?? 0}회
+          </div>
+        ) : (
           // 배포 전 작성분 — 신호 자체가 없음
           <div className="mb-3 rounded-btn bg-ink-50 px-3 py-1.5 text-[12px] text-ink-400">
             ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
@@ -287,8 +294,14 @@ export default function ReadingPage() {
     setSheetOpen(true);
   };
   const openNew = () => openSheet(null);
-  const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id });
-  const editReport = (r: ReadingReport2) => openSheet({ form: toForm(r), reportId: r.id });
+  // prior: 이전 세션까지의 복붙·작성 신호를 승계 (이어쓰기 시 누적 유지)
+  const priorOf = (r: ReadingReport2) => ({
+    pastedChars: r.pastedChars,
+    pasteCount: r.pasteCount,
+    writeMs: r.writeMs,
+  });
+  const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id, prior: priorOf(r) });
+  const editReport = (r: ReadingReport2) => openSheet({ form: toForm(r), reportId: r.id, prior: priorOf(r) });
 
   // 📚 1·2학기 통합 게시판 (사용자 결정: 별도 '1학기' 탭 없이 여기서 함께) —
   // 1학기 정적 백업(313KB)은 감상문 탭을 열 때만 동적 로드 (Firestore 읽기 0회)

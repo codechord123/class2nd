@@ -51,6 +51,9 @@ export interface WriteInitial {
   form: ReportForm;
   draftId?: string;
   reportId?: string;
+  // 이전 세션까지 누적된 복붙·작성 신호 — 초안·정식본을 다시 열어 이어 쓸 때 승계한다.
+  // (이게 없으면 '세션1에 붙여넣고 임시저장 → 세션2에 정식등록'이면 붙여넣기 기록이 사라진다)
+  prior?: { pastedChars?: number; pasteCount?: number; writeMs?: number };
 }
 
 export default function WriteSheet({
@@ -77,7 +80,12 @@ export default function WriteSheet({
 
   // 복붙·작성 시간 신호 (A·B) — 선생님 참고용. 학생 흐름은 막지 않는다.
   const openedAt = useRef(0);
-  const pasted = useRef({ chars: 0, count: 0 });
+  // 이전 세션까지 누적된 신호에서 이어간다 (초안·정식본 이어쓰기 시 붙여넣기 기록 보존)
+  const pasted = useRef({
+    chars: initial?.prior?.pastedChars ?? 0,
+    count: initial?.prior?.pasteCount ?? 0,
+  });
+  const priorMs = useRef(initial?.prior?.writeMs ?? 0); // 이전 세션 누적 작성 시간
   const justPasted = useRef(false); // onPaste 직후 onChange 중복 집계 방지
   const [pasteHint, setPasteHint] = useState(false); // 큰 붙여넣기 시 부드러운 안내
   useEffect(() => {
@@ -138,14 +146,14 @@ export default function WriteSheet({
     try {
       if (!draft && bodyLen < charLimit)
         throw new Error(`본문은 ${charLimit}자 이상이어야 정식 등록할 수 있어요. (현재 ${bodyLen}자) 🐢`);
-      // 정식 등록·수정 시에만 신호 기록 (임시저장은 미기록 — 이어쓰기 중이라 무의미)
-      const detect = draft
-        ? undefined
-        : {
-            pastedChars: pasted.current.chars,
-            pasteCount: pasted.current.count,
-            writeMs: openedAt.current ? Date.now() - openedAt.current : 0,
-          };
+      // 복붙·작성 신호는 임시저장에도 누적 기록한다 — 그래야 다음 세션에 이어받아
+      // '초안에 붙여넣고 나중에 정식등록'해도 붙여넣기 기록이 유실되지 않는다(핵심 수정).
+      // 이전 세션 누적(prior) + 이번 세션 = 총 붙여넣기·총 작성 시간.
+      const detect = {
+        pastedChars: pasted.current.chars,
+        pasteCount: pasted.current.count,
+        writeMs: priorMs.current + (openedAt.current ? Date.now() - openedAt.current : 0),
+      };
       await saveReport(form, { draft, draftId, reportId, detect });
       toast(
         draft

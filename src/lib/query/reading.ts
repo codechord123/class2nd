@@ -258,10 +258,10 @@ export function useSaveReport(myId: number | null) {
     // Firestore는 undefined 값을 거부하므로 isPrivate는 항상 boolean으로 정규화
     const base = { ...form, title: form.title.trim(), isPrivate: form.isPrivate ?? false };
 
-    // ── 임시저장 ──
+    // ── 임시저장 ── (복붙·작성 신호도 함께 저장 → 다음 세션이 이어받아 누적)
     if (opts.draft) {
       if (opts.draftId) {
-        await setDoc(doc(d, "readingDrafts", opts.draftId), base, { merge: true });
+        await setDoc(doc(d, "readingDrafts", opts.draftId), { ...base, ...detect }, { merge: true });
         void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
         return opts.draftId;
       }
@@ -271,6 +271,7 @@ export function useSaveReport(myId: number | null) {
         isDraft: true,
         createdAt: Date.now(),
         ...base,
+        ...detect,
       });
       void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
       return ref.id;
