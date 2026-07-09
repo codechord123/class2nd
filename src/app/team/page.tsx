@@ -8,14 +8,15 @@ import { useSession } from "@/stores/session";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { students, studentById, ROLE_INFO } from "@/lib/roster";
+import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
 import { useSettings } from "@/lib/query/settings";
 import {
   useMyEvaluation,
-  useSaveEvaluation,
   useDailyScores,
   useCumulativeScores,
   useLatestAggregated,
   useSaveMvp,
+  useSavePeerChecks,
   useSavePeerNotes,
   useSaveToTeacher,
   useSaveReflection,
@@ -27,10 +28,12 @@ import {
   useAttendance,
   useBestGroups,
   useComplimentCoverage,
+  usePeerCriteria,
   useSetComplimentCoverage,
 } from "@/lib/query/classMeta";
 import TeamStats from "@/components/team/TeamStats";
 import AttendancePanel from "@/components/team/AttendancePanel";
+import PeerEvalRow from "@/components/team/PeerEvalRow";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
@@ -40,45 +43,10 @@ import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
 import { useRef, useState } from "react";
-import type { DailyScoreRow } from "@/types";
+import type { DailyScoreRow, RoleKey } from "@/types";
 
 const roleEmoji = Object.fromEntries(ROLE_INFO.map((r) => [r.key, r.emoji]));
 const COMP_MIN = 10; // 칭찬 최소 글자 수 — "ㅇㅇ" 같은 한 글자 땡 방지 (사용자 확정)
-
-function ScaleButtons({
-  scale,
-  value,
-  onSelect,
-}: {
-  scale: number[];
-  value: number | undefined;
-  onSelect: (v: number) => void;
-}) {
-  return (
-    <div className="flex gap-1">
-      {scale.map((v) => (
-        <button
-          // 선택이 바뀔 때 리마운트 → 선택된 버튼이 통통 튄다 (juice)
-          key={`${v}-${value === v}`}
-          onClick={() => onSelect(v)}
-          className={`press min-w-11 rounded-btn border px-2 py-2 text-[15px] font-bold transition-colors ${
-            value === v
-              ? `badge-pop ${
-                  v > 0
-                    ? "border-success bg-success text-white shadow-card"
-                    : v < 0
-                      ? "border-danger bg-danger text-white shadow-card"
-                      : "border-ink-500 bg-ink-500 text-white shadow-card"
-                }`
-              : "border-ink-300 bg-white text-ink-600 hover:border-ink-500 hover:text-ink-900"
-          }`}
-        >
-          {v > 0 ? `+${v}` : v}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function TeamPage() {
   const { role, studentId } = useSession();
@@ -88,7 +56,8 @@ export default function TeamPage() {
 
   const { data: settings } = useSettings();
   const { data: myEval } = useMyEvaluation(date, studentId);
-  const saveEval = useSaveEvaluation(date, studentId);
+  const savePeerChecks = useSavePeerChecks(date, studentId);
+  const { data: peerCriteria } = usePeerCriteria();
   const saveMvp = useSaveMvp(date, studentId);
   const savePeer = useSavePeerNotes(date, studentId);
   const saveToTeacher = useSaveToTeacher(date, studentId);
@@ -246,10 +215,13 @@ export default function TeamPage() {
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
   ].filter((t) => t.studentId !== studentId && isActive(t.studentId));
   // 내 부서(역할) — 나는 이 부서의 부서장으로서 '내 부서 기준'으로 친구들을 평가한다
-  const myRole =
+  const myRole = (
     myGroup.chair === studentId
       ? "소통"
-      : ((myGroup.members.find((m) => m.studentId === studentId)?.role as string) ?? "");
+      : (myGroup.members.find((m) => m.studentId === studentId)?.role ?? "소통")
+  ) as RoleKey;
+  // 내 부서의 O/X 평가 기준 (교사 편집값, 없으면 기본값)
+  const myCriteria = peerCriteria?.[myRole] ?? DEFAULT_PEER_CRITERIA[myRole];
 
   const myRow = todayScores?.[String(studentId)] as DailyScoreRow | undefined;
   const myCum = (cumScores as Record<string, number> | null)?.[String(studentId)];
@@ -619,35 +591,39 @@ export default function TeamPage() {
       <div className="space-y-4 lg:flex lg:items-start lg:gap-4 lg:space-y-0">
       <div className="min-w-0 space-y-4 lg:flex-1">
 
-      {/* 모둠 내 상호평가 — 부서장 평가: 각자 자기 부서 기준으로 다른 모둠원을 평가 */}
+      {/* 모둠 내 상호평가 — 부서장 평가: 내 부서 O/X 기준으로 다른 모둠원을 평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
-          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구들이 오늘{" "}
-          <b>{myRole}</b>을(를) 얼마나 잘 지켰는지 내 부서 기준으로 평가해요. 누르면 바로
-          저장돼요.
+          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구들이 오늘 아래{" "}
+          <b>2가지</b>를 지켰는지 <b>O/X</b>로 체크해요. 둘 다 O면 +1, 하나면 0, 둘 다 X면 −1.
+          <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로,
+          기준대로 눌러요.
         </p>
         <ul className="mt-3 space-y-2">
           {targets.map((t) => (
-            <li
+            <PeerEvalRow
               key={t.studentId}
-              className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-2"
-            >
-              <div className="flex items-center gap-2 text-[15px]">
-                <span>{t.role === "소통" ? "👑" : roleEmoji[t.role]}</span>
-                <b>{studentById.get(t.studentId)?.name}</b>
-                <span className="text-xs text-ink-600">{t.role} 부서장</span>
-              </div>
-              <ScaleButtons
-                scale={settings.peerScale}
-                value={myEval?.[t.studentId]}
-                onSelect={(v) =>
-                  void saveEval({ [t.studentId]: v }).catch((e: Error) =>
-                    toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                  )
-                }
-              />
-            </li>
+              name={studentById.get(t.studentId)?.name ?? "?"}
+              roleEmoji={roleEmoji[myRole] ?? "👑"}
+              roleLabel={myRole}
+              criteria={myCriteria}
+              checks={
+                ((myEval as Record<string, unknown> | undefined)?._peerChecks as
+                  | Record<string, boolean[]>
+                  | undefined)?.[String(t.studentId)] ?? []
+              }
+              onToggle={(idx) => {
+                const cur =
+                  ((myEval as Record<string, unknown> | undefined)?._peerChecks as
+                    | Record<string, boolean[]>
+                    | undefined)?.[String(t.studentId)] ?? [];
+                const next = myCriteria.map((_, i) => (i === idx ? !(cur[i] ?? false) : cur[i] ?? false));
+                void savePeerChecks(t.studentId, next).catch((e: Error) =>
+                  toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                );
+              }}
+            />
           ))}
         </ul>
       </section>

@@ -40,7 +40,8 @@ import { SkeletonPage } from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
-import { ScaleEditor, RankPointsEditor } from "@/components/teacher/SettingsEditors";
+import { RankPointsEditor } from "@/components/teacher/SettingsEditors";
+import PeerCriteriaEditor from "@/components/teacher/PeerCriteriaEditor";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -64,7 +65,6 @@ export default function TeacherPage() {
   const { toast, confirm } = useFeedback();
 
   // 설정 드래프트 — null이면 서버값 사용, 편집 시 모듈형 컨트롤이 직접 값 조작
-  const [dPeer, setDPeer] = useState<number[] | null>(null);
   const [dRank, setDRank] = useState<number[] | null>(null);
   const [dQuota, setDQuota] = useState<number | null>(null);
   const [dSeat, setDSeat] = useState<number | null>(null);
@@ -193,7 +193,7 @@ export default function TeacherPage() {
   async function saveAll() {
     const next: ClassSettings = {
       ...settings!,
-      peerScale: dPeer ?? settings!.peerScale,
+      peerScale: settings!.peerScale, // (부서장 평가는 O/X 기준으로 전환 — 척도는 미사용)
       groupScale: settings!.groupScale,
       rankPoints: dRank ?? settings!.rankPoints,
       weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
@@ -409,14 +409,13 @@ export default function TeacherPage() {
       {toolsTab === "settings" && (<>
       {/* 학급 목표 배너 편집 */}
       <BannerEditor />
+      {/* 부서장 평가 O/X 기준 편집 */}
+      <Card title="🤝 부서장 평가 기준 (O/X)" desc="부서장이 모둠원을 평가할 관찰 기준. 전부 O면 +1, 일부 0, 전부 X면 −1.">
+        <PeerCriteriaEditor />
+      </Card>
       {/* 평가 척도 설정 — 모듈형 */}
-      <Card title="⚙️ 평가 척도 설정" desc="버튼으로 조절하고, 학생 화면 미리보기로 바로 확인하세요.">
+      <Card title="⚙️ 점수 설정" desc="버튼으로 조절하고, 학생 화면 미리보기로 바로 확인하세요.">
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <ScaleEditor
-            label="모둠 내 평가 척도"
-            value={dPeer ?? settings.peerScale}
-            onChange={setDPeer}
-          />
           <RankPointsEditor value={dRank ?? settings.rankPoints} onChange={setDRank} />
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">

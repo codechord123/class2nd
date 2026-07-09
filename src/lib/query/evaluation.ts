@@ -7,6 +7,7 @@ import { collection, doc, documentId, getDoc, getDocs, query, setDoc, where } fr
 import { db } from "@/lib/firebase";
 import { shiftDate } from "@/lib/date";
 import { students } from "@/lib/roster";
+import { peerScoreFromChecks } from "@/lib/peerCriteria";
 import type { PeerEvaluation, DailyScoreRow } from "@/types";
 
 // 평가 쓰기는 규칙이 '이 기기로 로그인한 본인'인지 검증한다(대리 작성 차단).
@@ -43,6 +44,31 @@ export function useSaveEvaluation(date: string, myId: number | null) {
       ...prev,
       ...scores,
     }));
+  };
+}
+
+// ── 부서장 평가 O/X 체크 저장 — 체크 상세(_peerChecks)와 파생 점수([targetId])를 함께 쓴다.
+//   점수 변환(전부 O +1·일부 0·전부 X −1)은 저장 시 클라이언트에서 하고, 집계는 숫자만 합산한다.
+//   체크 상세는 실명 공개·이의제기 표시용으로 집계가 수신자별로 접어 저장한다.
+export function useSavePeerChecks(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (targetId: number, checks: boolean[]) => {
+    if (myId == null) return;
+    const score = peerScoreFromChecks(checks);
+    const patch = { [targetId]: score, _peerChecks: { [String(targetId)]: checks } };
+    await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), patch, {
+      merge: true,
+    }).catch((e) => {
+      throw friendlyWriteError(e);
+    });
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => {
+      const p = (prev ?? {}) as Record<string, unknown>;
+      return {
+        ...p,
+        [targetId]: score,
+        _peerChecks: { ...((p._peerChecks as Record<string, boolean[]>) ?? {}), [String(targetId)]: checks },
+      } as unknown as PeerEvaluation;
+    });
   };
 }
 
