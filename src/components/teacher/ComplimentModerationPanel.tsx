@@ -2,7 +2,7 @@
 // 💌 칭찬 점검 (교사) — 그날 칭찬을 훑어보고, 복붙·무관한 칭찬을 삭제하면 재집계로
 // 칭찬 개인 점수(comp)와 팀 미션이 자동으로 되돌려진다. 같은 문구 반복은 🚩로 자동 표시.
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { studentById } from "@/lib/roster";
 import { aggregateDate } from "@/lib/aggregate";
@@ -39,11 +39,15 @@ export default function ComplimentModerationPanel({ date }: { date: string }) {
     setBusy(key);
     try {
       // 원본 평가 문서에서 그 칭찬을 비운다 → 집계가 '없음'으로 처리
-      await setDoc(
-        doc(db(), "evaluations", date, "entries", String(c.from)),
-        { _compliments: { [String(c.to)]: "" } },
-        { merge: true }
-      );
+      const evalRef = doc(db(), "evaluations", date, "entries", String(c.from));
+      const patch: Record<string, unknown> = { _compliments: { [String(c.to)]: "" } };
+      // 구버전 단일 칭찬(_compliment)이 같은 대상이면 함께 비운다 (신버전만 지우면 살아남음)
+      const snap = await getDoc(evalRef);
+      const legacy = snap.exists()
+        ? (snap.data()._compliment as { to?: number } | undefined)
+        : undefined;
+      if (legacy && legacy.to === c.to) patch._compliment = { to: c.to, text: "" };
+      await setDoc(evalRef, patch, { merge: true });
       // 재집계 → 칭찬 개인 점수·팀 미션 되돌림
       if (settings) await aggregateDate(date, settings);
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });

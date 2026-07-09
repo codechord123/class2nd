@@ -64,8 +64,12 @@ service cloud.firestore {
       allow read: if isTeacher()
         || (isAuthed() && ownsStudent(string(resource.data.studentId)));
       allow create: if isAuthed()
+        && ownsStudent(string(request.resource.data.studentId))
         && request.resource.data.status == "pending"
-        && ownsStudent(string(request.resource.data.studentId));
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.date is string;
       allow update, delete: if isTeacher();
     }
 
