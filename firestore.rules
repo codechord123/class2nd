@@ -59,6 +59,16 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
+    // 점수 이의제기 — 학생은 '본인 명의 pending' 생성 + 본인 것 읽기만. 검토·조정은 교사 전용.
+    match /scoreAppeals/{id} {
+      allow read: if isTeacher()
+        || (isAuthed() && ownsStudent(string(resource.data.studentId)));
+      allow create: if isAuthed()
+        && request.resource.data.status == "pending"
+        && ownsStudent(string(request.resource.data.studentId));
+      allow update, delete: if isTeacher();
+    }
+
     // 서버 사전집계 결과 (읽기 전용, 쓰기는 Cron=Admin SDK가 규칙 우회)
     match /dailyScores/{date} {
       allow read: if isAuthed();

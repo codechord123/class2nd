@@ -42,6 +42,7 @@ import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
 import { RankPointsEditor } from "@/components/teacher/SettingsEditors";
 import PeerCriteriaEditor from "@/components/teacher/PeerCriteriaEditor";
+import AppealPanel from "@/components/teacher/AppealPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -228,6 +229,7 @@ export default function TeacherPage() {
       {/* 🛠 점수 조정 — 개인 점수·독서 권수·실버·골드 보정을 한 화면에 (사용자 확정) */}
       {tTab === "adjust" && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+          <AppealPanel />
           <BonusPanel />
           <ReadingAdjustPanel />
           <SilverAdjustPanel />

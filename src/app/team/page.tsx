@@ -34,6 +34,7 @@ import {
 import TeamStats from "@/components/team/TeamStats";
 import AttendancePanel from "@/components/team/AttendancePanel";
 import PeerEvalRow from "@/components/team/PeerEvalRow";
+import ReceivedPeerEval from "@/components/team/ReceivedPeerEval";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
@@ -189,6 +190,7 @@ export default function TeamPage() {
               </span>
             </div>
             <MyRecord studentId={tSid} cumScores={cumScores} />
+            <ReceivedPeerEval studentId={tSid} readOnly />
             <ReceivedNotes studentId={tSid} />
           </>
         )}
@@ -1037,7 +1039,12 @@ export default function TeamPage() {
             onChange={setMeTab}
           />
           {meTab === "stats" && <MyRecord studentId={studentId} cumScores={cumScores} />}
-          {meTab === "hearts" && <ReceivedNotes studentId={studentId} />}
+          {meTab === "hearts" && (
+            <div className="space-y-4">
+              <ReceivedPeerEval studentId={studentId} />
+              <ReceivedNotes studentId={studentId} />
+            </div>
+          )}
         </div>
       )}
 

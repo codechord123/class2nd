@@ -274,6 +274,10 @@ export interface DailyMeta {
   autoBestGroups?: number[]; // 오늘의 모둠 (총점 1위)
   classTop?: number[]; // 학급 전체 1위 = 오늘의 MVP
   missionGroups?: number[]; // 칭찬 미션 달성 모둠
+  peerDetail?: Record<
+    string,
+    { from: number; dept: string; checks: boolean[]; score: number }[]
+  >; // 부서장 평가 O/X 상세 (수신자별 — 실명 공개·이의제기용)
 }
 export function useLatestAggregated(before: string, enabled: boolean) {
   return useQuery({
