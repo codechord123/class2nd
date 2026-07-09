@@ -35,6 +35,7 @@ import TeamStats from "@/components/team/TeamStats";
 import AttendancePanel from "@/components/team/AttendancePanel";
 import PeerEvalRow from "@/components/team/PeerEvalRow";
 import ReceivedPeerEval from "@/components/team/ReceivedPeerEval";
+import EventBanner from "@/components/EventBanner";
 import MyRecord from "@/components/team/MyRecord";
 import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
@@ -110,6 +111,7 @@ export default function TeamPage() {
   if (role === "teacher") {
     return (
       <div className="space-y-4">
+        <EventBanner />
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <h2 className="text-lg font-bold">🤝 Team</h2>
           <p className="mt-1 text-sm text-ink-500">
@@ -445,6 +447,7 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-4">
+      <EventBanner />
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-bold text-ink-900">

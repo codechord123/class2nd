@@ -16,6 +16,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { RoleKey } from "@/types";
 import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
+import { DEFAULT_EVENT_BOOST, type EventBoost } from "@/lib/eventBoost";
 
 // ── 오늘의 모둠 순위: classData/bestGroups = { [date]: { groupId(1위), chairId, ranking } } ──
 // ranking = [1위 모둠, 2위 모둠, …] — 집계에서 rankPoints(기본 5·4·3·2·1점) 배분.
@@ -69,6 +70,28 @@ export function useSavePeerCriteria() {
   return async (criteria: PeerCriteria) => {
     await setDoc(doc(db(), "classData", "peerCriteria"), criteria);
     qc.setQueryData(["peerCriteria"], criteria);
+  };
+}
+
+// ── 이벤트 점수 배수: classData/eventBoost ──
+export function useEventBoost() {
+  return useQuery({
+    queryKey: ["eventBoost"],
+    queryFn: async (): Promise<EventBoost> => {
+      const snap = await getDoc(doc(db(), "classData", "eventBoost"));
+      return snap.exists()
+        ? { ...DEFAULT_EVENT_BOOST, ...(snap.data() as Partial<EventBoost>) }
+        : DEFAULT_EVENT_BOOST;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useSaveEventBoost() {
+  const qc = useQueryClient();
+  return async (b: EventBoost) => {
+    await setDoc(doc(db(), "classData", "eventBoost"), b);
+    qc.setQueryData(["eventBoost"], b);
   };
 }
 

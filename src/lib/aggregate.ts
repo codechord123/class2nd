@@ -25,6 +25,7 @@ import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow, RoleKey } from "@/types";
 import { groupDayScore } from "@/lib/groupScore";
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
+import { eventMultipliers, type EventBoost } from "@/lib/eventBoost";
 
 export interface AggregateResult {
   date: string;
@@ -250,7 +251,7 @@ async function aggregateDateInner(
   const dayEndMs = dayStartMs + 86400000;
 
   // 1) 원시 평가 읽기 (교사 1회 — 최대 25문서)
-  const [evalSnap, prevSnap, cumSnap, bestSnap, reportSnap, attSnap] = await Promise.all([
+  const [evalSnap, prevSnap, cumSnap, bestSnap, reportSnap, attSnap, evSnap] = await Promise.all([
     getDocs(collection(d, "evaluations", date, "entries")),
     getDoc(doc(d, "dailyScores", date)), // 재집계 시 이전분 차감용
     getDoc(doc(d, "dailyScores", "_cumulative")),
@@ -263,7 +264,14 @@ async function aggregateDateInner(
       )
     ),
     getDoc(doc(d, "classData", "attendance")), // 그날 결석 명단 — 팀 활동에서 제외
+    getDoc(doc(d, "classData", "eventBoost")), // 이벤트 점수 배수 (기간 안이면 적용)
   ]);
+
+  // 이벤트 배수 — 이 날짜가 이벤트 기간 안이면 칭찬·미션·MVP·독서에 배수 적용(멱등).
+  const ev = eventMultipliers(
+    evSnap.exists() ? (evSnap.data() as EventBoost) : undefined,
+    date
+  );
 
   // 결석 학생 — 그날 칭찬·평가를 못 하므로 모둠 '전원' 판정·팀 보상에서 빼야
   // 남은 모둠원이 미션을 달성할 수 있다 (교사가 기록, 전출과 달리 그 날짜만 제외).
@@ -467,12 +475,13 @@ async function aggregateDateInner(
     const myRank = absent ? undefined : ranks[groupOfStudent[s.id]];
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;
     const bonus = prevRow?.bonus ?? 0;
-    const mission = !absent && missionSet.has(groupOfStudent[s.id]) ? 1 : 0;
+    // 이벤트 배수 적용 (칭찬 미션·개인, 독서). 이벤트 없으면 ev.*=1이라 변화 없음.
+    const mission = !absent && missionSet.has(groupOfStudent[s.id]) ? 1 * ev.mission : 0;
     const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1 (결석은 bossSet에서 이미 제외)
     // 칭찬 개인 점수 — 결석 학생은 칭찬을 못 하니 자연히 0 (comp에 없음)
-    const cm = comp[s.id] ?? 0;
+    const cm = (comp[s.id] ?? 0) * ev.comp;
     // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지, 권당 READ_POINTS_PER_BOOK점 (권수 기록은 캡 없음)
-    const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP) * READ_POINTS_PER_BOOK;
+    const read = Math.min(readCount[s.id] ?? 0, DAILY_READ_CAP) * READ_POINTS_PER_BOOK * ev.read;
     baseParts[s.id] = {
       peer: p,
       groupRank: gr,
@@ -512,7 +521,7 @@ async function aggregateDateInner(
   const rows: Record<number, DailyScoreRow> = {};
   for (const s of students) {
     const b = baseParts[s.id];
-    const mvp = mvpPts[s.id] ?? 0;
+    const mvp = (mvpPts[s.id] ?? 0) * ev.mvp; // 이벤트 배수 (MVP 점수)
     rows[s.id] = {
       peer: b.peer,
       groupRank: b.groupRank,

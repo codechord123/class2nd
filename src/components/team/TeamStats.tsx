@@ -104,8 +104,8 @@ export default function TeamStats({
           unit="회"
         />
         <TopList
-          title="👑 오늘의 모둠 포함 횟수"
-          desc="선생님이 뽑은 오늘의 모둠에 든 횟수 (팀 기여도)"
+          title="👑 베스트플레이어"
+          desc="오늘의 모둠(그날 모둠 총점 1위)에 가장 많이 든 학생 · 팀 기여도"
           counts={inBestGroup}
           unit="회"
         />
