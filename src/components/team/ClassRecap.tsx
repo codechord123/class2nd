@@ -67,7 +67,8 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
     else if ((r.mvp ?? 0) > 0) bs.push(<Badge key="mvp" tone="mvp">⭐ MVP</Badge>);
     if ((r.best ?? 0) > 0) bs.push(<Badge key="best" tone="best">👑 오늘의 모둠</Badge>);
     if ((r.boss ?? 0) > 0) bs.push(<Badge key="boss" tone="boss">🙌 오늘의 부서장</Badge>);
-    if ((r.read ?? 0) > 0) bs.push(<Badge key="read" tone="read">🐢 독서 {r.read}권</Badge>);
+    if ((r.read ?? 0) > 0) bs.push(<Badge key="read" tone="read">🐢 독서 +{r.read}</Badge>);
+    if ((r.comp ?? 0) > 0) bs.push(<Badge key="comp" tone="praise">💌 칭찬하기 +{r.comp}</Badge>);
     if (praisedSet.has(id)) bs.push(<Badge key="praise" tone="praise">💌 칭찬 받음</Badge>);
     return bs;
   };

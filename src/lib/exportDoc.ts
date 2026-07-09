@@ -486,7 +486,7 @@ export async function openStudentPrintDoc(
         ({ date, row }) =>
           `<tr><td>${dLabel(date)}</td><td>${row.peer}</td><td>${row.groupRank || "·"}</td><td>${
             row.mission ? "+1" : "·"
-          }</td><td>${row.mvp ? "★" : "·"}</td><td>${row.read || "·"}</td><td>${
+          }</td><td>${row.comp || "·"}</td><td>${row.mvp ? "★" : "·"}</td><td>${row.read || "·"}</td><td>${
             row.bonus || "·"
           }</td><td class="score"><span class="sbar" style="width:${Math.round(
             (Math.max(row.total, 0) / maxTotal) * 100
@@ -496,7 +496,7 @@ export async function openStudentPrintDoc(
     sections.push(
       card(
         "날짜별 점수 흐름",
-        `<table><thead><tr><th>날짜</th><th>부서장평가</th><th>순위</th><th>미션</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th></tr></thead><tbody>${rowsHtml}</tbody></table>`
+        `<table><thead><tr><th>날짜</th><th>부서장평가</th><th>순위</th><th>미션</th><th>칭찬</th><th>MVP</th><th>독서</th><th>보너스</th><th>합계</th></tr></thead><tbody>${rowsHtml}</tbody></table>`
       )
     );
   } else {
