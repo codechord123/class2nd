@@ -92,6 +92,25 @@ function ReportBody({
             ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
           </div>
         ))}
+      {/* 원문 웹 검색 (선생님만) — 복붙 글은 원본(책·블로그)이 그대로 떠서 증거가 된다.
+          작성 순간 신호가 없는 과거 글도 소급 확인 가능 (사용자 요청). */}
+      {role === "teacher" &&
+        (() => {
+          const body = ((r.summary || r.scene || r.thoughts || "") as string).trim().slice(0, 50);
+          if (body.length < 12) return null;
+          const url = `https://www.google.com/search?q=${encodeURIComponent(`"${body}"`)}`;
+          return (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-3 inline-flex items-center gap-1 rounded-btn bg-ink-100 px-3 py-1.5 text-[12px] font-bold text-ink-600 hover:bg-ink-200"
+            >
+              🔍 원문 검색{" "}
+              <span className="font-normal text-ink-400">— 복붙이면 원본이 떠요 (증거 확인)</span>
+            </a>
+          );
+        })()}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
