@@ -1105,3 +1105,40 @@ export async function addBonus(date: string, studentId: number, delta: number): 
     });
   });
 }
+
+// ── 베스트플레이어(오늘의 모둠 포함 횟수) 재계산 (교사 도구) ────────────────
+// 저장된 모든 일일 집계 문서를 훑어 '그날 오늘의 모둠(모둠 총점 1위)' 모둠원을 세어
+// _cumulative.bestGroupWins를 통째로 다시 쓴다. 집계 로직 변경·초기화로 카운터가
+// 비거나 어긋났을 때 한 번에 복구하는 옵트인 도구 (교사 화면에서만 실행).
+export async function recomputeBestGroupWins(): Promise<Record<string, number>> {
+  const d = db();
+  const snap = await getDocs(collection(d, "dailyScores"));
+  const wins: Record<string, number> = {};
+  for (const day of snap.docs) {
+    if (day.id.startsWith("_")) continue; // _cumulative 등 메타 문서 제외
+    const data = day.data() as Record<string, unknown> & {
+      _meta?: { autoBestMembers?: number[] };
+    };
+    let members: number[] = [];
+    if (data._meta?.autoBestMembers?.length) {
+      members = data._meta.autoBestMembers; // 집계가 저장한 실제 명단 우선
+    } else {
+      // 구버전 문서(명단 없음)는 저장된 rows에서 그날 오늘의 모둠을 재계산
+      const schedule = scheduleOfWeek(weekOfDate(day.id, SEMESTER_START, TOTAL_WEEKS));
+      const activeIdsOf = (g: { chair: number; members: { studentId: number }[] }) =>
+        [g.chair, ...g.members.map((m) => m.studentId)].filter(
+          (id) => !studentById.get(id)?.inactive
+        );
+      const groupSums: Record<number, number> = {};
+      for (const g of schedule.groups)
+        groupSums[g.groupId] = groupDayScore(data, activeIdsOf(g)).total;
+      const bestSum = Math.max(0, ...Object.values(groupSums));
+      if (bestSum > 0)
+        for (const g of schedule.groups)
+          if (groupSums[g.groupId] === bestSum) members.push(...activeIdsOf(g));
+    }
+    for (const sid of members) wins[String(sid)] = (wins[String(sid)] ?? 0) + 1;
+  }
+  await setDoc(doc(d, "dailyScores", "_cumulative"), { bestGroupWins: wins }, { merge: true });
+  return wins;
+}
