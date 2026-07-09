@@ -215,7 +215,9 @@ export default function TeamPage() {
   const targets = [
     { studentId: myGroup.chair, role: "소통" },
     ...myGroup.members.map((m) => ({ studentId: m.studentId, role: m.role as string })),
-  ].filter((t) => t.studentId !== studentId && isActive(t.studentId));
+  ].filter(
+    (t) => t.studentId !== studentId && isActive(t.studentId) && !absentSet.has(t.studentId)
+  );
   // 내 부서(역할) — 나는 이 부서의 부서장으로서 '내 부서 기준'으로 친구들을 평가한다
   const myRole = (
     myGroup.chair === studentId

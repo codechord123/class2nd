@@ -239,15 +239,21 @@ export function useSaveReport(myId: number | null) {
       draftId?: string; // 이어쓰던 초안
       reportId?: string; // 수정 중인 정식본
       origWeek?: number; // 정식본 수정 시 원래 주차
-      // 복붙·속성 작성 신호 (정식 등록·수정 시에만 기록) — 선생님 참고용
-      detect?: { pastedChars: number; pasteCount: number; writeMs: number };
+      // 복붙·속성 작성 신호 — 선생님 참고용. writeMs는 '전체 작성 시간'이 의미 있을 때만 기록
+      // (감지 기능 적용 전 정식본을 잠깐 수정하는 경우 짧은 수정 시간을 넣으면 오탐되므로 생략).
+      detect?: { pastedChars: number; pasteCount: number; writeMs?: number };
     }
   ): Promise<string> => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!form.title.trim()) throw new Error("책 제목을 입력해주세요.");
     const d = db();
+    // Firestore는 undefined를 거부하므로 writeMs는 값이 있을 때만 포함한다.
     const detect = opts.detect
-      ? { pastedChars: opts.detect.pastedChars, pasteCount: opts.detect.pasteCount, writeMs: opts.detect.writeMs }
+      ? {
+          pastedChars: opts.detect.pastedChars,
+          pasteCount: opts.detect.pasteCount,
+          ...(opts.detect.writeMs != null ? { writeMs: opts.detect.writeMs } : {}),
+        }
       : {};
     // 주차는 '저장하는 순간' 기준으로 재계산 — 페이지를 일요일 밤에 열어두고
     // 월요일에 등록하면 화면에 들고 있던 주차가 한 주 늦어 통계가 어긋난다.

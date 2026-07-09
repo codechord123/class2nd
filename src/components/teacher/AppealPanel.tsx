@@ -1,7 +1,7 @@
 "use client";
 // 🙋 점수 이의제기 검토 (교사) — 학생이 받은 부서장 평가에 낸 이의제기를 확인하고,
 // 합당하면 점수를 조정(addBonus)하거나 반려한다. 조정은 그 집계일의 보너스로 더해 누적에 반영.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { studentById } from "@/lib/roster";
 import { addBonus } from "@/lib/aggregate";
 import { useAllAppeals, useResolveAppeal } from "@/lib/query/appeals";
@@ -15,6 +15,8 @@ export default function AppealPanel() {
   const [note, setNote] = useState<Record<string, string>>({});
   const [delta, setDelta] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const processing = useRef<Set<string>>(new Set()); // 더블클릭 재진입 차단(구형 데스크탑)
+  const applied = useRef<Set<string>>(new Set()); // addBonus 이미 반영 — 부분 실패 재시도 시 이중 반영 방지
 
   const name = (id: number) => studentById.get(id)?.name ?? `${id}번`;
   const fmt = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
@@ -22,17 +24,23 @@ export default function AppealPanel() {
   const done = (appeals ?? []).filter((a) => a.status !== "pending");
 
   async function act(a: (typeof pending)[number], kind: "resolve" | "reject") {
-    if (busy) return;
+    if (busy || processing.current.has(a.id)) return; // 재진입·더블클릭 차단
     const memo = (note[a.id] ?? "").trim();
     if (kind === "reject" && !memo) {
       toast("반려 사유를 적어주세요.", "warn");
       return;
     }
+    processing.current.add(a.id);
     setBusy(a.id);
     try {
       if (kind === "resolve") {
         const d = delta[a.id] ?? 0;
-        if (d !== 0) await addBonus(a.date, a.studentId, d); // 그날 보너스로 조정 → 누적 반영
+        // addBonus는 가산식(멱등 아님)이라, 이미 반영된 건은 재시도 시 다시 더하지 않는다.
+        // (resolve가 실패해 pending으로 남아도 점수가 이중으로 조정되지 않게)
+        if (d !== 0 && !applied.current.has(a.id)) {
+          await addBonus(a.date, a.studentId, d); // 그날 보너스로 조정 → 누적 반영
+          applied.current.add(a.id);
+        }
         await resolve.mutateAsync({ id: a.id, status: "resolved", teacherNote: memo, delta: d });
         toast(`조정 완료 (${d >= 0 ? "+" : ""}${d}점).`, "success");
       } else {
@@ -42,6 +50,7 @@ export default function AppealPanel() {
     } catch (e) {
       toast(e instanceof Error ? e.message : "처리에 실패했어요.", "error");
     } finally {
+      processing.current.delete(a.id);
       setBusy(null);
     }
   }

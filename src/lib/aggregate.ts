@@ -364,13 +364,17 @@ async function aggregateDateInner(
     string,
     { from: number; dept: RoleKey; checks: boolean[]; score: number }[]
   > = {};
-  for (const pc of peerChecksRaw)
+  for (const pc of peerChecksRaw) {
+    const dept = roleOf[pc.from];
+    if (!dept) continue; // 그 주 자리표에 없는 평가자 — 상세 생략(점수는 peer[]로 이미 반영).
+    // ↑ undefined를 넣으면 Firestore가 문서 쓰기를 거부해 집계 전체가 실패한다(방어).
     (peerDetail[String(pc.to)] ??= []).push({
       from: pc.from,
-      dept: roleOf[pc.from],
+      dept,
       checks: pc.checks,
       score: peerScoreFromChecks(pc.checks),
     });
+  }
 
   // 4-0) 그날 감상문 편수 (편당 +1점 — 쓴 만큼 그대로, 개학 이후 날짜만)
   //      임시저장 잔존 문서(isDraft)는 절대 세지 않는다 — 초안은 점수가 아니다 (사용자 확정)
@@ -456,7 +460,9 @@ async function aggregateDateInner(
     // 결석 학생은 그날 팀 활동에서 빠진다 — 순위·미션·부서장 등 팀 점수 미부여
     // (교사 보너스만 유지). 남을 막지도, 팀 보상을 받지도 않는다 (사용자 확정).
     const absent = absentSet.has(s.id);
-    const p = peer[s.id] ?? 0;
+    // 결석 학생은 부서장 평가 점수도 0 — 결석날 기준 미충족으로 −1 받는 억울함 방지
+    // (결석 = 팀·상호 점수 미부여, 교사 보너스만 유지. 사용자 확정)
+    const p = absent ? 0 : (peer[s.id] ?? 0);
     // 순위에 든 모둠 소속이면 그 순위 점수 — 교사 1위 모둠은 +1점 더
     const myRank = absent ? undefined : ranks[groupOfStudent[s.id]];
     const gr = myRank ? rankPoint(myRank) + (myRank === 1 ? 1 : 0) : 0;

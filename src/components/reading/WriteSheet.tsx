@@ -149,10 +149,17 @@ export default function WriteSheet({
       // 복붙·작성 신호는 임시저장에도 누적 기록한다 — 그래야 다음 세션에 이어받아
       // '초안에 붙여넣고 나중에 정식등록'해도 붙여넣기 기록이 유실되지 않는다(핵심 수정).
       // 이전 세션 누적(prior) + 이번 세션 = 총 붙여넣기·총 작성 시간.
+      // 단, 감지 기능 적용 전 정식본을 잠깐 수정하는 경우(이전 신호 없음)엔 짧은 수정 시간을
+      // '빠른 작성'으로 오탐하지 않게 writeMs를 생략한다(붙여넣기 신호는 그대로 기록).
+      const hadPriorSignal =
+        initial?.prior?.writeMs != null || initial?.prior?.pastedChars != null;
+      const preFeatureEdit = editingReport && !hadPriorSignal;
       const detect = {
         pastedChars: pasted.current.chars,
         pasteCount: pasted.current.count,
-        writeMs: priorMs.current + (openedAt.current ? Date.now() - openedAt.current : 0),
+        ...(preFeatureEdit
+          ? {}
+          : { writeMs: priorMs.current + (openedAt.current ? Date.now() - openedAt.current : 0) }),
       };
       await saveReport(form, { draft, draftId, reportId, detect });
       toast(
