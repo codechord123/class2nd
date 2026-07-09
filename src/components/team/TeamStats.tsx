@@ -10,6 +10,7 @@ import type { BestGroups } from "@/lib/query/classMeta";
 interface CumDoc {
   [sid: string]: number | Record<string, number> | undefined;
   mvpWins?: Record<string, number>;
+  bestGroupWins?: Record<string, number>; // 오늘의 모둠 포함 횟수 (집계가 누적)
 }
 
 function TopList({
@@ -69,16 +70,22 @@ export default function TeamStats({
     if (typeof v === "number") totals[String(s.id)] = v;
   }
 
-  // 오늘의 모둠 포함 횟수: 선정된 날짜의 자리표에서 그 모둠 소속 전원 카운트
-  const inBestGroup: Record<string, number> = {};
-  for (const [date, v] of Object.entries(bestGroups ?? {})) {
-    const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
-    const g = scheduleOfWeek(week).groups.find((x) => x.groupId === v.groupId);
-    if (!g) continue;
-    for (const sid of [g.chair, ...g.members.map((m) => m.studentId)]) {
-      inBestGroup[String(sid)] = (inBestGroup[String(sid)] ?? 0) + 1;
-    }
-  }
+  // 오늘의 모둠 포함 횟수 — 집계가 누적한 bestGroupWins(실제 오늘의 모둠=autoBest 기준).
+  // 구버전 데이터(bestGroupWins 없음)면 교사 순위 기록으로 폴백.
+  const inBestGroup: Record<string, number> =
+    cum.bestGroupWins && Object.keys(cum.bestGroupWins).length > 0
+      ? cum.bestGroupWins
+      : (() => {
+          const fallback: Record<string, number> = {};
+          for (const [date, v] of Object.entries(bestGroups ?? {})) {
+            const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+            const g = scheduleOfWeek(week).groups.find((x) => x.groupId === v.groupId);
+            if (!g) continue;
+            for (const sid of [g.chair, ...g.members.map((m) => m.studentId)])
+              fallback[String(sid)] = (fallback[String(sid)] ?? 0) + 1;
+          }
+          return fallback;
+        })();
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">

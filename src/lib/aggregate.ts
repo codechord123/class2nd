@@ -484,6 +484,7 @@ async function aggregateDateInner(
   type CumDoc = Record<string, number> & {
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
+    bestGroupWins?: Record<string, number>; // 오늘의 모둠(autoBest)에 든 횟수 — 팀 기여도
     // 이 외에 칭찬 연속 보너스 상태 필드(compStreak*, compBonusToday)가 함께 저장된다
   };
   const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
@@ -493,6 +494,7 @@ async function aggregateDateInner(
           | {
               mvpVotes?: Record<string, number>;
               mvpWinners?: number[];
+              autoBestGroups?: number[];
               groupSums?: Record<string, number>;
               groupCumApplied?: boolean;
             }
@@ -506,6 +508,20 @@ async function aggregateDateInner(
   for (const w of mvpWinners) mvpWins[String(w)] = (mvpWins[String(w)] ?? 0) + 1;
   for (const [sid, n] of Object.entries(mvpVotes))
     mvpVotesTotal[String(sid)] = (mvpVotesTotal[String(sid)] ?? 0) + n;
+
+  // 오늘의 모둠 포함 횟수(팀 기여도) — 실제 오늘의 모둠(autoBestGroups) 모둠원 전원 +1.
+  // 멱등: 같은 날 재집계 시 이전 _meta.autoBestGroups 몫을 빼고 새로 더한다 (같은 날 = 같은 자리표).
+  const bestGroupWins = { ...cum.bestGroupWins };
+  const membersOfGid = (gid: number) => {
+    const g = schedule.groups.find((x) => x.groupId === gid);
+    return g ? activeIdsOf(g) : [];
+  };
+  for (const gid of prevMeta.autoBestGroups ?? [])
+    for (const sid of membersOfGid(gid))
+      bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) - 1;
+  for (const gid of autoBestGroups)
+    for (const sid of membersOfGid(gid))
+      bestGroupWins[String(sid)] = (bestGroupWins[String(sid)] ?? 0) + 1;
 
   for (const s of students) {
     const prevTotal = (prevRows[String(s.id)] as DailyScoreRow | undefined)?.total ?? 0;
@@ -595,7 +611,12 @@ async function aggregateDateInner(
         reflections, // 세션 모둠 반성 — 세션 리포트 인쇄에 수록
       },
     }),
-    setDoc(doc(d, "dailyScores", "_cumulative"), { ...cum, mvpWins, mvpVotesTotal }),
+    setDoc(doc(d, "dailyScores", "_cumulative"), {
+      ...cum,
+      mvpWins,
+      mvpVotesTotal,
+      bestGroupWins,
+    }),
   ]);
 
   // 마일스톤 보상 — 누적 점수 25점 단위 실버 자동 지급 (+실버 25개 단위 학급 골드)

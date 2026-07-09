@@ -59,6 +59,9 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   const { data: stats } = useReadingStats();
   const today = todayKST();
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
+  // 방학(개학 전)엔 독서가 0주차 버킷에 쌓인다 — '이번 주 독서'도 그 버킷을 봐야
+  // 0권으로 안 보인다 (사용자 보고). MyStatus와 동일 처리.
+  const readWeek = today < SEMESTER_START ? 0 : week;
   const schedule = scheduleOfWeek(week);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
   // 오늘 집계가 이미 있으면 오늘 것을 보여준다 — 선생님이 준 오늘의 모둠 점수가
@@ -88,7 +91,7 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
       score: useLeague
         ? (groupCumMap![String(g.groupId)] ?? 0)
         : ids.reduce((a, id) => a + scoreOf(id), 0),
-      weekBooksSum: ids.reduce((a, id) => a + weekBooks(stats, id, week), 0),
+      weekBooksSum: ids.reduce((a, id) => a + weekBooks(stats, id, readWeek), 0),
     };
   });
   const maxScore = Math.max(0, ...groups.map((g) => g.score));
