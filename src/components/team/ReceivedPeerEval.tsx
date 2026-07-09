@@ -37,7 +37,19 @@ export default function ReceivedPeerEval({
   const date = hasToday ? today : latestAgg?.date;
   const items = (meta?.peerDetail?.[sid] ?? []) as PeerItem[];
 
-  if (!items.length || !date) return null;
+  // 아직 집계된 부서장 평가가 없어도 탭이 비어 보이지 않게 안내를 보여준다 (사용자 요청)
+  if (!items.length || !date) {
+    return (
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <h3 className="text-lg font-bold">🤝 받은 부서장 평가</h3>
+        <p className="mt-2 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+          아직 받은 평가가 없어요. 친구들이 나를 O/X로 평가하고 <b>선생님이 집계</b>하면,
+          <br className="hidden sm:inline" /> 여기서 <b>누가 어떤 기준을 줬는지</b> 보고
+          억울하면 <b>이의제기</b>할 수 있어요.
+        </p>
+      </section>
+    );
+  }
 
   const fmtDay = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
   const appealedFroms = new Set((myAppeals ?? []).filter((a) => a.date === date).map((a) => a.from));
