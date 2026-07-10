@@ -610,9 +610,9 @@ export default function TeamPage() {
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
           나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구들이 오늘 아래{" "}
-          <b>2가지</b>를 지켰는지 <b>O/X</b>로 체크해요. 둘 다 O면 +1, 하나면 0, 둘 다 X면 −1.
-          <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로,
-          기준대로 눌러요.
+          <b>2가지</b>를 지켰으면 눌러서 <b className="text-success">초록색</b>으로 켜요 (안 켜면{" "}
+          <b className="text-danger">빨간색</b>). 둘 다 초록 +1, 하나면 0, 둘 다 빨강 −1.
+          <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로!
         </p>
         {peerOpen ? (
           <>

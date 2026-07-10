@@ -55,12 +55,10 @@ export default function PeerEvalRow({
               }`}
             >
               <span
-                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-sm font-bold ${
-                  on ? "bg-success text-white" : evaluated ? "bg-danger text-white" : "bg-ink-100 text-ink-400"
+                className={`h-5 w-5 shrink-0 rounded-full ${
+                  on ? "bg-success" : evaluated ? "bg-danger" : "bg-ink-200"
                 }`}
-              >
-                {on ? "O" : evaluated ? "X" : "·"}
-              </span>
+              />
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c}</span>
             </button>
           );
