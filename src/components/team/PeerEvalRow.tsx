@@ -1,7 +1,7 @@
 "use client";
 // 부서장 평가 한 줄 — 나(부서장)가 내 부서 미션 2개로 모둠원 한 명을 평가한다.
 // 미션을 지켰으면 글상자를 눌러 색을 넣고(초록), 안 했으면 그냥 둔다(색 없음).
-// 점수: 2개 다 함 +1 · 하나만 0 · 하나도 안 함 −2 (peerScoreFromChecks).
+// 점수: 2개 다 함 +1 · 하나만 0 · 하나도 안 함 −1 (peerScoreFromChecks). 손대기 전은 미평가(0점).
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
 
 export default function PeerEvalRow({
