@@ -632,6 +632,11 @@ export default function TeamPage() {
                       toast(`⚠️ 저장 실패: ${e.message}`, "error")
                     );
                   }}
+                  onSetAll={(next) =>
+                    void savePeerChecks(t.studentId, next).catch((e: Error) =>
+                      toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                    )
+                  }
                 />
               ))}
             </ul>

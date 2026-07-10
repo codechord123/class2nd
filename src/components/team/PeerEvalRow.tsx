@@ -11,6 +11,7 @@ export default function PeerEvalRow({
   criteria,
   checks,
   onToggle,
+  onSetAll,
 }: {
   name: string;
   roleEmoji: string;
@@ -18,6 +19,7 @@ export default function PeerEvalRow({
   criteria: string[];
   checks: boolean[];
   onToggle: (idx: number) => void;
+  onSetAll: (checks: boolean[]) => void; // P/F 빠른 지정 (전부 함/전부 안 함)
 }) {
   const evaluated = checks.length > 0; // 게이트로 이미 저장됨 — 열려 있으면 항상 true
   const cur = criteria.map((_, i) => checks[i] ?? false);
@@ -30,6 +32,9 @@ export default function PeerEvalRow({
         ? "bg-danger text-white"
         : "bg-ink-200 text-ink-600";
 
+  const allDone = evaluated && cur.every(Boolean); // P 상태
+  const allFail = evaluated && cur.every((v) => !v); // F 상태
+
   return (
     <li className="rounded-btn bg-ink-50 px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
@@ -38,9 +43,30 @@ export default function PeerEvalRow({
           <b>{name}</b>
           <span className="text-xs text-ink-500">{roleLabel} 미션</span>
         </div>
-        <span className={`tnum rounded-full px-2 py-0.5 text-xs font-bold ${scoreCls}`}>
-          {!evaluated ? "미평가" : score > 0 ? `+${score}점` : `${score}점`}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* P/F 빠른 버튼 — P=둘 다 함(+1) · F=둘 다 안 함(−1). 세밀 조정은 아래 미션 글상자로 */}
+          <button
+            onClick={() => onSetAll(criteria.map(() => true))}
+            title="둘 다 함 (+1)"
+            className={`press grid h-7 w-7 place-items-center rounded-full text-xs font-extrabold ${
+              allDone ? "bg-success text-white" : "bg-white text-success ring-1 ring-success/40"
+            }`}
+          >
+            P
+          </button>
+          <button
+            onClick={() => onSetAll(criteria.map(() => false))}
+            title="둘 다 안 함 (−1)"
+            className={`press grid h-7 w-7 place-items-center rounded-full text-xs font-extrabold ${
+              allFail ? "bg-danger text-white" : "bg-white text-danger ring-1 ring-danger/40"
+            }`}
+          >
+            F
+          </button>
+          <span className={`tnum rounded-full px-2 py-0.5 text-xs font-bold ${scoreCls}`}>
+            {!evaluated ? "미평가" : score > 0 ? `+${score}점` : `${score}점`}
+          </span>
+        </div>
       </div>
       <div className="mt-2 space-y-1.5">
         {criteria.map((c, i) => {
