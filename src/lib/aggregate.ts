@@ -223,6 +223,29 @@ export async function payVacationReading(): Promise<VacationReadResult | null> {
   });
 }
 
+// ── 독서 날짜 일괄 재집계 — 감상문이 있는 모든 날짜를 다시 집계해 일일 read(+2/편)를 채운다.
+// 쓰임 두 곳(둘 다 드묾, 교사 전용이라 전량 조회 허용):
+//   ① 일일 read 전환 마이그레이션 — 예전 마커(+1/편)로만 지급됐던 과거 날짜 치유 (1회)
+//   ② 베타 초기화 복원 — dailyScores가 지워져도 남은 감상문으로 독서 점수 재구축 (초기화 시 재예약)
+// aggregateDate가 멱등이라 몇 번 돌아도 안전. 반환: 재집계된 날짜 목록.
+export async function reaggregateReadingDates(settings: ClassSettings): Promise<string[]> {
+  const d = db();
+  const today = todayKST();
+  const snap = await getDocs(collection(d, "readingReports"));
+  const dates = new Set<string>();
+  snap.forEach((r) => {
+    const v = r.data();
+    if (v.isDraft) return; // 초안은 점수가 아니다
+    const ms = Number(v.createdAt) || 0;
+    if (!ms) return;
+    const date = new Date(ms + 9 * 3600000).toISOString().slice(0, 10); // KST 날짜
+    if (date <= today) dates.add(date);
+  });
+  const sorted = [...dates].sort();
+  for (const date of sorted) await aggregateDate(date, settings, { skipIfEmpty: true });
+  return sorted;
+}
+
 export async function aggregateDate(
   date: string,
   settings: ClassSettings,

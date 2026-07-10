@@ -15,6 +15,7 @@ import {
   aggregateDate,
   dateRangeOfPeriod,
   payVacationReading,
+  reaggregateReadingDates,
   settleSession,
   type SessionSettleResult,
   type VacationReadResult,
@@ -39,8 +40,10 @@ export interface AutoRunResult {
   skippedRange?: { from: string; to: string; days: number };
   /** 거북이 응원 클릭 10,000번 달성으로 지급된 학급 골드 */
   clickGold?: number;
-  /** 방학 감상문 적립 결과 (0주차 버킷 → 누적 점수 반영) */
+  /** 예전 방학 마커 적립분 정리(일일 점수 이관으로 되돌림) 결과 */
   vacationRead?: VacationReadResult;
+  /** 독서 일일점수 스윕으로 재집계된 날짜들 (마이그레이션·베타 초기화 복원) */
+  readMigratedDates?: string[];
   /** 누적 모둠 점수(groupCum) 자동 마이그레이션 실행됨 — 화면 캐시 무효화 필요 */
   groupCumMigrated?: boolean;
 }
@@ -91,6 +94,20 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     // 실패는 다음 접속 때 재시도 (마커 델타 방식이라 유실 없음)
   }
 
+  // 0.6) 독서 일일점수 스윕 — 감상문 있는 날짜를 전부 재집계해 read(+2/편)를 채운다.
+  //      readDailyMigrated 플래그로 1회만 실행. 베타 초기화가 이 플래그를 false로 되돌려
+  //      다음 접속 때 자동 복원(점수 초기화 제외 규칙). 하루 1회 선점과 무관 — 밀리면 안 되는 치유.
+  let readMigratedDates: string[] = [];
+  try {
+    const mSnap = await getDoc(markerRef);
+    if (!(mSnap.exists() && mSnap.data().readDailyMigrated === true)) {
+      await setDoc(markerRef, { readDailyMigrated: true }, { merge: true }); // 선(先)마킹 — 동시 탭 이중 실행 방지
+      readMigratedDates = await reaggregateReadingDates(settings);
+    }
+  } catch {
+    // 실패해도 aggregateDate가 멱등이라 다음 시도에 안전하게 재실행 가능
+  }
+
   // 1) 오늘 몫 선점 — 다른 탭/기기가 이미 실행했으면 조용히 종료.
   //    redoDates(감상문 삭제 재집계 요청)는 회수하면서 비운다 — 이중 처리 방지.
   const claimed = await runTransaction(d, async (tx) => {
@@ -111,7 +128,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     };
   });
   if (!claimed)
-    return groupCumMigrated || vacationRead
+    return groupCumMigrated || vacationRead || readMigratedDates.length
       ? {
           aggregatedDates: [],
           settledPeriods: [],
@@ -120,6 +137,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
           missedRankDates: [],
           groupCumMigrated,
           vacationRead: vacationRead ?? undefined,
+          readMigratedDates: readMigratedDates.length ? readMigratedDates : undefined,
         }
       : null;
 
@@ -206,8 +224,9 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     // 지급 실패는 다음 접속 때 재시도 (트랜잭션이라 절반만 반영되는 일 없음)
   }
 
-  // 5.5) 방학 독서 적립은 위 0.5)에서 선점과 무관하게 이미 반영됨 — 결과만 옮겨 담는다.
+  // 5.5) 방학 마커 정리·독서 스윕은 위 0.5)~0.6)에서 이미 실행됨 — 결과만 옮겨 담는다.
   if (vacationRead) result.vacationRead = vacationRead;
+  if (readMigratedDates.length) result.readMigratedDates = readMigratedDates;
 
   // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
   const already = new Set(result.aggregatedDates);

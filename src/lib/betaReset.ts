@@ -7,8 +7,9 @@
 // 독서 특례: 진짜 누적 시작일(READING_KEEP_FROM) 이전의 '연습' 감상문만 지우고,
 //       남은 감상문으로 통계(total·byWeek)를 재구축한다 — 방학 글은 0주차 버킷으로
 //       재배치되므로 개학 후 주간 통계(스트릭·모둠 대항)를 오염시키지 않는다.
-//       점수·실버가 지워져도 다음 교사 접속 때 방학 적립(payVacationReading)이
-//       0주차 버킷 전체를 다시 지급해 독서 점수·실버가 자동 복원된다.
+//       독서 '점수'는 일일 집계(+2/편)로 들어가므로, 초기화 마지막에 autoRun의
+//       readDailyMigrated 플래그를 되돌려(false) 다음 교사 접속 때 감상문 있는 날짜
+//       전체가 자동 재집계되게 한다 → 독서 점수가 누적에 자동 복원(초기화 제외 규칙).
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
@@ -18,7 +19,7 @@ import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 export const READING_KEEP_FROM = "2026-07-05";
 
 const SIMPLE_COLLECTIONS = [
-  "dailyScores", // _cumulative 포함 (방학 독서 점수는 payVacationReading이 자동 복원)
+  "dailyScores", // _cumulative 포함 (독서 점수는 아래 readDailyMigrated 재예약으로 자동 복원)
   "biweeklyScores",
   "coinTxns", // 0_balances 포함
   "s1Spends",
@@ -130,6 +131,16 @@ export async function resetAllRecords(onProgress?: (msg: string) => void): Promi
   } catch {
     failed.push("readingStats");
   }
+
+  // 5) 독서 점수 복원 예약 — autoRun의 독서 스윕 플래그를 되돌려, 다음 교사 접속 때
+  //    남은 감상문 날짜 전체를 자동 재집계(+2/편)하게 한다. coveredUntil도 함께 되돌려야
+  //    지워진 dailyScores의 다른 날들도 백필로 다시 채워진다.
+  onProgress?.("독서 점수 복원 예약 중…");
+  await setDoc(
+    doc(d, "classData", "autoRun"),
+    { readDailyMigrated: false, coveredUntil: READING_KEEP_FROM },
+    { merge: true }
+  ).catch(() => failed.push("autoRun"));
 
   return { deleted, failed: [...new Set(failed)] };
 }

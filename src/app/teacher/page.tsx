@@ -134,7 +134,16 @@ export default function TeacherPage() {
           void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
           void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
           toast(
-            `🐢 방학 독서 적립: ${r.vacationRead.students}명 · 누적 점수 ${r.vacationRead.points > 0 ? "+" : ""}${r.vacationRead.points}점${r.vacationRead.milestoneSilver ? ` · 실버 ${r.vacationRead.milestoneSilver}개 자동 지급` : ""}`,
+            `🐢 독서 점수 방식 전환: 예전 방학 적립분(${r.vacationRead.students}명 ${r.vacationRead.points}점)을 정리하고 일일 점수(+2/편)로 다시 넣었어요`,
+            "success"
+          );
+        }
+        if (r.readMigratedDates?.length) {
+          for (const dt of r.readMigratedDates)
+            void qc.invalidateQueries({ queryKey: ["dailyScores", dt] });
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          toast(
+            `🐢 독서 점수 재계산 완료 (${r.readMigratedDates.length}일): ${r.readMigratedDates.map((dt) => dt.slice(5)).join(", ")} — 감상문 +2/편이 그날 점수에 들어갔어요`,
             "success"
           );
         }

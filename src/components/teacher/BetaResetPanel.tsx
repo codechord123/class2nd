@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { resetAllRecords } from "@/lib/betaReset";
-import { payVacationReading } from "@/lib/aggregate";
+import { reaggregateReadingDates } from "@/lib/aggregate";
+import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function BetaResetPanel() {
   const { toast, confirm } = useFeedback();
+  const { data: settings } = useSettings();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
@@ -31,14 +33,14 @@ export default function BetaResetPanel() {
     setBusy(true);
     try {
       const r = await resetAllRecords(setProgress);
-      // 방학 독서 점수 즉시 복원 — 자동 실행(하루 1회)을 기다리면 다음 날까지
-      // 아이들 누적 점수가 0으로 보인다. 0주차 버킷 → 누적 재지급 (멱등).
+      // 독서 점수 즉시 복원 — 자동 실행을 기다리면 다음 접속까지 아이들 누적이 0으로 보인다.
+      // 남은 감상문 날짜 전체를 재집계해 일일 read(+2/편)를 다시 채운다 (멱등).
       setProgress("독서 점수 복원 중…");
-      const vr = await payVacationReading().catch(() => null);
+      const redone = settings ? await reaggregateReadingDates(settings).catch(() => []) : [];
       qc.clear(); // 캐시 전체 비우기 — 모든 화면이 빈 상태부터 다시
       if (r.failed.length === 0) {
         toast(
-          `🧹 초기화 완료 — ${r.deleted}개 기록 삭제${vr ? ` · 🐢 독서 점수 ${vr.points}점 복원` : ""}. 새 출발!`,
+          `🧹 초기화 완료 — ${r.deleted}개 기록 삭제${redone.length ? ` · 🐢 독서 점수 ${redone.length}일치 복원` : ""}. 새 출발!`,
           "success"
         );
       } else {
