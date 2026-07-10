@@ -81,6 +81,16 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     // 실패 시 다음 접속 때 재시도 (멱등)
   }
 
+  // 0.5) 방학 독서 적립 — 하루 1회 선점과 무관하게 '매 접속마다' 돌린다 (멱등·저비용: 2문서 읽고
+  //      델타 있을 때만 쓰기). 이렇게 해야 교사가 오늘 이미 접속한 뒤 학생이 감상문을 써도
+  //      그 자리에서 개인 누적 점수에 +1/편이 반영된다 (예전엔 선점 게이트 안이라 다음날에야 반영).
+  let vacationRead: Awaited<ReturnType<typeof payVacationReading>> = null;
+  try {
+    vacationRead = await payVacationReading();
+  } catch {
+    // 실패는 다음 접속 때 재시도 (마커 델타 방식이라 유실 없음)
+  }
+
   // 1) 오늘 몫 선점 — 다른 탭/기기가 이미 실행했으면 조용히 종료.
   //    redoDates(감상문 삭제 재집계 요청)는 회수하면서 비운다 — 이중 처리 방지.
   const claimed = await runTransaction(d, async (tx) => {
@@ -101,14 +111,15 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     };
   });
   if (!claimed)
-    return groupCumMigrated
+    return groupCumMigrated || vacationRead
       ? {
           aggregatedDates: [],
           settledPeriods: [],
           settleResults: [],
           redoneDates: [],
           missedRankDates: [],
-          groupCumMigrated: true,
+          groupCumMigrated,
+          vacationRead: vacationRead ?? undefined,
         }
       : null;
 
@@ -195,14 +206,8 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     // 지급 실패는 다음 접속 때 재시도 (트랜잭션이라 절반만 반영되는 일 없음)
   }
 
-  // 5.5) 방학 독서 적립 — 0주차 버킷과 지급 마커의 차이만큼 누적 점수 반영 (멱등).
-  //      개학 후에도 계속 돌린다: 방학 막판에 쓴 글·삭제 보정의 잔여 델타를 자연 청산 (0이면 no-op).
-  try {
-    const vr = await payVacationReading();
-    if (vr) result.vacationRead = vr;
-  } catch {
-    // 실패는 다음 접속 때 재시도 (마커 델타 방식이라 유실 없음)
-  }
+  // 5.5) 방학 독서 적립은 위 0.5)에서 선점과 무관하게 이미 반영됨 — 결과만 옮겨 담는다.
+  if (vacationRead) result.vacationRead = vacationRead;
 
   // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
   const already = new Set(result.aggregatedDates);
