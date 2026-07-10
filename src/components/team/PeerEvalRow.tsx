@@ -18,10 +18,16 @@ export default function PeerEvalRow({
   checks: boolean[];
   onToggle: (idx: number) => void;
 }) {
+  const evaluated = checks.length > 0; // 한 번이라도 체크했는지 — 손대기 전은 '미평가'(0점)
   const cur = criteria.map((_, i) => checks[i] ?? false);
-  const score = peerScoreFromChecks(cur);
-  const scoreCls =
-    score > 0 ? "bg-success text-white" : score < 0 ? "bg-danger text-white" : "bg-ink-200 text-ink-600";
+  const score = evaluated ? peerScoreFromChecks(cur) : 0; // 미평가면 0 (자동 −1 방지)
+  const scoreCls = !evaluated
+    ? "bg-ink-200 text-ink-500"
+    : score > 0
+      ? "bg-success text-white"
+      : score < 0
+        ? "bg-danger text-white"
+        : "bg-ink-200 text-ink-600";
 
   return (
     <li className="rounded-btn bg-ink-50 px-3 py-2.5">
@@ -32,7 +38,7 @@ export default function PeerEvalRow({
           <span className="text-xs text-ink-500">{roleLabel} 기준</span>
         </div>
         <span className={`tnum rounded-full px-2 py-0.5 text-xs font-bold ${scoreCls}`}>
-          {score > 0 ? `+${score}` : score}점
+          {!evaluated ? "미평가" : score > 0 ? `+${score}점` : `${score}점`}
         </span>
       </div>
       <div className="mt-2 space-y-1.5">
@@ -50,10 +56,10 @@ export default function PeerEvalRow({
             >
               <span
                 className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-sm font-bold ${
-                  on ? "bg-success text-white" : "bg-ink-100 text-ink-400"
+                  on ? "bg-success text-white" : evaluated ? "bg-danger text-white" : "bg-ink-100 text-ink-400"
                 }`}
               >
-                {on ? "O" : "X"}
+                {on ? "O" : evaluated ? "X" : "·"}
               </span>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c}</span>
             </button>
