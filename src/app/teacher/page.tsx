@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
-import { aggregateDate, type AggregateResult } from "@/lib/aggregate";
+import { aggregateDate, payVacationReading, type AggregateResult } from "@/lib/aggregate";
 import { runAutoTasks } from "@/lib/autoRun";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
@@ -172,6 +172,8 @@ export default function TeacherPage() {
     setMsg("");
     try {
       const r = (await aggregateDate(date, settings!))!; // 수동 실행은 skipIfEmpty 없음 — 항상 결과 반환
+      // 독서 점수(총 권수×2)도 이때 함께 자동 반영 — 감상문 쓴 날짜를 따로 집계할 필요 없음
+      await payVacationReading().catch(() => null);
       setResult(r);
       // 집계 결과 캐시 무효화 — 다음 조회 때 새 문서를 읽는다
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
