@@ -2,12 +2,14 @@
 // 내 기록 — "내가 어떻게 하고 있는지 한 곳에서" (학생 페르소나 1건).
 // 이미 캐시되는 문서만 재사용: 누적 점수 문서(점수·MVP·득표) + readingStats(주별 권수)
 // + 최근 집계일 문서(점수 출처 분해 — Team 탭과 캐시 공유, 추가 읽기 0).
+import { useState } from "react";
 import { useReadingStats } from "@/lib/query/reading";
-import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
+import { useDailyScores, useLatestAggregated, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { s1BooksOf } from "@/lib/staticData";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { weekBooks, readingStreaks } from "@/lib/readingStreak";
 import type { DailyScoreRow } from "@/types";
 
@@ -41,6 +43,14 @@ export default function MyRecord({
   const perWeek = weeks.map((w) => weekBooks(stats, studentId, w));
   const maxW = Math.max(1, ...perWeek);
   const hasAny = score !== 0 || totalBooks > 0 || mvpWins > 0 || bossVotes > 0;
+
+  // 일간 / 세션 / 누적 보기 (사용자 요청). 세션은 눌렀을 때만 로드 — 읽기 예산 보호.
+  const [view, setView] = useState<"daily" | "session" | "cumulative">("daily");
+  const period = periodOfWeek(Math.max(curWeek, 1));
+  const [sStart, sEndRaw] = dateRangeOfPeriod(period);
+  const sessionEnd = today < sEndRaw ? today : sEndRaw;
+  const { data: sessionReport } = useRangeReport(sStart, sessionEnd, view === "session" && hasAny);
+  const sessionTotal = sessionReport?.totals?.[sid] ?? 0;
 
   // ── 점수 출처 분해 — "내 점수가 어디서 왔는지" (사용자 요청) ──
   // 집계일의 내 행(dailyScores/{date})을 항목별로 풀어서 보여준다.
@@ -85,76 +95,132 @@ export default function MyRecord({
         </p>
       ) : (
         <>
-          <div className="mt-3 grid grid-cols-4 gap-1.5">
-            {tiles.map((t) => (
-              <div key={t.label} className={`rounded-btn px-1.5 py-2.5 text-center ${t.cls}`}>
-                <p className="text-[10px] leading-tight text-ink-600">{t.label}</p>
-                <p className="tnum mt-0.5 text-xl font-extrabold leading-tight">{t.value}</p>
-              </div>
+          {/* 일간 / 세션 / 누적 보기 토글 (사용자 요청) */}
+          <div className="mt-3 flex gap-1 rounded-btn bg-ink-100 p-0.5 text-xs font-bold">
+            {([
+              { k: "daily", l: "📅 일간" },
+              { k: "session", l: "🗓️ 세션" },
+              { k: "cumulative", l: "🏅 누적" },
+            ] as const).map((t) => (
+              <button
+                key={t.k}
+                onClick={() => setView(t.k)}
+                className={`press flex-1 rounded-btn py-1.5 ${
+                  view === t.k ? "bg-white text-ink-900 shadow-sm" : "text-ink-500"
+                }`}
+              >
+                {t.l}
+              </button>
             ))}
           </div>
 
-          {/* 점수 출처 분해 — 최근 집계일 기준 항목별 (사용자 요청) */}
-          {myRow && aggDate && (
+          {/* 📅 일간 — 최근 집계일 점수 출처 분해 */}
+          {view === "daily" &&
+            (myRow && aggDate ? (
+              <div className="mt-3 rounded-btn bg-ink-50 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-1">
+                  <p className="text-xs font-bold text-ink-700">🔍 내 점수, 어디서 왔을까?</p>
+                  <span className="text-[10px] text-ink-400">최근 집계일 {fmtDay(aggDate)} 기준</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {parts.map((p) => (
+                    <span
+                      key={p.label}
+                      className={`rounded-full px-2 py-1 text-[11px] font-bold ${
+                        p.v > 0
+                          ? "bg-brand-weak text-brand-strong"
+                          : p.v < 0
+                            ? "bg-danger-weak text-danger"
+                            : "bg-white text-ink-400"
+                      }`}
+                    >
+                      {p.icon} {p.label} <b className="tnum">{p.v > 0 ? `+${p.v}` : p.v}</b>
+                    </span>
+                  ))}
+                  <span className="rounded-full bg-ink-900 px-2 py-1 text-[11px] font-bold text-white">
+                    = 그날 합계 <b className="tnum">{myRow.total ?? 0}</b>점
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-ink-200/60 pt-2">
+                  <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
+                    🔥 칭찬 연속 <b className="tnum text-rose-500">{compStreak}</b>일
+                    <span className="text-ink-400"> — 5일 +1점 · 10일 +2점</span>
+                  </span>
+                  <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
+                    📚 독서 목표 연속 <b className="tnum text-emerald-600">{readStreak}</b>주
+                    <span className="text-ink-400">
+                      {vacation ? " — 개학 후 시작해요" : " — 정산 때 주당 최대 +3점"}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-btn bg-ink-50 px-3 py-4 text-center text-sm text-ink-400">
+                아직 오늘 집계 전이에요 — 선생님이 집계하면 여기 점수 출처가 떠요.
+              </p>
+            ))}
+
+          {/* 🗓️ 세션 — 이번 세션(2주) 합계·요약 (눌렀을 때만 로드) */}
+          {view === "session" && (
             <div className="mt-3 rounded-btn bg-ink-50 p-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-1">
-                <p className="text-xs font-bold text-ink-700">🔍 내 점수, 어디서 왔을까?</p>
-                <span className="text-[10px] text-ink-400">최근 집계일 {fmtDay(aggDate)} 기준</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {parts.map((p) => (
-                  <span
-                    key={p.label}
-                    className={`rounded-full px-2 py-1 text-[11px] font-bold ${
-                      p.v > 0
-                        ? "bg-brand-weak text-brand-strong"
-                        : p.v < 0
-                          ? "bg-danger-weak text-danger"
-                          : "bg-white text-ink-400"
-                    }`}
-                  >
-                    {p.icon} {p.label}{" "}
-                    <b className="tnum">{p.v > 0 ? `+${p.v}` : p.v}</b>
-                  </span>
-                ))}
-                <span className="rounded-full bg-ink-900 px-2 py-1 text-[11px] font-bold text-white">
-                  = 그날 합계 <b className="tnum">{myRow.total ?? 0}</b>점
-                </span>
-              </div>
-              {/* 스트릭 — 연속 기록이 점수가 되는 규칙 안내 */}
-              <div className="mt-2 flex flex-wrap gap-1.5 border-t border-ink-200/60 pt-2">
-                <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
-                  🔥 칭찬 연속 <b className="tnum text-rose-500">{compStreak}</b>일
-                  <span className="text-ink-400"> — 5일 +1점 · 10일 +2점</span>
-                </span>
-                <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
-                  📚 독서 목표 연속 <b className="tnum text-emerald-600">{readStreak}</b>주
-                  <span className="text-ink-400">
-                    {vacation ? " — 개학 후 시작해요" : " — 정산 때 주당 최대 +3점"}
-                  </span>
-                </span>
-              </div>
+              <p className="text-xs font-bold text-ink-700">
+                🗓️ 이번 세션 <span className="font-normal text-ink-400">({fmtDay(sStart)}~{fmtDay(sessionEnd)})</span>
+              </p>
+              {!sessionReport ? (
+                <p className="mt-3 text-center text-sm text-ink-400">불러오는 중…</p>
+              ) : (
+                <>
+                  <div className="mt-2 rounded-card bg-white p-3 text-center">
+                    <p className="text-[11px] text-ink-500">이번 세션 점수</p>
+                    <p className="tnum mt-0.5 text-3xl font-extrabold text-brand-strong">{sessionTotal}</p>
+                    <p className="text-[10px] text-ink-400">집계된 날 {sessionReport.days}일</p>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-pink-100 px-2 py-1 text-[11px] font-bold text-pink-600">
+                      💌 칭찬 보냄 {sessionReport.givenCount?.[sid] ?? 0}
+                    </span>
+                    <span className="rounded-full bg-pink-100 px-2 py-1 text-[11px] font-bold text-pink-600">
+                      💝 칭찬 받음 {sessionReport.receivedCount?.[sid] ?? 0}
+                    </span>
+                    <span className="rounded-full bg-warn-weak px-2 py-1 text-[11px] font-bold text-warn">
+                      ⭐ MVP {sessionReport.mvpCount?.[sid] ?? 0}회
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* 주별 독서 막대 — byWeek 재사용, 이번 주는 파랑 강조 */}
-          <p className="mt-3 text-xs font-bold text-ink-600">📖 주별 독서 권수</p>
-          <div className="mt-1.5 flex items-end gap-1 overflow-x-auto pb-1">
-            {weeks.map((w, i) => (
-              <div key={w} className="flex w-7 shrink-0 flex-col items-center gap-0.5">
-                <span className="tnum text-[10px] leading-none text-ink-500">
-                  {perWeek[i] > 0 ? perWeek[i] : ""}
-                </span>
-                <div
-                  className={`w-full rounded-t ${
-                    w === curWeek ? "bg-brand" : perWeek[i] > 0 ? "bg-emerald-400" : "bg-ink-100"
-                  }`}
-                  style={{ height: `${Math.max((perWeek[i] / maxW) * 48, 3)}px` }}
-                />
-                <span className="tnum text-[9px] leading-none text-ink-400">{w}주</span>
+          {/* 🏅 누적 — 전체 타일 + 주별 독서 */}
+          {view === "cumulative" && (
+            <>
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                {tiles.map((t) => (
+                  <div key={t.label} className={`rounded-btn px-1.5 py-2.5 text-center ${t.cls}`}>
+                    <p className="text-[10px] leading-tight text-ink-600">{t.label}</p>
+                    <p className="tnum mt-0.5 text-xl font-extrabold leading-tight">{t.value}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <p className="mt-3 text-xs font-bold text-ink-600">📖 주별 독서 권수</p>
+              <div className="mt-1.5 flex items-end gap-1 overflow-x-auto pb-1">
+                {weeks.map((w, i) => (
+                  <div key={w} className="flex w-7 shrink-0 flex-col items-center gap-0.5">
+                    <span className="tnum text-[10px] leading-none text-ink-500">
+                      {perWeek[i] > 0 ? perWeek[i] : ""}
+                    </span>
+                    <div
+                      className={`w-full rounded-t ${
+                        w === curWeek ? "bg-brand" : perWeek[i] > 0 ? "bg-emerald-400" : "bg-ink-100"
+                      }`}
+                      style={{ height: `${Math.max((perWeek[i] / maxW) * 48, 3)}px` }}
+                    />
+                    <span className="tnum text-[9px] leading-none text-ink-400">{w}주</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </section>
