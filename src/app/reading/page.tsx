@@ -92,8 +92,8 @@ function ReportBody({
                 🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
                 {[
                   (pasteCount > 0 || (r.pastedChars ?? 0) > 0) &&
-                    `외부 붙여넣기 ${pasteCount}회 · ${r.pastedChars ?? 0}자`,
-                  suspicion.fast && "빠른 작성",
+                    `붙여넣기 시도 ${pasteCount}회 · ${r.pastedChars ?? 0}자(차단됨)`,
+                  suspicion.fast && "빠른 작성(자동 타이핑 의심)",
                   timeStr,
                 ]
                   .filter(Boolean)
@@ -102,13 +102,13 @@ function ReportBody({
               </div>
             ) : pasteCount > 0 ? (
               <div className="mb-3 rounded-btn bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
-                📋 외부 붙여넣기 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b>
+                🚫 붙여넣기 시도 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b> (차단됨)
                 {timeStr && <span className="ml-1">· {timeStr}</span>}
                 <span className="ml-1 text-ink-400">— 직접 쓴 글인지 확인해보세요.</span>
               </div>
             ) : suspicion.measured ? (
               <div className="mb-3 rounded-btn bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-700">
-                ✍️ 직접 작성한 것으로 보여요{timeStr && ` — ${timeStr}`} · 외부 붙여넣기 0회
+                ✍️ 직접 작성한 것으로 보여요{timeStr && ` — ${timeStr}`} · 붙여넣기 시도 0회
               </div>
             ) : (
               <div className="mb-3 rounded-btn bg-ink-50 px-3 py-1.5 text-[12px] text-ink-400">
@@ -698,29 +698,32 @@ export default function ReadingPage() {
                       {/* 1줄: 책 제목 + 잠금 */}
                       <span className="flex items-center gap-1.5">
                         {r.isPrivate && <span className="shrink-0 text-xs">🔒</span>}
-                        {/* 선생님만 — 복붙 행위 표시. 강한 의심은 🚩, 작은 붙여넣기도 📋로 */}
+                        {/* 선생님만 — 복붙·자동타이핑 신호를 색 배지로. 강한 의심 🚩빨강 · 시도 🚫노랑 */}
                         {role === "teacher" &&
                           (() => {
                             const sp = reportSuspicion(r);
                             if (sp.paste || sp.fast)
                               return (
-                                <span className="shrink-0 text-xs" title="복붙·AI 작성 의심">
-                                  🚩
+                                <span
+                                  className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[11px] font-bold text-rose-700"
+                                  title={`복붙·AI 작성 의심${sp.fast ? " (빠른 작성)" : ""}`}
+                                >
+                                  🚩 의심
                                 </span>
                               );
                             if ((r.pasteCount ?? 0) > 0)
                               return (
                                 <span
-                                  className="shrink-0 text-xs"
-                                  title={`외부 붙여넣기 ${r.pasteCount}회 · ${r.pastedChars ?? 0}자`}
+                                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-700"
+                                  title={`붙여넣기 시도 ${r.pasteCount}회 · ${r.pastedChars ?? 0}자 (차단됨)`}
                                 >
-                                  📋
+                                  🚫 붙여넣기
                                 </span>
                               );
                             if ((r.selfPasteCount ?? 0) > 0)
                               return (
                                 <span
-                                  className="shrink-0 text-xs"
+                                  className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[11px] font-bold text-sky-700"
                                   title={`자기 글 복사 ${r.selfPasteCount}회 · ${r.selfPastedChars ?? 0}자`}
                                 >
                                   ♻️

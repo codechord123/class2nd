@@ -145,17 +145,21 @@ export default function WriteSheet({
   //   ① 붙여넣기(onPaste)·드래그드롭(onDrop)을 preventDefault로 원천 차단
   //   ② onPaste를 안 태우는 디벗(iPad) 붙여넣기·음성 받아쓰기까지 잡으려고, IME 조합이 아닌데
   //      한 번에 15자 이상 늘어나는 입력은 되돌린다(상태 미갱신 → controlled input이 이전 값 복구).
-  const warnBlocked = () => {
+  // 차단은 하되 '시도 흔적'은 남긴다 — 잘게 쪼개 붙여넣기·자동 타이핑까지 100% 막을 순 없으므로,
+  // 시도 횟수·글자를 기록해 선생님 화면에 색으로 표시하고, 작성 시간(writeMs)으로 속성 작성을 잡는다.
+  const recordBlocked = (n: number) => {
+    pasted.current.chars += Math.max(n, 0);
+    pasted.current.count += 1;
     setPasteHint(true);
     window.setTimeout(() => setPasteHint(false), 3500);
   };
   const onPasteBody = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    warnBlocked();
+    recordBlocked((e.clipboardData.getData("text") ?? "").length);
   };
   const onDropBody = (e: React.DragEvent) => {
     e.preventDefault();
-    warnBlocked();
+    recordBlocked((e.dataTransfer.getData("text") ?? "").length);
   };
   const BULK_INSERT = 15;
   type BodyField = "summary" | "scene" | "quote" | "thoughts" | "authorIntent" | "connect";
@@ -164,7 +168,7 @@ export default function WriteSheet({
     const newV = e.target.value;
     const composing = (e.nativeEvent as { isComposing?: boolean }).isComposing;
     if (!composing && newV.length - oldV.length >= BULK_INSERT) {
-      warnBlocked(); // 대량 삽입(붙여넣기·받아쓰기) → 되돌림
+      recordBlocked(newV.length - oldV.length); // 대량 삽입(붙여넣기·받아쓰기) → 되돌리고 기록
       return;
     }
     setForm({ ...form, [field]: newV });
