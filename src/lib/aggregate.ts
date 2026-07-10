@@ -199,12 +199,20 @@ export async function payVacationReading(): Promise<VacationReadResult | null> {
         | Record<string, number>
         | undefined) ?? {};
     const cum = (cumSnap.exists() ? cumSnap.data() : {}) as Record<string, unknown>;
-    const paid = (cum.vacReadPaid as Record<string, number>) ?? {};
+    // 마커는 '지급된 점수' 기준(vacReadPoints). 권당 READ_POINTS_PER_BOOK점(=2).
+    // 옛 마커(vacReadPaid=권수, 예전엔 +1로 지급돼 점수와 값이 같았음)에서 자연 이관:
+    //   이미 지급된 점수 = vacReadPoints ?? vacReadPaid(권수). 그래서 옛 +1분이 +2로 자동 승급된다.
+    const paidPts = (cum.vacReadPoints as Record<string, number>) ?? {};
+    const paidCount = (cum.vacReadPaid as Record<string, number>) ?? {};
 
     const deltas: Record<string, number> = {};
+    const targets: Record<string, number> = {};
     for (const s of students) {
       const sid = String(s.id);
-      const delta = (bucket[sid] ?? 0) - (paid[sid] ?? 0);
+      const target = (bucket[sid] ?? 0) * READ_POINTS_PER_BOOK; // 목표 점수 = 권수 × 2
+      targets[sid] = target;
+      const already = paidPts[sid] ?? paidCount[sid] ?? 0; // 이미 지급된 점수
+      const delta = target - already;
       if (delta !== 0) deltas[sid] = delta;
     }
     const entries = Object.entries(deltas);
@@ -214,7 +222,7 @@ export async function payVacationReading(): Promise<VacationReadResult | null> {
       doc(d, "dailyScores", "_cumulative"),
       {
         ...Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
-        vacReadPaid: Object.fromEntries(entries.map(([sid]) => [sid, bucket[sid] ?? 0])),
+        vacReadPoints: Object.fromEntries(entries.map(([sid]) => [sid, targets[sid]])),
       },
       { merge: true }
     );
@@ -343,8 +351,8 @@ async function aggregateDateInner(
       ? { [bestEntry.groupId]: 1 }
       : {};
 
-  // 독서 점수는 방학·학기 무관하게 payVacationReading(전체 권수 + vacReadPaid 마커)이 누적 점수에
-  // 상시 반영한다 (+1/편, 초기화 survive). 일일 집계에서 또 세면 이중 지급이므로 daily read는 끈다.
+  // 독서 점수는 방학·학기 무관하게 payVacationReading(전체 권수 × 2 + vacReadPoints 마커)이 누적
+  // 점수에 상시 반영한다 (권당 +2, 초기화 survive). 일일 집계에서 또 세면 이중 지급이라 daily read는 끈다.
   const countReads = false;
 
   // 기록이 전혀 없는 날(평가·감상문·순위 없음, 기존 집계도 없음)은 건너뛴다 —
