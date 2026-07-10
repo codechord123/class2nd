@@ -1,5 +1,5 @@
 "use client";
-// 🤝 받은 부서장 평가 — 누가(실명) 내 어떤 기준을 O/X 했는지, 그래서 몇 점인지 보여준다.
+// 🤝 받은 부서장 평가 — 누가(실명) 내 미션을 0/1로 어떻게 봤는지, 그래서 몇 점인지 보여준다.
 // 억울하면 이의제기(사유) → 교사 검토. 캐시된 집계 문서(_meta.peerDetail) 재사용(추가 읽기 0).
 import { useState } from "react";
 import { studentById } from "@/lib/roster";
@@ -96,20 +96,22 @@ export default function ReceivedPeerEval({
                 </span>
                 <span
                   className={`tnum rounded-full px-2 py-0.5 text-xs font-bold ${
-                    it.score > 0
-                      ? "bg-success text-white"
-                      : it.score < 0
-                        ? "bg-danger text-white"
-                        : "bg-ink-200 text-ink-600"
+                    it.score > 0 ? "bg-success text-white" : "bg-ink-200 text-ink-600"
                   }`}
                 >
-                  {it.score > 0 ? `+${it.score}` : it.score}점
+                  +{it.score}점
                 </span>
               </div>
               <div className="mt-1.5 space-y-0.5">
                 {it.checks.map((ok, i) => (
                   <p key={i} className="flex items-center gap-1.5 text-[13px] text-ink-700">
-                    <span className={ok ? "text-success" : "text-danger"}>{ok ? "⭕" : "❌"}</span>
+                    <span
+                      className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] font-extrabold ${
+                        ok ? "bg-success text-white" : "bg-ink-200 text-ink-500"
+                      }`}
+                    >
+                      {ok ? "1" : "0"}
+                    </span>
                     <span className="[overflow-wrap:anywhere]">{deptCriteria[i] ?? `기준 ${i + 1}`}</span>
                   </p>
                 ))}

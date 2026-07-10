@@ -609,9 +609,9 @@ export default function TeamPage() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
-          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구가 오늘 아래{" "}
-          <b>미션 2개</b>를 지켰으면 눌러서 <b className="text-success">초록색</b>으로 켜요.{" "}
-          <b>2개 다 +1 · 하나만 0 · 둘 다 안 켜면 −1.</b> 안 건드린 친구는 그냥 <b>0점(미평가)</b>.
+          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구가 지킨{" "}
+          <b>미션</b>만 눌러서 <b className="text-success">초록색(1점)</b>으로 켜요. 미션마다 1점씩 —{" "}
+          <b>둘 다 +2 · 하나만 +1 · 안 켜면 0점</b> (마이너스 없음).
           <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로!
         </p>
         {peerOpen ? (
@@ -632,11 +632,6 @@ export default function TeamPage() {
                       toast(`⚠️ 저장 실패: ${e.message}`, "error")
                     );
                   }}
-                  onSetAll={(next) =>
-                    void savePeerChecks(t.studentId, next).catch((e: Error) =>
-                      toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                    )
-                  }
                 />
               ))}
             </ul>

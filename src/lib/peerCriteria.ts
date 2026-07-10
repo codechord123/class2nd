@@ -55,12 +55,9 @@ export const DEPT_LAW_ARTICLES: Record<string, { title: string; clauses: string[
   },
 };
 
-// 미션 체크 → 평가자 1명이 주는 점수 (사용자 확정): 2개 다 함 = +1 · 하나만 = 0 · 하나도 안 함 = −1.
-// checks 길이 = 그 부서 미션 개수. 기준이 없거나(미평가) 빈 배열이면 0(무효 — 손대기 전 기본값).
+// 미션 체크 → 평가자 1명이 주는 점수 (사용자 확정): 미션당 1점 합산, 안 하면 0 (마이너스 없음).
+//   2미션이면 0·1·2점. 마이너스를 없애 결석·미평가(빈 배열=0) 학생이 남에게 −를 주는 일이 없다.
 export function peerScoreFromChecks(checks: boolean[] | undefined): number {
   if (!checks || checks.length === 0) return 0;
-  const o = checks.filter(Boolean).length;
-  if (o === checks.length) return 1;
-  if (o === 0) return -1;
-  return 0;
+  return checks.filter(Boolean).length;
 }
