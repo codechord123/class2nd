@@ -260,10 +260,7 @@ export default function TeacherPage() {
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
 
-      {/* 칭찬 점검 — 복붙·무관 칭찬 삭제 시 재집계로 점수 되돌림 (자체 날짜 이동) */}
-      <ComplimentModerationPanel initialDate={date} />
-
-      {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 리포트 위, 한 행(2열)에 */}
+      {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 맨 위(2열)에 */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
 
       {/* 오늘의 모둠 순위(1~5위) 선정 */}
@@ -391,6 +388,17 @@ export default function TeacherPage() {
         )}
       </section>
       </div>
+
+      {/* 칭찬 점검 — 매일 필수는 아니고, 복붙·무관 칭찬을 지울 때만. 그래서 집계 아래로 내렸다.
+          (예전엔 제출현황과 집계 사이에 있어 매일 스크롤로 지나쳐야 했음 — 사용자 지적) */}
+      <details className="rounded-card border border-ink-200 bg-white shadow-card">
+        <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
+          🧹 칭찬 점검 <span className="text-xs font-normal text-ink-400">— 눌러서 펼치기 (필요할 때만)</span>
+        </summary>
+        <div className="border-t border-ink-100 p-4 pt-3">
+          <ComplimentModerationPanel initialDate={date} />
+        </div>
+      </details>
       </>)}
 
       {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
