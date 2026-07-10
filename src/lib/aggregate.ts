@@ -294,17 +294,15 @@ async function aggregateDateInner(
   evalSnap.forEach((entry) => {
     const data = entry.data();
     const from = Number(entry.id);
-    for (const [targetId, v] of Object.entries(data)) {
-      if (targetId.startsWith("_")) continue;
-      if (Number(targetId) === from) continue; // 자기 점수 무효 (조작 방지)
-      if (typeof v === "number") peer[Number(targetId)] = (peer[Number(targetId)] ?? 0) + v;
-    }
-    // O/X 체크 상세 (신버전) — 점수는 위 숫자 필드로 이미 합산됨. 여기선 표시·이의제기용만.
+    // 부서장 평가 점수는 저장된 숫자 필드가 아니라 체크(_peerChecks)에서 '현재 규칙'으로 다시 계산한다.
+    //   → 옛 규칙(−1/−2)으로 저장된 숫자를 무시하고, 재집계만 하면 음수가 자동으로 사라진다(자기 치유).
     const pc = data._peerChecks as Record<string, boolean[]> | undefined;
     if (pc)
-      for (const [to, checks] of Object.entries(pc))
-        if (Number(to) !== from && Array.isArray(checks))
-          peerChecksRaw.push({ from, to: Number(to), checks: checks.map(Boolean) });
+      for (const [to, checks] of Object.entries(pc)) {
+        if (Number(to) === from || !Array.isArray(checks)) continue;
+        peer[Number(to)] = (peer[Number(to)] ?? 0) + peerScoreFromChecks(checks.map(Boolean));
+        peerChecksRaw.push({ from, to: Number(to), checks: checks.map(Boolean) });
+      }
     if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from) {
       mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 취소, 자기 투표 무효
       const reason = (data._mvpReason as string | undefined)?.trim();

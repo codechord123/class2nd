@@ -94,7 +94,6 @@ export default function TeamPage() {
   const [mvpBusy, setMvpBusy] = useState(false); // 부서장 투표 저장 중 추가 클릭 무시
   const [bossPick, setBossPick] = useState<number | null>(null); // 부서장 투표 대상(제출 전)
   const [bossReason, setBossReason] = useState(""); // 부서장 투표 이유(필수)
-  const [peerStartedManual, setPeerStartedManual] = useState(false); // 부서장 평가 모둠 전체 게이트(수동 열림)
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
   const [editPeer, setEditPeer] = useState<{ kind: "comp" | "sug"; tid: string; text: string } | null>(null);
   const { toast, confirm } = useFeedback();
@@ -274,11 +273,9 @@ export default function TeamPage() {
   const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
   const doneComp = Object.values(savedComp).some((v) => v?.trim());
 
-  // 부서장 평가 모둠 전체 게이트 — '평가하기'를 눌러야 모둠 평가창이 열린다.
-  // 안 열면(결석·미참여) 평가창이 아예 안 보여 아무에게도 −점수가 가지 않는다 (사용자 요청).
-  // 이미 평가한 게 있으면 자동으로 열려 있다.
+  // 부서장 평가 — 미션은 바로 보인다(게이트 없음). 마이너스가 없어 안 건드린 친구는 0점이라
+  // 결석·미평가로 남에게 손해가 가지 않는다 (사용자 확정).
   const savedPeerChecks = (evalRec._peerChecks as Record<string, boolean[]> | undefined) ?? {};
-  const peerOpen = peerStartedManual || Object.keys(savedPeerChecks).length > 0;
 
   // 칭찬 보내기 (건의와 독립)
   async function submitComp() {
@@ -614,48 +611,29 @@ export default function TeamPage() {
           <b>둘 다 +2 · 하나만 +1 · 안 켜면 0점</b> (마이너스 없음).
           <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로!
         </p>
-        {peerOpen ? (
-          <>
-            <ul className="mt-3 space-y-2">
-              {targets.map((t) => (
-                <PeerEvalRow
-                  key={t.studentId}
-                  name={studentById.get(t.studentId)?.name ?? "?"}
-                  roleEmoji={roleEmoji[myRole] ?? "👑"}
-                  roleLabel={myRole}
-                  criteria={myCriteria}
-                  checks={savedPeerChecks[String(t.studentId)] ?? []}
-                  onToggle={(idx) => {
-                    const cur = savedPeerChecks[String(t.studentId)] ?? [];
-                    const next = myCriteria.map((_, i) => (i === idx ? !(cur[i] ?? false) : cur[i] ?? false));
-                    void savePeerChecks(t.studentId, next).catch((e: Error) =>
-                      toast(`⚠️ 저장 실패: ${e.message}`, "error")
-                    );
-                  }}
-                />
-              ))}
-            </ul>
-            <p className="mt-2 text-[11px] text-ink-400">
-              <b>안 건드린 친구는 0점(미평가)</b> — 억지로 다 채우지 않아도 돼요. 잘한 미션만 눌러
-              초록으로 켜주세요.
-            </p>
-          </>
-        ) : (
-          // 모둠 전체 게이트 — 누르기 전엔 창이 안 보이고 아무에게도 점수가 가지 않는다 (결석·미참여 보호)
-          <div className="mt-3 rounded-btn bg-ink-50 px-3 py-6 text-center">
-            <p className="text-[13px] text-ink-500">
-              <b>평가하기</b>를 누르면 우리 모둠 평가창이 열려요.
-              <br className="hidden sm:inline" /> 시작하지 않으면 <b>모두 0점</b> — 아무에게도 점수가 가지
-              않아요.
-            </p>
-            <button
-              onClick={() => setPeerStartedManual(true)}
-              className="press mt-3 rounded-btn bg-brand px-6 py-2.5 text-sm font-bold text-white"
-            >
-              🖊️ 평가하기
-            </button>
-          </div>
-        )}
+        <ul className="mt-3 space-y-2">
+          {targets.map((t) => (
+            <PeerEvalRow
+              key={t.studentId}
+              name={studentById.get(t.studentId)?.name ?? "?"}
+              roleEmoji={roleEmoji[myRole] ?? "👑"}
+              roleLabel={myRole}
+              criteria={myCriteria}
+              checks={savedPeerChecks[String(t.studentId)] ?? []}
+              onToggle={(idx) => {
+                const cur = savedPeerChecks[String(t.studentId)] ?? [];
+                const next = myCriteria.map((_, i) => (i === idx ? !(cur[i] ?? false) : cur[i] ?? false));
+                void savePeerChecks(t.studentId, next).catch((e: Error) =>
+                  toast(`⚠️ 저장 실패: ${e.message}`, "error")
+                );
+              }}
+            />
+          ))}
+        </ul>
+        <p className="mt-2 text-[11px] text-ink-400">
+          <b>안 건드린 친구는 0점</b> — 잘한 미션만 눌러 초록으로 켜면 돼요. 마이너스가 없어서
+          평가를 안 해도 친구에게 손해가 없어요.
+        </p>
       </section>
 
       {/* 오늘의 부서장 투표 — '그날 부서 일을 가장 잘한 사람'. 최다 득표자 고정 +1점.
