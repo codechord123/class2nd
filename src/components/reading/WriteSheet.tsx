@@ -80,6 +80,48 @@ export default function WriteSheet({
   const initialForm = initial?.form ?? EMPTY;
   const [form, setForm] = useState<ReportForm>(initialForm);
   const [busy, setBusy] = useState(false);
+
+  // ── 자동저장(localStorage) — 쓰다가 크래시·새로고침·실수로 닫혀도 복구 ──
+  // 서버에 안 쓰므로 읽기/쓰기 예산과 무관. 대상(새 글/초안/정식본)별로 슬롯을 나눈다.
+  const target = initial?.draftId ?? initial?.reportId ?? "new";
+  const AUTOSAVE_KEY = `class2nd-reading-autosave-${studentId}`;
+  // 열 때 저장된 자동본이 있으면(현재 폼과 다르면) 복구 배너로 제안 (자동 덮어쓰기는 안 함)
+  const [recovered, setRecovered] = useState<ReportForm | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return null;
+      const saved = JSON.parse(raw) as { form?: ReportForm; target?: string };
+      if (
+        saved?.target === target &&
+        saved.form &&
+        JSON.stringify(saved.form) !== JSON.stringify(initialForm)
+      )
+        return saved.form;
+    } catch {
+      /* 손상된 값은 무시 */
+    }
+    return null;
+  });
+  // 입력이 멈추면(0.8초) 현재 폼을 자동저장 — 내용이 있을 때만
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try {
+        if (form.title.trim() || reportBodyLength(form) > 0)
+          localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ form, at: Date.now(), target }));
+      } catch {
+        /* 용량 초과 등은 무시 */
+      }
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [form, AUTOSAVE_KEY, target]);
+  const clearAutosave = () => {
+    try {
+      localStorage.removeItem(AUTOSAVE_KEY);
+    } catch {
+      /* noop */
+    }
+  };
   // 열 때마다 유도 질문 한 세트 선택 (렌더마다 바뀌지 않게 state 초기값으로 고정)
   const [prompts] = useState(() => PROMPTS[Math.floor(Math.random() * PROMPTS.length)]);
   const [doneBurst, setDoneBurst] = useState(0); // 정식 등록 성공 juice
@@ -159,7 +201,7 @@ export default function WriteSheet({
       dirty &&
       !(await confirm({
         title: "쓰던 내용을 닫을까요?",
-        body: "저장하지 않은 내용은 사라져요. 아래 '임시저장'을 누르면 나중에 이어 쓸 수 있어요.",
+        body: "이 기기에 자동저장돼 있어서, 다시 열면 '이어서 쓸까요?'로 되살릴 수 있어요. 확실히 저장하려면 '임시저장'을 눌러요.",
         confirmLabel: "닫기",
         danger: true,
       }))
@@ -199,6 +241,7 @@ export default function WriteSheet({
           : { writeMs: priorMs.current + (openedAt.current ? Date.now() - openedAt.current : 0) }),
       };
       await saveReport(form, { draft, draftId, reportId, detect });
+      clearAutosave(); // 저장 성공 → 자동저장 슬롯 비움
       toast(
         draft
           ? "💾 임시저장 완료! 나중에 이어서 쓸 수 있어요."
@@ -245,6 +288,34 @@ export default function WriteSheet({
 
       {/* 본문 (스크롤) — 카드 2장: 책 정보 / 감상 */}
       <div className="mx-auto w-full max-w-3xl flex-1 space-y-3 overflow-y-auto p-4">
+        {/* 자동저장 복구 배너 — 쓰다 만 글이 남아 있으면 되살리기 제안 */}
+        {recovered && (
+          <div className="flex flex-wrap items-center gap-2 rounded-card border border-amber-300 bg-amber-50 px-4 py-3">
+            <span className="text-sm font-bold text-amber-800">
+              💾 쓰다 만 글이 있어요 — 이어서 쓸까요?
+            </span>
+            <span className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  setForm(recovered);
+                  setRecovered(null);
+                }}
+                className="press rounded-btn bg-amber-500 px-3 py-1.5 text-xs font-bold text-white"
+              >
+                불러오기
+              </button>
+              <button
+                onClick={() => {
+                  setRecovered(null);
+                  clearAutosave();
+                }}
+                className="press rounded-btn border border-ink-300 bg-white px-3 py-1.5 text-xs font-bold text-ink-500"
+              >
+                새로 쓰기
+              </button>
+            </span>
+          </div>
+        )}
         <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <h3 className="text-base font-extrabold text-ink-900">1. 어떤 책인가요?</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
