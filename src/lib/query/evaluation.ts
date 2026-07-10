@@ -190,6 +190,7 @@ export interface RangeReport {
   givenCount: Record<string, number>; // studentId → 칭찬 보낸 횟수
   receivedCount: Record<string, number>; // studentId → 칭찬 받은 횟수
   reflections: { from: number; text: string; date: string }[]; // 세션 모둠 반성
+  sumByCat: Record<string, Record<string, number>>; // studentId → {peer,groupRank,...} 항목별 점수 합
   days: number;
 }
 export function useRangeReport(start: string, end: string, enabled: boolean) {
@@ -211,6 +212,8 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       const givenCount: Record<string, number> = {};
       const receivedCount: Record<string, number> = {};
       const reflections: RangeReport["reflections"] = [];
+      const sumByCat: Record<string, Record<string, number>> = {};
+      const CATS = ["peer", "groupRank", "bonus", "mission", "comp", "boss", "mvp", "best", "read"] as const;
       let compliments = 0,
         suggestions = 0,
         missionAchievements = 0,
@@ -220,7 +223,11 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
         const data = day.data();
         for (const s of students) {
           const row = data[String(s.id)] as DailyScoreRow | undefined;
-          if (row?.total != null) totals[String(s.id)] = (totals[String(s.id)] ?? 0) + row.total;
+          if (row?.total == null) continue;
+          const key = String(s.id);
+          totals[key] = (totals[key] ?? 0) + row.total;
+          const acc = (sumByCat[key] ??= {});
+          for (const c of CATS) acc[c] = (acc[c] ?? 0) + ((row as unknown as Record<string, number>)[c] ?? 0);
         }
         const meta = (data._meta ?? {}) as {
           compliments?: { from: number; to: number }[];
@@ -256,6 +263,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
         givenCount,
         receivedCount,
         reflections,
+        sumByCat,
         days,
       };
     },

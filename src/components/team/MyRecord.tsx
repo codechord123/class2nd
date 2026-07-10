@@ -51,6 +51,22 @@ export default function MyRecord({
   const sessionEnd = today < sEndRaw ? today : sEndRaw;
   const { data: sessionReport } = useRangeReport(sStart, sessionEnd, view === "session" && hasAny);
   const sessionTotal = sessionReport?.totals?.[sid] ?? 0;
+  // 누적 점수 출처 — 항목별 저장이 없어 집계일 전체를 합산. 읽기 예산 위해 '보기' 눌렀을 때만 로드.
+  const [showCumSource, setShowCumSource] = useState(false);
+  const { data: cumReport } = useRangeReport("2026-03-01", today, view === "cumulative" && showCumSource);
+  const cumCat = cumReport?.sumByCat?.[sid] ?? {};
+  // 항목별 라벨 (일간·누적 공용)
+  const CAT_LABELS = [
+    { key: "peer", icon: "🤝", label: "부서장 평가" },
+    { key: "groupRank", icon: "🏆", label: "모둠 순위" },
+    { key: "mission", icon: "🎯", label: "칭찬 미션" },
+    { key: "comp", icon: "💌", label: "칭찬하기" },
+    { key: "boss", icon: "🙌", label: "오늘의 부서장" },
+    { key: "mvp", icon: "⭐", label: "MVP" },
+    { key: "best", icon: "👑", label: "오늘의 모둠" },
+    { key: "read", icon: "🐢", label: "독서" },
+    { key: "bonus", icon: "🎁", label: "선생님 보너스" },
+  ] as const;
 
   // ── 점수 출처 분해 — "내 점수가 어디서 왔는지" (사용자 요청) ──
   // 집계일의 내 행(dailyScores/{date})을 항목별로 풀어서 보여준다.
@@ -202,6 +218,49 @@ export default function MyRecord({
                   </div>
                 ))}
               </div>
+
+              {/* 누적 점수 출처 — 집계일 전체 합산 (옵트인 로드, 읽기 예산) */}
+              {!showCumSource ? (
+                <button
+                  onClick={() => setShowCumSource(true)}
+                  className="press mt-3 w-full rounded-btn bg-ink-100 py-2 text-xs font-bold text-ink-600"
+                >
+                  🔍 누적 점수, 어디서 왔을까? (눌러서 보기)
+                </button>
+              ) : (
+                <div className="mt-3 rounded-btn bg-ink-50 p-3">
+                  <p className="text-xs font-bold text-ink-700">
+                    🔍 누적 점수 출처 <span className="font-normal text-ink-400">— 집계일 전체 합산</span>
+                  </p>
+                  {!cumReport ? (
+                    <p className="mt-3 text-center text-sm text-ink-400">불러오는 중…</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {CAT_LABELS.map((c) => {
+                        const v = cumCat[c.key] ?? 0;
+                        if (v === 0) return null;
+                        return (
+                          <span
+                            key={c.key}
+                            className={`rounded-full px-2 py-1 text-[11px] font-bold ${
+                              v > 0 ? "bg-brand-weak text-brand-strong" : "bg-danger-weak text-danger"
+                            }`}
+                          >
+                            {c.icon} {c.label} <b className="tnum">{v > 0 ? `+${v}` : v}</b>
+                          </span>
+                        );
+                      })}
+                      <span className="rounded-full bg-ink-900 px-2 py-1 text-[11px] font-bold text-white">
+                        = 집계일 합계 <b className="tnum">{cumReport.totals?.[sid] ?? 0}</b>점
+                      </span>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[10px] text-ink-400">
+                    ※ 정산 보너스(세션 보상·연속 등)는 누적 점수에만 포함돼 위 합계와 다를 수 있어요.
+                  </p>
+                </div>
+              )}
+
               <p className="mt-3 text-xs font-bold text-ink-600">📖 주별 독서 권수</p>
               <div className="mt-1.5 flex items-end gap-1 overflow-x-auto pb-1">
                 {weeks.map((w, i) => (
