@@ -35,8 +35,10 @@ export interface ReadingReport2 {
   authorIntent?: string; // 작가는 왜 이 글을 썼을까? (생각 유도 — 복붙 방지)
   connect?: string; // 이 책을 나와 연결하면? (개인 연결 — 복붙 방지)
   // 복붙·AI 의심 신호 (작성 순간에만 기록 — 소급 불가). 선생님만 참고.
-  pastedChars?: number; // 감상 칸에 붙여넣은 총 글자 수 (인용 칸 제외)
-  pasteCount?: number; // 붙여넣기 횟수
+  pastedChars?: number; // 외부에서 붙여넣은 총 글자 수 (자기 글 복사 제외 — 인용 칸도 제외)
+  pasteCount?: number; // 외부 붙여넣기 횟수
+  selfPastedChars?: number; // 자기 글에서 복사해 붙인 글자 수 (분량 채우기 — 표절과 구분)
+  selfPasteCount?: number; // 자기 글 복사 횟수
   writeMs?: number; // 시트를 연 뒤 정식 등록까지 걸린 시간(ms)
   isDraft: boolean;
   isPrivate?: boolean; // 🔒 선생님만 보기 (작성자 본인·교사에게만 내용 공개)
@@ -241,7 +243,13 @@ export function useSaveReport(myId: number | null) {
       origWeek?: number; // 정식본 수정 시 원래 주차
       // 복붙·속성 작성 신호 — 선생님 참고용. writeMs는 '전체 작성 시간'이 의미 있을 때만 기록
       // (감지 기능 적용 전 정식본을 잠깐 수정하는 경우 짧은 수정 시간을 넣으면 오탐되므로 생략).
-      detect?: { pastedChars: number; pasteCount: number; writeMs?: number };
+      detect?: {
+        pastedChars: number;
+        pasteCount: number;
+        selfPastedChars: number;
+        selfPasteCount: number;
+        writeMs?: number;
+      };
     }
   ): Promise<string> => {
     if (myId == null) throw new Error("로그인이 필요해요.");
@@ -252,6 +260,8 @@ export function useSaveReport(myId: number | null) {
       ? {
           pastedChars: opts.detect.pastedChars,
           pasteCount: opts.detect.pasteCount,
+          selfPastedChars: opts.detect.selfPastedChars,
+          selfPasteCount: opts.detect.selfPasteCount,
           ...(opts.detect.writeMs != null ? { writeMs: opts.detect.writeMs } : {}),
         }
       : {};

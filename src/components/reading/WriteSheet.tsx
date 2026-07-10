@@ -53,7 +53,13 @@ export interface WriteInitial {
   reportId?: string;
   // 이전 세션까지 누적된 복붙·작성 신호 — 초안·정식본을 다시 열어 이어 쓸 때 승계한다.
   // (이게 없으면 '세션1에 붙여넣고 임시저장 → 세션2에 정식등록'이면 붙여넣기 기록이 사라진다)
-  prior?: { pastedChars?: number; pasteCount?: number; writeMs?: number };
+  prior?: {
+    pastedChars?: number;
+    pasteCount?: number;
+    selfPastedChars?: number;
+    selfPasteCount?: number;
+    writeMs?: number;
+  };
 }
 
 export default function WriteSheet({
@@ -80,10 +86,13 @@ export default function WriteSheet({
 
   // 복붙·작성 시간 신호 (A·B) — 선생님 참고용. 학생 흐름은 막지 않는다.
   const openedAt = useRef(0);
-  // 이전 세션까지 누적된 신호에서 이어간다 (초안·정식본 이어쓰기 시 붙여넣기 기록 보존)
+  // 이전 세션까지 누적된 신호에서 이어간다 (초안·정식본 이어쓰기 시 붙여넣기 기록 보존).
+  // 외부 복붙(chars/count)과 자기 글 복사(selfChars/selfCount)를 나눠서 센다.
   const pasted = useRef({
     chars: initial?.prior?.pastedChars ?? 0,
     count: initial?.prior?.pasteCount ?? 0,
+    selfChars: initial?.prior?.selfPastedChars ?? 0,
+    selfCount: initial?.prior?.selfPasteCount ?? 0,
   });
   const priorMs = useRef(initial?.prior?.writeMs ?? 0); // 이전 세션 누적 작성 시간
   const justPasted = useRef(false); // onPaste 직후 onChange 중복 집계 방지
@@ -91,19 +100,33 @@ export default function WriteSheet({
   useEffect(() => {
     openedAt.current = Date.now();
   }, []);
-  const flagInsert = (n: number) => {
-    pasted.current.chars += n;
-    pasted.current.count += 1;
-    if (n >= 30) {
-      setPasteHint(true);
-      window.setTimeout(() => setPasteHint(false), 4000);
+  // 자기 글 복사 판별용 — 지금까지 쓴 내 글 전체(공백 제거). 붙인 내용이 이미 여기 있으면 '자기 복사'.
+  const norm = (s: string) => s.replace(/\s+/g, "");
+  const docContent = () =>
+    norm(
+      form.summary + form.scene + form.quote + form.thoughts + (form.authorIntent ?? "") + (form.connect ?? "")
+    );
+  const flagInsert = (t: string, isSelf: boolean) => {
+    const n = t.length;
+    if (isSelf) {
+      pasted.current.selfChars += n;
+      pasted.current.selfCount += 1;
+    } else {
+      pasted.current.chars += n;
+      pasted.current.count += 1;
+      if (n >= 30) {
+        setPasteHint(true);
+        window.setTimeout(() => setPasteHint(false), 4000);
+      }
     }
   };
   // 감상 칸에 붙여넣기 → 글자 수·횟수 누적 (인용 칸은 책 문장 옮겨적기라 제외)
   const onPasteBody = (e: React.ClipboardEvent) => {
     justPasted.current = true; // 곧 onChange가 뒤따르므로 그쪽 집계는 건너뛴다
     const t = e.clipboardData.getData("text") ?? "";
-    if (t.length >= 8) flagInsert(t.length);
+    if (t.length < 8) return;
+    const nt = norm(t);
+    flagInsert(t, nt.length >= 8 && docContent().includes(nt)); // 이미 내 글에 있으면 자기 복사
   };
   // 입력량이 한 번에 크게 늘면(붙여넣기·자동삽입·받아쓰기 등) 방식과 무관하게 삽입으로 본다.
   // 디벗(iPad)에서 붙여넣기가 onPaste를 안 태우는 경우까지 잡는 핵심 신호.
@@ -113,8 +136,20 @@ export default function WriteSheet({
       justPasted.current = false; // onPaste에서 이미 집계함
       return;
     }
-    const delta = newV.length - oldV.length;
-    if (delta >= BULK_INSERT) flagInsert(delta);
+    if (newV.length - oldV.length < BULK_INSERT) return;
+    // 삽입된 부분만 추출 (앞뒤 공통 구간 제외) → 자기 글 복사 여부 판별
+    let s = 0;
+    while (s < oldV.length && oldV[s] === newV[s]) s++;
+    let eo = oldV.length,
+      en = newV.length;
+    while (eo > s && en > s && oldV[eo - 1] === newV[en - 1]) {
+      eo--;
+      en--;
+    }
+    const inserted = newV.slice(s, en);
+    if (inserted.length < BULK_INSERT) return;
+    const ni = norm(inserted);
+    flagInsert(inserted, ni.length >= 8 && docContent().includes(ni));
   };
 
   // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
@@ -157,6 +192,8 @@ export default function WriteSheet({
       const detect = {
         pastedChars: pasted.current.chars,
         pasteCount: pasted.current.count,
+        selfPastedChars: pasted.current.selfChars,
+        selfPasteCount: pasted.current.selfCount,
         ...(preFeatureEdit
           ? {}
           : { writeMs: priorMs.current + (openedAt.current ? Date.now() - openedAt.current : 0) }),

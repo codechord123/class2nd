@@ -72,38 +72,56 @@ function ReportBody({
   return (
     <>
       {suspicion &&
-        (suspicion.paste || suspicion.fast ? (
-          // 강한 의심 — 붙여넣기 비율 큼 또는 속성 작성
-          <div className="mb-3 rounded-btn bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
-            🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
-            {[
-              (pasteCount > 0 || (r.pastedChars ?? 0) > 0) &&
-                `붙여넣기 ${pasteCount}회 · ${r.pastedChars ?? 0}자`,
-              suspicion.fast && `빠른 작성 (${Math.round((r.writeMs ?? 0) / 1000)}초)`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            <span className="ml-1 text-ink-400">— 복붙·AI 작성 의심 신호예요.</span>
-          </div>
-        ) : pasteCount > 0 ? (
-          // 약한 신호도 그대로 — 글자 수와 관계없이 '붙여넣기 행위'를 선생님이 바로 보게
-          <div className="mb-3 rounded-btn bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
-            📋 붙여넣기 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b>
-            <span className="ml-1 text-ink-400">— 선생님만 보여요. 직접 쓴 글인지 확인해보세요.</span>
-          </div>
-        ) : suspicion.measured ? (
-          // 신호는 있는데 의심 없음 — '직접 작성' 긍정 확인을 보여준다 (본인 작성 여부 확인용)
-          <div className="mb-3 rounded-btn bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-700">
-            ✍️ 직접 작성한 것으로 보여요 —{" "}
-            {(r.writeMs ?? 0) > 0 && `작성 ${Math.max(1, Math.round((r.writeMs ?? 0) / 60000))}분 · `}
-            붙여넣기 {r.pasteCount ?? 0}회
-          </div>
-        ) : (
-          // 배포 전 작성분 — 신호 자체가 없음
-          <div className="mb-3 rounded-btn bg-ink-50 px-3 py-1.5 text-[12px] text-ink-400">
-            ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
-          </div>
-        ))}
+        (() => {
+          const selfN = r.selfPasteCount ?? 0;
+          const secs = Math.round((r.writeMs ?? 0) / 1000);
+          // 작성 시간 — 의심 여부와 무관하게 표기 (90초 이상은 분 단위)
+          const timeStr =
+            (r.writeMs ?? 0) > 0 ? (secs >= 90 ? `작성 ${Math.round(secs / 60)}분` : `작성 ${secs}초`) : "";
+          // 자기 글 복사(분량 채우기) — 외부 복붙과 분리해서 별도 표시
+          const selfLine =
+            selfN > 0 ? (
+              <div className="mb-3 rounded-btn bg-sky-50 px-3 py-2 text-[13px] text-sky-700">
+                ♻️ 자기 글 복사 <b>{selfN}회 · {r.selfPastedChars ?? 0}자</b>
+                <span className="ml-1 text-ink-400">— 자기 글을 다시 붙여 분량을 채운 흔적 (외부 복붙과 구분).</span>
+              </div>
+            ) : null;
+          const main =
+            suspicion.paste || suspicion.fast ? (
+              <div className="mb-3 rounded-btn bg-rose-50 px-3 py-2 text-[13px] text-rose-700">
+                🚩 <b>확인이 필요한 글일 수 있어요</b> —{" "}
+                {[
+                  (pasteCount > 0 || (r.pastedChars ?? 0) > 0) &&
+                    `외부 붙여넣기 ${pasteCount}회 · ${r.pastedChars ?? 0}자`,
+                  suspicion.fast && "빠른 작성",
+                  timeStr,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                <span className="ml-1 text-ink-400">— 복붙·AI 작성 의심 신호예요.</span>
+              </div>
+            ) : pasteCount > 0 ? (
+              <div className="mb-3 rounded-btn bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+                📋 외부 붙여넣기 <b>{pasteCount}회 · {r.pastedChars ?? 0}자</b>
+                {timeStr && <span className="ml-1">· {timeStr}</span>}
+                <span className="ml-1 text-ink-400">— 직접 쓴 글인지 확인해보세요.</span>
+              </div>
+            ) : suspicion.measured ? (
+              <div className="mb-3 rounded-btn bg-emerald-50 px-3 py-1.5 text-[12px] text-emerald-700">
+                ✍️ 직접 작성한 것으로 보여요{timeStr && ` — ${timeStr}`} · 외부 붙여넣기 0회
+              </div>
+            ) : (
+              <div className="mb-3 rounded-btn bg-ink-50 px-3 py-1.5 text-[12px] text-ink-400">
+                ℹ️ 복붙·작성 기록이 없는 글이에요 (감지 기능 적용 전 작성).
+              </div>
+            );
+          return (
+            <>
+              {main}
+              {selfLine}
+            </>
+          );
+        })()}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
@@ -305,6 +323,8 @@ export default function ReadingPage() {
   const priorOf = (r: ReadingReport2) => ({
     pastedChars: r.pastedChars,
     pasteCount: r.pasteCount,
+    selfPastedChars: r.selfPastedChars,
+    selfPasteCount: r.selfPasteCount,
     writeMs: r.writeMs,
   });
   const editDraft = (r: ReadingReport2) => openSheet({ form: toForm(r), draftId: r.id, prior: priorOf(r) });
@@ -692,9 +712,18 @@ export default function ReadingPage() {
                               return (
                                 <span
                                   className="shrink-0 text-xs"
-                                  title={`붙여넣기 ${r.pasteCount}회 · ${r.pastedChars ?? 0}자`}
+                                  title={`외부 붙여넣기 ${r.pasteCount}회 · ${r.pastedChars ?? 0}자`}
                                 >
                                   📋
+                                </span>
+                              );
+                            if ((r.selfPasteCount ?? 0) > 0)
+                              return (
+                                <span
+                                  className="shrink-0 text-xs"
+                                  title={`자기 글 복사 ${r.selfPasteCount}회 · ${r.selfPastedChars ?? 0}자`}
+                                >
+                                  ♻️
                                 </span>
                               );
                             return null;
