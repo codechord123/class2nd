@@ -38,7 +38,7 @@ export default function RankCarousel({ stats }: { stats: ReadingStats | undefine
       <span>{medal(i)}</span>
       <span>{s.name}</span>
       <span className="tnum text-xs text-ink-600">
-        {s.count}권{s.s2 > 0 && <span> (+{s.s2})</span>}
+        {s.count}권{s.s2 > 0 && <span className="text-emerald-600"> (2학기 {s.s2}권)</span>}
       </span>
     </div>
   );
@@ -70,7 +70,7 @@ export default function RankCarousel({ stats }: { stats: ReadingStats | undefine
         </div>
       </button>
       <p className="mt-1 text-[11px] text-ink-500">
-        1·2학기 합산 TOP 10 · (+n)은 2학기에 읽은 권수 ·{" "}
+        1·2학기 합산 TOP 10 · 괄호는 2학기에 읽은 권수 ·{" "}
         {paused ? "▶️ 눌러서 다시 흘려요" : "한 번 누르면 멈춰요"}
       </p>
     </div>

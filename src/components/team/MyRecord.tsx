@@ -58,6 +58,7 @@ export default function MyRecord({
         { icon: "🙌", label: "오늘의 부서장", v: myRow.boss ?? 0 },
         { icon: "⭐", label: "MVP", v: myRow.mvp ?? 0 },
         { icon: "👑", label: "오늘의 모둠", v: myRow.best ?? 0 },
+        { icon: "🐢", label: "독서", v: myRow.read ?? 0 },
         { icon: "🎁", label: "선생님 보너스", v: myRow.bonus ?? 0 },
       ]
     : [];
@@ -68,13 +69,11 @@ export default function MyRecord({
   const readStreak = vacation ? 0 : readingStreaks(stats, studentId, quota, curWeek).current;
   const fmtDay = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 
-  // 독서 점수 = 2학기 권수 × 2 (누적 점수에 자동 포함 — 권당 +2, 날짜별 집계 불필요)
-  const readingPoints = (stats?.total?.[sid] ?? 0) * 2;
   const tiles = [
     { label: "🏅 누적 점수", value: score, cls: "bg-brand-weak text-brand-strong" },
-    { label: "🐢 독서 점수 (권당+2)", value: readingPoints, cls: "bg-emerald-50 text-emerald-700" },
-    { label: "📚 총 권수 (1+2학기)", value: totalBooks, cls: "bg-success-weak text-success" },
+    { label: "🐢 총 권수 (1+2학기)", value: totalBooks, cls: "bg-success-weak text-success" },
     { label: "⭐ MVP 횟수", value: mvpWins, cls: "bg-warn-weak text-warn" },
+    { label: "👑 부서장 득표", value: bossVotes, cls: "bg-ink-50 text-ink-900" },
   ];
 
   return (

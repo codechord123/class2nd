@@ -188,29 +188,19 @@ export interface VacationReadResult {
 export async function payVacationReading(): Promise<VacationReadResult | null> {
   return withAggLock("vacationRead", async () => {
     const d = db();
-    const [statsSnap, cumSnap] = await Promise.all([
-      getDoc(doc(d, "readingStats", "main")),
-      getDoc(doc(d, "dailyScores", "_cumulative")),
-    ]);
-    // 독서 점수 = '전체 권수(total) × 2점'을 누적에 자동 반영 (사용자 확정) — 날짜별 집계가 필요 없다.
-    //   교사 화면이 열리거나 집계를 실행할 때마다 멱등으로 목표(total×2)에 맞춘다. 초기화되어도 total은
-    //   남은 감상문으로 재구축되고, 마커 델타라 다음 실행이 전액 복원한다(독서 점수는 초기화 survive).
-    const bucket =
-      ((statsSnap.exists() ? statsSnap.data().total : undefined) as Record<string, number> | undefined) ?? {};
+    const cumSnap = await getDoc(doc(d, "dailyScores", "_cumulative"));
     const cum = (cumSnap.exists() ? cumSnap.data() : {}) as Record<string, unknown>;
-    // 마커는 '지급된 점수'(vacReadPoints). 옛 마커(vacReadPaid=권수)에서 자연 이관.
+    // 독서 점수는 이제 '일일 집계(countReads)'로 오늘 점수·누적에 반영한다. 예전 마커 경로가 누적에
+    // 직접 넣었던 점수(vacReadPoints/옛 vacReadPaid=권수)를 되돌려(목표 0) 이중계산을 없앤다.
+    // 되돌릴 게 없으면 no-op(초기화 후엔 마커도 없어 no-op). 한 번 청산되면 이후로도 no-op.
     const paidPts = (cum.vacReadPoints as Record<string, number>) ?? {};
     const paidCount = (cum.vacReadPaid as Record<string, number>) ?? {};
 
     const deltas: Record<string, number> = {};
-    const targets: Record<string, number> = {};
     for (const s of students) {
       const sid = String(s.id);
-      const target = (bucket[sid] ?? 0) * READ_POINTS_PER_BOOK; // 목표 점수 = 권수 × 2
-      targets[sid] = target;
-      const already = paidPts[sid] ?? paidCount[sid] ?? 0;
-      const delta = target - already;
-      if (delta !== 0) deltas[sid] = delta;
+      const already = paidPts[sid] ?? paidCount[sid] ?? 0; // 예전 마커로 이미 지급된 점수
+      if (already !== 0) deltas[sid] = -already; // 목표 0 → 되돌림
     }
     const entries = Object.entries(deltas);
     if (!entries.length) return null;
@@ -219,21 +209,16 @@ export async function payVacationReading(): Promise<VacationReadResult | null> {
       doc(d, "dailyScores", "_cumulative"),
       {
         ...Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
-        vacReadPoints: Object.fromEntries(entries.map(([sid]) => [sid, targets[sid]])),
+        vacReadPoints: Object.fromEntries(entries.map(([sid]) => [sid, 0])),
+        vacReadPaid: Object.fromEntries(entries.map(([sid]) => [sid, 0])),
       },
       { merge: true }
     );
 
-    // 갱신된 누적으로 마일스톤(25점 → 실버) 반영 (베타 중엔 grantMilestones가 내부에서 no-op)
-    const cumAfter: Record<string, unknown> = { ...cum };
-    for (const [sid, n] of entries)
-      cumAfter[sid] = (typeof cum[sid] === "number" ? (cum[sid] as number) : 0) + n;
-    const ms = await grantMilestones(cumAfter, {}, "🏅 점수 25점 달성 보상");
-
     return {
       students: entries.length,
       points: entries.reduce((a, [, n]) => a + n, 0),
-      milestoneSilver: Object.values(ms.silver).reduce((a, b) => a + b, 0),
+      milestoneSilver: 0,
     };
   });
 }
@@ -348,10 +333,10 @@ async function aggregateDateInner(
       ? { [bestEntry.groupId]: 1 }
       : {};
 
-  // 독서 점수는 payVacationReading(전체 권수 × 2 + vacReadPoints 마커)이 누적에 '자동' 반영한다 —
-  // 날짜별 집계가 필요 없다(교사 접속·집계 실행 때마다 총 권수 기준으로 목표에 맞춤). 일일 집계에서
-  // 또 세면 이중 지급이라 daily read는 끈다. (독서는 '오늘 점수'가 아니라 '누적 점수'로 반영)
-  const countReads = false;
+  // 독서 점수는 '그날 감상문 편수 × 2점'을 오늘 점수(일일)에 반영한다 (사용자 확정: 2권=+4).
+  // autoRun이 교사 탭 열림·집계 때 그날/밀린 날을 자동 집계하므로 날짜별 수동 집계는 불필요.
+  // (예전 방학 마커 경로 payVacationReading은 이중계산 방지로 되돌려 정리한다.)
+  const countReads = true;
 
   // 기록이 전혀 없는 날(평가·감상문·순위 없음, 기존 집계도 없음)은 건너뛴다 —
   // 자동 집계가 주말·방학 날짜마다 빈 문서를 쌓지 않게 (기존 집계가 있으면 재집계해 0으로 보정)
