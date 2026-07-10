@@ -17,6 +17,7 @@ import {
   useLatestAggregated,
   useSaveMvp,
   useSavePeerChecks,
+  useStartPeerEval,
   useSavePeerNotes,
   useSaveToTeacher,
   useSaveReflection,
@@ -59,6 +60,7 @@ export default function TeamPage() {
   const { data: settings } = useSettings();
   const { data: myEval } = useMyEvaluation(date, studentId);
   const savePeerChecks = useSavePeerChecks(date, studentId);
+  const startPeerEval = useStartPeerEval(date, studentId);
   const { data: peerCriteria } = usePeerCriteria();
   const saveMvp = useSaveMvp(date, studentId);
   const savePeer = useSavePeerNotes(date, studentId);
@@ -609,9 +611,9 @@ export default function TeamPage() {
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
-          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구들이 오늘 아래{" "}
-          <b>2가지</b>를 지켰으면 눌러서 <b className="text-success">초록색</b>으로 켜요 (안 켜면{" "}
-          <b className="text-danger">빨간색</b>). 둘 다 초록 +1, 하나면 0, 둘 다 빨강 −1.
+          나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구가 오늘 아래{" "}
+          <b>미션 2개</b>를 지켰으면 눌러서 <b className="text-success">초록색</b>으로 켜고, 안 했으면
+          그냥 둬요. <b>2개 다 +1 · 하나만 0 · 하나도 안 하면 −2.</b>
           <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로!
         </p>
         {peerOpen ? (
@@ -636,11 +638,12 @@ export default function TeamPage() {
               ))}
             </ul>
             <p className="mt-2 text-[11px] text-ink-400">
-              평가하지 않은 친구는 자동으로 <b>0점(미평가)</b> 이에요 — 억지로 다 채우지 않아도 돼요.
+              색을 넣지 않은 미션은 <b>&lsquo;안 함&rsquo;</b>으로 계산돼요 (하나도 안 하면 −2). 잘한
+              미션만 눌러 초록으로 켜주세요.
             </p>
           </>
         ) : (
-          // 모둠 전체 게이트 — 누르기 전엔 아무에게도 점수가 가지 않는다 (결석·미참여 보호)
+          // 모둠 전체 게이트 — 누르기 전엔 아무것도 저장 안 돼 모두 0점 (결석·미참여 보호)
           <div className="mt-3 rounded-btn bg-ink-50 px-3 py-6 text-center">
             <p className="text-[13px] text-ink-500">
               <b>평가하기</b>를 누르면 우리 모둠 평가창이 열려요.
@@ -648,7 +651,13 @@ export default function TeamPage() {
               않아요.
             </p>
             <button
-              onClick={() => setPeerStartedManual(true)}
+              onClick={() => {
+                void startPeerEval(
+                  targets.map((t) => t.studentId),
+                  myCriteria.length
+                ).catch((e: Error) => toast(`⚠️ ${e.message}`, "error"));
+                setPeerStartedManual(true);
+              }}
               className="press mt-3 rounded-btn bg-brand px-6 py-2.5 text-sm font-bold text-white"
             >
               🖊️ 평가하기

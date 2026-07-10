@@ -72,6 +72,39 @@ export function useSavePeerChecks(date: string, myId: number | null) {
   };
 }
 
+// ── 부서장 평가 '평가하기' 게이트 — 모둠 전원을 기준선(미션 0개 = 모두 X)으로 한 번에 저장한다.
+//   이미 평가한 친구(저장된 체크 있음)는 건드리지 않는다. 이렇게 해야 '열었지만 색 안 넣은 친구'가
+//   집계에서 실제로 −2로 계산된다 (게이트를 안 열면 아무것도 저장 안 돼 0점 — 미참여 보호).
+export function useStartPeerEval(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (targetIds: number[], criteriaLen: number) => {
+    if (myId == null) return;
+    const base = Array(criteriaLen).fill(false); // 미션 0개 달성 = −2 기준선
+    const score = peerScoreFromChecks(base);
+    const prev = (qc.getQueryData(["evaluation", date, myId]) ?? {}) as Record<string, unknown>;
+    const prevChecks = (prev._peerChecks as Record<string, boolean[]>) ?? {};
+    const patch: Record<string, unknown> = { _peerChecks: {} };
+    const nextChecks: Record<string, boolean[]> = { ...prevChecks };
+    for (const t of targetIds) {
+      if (prevChecks[String(t)]?.length) continue; // 이미 평가함 — 유지
+      patch[String(t)] = score;
+      (patch._peerChecks as Record<string, boolean[]>)[String(t)] = base;
+      nextChecks[String(t)] = base;
+    }
+    if (Object.keys(patch._peerChecks as object).length === 0) return; // 전원 이미 평가됨
+    await setDoc(doc(db(), "evaluations", date, "entries", String(myId)), patch, {
+      merge: true,
+    }).catch((e) => {
+      throw friendlyWriteError(e);
+    });
+    qc.setQueryData(["evaluation", date, myId], () => {
+      const merged: Record<string, unknown> = { ...prev, _peerChecks: nextChecks };
+      for (const t of targetIds) if (patch[String(t)] !== undefined) merged[String(t)] = score;
+      return merged as unknown as PeerEvaluation;
+    });
+  };
+}
+
 // ── 오늘의 모둠 MVP 투표 + 칭찬 (같은 평가 문서의 "_" 필드에 저장 — 추가 읽기 0) ──
 export function useSaveMvp(date: string, myId: number | null) {
   const qc = useQueryClient();
