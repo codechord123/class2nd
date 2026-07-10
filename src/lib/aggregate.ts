@@ -192,8 +192,10 @@ export async function payVacationReading(): Promise<VacationReadResult | null> {
       getDoc(doc(d, "readingStats", "main")),
       getDoc(doc(d, "dailyScores", "_cumulative")),
     ]);
+    // 방학·학기 무관하게 '전체 권수(total)'로 누적 (사용자 확정) — 초기화되어도 total은 남은
+    // 감상문으로 재구축되고, 마커 델타 방식이라 다음 실행이 전액 복원한다(독서 점수는 초기화 제외).
     const bucket =
-      ((statsSnap.exists() ? statsSnap.data().byWeek?.["0"] : undefined) as
+      ((statsSnap.exists() ? statsSnap.data().total : undefined) as
         | Record<string, number>
         | undefined) ?? {};
     const cum = (cumSnap.exists() ? cumSnap.data() : {}) as Record<string, unknown>;
@@ -341,9 +343,9 @@ async function aggregateDateInner(
       ? { [bestEntry.groupId]: 1 }
       : {};
 
-  // 개학 전(방학) 감상문은 일일 read 점수가 아니라 방학 적립(payVacationReading —
-  // 0주차 버킷 + vacReadPaid 마커)으로 누적 점수에 반영된다. 여기서 또 세면 이중 지급.
-  const countReads = date >= SEMESTER_START;
+  // 독서 점수는 방학·학기 무관하게 payVacationReading(전체 권수 + vacReadPaid 마커)이 누적 점수에
+  // 상시 반영한다 (+1/편, 초기화 survive). 일일 집계에서 또 세면 이중 지급이므로 daily read는 끈다.
+  const countReads = false;
 
   // 기록이 전혀 없는 날(평가·감상문·순위 없음, 기존 집계도 없음)은 건너뛴다 —
   // 자동 집계가 주말·방학 날짜마다 빈 문서를 쌓지 않게 (기존 집계가 있으면 재집계해 0으로 보정)

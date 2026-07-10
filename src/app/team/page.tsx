@@ -607,8 +607,8 @@ export default function TeamPage() {
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
           나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구가 지킨{" "}
-          <b>미션</b>만 눌러서 <b className="text-success">초록색(1점)</b>으로 켜요. 미션마다 1점씩 —{" "}
-          <b>둘 다 +2 · 하나만 +1 · 안 켜면 0점</b> (마이너스 없음).
+          <b>미션</b>만 눌러서 <b className="text-success">초록색</b>으로 켜요. 미션당 0.5점 —{" "}
+          <b>둘 다 +1 · 하나만 +0.5 · 안 켜면 0점</b> (마이너스 없음).
           <b className="text-brand-strong"> 내가 준 평가는 친구에게 실명으로 보여요</b> — 사실대로!
         </p>
         <ul className="mt-3 space-y-2">

@@ -55,9 +55,9 @@ export const DEPT_LAW_ARTICLES: Record<string, { title: string; clauses: string[
   },
 };
 
-// 미션 체크 → 평가자 1명이 주는 점수 (사용자 확정): 미션당 1점 합산, 안 하면 0 (마이너스 없음).
-//   2미션이면 0·1·2점. 마이너스를 없애 결석·미평가(빈 배열=0) 학생이 남에게 −를 주는 일이 없다.
+// 미션 체크 → 평가자 1명이 주는 점수 (사용자 확정): 미션당 0.5점 합산, 안 하면 0 (마이너스 없음).
+//   2미션이면 0·0.5·1점 → 평가자 4명이면 총합 최대 4점 (예전 미션당 1점=총합 8점은 상점 비중 과대).
 export function peerScoreFromChecks(checks: boolean[] | undefined): number {
   if (!checks || checks.length === 0) return 0;
-  return checks.filter(Boolean).length;
+  return checks.filter(Boolean).length * 0.5;
 }

@@ -57,11 +57,9 @@ export default function TeacherPage() {
   const saveSettings = useSaveSettings();
   const qc = useQueryClient();
 
-  const [tTab, setTTab] = useState<"score" | "adjust" | "approve" | "tools">("score");
-  // 하위탭 — 긴 세로 스크롤 대신 목적별 분리 (사용자 요청)
-  // 학급 현황판은 점수·집계의 하위 탭, 모든 보정은 최상위 '점수 조정' 탭 (사용자 확정)
-  const [scoreTab, setScoreTab] = useState<"today" | "dashboard" | "report" | "reward">("today");
-  const [toolsTab, setToolsTab] = useState<"settings" | "manage">("settings");
+  // 교사 탭 — 사용 빈도 기준 4탭 평탄화 (사용자 확정): 매일 쓰는 '오늘'을 기본 화면으로.
+  //   오늘(제출·순위·집계) / 현황·리포트 / 점수 관리(보정 전부) / 설정·기타(자리승인·설정·관리)
+  const [tTab, setTTab] = useState<"today" | "status" | "manage" | "settings">("today");
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
@@ -220,43 +218,37 @@ export default function TeacherPage() {
     <div className="space-y-4">
       <SubTabs
         tabs={[
-          { key: "score" as const, label: "📊 점수·집계" },
-          { key: "adjust" as const, label: "🛠 점수 조정" },
-          { key: "approve" as const, label: "🎫 자리 승인" },
-          { key: "tools" as const, label: "⚙️ 설정·도구" },
+          { key: "today" as const, label: "📌 오늘" },
+          { key: "status" as const, label: "📊 현황·리포트" },
+          { key: "manage" as const, label: "🛠 점수 관리" },
+          { key: "settings" as const, label: "⚙️ 설정·기타" },
         ]}
         active={tTab}
         onChange={setTTab}
       />
 
-      {/* 🛠 점수 조정 — 개인 점수·독서 권수·실버·골드 보정을 한 화면에 (사용자 확정) */}
-      {tTab === "adjust" && (
+      {/* 📊 현황·리포트 — 학급 현황판 + 데일리 리포트 + 점수 진단 (읽기·확인 전용) */}
+      {tTab === "status" && (<>
+        <ClassDashboard />
+        <DailyReportPanel date={date} onDateChange={setDate} />
+        <ScoreDiagnosisPanel />
+      </>)}
+
+      {/* 🛠 점수 관리 — 이의제기·보너스·독서권수·이벤트배수·베플·실버·골드·정산 (모든 보정 한곳) */}
+      {tTab === "manage" && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-          <EventBoostPanel />
-          <BestPlayerRecalcPanel />
           <AppealPanel />
           <BonusPanel />
           <ReadingAdjustPanel />
+          <EventBoostPanel />
+          <BestPlayerRecalcPanel />
           <SilverAdjustPanel />
           <GoldAdjustPanel />
+          <BiweeklySettlePanel />
         </div>
       )}
 
-      {tTab === "score" && (<>
-      <SubTabs
-        tabs={[
-          { key: "today" as const, label: "📌 오늘 집계" },
-          { key: "dashboard" as const, label: "🗂️ 학급 현황판" },
-          { key: "report" as const, label: "📄 리포트" },
-          { key: "reward" as const, label: "🏆 보상·도구" },
-        ]}
-        active={scoreTab}
-        onChange={setScoreTab}
-      />
-
-      {scoreTab === "dashboard" && <ClassDashboard />}
-
-      {scoreTab === "today" && (<>
+      {tTab === "today" && (<>
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
 
@@ -401,34 +393,76 @@ export default function TeacherPage() {
       </details>
       </>)}
 
-      {/* 데일리 리포트 — 오늘 한눈에 + 인쇄 */}
-      {scoreTab === "report" && <DailyReportPanel date={date} onDateChange={setDate} />}
+      {/* ⚙️ 설정·기타 — 자리 승인(맨 위) + 설정·관리 도구(접기) */}
+      {tTab === "settings" && (<>
+      {/* 자리 변경 승인 — 대기 건이 있으면 눈에 띄게 맨 위 */}
+      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <h2 className="text-lg font-bold">
+          🎫 자리 변경 승인 대기{" "}
+          <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
+        </h2>
+        {!pendSeat?.length && <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>}
+        <ul className="mt-3 space-y-2">
+          {pendSeat?.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[15px]">
+                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                  {studentById.get(r.studentId)?.name}
+                </span>
+                <span className="truncate text-ink-800">
+                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
+                </span>
+              </span>
+              <span className="flex gap-1.5">
+                <button
+                  onClick={() =>
+                    void (async () => {
+                      try {
+                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                        const cost = settings!.seatChangeCost;
+                        await decideSeat(r, true, occ ?? undefined, cost);
+                        toast(
+                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
+                        );
+                      } catch (e) {
+                        toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
+                      }
+                    })()
+                  }
+                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
+                >
+                  승인(자리 교환)
+                </button>
+                <button
+                  onClick={() =>
+                    void decideSeat(r, false).then(
+                      () => toast("반려 처리했어요."),
+                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                    )
+                  }
+                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
+                >
+                  반려
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      {/* 가끔 쓰는 도구들 — 2열로 스크롤 압축 */}
-      {scoreTab === "reward" && (
-      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-        <BiweeklySettlePanel />
-        <ScoreDiagnosisPanel />
-        <SampleDataPanel date={date} />
-      </div>
-      )}
-      </>)}
-
-      {tTab === "tools" && (<>
-      <SubTabs
-        tabs={[
-          { key: "settings" as const, label: "⚙️ 설정" },
-          { key: "manage" as const, label: "🧰 관리 도구" },
-        ]}
-        active={toolsTab}
-        onChange={setToolsTab}
-      />
-
-      {toolsTab === "settings" && (<>
+      {/* ⚙️ 설정 — 접어둠 (자주 안 바꿈) */}
+      <details className="rounded-card border border-ink-200 bg-white shadow-card">
+        <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
+          ⚙️ 학급 설정 <span className="text-xs font-normal text-ink-400">— 배너·평가 기준·점수 설정</span>
+        </summary>
+        <div className="space-y-4 border-t border-ink-100 p-4">
       {/* 학급 목표 배너 편집 */}
       <BannerEditor />
       {/* 부서장 평가 O/X 기준 편집 */}
-      <Card title="🤝 부서장 평가 기준 (O/X)" desc="부서장이 모둠원을 평가할 관찰 기준. 전부 O면 +1, 일부 0, 전부 X면 −1.">
+      <Card title="🤝 부서장 평가 미션" desc="부서장이 모둠원을 평가할 미션. 미션당 0.5점 — 둘 다 하면 +1, 하나만 +0.5, 안 하면 0 (마이너스 없음).">
         <PeerCriteriaEditor />
       </Card>
       {/* 평가 척도 설정 — 모듈형 */}
@@ -517,9 +551,15 @@ export default function TeacherPage() {
           {savedFlash ? "✓ 저장됨" : "설정 저장"}
         </Button>
       </Card>
-      </>)}
+        </div>
+      </details>
 
-      {toolsTab === "manage" && (<>
+      {/* 🧰 관리 도구 — 접어둠 (가끔 씀) */}
+      <details className="rounded-card border border-ink-200 bg-white shadow-card">
+        <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
+          🧰 관리 도구 <span className="text-xs font-normal text-ink-400">— 비밀번호·전입·인쇄·CSV·감사·기타</span>
+        </summary>
+        <div className="space-y-4 border-t border-ink-100 p-4">
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
         <PasswordResetPanel />
         <div className="lg:col-span-2">
@@ -537,77 +577,16 @@ export default function TeacherPage() {
           <UiTextPanel />
         </div>
         <TabConfigPanel />
+        <SampleDataPanel date={date} />
         <div className="lg:col-span-2">
           <TeacherMemoWidget />
         </div>
       </div>
+        </div>
+      </details>
 
       {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}
       {todayKST() <= BETA_END && <BetaResetPanel />}
-      </>)}
-      </>)}
-
-      {tTab === "approve" && (<>
-      {/* 자리 변경 승인 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">
-          🎫 자리 변경 승인 대기{" "}
-          <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
-        </h2>
-        {!pendSeat?.length && (
-          <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>
-        )}
-        <ul className="mt-3 space-y-2">
-          {pendSeat?.map((r) => (
-            <li
-              key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
-            >
-              <span className="flex min-w-0 items-center gap-2 text-[15px]">
-                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
-                  {studentById.get(r.studentId)?.name}
-                </span>
-                <span className="truncate text-ink-800">
-                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
-                </span>
-              </span>
-              <span className="flex gap-1.5">
-                <button
-                  onClick={() =>
-                    void (async () => {
-                      try {
-                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
-                        const cost = settings!.seatChangeCost;
-                        await decideSeat(r, true, occ ?? undefined, cost);
-                        toast(
-                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
-                        );
-                      } catch (e) {
-                        toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
-                      }
-                    })()
-                  }
-                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
-                >
-                  승인(자리 교환)
-                </button>
-                <button
-                  onClick={() =>
-                    void decideSeat(r, false).then(
-                      () => toast("반려 처리했어요."),
-                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
-                    )
-                  }
-                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
-                >
-                  반려
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       </>)}
 
 

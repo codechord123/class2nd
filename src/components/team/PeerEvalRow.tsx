@@ -1,7 +1,7 @@
 "use client";
 // 부서장 평가 한 줄 — 나(부서장)가 내 부서 미션 2개로 모둠원 한 명을 평가한다.
-// 미션마다 0/1로 표기: 지켰으면 눌러 켜서 1(초록), 안 했으면 0(그대로). 점수 = 미션 합(0·1·2).
-// 마이너스 없음 · 손대기 전은 0점 → 결석·미평가 학생이 남에게 −를 주는 일이 없다 (사용자 확정).
+// 미션마다 지켰으면 눌러 켠다(초록 ✓). 점수 = 미션당 0.5점 합산(0·0.5·1). 마이너스 없음 ·
+// 손대기 전은 0점 → 결석·미평가 학생이 남에게 −를 주는 일이 없다 (사용자 확정).
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
 
 export default function PeerEvalRow({
@@ -53,7 +53,7 @@ export default function PeerEvalRow({
                   on ? "bg-white text-success" : "bg-ink-100 text-ink-400"
                 }`}
               >
-                {on ? "1" : "0"}
+                {on ? "✓" : ""}
               </span>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c}</span>
             </button>

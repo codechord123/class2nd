@@ -110,7 +110,7 @@ export default function ReceivedPeerEval({
                         ok ? "bg-success text-white" : "bg-ink-200 text-ink-500"
                       }`}
                     >
-                      {ok ? "1" : "0"}
+                      {ok ? "✓" : ""}
                     </span>
                     <span className="[overflow-wrap:anywhere]">{deptCriteria[i] ?? `기준 ${i + 1}`}</span>
                   </p>
