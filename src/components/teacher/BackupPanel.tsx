@@ -1,79 +1,39 @@
 "use client";
-// 🗄 전체 백업 — 한 학기 기록 전체를 JSON 파일 하나로 다운로드하는 금고.
-// Firestore 무료 티어엔 자동 백업이 없다 — 실수 삭제·계정 사고가 나면 복구 수단이 이것뿐.
-// 학기말 생활기록부 근거 자료로도 쓴다. 교사 전용 · 누르면 1회 전량 조회(수백~수천 문서)라
-// 읽기 예산상 '가끔(주 1회) 수동'이 전제 — 자동 주기 실행은 두지 않는다.
-//
-// 제외 컬렉션:
-//   · studentAuth — 비밀번호 해시. 백업 파일이 돌아다닐 때 유출 표면이 되므로 담지 않는다.
-//     (잃어도 학생 재로그인/재설정으로 복구되는 데이터)
-//   · evaluations/{date}/entries — 하위 컬렉션이라 날짜별 순회가 필요해 비용이 크고,
-//     점수 결과는 dailyScores에 접혀 있다. 원시 평가까지 필요하면 점수 진단에서 날짜별 조회.
-import { useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+// 🗄 전체 백업 — 학기 기록 전체를 JSON으로 보관하는 금고.
+// · 수동: 버튼 한 번으로 파일 다운로드 (언제든)
+// · 자동: 매주 금요일 밤 10시(KST)가 지난 뒤 첫 교사 접속 때 이 기기에 스냅샷 저장
+//   (서버가 없어 '정각 크론'은 불가 — autoRun과 같은 접속 트리거 방식. 최근 8개 보관)
+// 읽기 비용: 1회 = 전 문서 (학기말 ~3–5천 읽기, 무료 한도의 10% 미만) — 주 1회 무부담.
+import { useEffect, useState } from "react";
 import { todayKST } from "@/lib/date";
+import {
+  collectBackup,
+  downloadBackup,
+  downloadSnapshot,
+  listSnapshots,
+  type SnapshotMeta,
+} from "@/lib/backup";
 import { useFeedback } from "@/components/ui/Feedback";
-
-const COLLECTIONS = [
-  "readingReports", // 감상문 전문 (가장 소중한 원본)
-  "readingDrafts",
-  "readingStats",
-  "suggestions", // 게시판 (건의·법률·숨은 기여·댓글)
-  "polls",
-  "coinTxns", // 상점 원장 + 잔액
-  "s1Spends",
-  "seatChangeRequests",
-  "scoreAppeals",
-  "menuRequests",
-  "groupVotes",
-  "dailyScores", // 일일 점수 + 누적
-  "biweeklyScores", // 세션 정산 기록
-  "classData", // 설정·순위·결석·법률 등
-  "complimentCoverage",
-  "resetRequests",
-  "studentHints",
-] as const;
 
 export default function BackupPanel() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [last, setLast] = useState("");
+  const [snaps, setSnaps] = useState<SnapshotMeta[]>([]);
   const { toast } = useFeedback();
+
+  useEffect(() => {
+    void listSnapshots().then(setSnaps).catch(() => {});
+  }, [last]);
 
   async function backup() {
     if (busy) return;
     setBusy(true);
     try {
-      const d = db();
-      const out: Record<string, Record<string, unknown>> = {};
-      let docs = 0;
-      for (const [i, name] of COLLECTIONS.entries()) {
-        setProgress(`${name} (${i + 1}/${COLLECTIONS.length})…`);
-        const snap = await getDocs(collection(d, name));
-        const bucket: Record<string, unknown> = {};
-        snap.forEach((x) => {
-          bucket[x.id] = x.data();
-          docs++;
-        });
-        out[name] = bucket;
-      }
-      const payload = {
-        app: "class2nd",
-        exportedAt: new Date().toISOString(),
-        note: "studentAuth(비밀번호 해시)·evaluations 하위(원시 평가)는 의도적으로 제외",
-        docCount: docs,
-        data: out,
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 1)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `class2nd-backup-${todayKST()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setLast(`${todayKST()} · 문서 ${docs}개`);
-      toast(`🗄 백업 완료 — 문서 ${docs}개를 파일로 내려받았어요.`, "success");
+      const payload = await collectBackup(setProgress);
+      downloadBackup(payload);
+      setLast(`${todayKST()} · 문서 ${payload.docCount}개`);
+      toast(`🗄 백업 완료 — 문서 ${payload.docCount}개를 파일로 내려받았어요.`, "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "백업에 실패했어요.", "error");
     } finally {
@@ -82,13 +42,18 @@ export default function BackupPanel() {
     }
   }
 
+  const fmtSize = (b: number) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.round(b / 1024)}KB`);
+
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h2 className="text-lg font-bold">🗄 전체 백업</h2>
       <p className="mt-1 text-xs text-ink-600">
-        감상문·게시판·상점 원장·점수 등 학기 기록 전체를 JSON 파일 하나로 내려받아요. 무료
-        플랜에는 자동 백업이 없어서 이 파일이 유일한 복구 수단이에요 —{" "}
-        <b>주 1회쯤 눌러 안전한 곳에 보관</b>하세요. (비밀번호 정보는 담기지 않아요)
+        감상문·게시판·상점 원장·점수 등 학기 기록 전체를 JSON으로 보관해요. 무료 플랜에는
+        자동 백업이 없어서 이 파일이 유일한 복구 수단이에요. (비밀번호 정보는 담기지 않아요)
+      </p>
+      <p className="mt-1.5 rounded-btn bg-success-weak px-3 py-2 text-xs text-success">
+        ⏰ <b>매주 금요일 밤 10시가 지나면</b>, 그 뒤 처음 접속할 때 이 기기에 자동으로
+        스냅샷이 저장돼요 — 아래 목록에서 언제든 파일로 내려받을 수 있어요.
       </p>
       <button
         onClick={() => void backup()}
@@ -97,7 +62,26 @@ export default function BackupPanel() {
       >
         {busy ? `⏳ ${progress || "백업 중…"}` : "🗄 지금 백업 파일 내려받기"}
       </button>
-      {last && <p className="mt-2 text-center text-xs text-ink-500">마지막 백업: {last}</p>}
+      {last && <p className="mt-2 text-center text-xs text-ink-500">마지막 수동 백업: {last}</p>}
+      {snaps.length > 0 && (
+        <div className="mt-3 border-t border-ink-100 pt-2.5">
+          <p className="text-xs font-bold text-ink-700">📱 이 기기의 자동 스냅샷</p>
+          <ul className="mt-1.5 space-y-1">
+            {snaps.map((s) => (
+              <li key={s.key} className="flex items-center gap-2 rounded-btn bg-ink-50 px-3 py-1.5 text-xs text-ink-600">
+                <span className="tnum font-bold text-ink-800">{s.key}</span>
+                <span className="tnum">문서 {s.docCount}개 · {fmtSize(s.bytes)}</span>
+                <button
+                  onClick={() => void downloadSnapshot(s.key).catch((e: Error) => toast(e.message, "error"))}
+                  className="press ml-auto shrink-0 rounded-btn border border-ink-300 bg-white px-2 py-1 text-[11px] font-bold text-ink-700"
+                >
+                  ⬇️ 파일로
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

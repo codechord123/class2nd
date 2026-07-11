@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, payVacationReading, type AggregateResult } from "@/lib/aggregate";
 import { teacherPermissionHint } from "@/lib/auth";
 import { runAutoTasks } from "@/lib/autoRun";
+import { runWeeklyAutoBackup } from "@/lib/backup";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
 import {
@@ -95,6 +96,17 @@ export default function TeacherPage() {
   useEffect(() => {
     if (!settings || role !== "teacher" || autoRan.current) return;
     autoRan.current = true;
+    // 🗄 주간 자동 백업 — 금요일 22:00(KST) 이후 첫 접속이면 이 기기에 스냅샷 저장.
+    // 집계와 독립(병렬) 실행, 실패는 조용히 넘어감(다음 접속 때 재시도) — 수동 버튼 상시 가능.
+    void runWeeklyAutoBackup()
+      .then((meta) => {
+        if (meta)
+          toast(
+            `🗄 주간 자동 백업 완료 — 문서 ${meta.docCount}개를 이 기기에 저장했어요 (설정·도구 → 전체 백업에서 파일로 내려받기 가능)`,
+            "success"
+          );
+      })
+      .catch(() => {});
     runAutoTasks(settings)
       .then((r) => {
         if (!r) return;
