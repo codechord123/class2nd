@@ -47,6 +47,8 @@ import ComplimentModerationPanel from "@/components/teacher/ComplimentModeration
 import EventBoostPanel from "@/components/teacher/EventBoostPanel";
 import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
 import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
+import TodayBriefing from "@/components/teacher/TodayBriefing";
+import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -248,10 +250,10 @@ export default function TeacherPage() {
         onChange={setTTab}
       />
 
-      {/* 📊 현황·리포트 — 학급 현황판 + 데일리 리포트 + 점수 진단 (읽기·확인 전용) */}
+      {/* 📊 현황·리포트 — 리포트를 맨 위로(가장 자주 봄, 사용자 확정) + 현황판 + 점수 진단 */}
       {tTab === "status" && (<>
-        <ClassDashboard />
         <DailyReportPanel date={date} onDateChange={setDate} />
+        <ClassDashboard />
         <ScoreDiagnosisPanel />
       </>)}
 
@@ -262,6 +264,7 @@ export default function TeacherPage() {
           <HiddenContributionPanel />
           <BonusPanel />
           <ReadingAdjustPanel />
+          <DuplicateReportPanel />
           <EventBoostPanel />
           <BestPlayerRecalcPanel />
           <SilverAdjustPanel />
@@ -271,6 +274,9 @@ export default function TeacherPage() {
       )}
 
       {tTab === "today" && (<>
+      {/* 📋 오늘 할 일 — 흩어진 대기 항목 한 줄 요약 + 규칙 미게시·순위 미선정 경고 */}
+      <TodayBriefing onGo={setTTab} />
+
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
 
