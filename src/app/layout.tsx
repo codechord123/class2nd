@@ -9,11 +9,14 @@ import BetaBanner from "@/components/BetaBanner";
 export const metadata: Metadata = {
   title: "2학기 학급 자치 시스템",
   description: "우리 반 2학기 모둠·독서·상점 관리",
+  // 디벗 홈 화면 등록 대응 — icon.svg/apple-icon.png(같은 폴더)는 Next가 자동 연결
+  appleWebApp: { capable: true, title: "학급 자치", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#3182f6", // 브라우저 UI 색 — 헤더 로고와 동일한 brand
 };
 
 export default function RootLayout({

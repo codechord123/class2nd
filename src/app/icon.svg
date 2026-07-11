@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- 앱 아이콘 — 헤더의 '학' 로고 칩과 동일한 정체성 (brand #3182f6) -->
+  <rect width="128" height="128" rx="30" fill="#3182f6"/>
+  <text x="64" y="66" text-anchor="middle" dominant-baseline="central"
+    font-family="Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+    font-size="64" font-weight="800" fill="#ffffff">학</text>
+</svg>
