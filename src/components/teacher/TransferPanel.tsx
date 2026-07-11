@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/firebase";
+import { todayKST } from "@/lib/date";
 import { students, applyRosterOverrides, type RosterOverrides } from "@/lib/roster";
 import { getS1WalletOf, s1BooksByStudent } from "@/lib/staticData";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -102,6 +103,9 @@ export default function TransferPanel() {
           scoreSilverPaid: { [key]: 0 },
           vacReadPaid: { [key]: 0 },
           vacReadPoints: { [key]: 0 },
+          // 전입 표시 — 과거 일일 문서(전 주인 기록)는 역사로 남으므로 Σ일별 ≠ 누적이 정상.
+          // 주간 누적 정합 자동 점검이 이 학생을 오탐하지 않게 제외 근거로 쓴다.
+          transferResetOn: { [key]: todayKST() },
         },
         { merge: true }
       );

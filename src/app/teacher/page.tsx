@@ -132,6 +132,11 @@ export default function TeacherPage() {
             `🩺 독서 점수 자가 점검: ${r.healedDates.map((dt) => dt.slice(5)).join(", ")}에서 감상문 수와 점수가 안 맞아 자동으로 바로잡았어요`,
             "success"
           );
+        if (r.cumDrift?.length)
+          toast(
+            `⚖️ 주간 정합 점검: ${r.cumDrift.map((x) => `${x.name}(${x.diff > 0 ? "+" : ""}${x.diff})`).join(", ")} — 누적이 일별 합계와 달라요. 점수 관리 → 점수 진단에서 확인·보정해주세요`,
+            "warn"
+          );
         if (r.missedRankDates.length)
           toast(
             `⚠️ 순위 미선정으로 순위 점수 0점 처리된 날: ${r.missedRankDates

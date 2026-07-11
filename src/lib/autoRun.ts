@@ -64,6 +64,53 @@ export interface AutoRunResult {
   groupCumMigrated?: boolean;
   /** 🩺 독서 점수 자가 점검이 불일치를 찾아 자동 재집계한 날짜들 */
   healedDates?: string[];
+  /** ⚖️ 주간 누적 정합 점검이 찾은 표류 학생 (이름 · 차이) — 자동 보정 없이 경고만 */
+  cumDrift?: { name: string; diff: number }[];
+}
+
+/**
+ * ⚖️ 누적 점수 정합 점검 (주 1회) — Σ일별 총점 + Σ스트릭 보너스 vs 누적 문서.
+ * aggregateDate가 일일 문서와 누적 문서를 따로 쓰기 때문에, 그 사이에 죽으면
+ * 델타 방식 특성상 재집계로도 복구되지 않는 영구 표류가 생길 수 있다 — 여기서 잡는다.
+ * 점수는 교사 결정 사항이라 자동 보정하지 않고 경고만 (점수 진단의 보정 버튼으로 처리).
+ * 비용: dailyScores·biweeklyScores 전량 (주 1회, 학기말 ~130문서) — 읽기 예산 안.
+ */
+async function findCumDrift(d: Firestore): Promise<{ name: string; diff: number }[]> {
+  const [days, markers] = await Promise.all([
+    getDocs(collection(d, "dailyScores")),
+    getDocs(collection(d, "biweeklyScores")),
+  ]);
+  let cum: Record<string, unknown> = {};
+  const sums: Record<string, number> = {};
+  days.forEach((snap) => {
+    if (snap.id === "_cumulative") {
+      cum = snap.data();
+      return;
+    }
+    const data = snap.data() as Record<string, { total?: number } | unknown>;
+    for (const s of students) {
+      const row = data[String(s.id)] as { total?: number } | undefined;
+      // 전입 학생은 초기화일 이전의 옛 주인 기록을 세지 않는다 (아래 transferResetOn 제외와 병행)
+      if (row && typeof row === "object" && typeof row.total === "number")
+        sums[String(s.id)] = (sums[String(s.id)] ?? 0) + row.total;
+    }
+  });
+  const streaks: Record<string, number> = {};
+  markers.forEach((m) => {
+    const sp = (m.data().streakPoints ?? {}) as Record<string, number>;
+    for (const [sid, n] of Object.entries(sp)) streaks[sid] = (streaks[sid] ?? 0) + n;
+  });
+  const resetOn = (cum.transferResetOn as Record<string, string>) ?? {};
+  const drift: { name: string; diff: number }[] = [];
+  for (const s of students) {
+    const sid = String(s.id);
+    if (s.inactive || resetOn[sid]) continue; // 전출·전입 학생은 정상적 불일치 — 제외
+    const expected = (sums[sid] ?? 0) + (streaks[sid] ?? 0);
+    const actual = typeof cum[sid] === "number" ? (cum[sid] as number) : 0;
+    const diff = Math.round((actual - expected) * 100) / 100;
+    if (Math.abs(diff) >= 0.5) drift.push({ name: s.name, diff }); // 반올림 잡음 무시
+  }
+  return drift;
 }
 
 /**
@@ -194,6 +241,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       redoDates,
       coveredUntil: (m.coveredUntil as string | undefined) ?? shiftDate(today, -2),
       settledThrough: (m.settledThrough as number | undefined) ?? 0,
+      cumCheckedOn: (m.cumCheckedOn as string | undefined) ?? "",
     };
   });
   if (!claimed)
@@ -338,6 +386,17 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
   // 6.5) 방학 마커 정리·독서 스윕은 위 0.5)~0.6)에서 이미 실행됨 — 결과만 옮겨 담는다.
   if (vacationRead) result.vacationRead = vacationRead;
   if (readMigratedDates.length) result.readMigratedDates = readMigratedDates;
+
+  // 7) ⚖️ 누적 정합 점검 — 주 1회 (마지막 점검 후 7일 경과 시). 표류는 경고만, 보정은 교사가.
+  if (claimed.freshRun && (!claimed.cumCheckedOn || shiftDate(claimed.cumCheckedOn, 7) <= today)) {
+    try {
+      const drift = await findCumDrift(d);
+      if (drift.length) result.cumDrift = drift;
+      await setDoc(markerRef, { cumCheckedOn: today }, { merge: true });
+    } catch {
+      // 점검 실패는 무시 — 다음 접속 때 재시도 (보조 안전망)
+    }
+  }
 
   // (재집계 요청 처리는 2)에서 선(先)수행 — 유실 방지)
   return result;
