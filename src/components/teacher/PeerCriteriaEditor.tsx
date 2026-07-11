@@ -83,8 +83,8 @@ export default function PeerCriteriaEditor() {
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-500">
-        부서장은 <b>자기 부서 기준</b>으로 모둠원을 O/X 평가해요. 전부 O면 +1, 일부 0, 전부 X면
-        −1. 관찰 가능한 <b>사실</b>로 적을수록 이의제기가 명확해져요.
+        부서장은 <b>자기 부서 기준</b>으로 모둠원을 O/X 평가해요. 미션 하나당 +0.5점 (둘 다
+        O면 +1, 마이너스 없음). 관찰 가능한 <b>사실</b>로 적을수록 이의제기가 명확해져요.
       </p>
       {ROLE_INFO.map((r) => {
         const list = cur[r.key as RoleKey] ?? [];
