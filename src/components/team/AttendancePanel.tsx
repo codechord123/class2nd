@@ -4,6 +4,8 @@
 // classData/attendance = { [date]: number[] } 단일 문서 (bestGroups와 동형·읽기 1회).
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { arrayUnion, doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
 import { shiftDate, todayKST } from "@/lib/date";
 import { useAttendance, useSetAttendance } from "@/lib/query/classMeta";
@@ -33,15 +35,27 @@ export default function AttendancePanel() {
       await setAttendance(date, [...next]);
       // 그 자리에서 그날 점수 재계산 — 예약만 걸면 과거 날짜 보정이 점수표에 영영 안 뜬다
       // (오늘은 autoRun이 재집계하지만, 과거 날짜는 트리거가 없다). 결석은 드물어 읽기 비용 미미.
+      let redone = false;
       if (settings) {
-        await aggregateDate(date, settings).catch(() => {});
+        redone = await aggregateDate(date, settings).then(
+          () => true,
+          () => false
+        );
+        if (!redone) {
+          // 즉시 재계산 실패(잠금 경합 등) → redoDates 예약으로 폴백 — 다음 접속 때 autoRun이 처리
+          await setDoc(
+            doc(db(), "classData", "autoRun"),
+            { redoDates: arrayUnion(date) },
+            { merge: true }
+          ).catch(() => {});
+        }
         void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
         void qc.invalidateQueries({ queryKey: ["dailyScores", "_cumulative"] });
         void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       }
       toast(
         next.has(id)
-          ? `${students.find((s) => s.id === id)?.name} 결석 처리 + 그날 점수 재계산 완료.`
+          ? `${students.find((s) => s.id === id)?.name} 결석 처리${redone ? " + 그날 점수 재계산 완료." : " 완료 — 점수는 다음 접속 때 자동 재계산돼요."}`
           : `${students.find((s) => s.id === id)?.name} 출석으로 되돌렸어요.`,
         "success"
       );

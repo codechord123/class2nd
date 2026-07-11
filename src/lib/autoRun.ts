@@ -8,7 +8,7 @@
 // 하루 1회만 (classData/autoRun 마커를 트랜잭션으로 선점 → 탭 2개여도 이중 정산 없음).
 // 단, redoDates가 남아 있으면 이미 오늘 실행했어도 그 날짜들만 추가 처리한다.
 // 모든 작업이 멱등이라 수동 실행과 겹쳐도 점수가 어긋나지 않는다.
-import { doc, getDoc, increment, runTransaction, setDoc } from "firebase/firestore";
+import { arrayUnion, doc, getDoc, increment, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { shiftDate, todayKST } from "@/lib/date";
 import {
@@ -155,8 +155,30 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       result.missedRankDates.push(date);
   };
 
+  // 2) 재집계 요청을 '가장 먼저' 처리 — 선점에서 이미 큐를 비웠으므로, 뒤 단계(백필·정산)가
+  //    던지면 요청이 영영 사라진다 (실사례: 감상문 삭제 후 read 점수가 계속 남음).
+  //    날짜별로 실패를 잡아 큐에 되돌려, 어떤 실패에도 요청이 유실되지 않게 한다.
+  const failedRedos: string[] = [];
+  for (const date of claimed.redoDates) {
+    try {
+      const r = await aggregateDate(date, settings, { skipIfEmpty: true });
+      if (r) {
+        result.redoneDates.push(date);
+        noteMissedRank(date, r);
+      }
+    } catch {
+      failedRedos.push(date); // 잠금 경합 등 — 다음 접속 때 재시도
+    }
+  }
+  if (failedRedos.length) {
+    await setDoc(markerRef, { redoDates: arrayUnion(...failedRedos) }, { merge: true }).catch(
+      () => {}
+    );
+  }
+  const redone = new Set(result.redoneDates);
+
   if (claimed.freshRun) {
-    // 2) 밀린 일일 집계 — coveredUntil 다음 날부터 어제까지 (기록 없는 날은 건너뜀)
+    // 3) 밀린 일일 집계 — coveredUntil 다음 날부터 어제까지 (기록 없는 날은 건너뜀)
     let from = shiftDate(claimed.coveredUntil, 1);
     const floor = shiftDate(today, -MAX_BACKFILL_DAYS);
     if (from < floor) {
@@ -170,6 +192,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       from = floor;
     }
     for (let date = from; date <= yesterday; date = shiftDate(date, 1)) {
+      if (redone.has(date)) continue; // 위 재집계에서 방금 처리 — 같은 날 두 번 집계 불필요
       const r = await aggregateDate(date, settings, { skipIfEmpty: true });
       if (r) {
         result.aggregatedDates.push(date);
@@ -177,7 +200,7 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       }
     }
 
-    // 3) 끝난 세션 정산 — 종료일(일요일)이 지난 기를 순서대로 (이미 정산된 기는 멱등 통과)
+    // 4) 끝난 세션 정산 — 종료일(일요일)이 지난 기를 순서대로 (이미 정산된 기는 멱등 통과)
     let p = claimed.settledThrough + 1;
     while (p <= TOTAL_PERIODS && dateRangeOfPeriod(p)[1] < today) {
       const r = await settleSession(p);
@@ -196,11 +219,11 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
       p++;
     }
 
-    // 4) 진행 상황 저장 (다음 실행은 여기서 이어감)
+    // 5) 진행 상황 저장 (다음 실행은 여기서 이어감)
     await setDoc(markerRef, { coveredUntil: yesterday, settledThrough: p - 1 }, { merge: true });
   }
 
-  // 5) 거북이 응원 이벤트 — 목표 클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
+  // 6) 거북이 응원 이벤트 — 목표 클릭 달성 시 학급 골드 +5, 1회성 깜짝 이벤트
   //    목표 횟수는 교사가 도구에서 저장(classData/turtleClicks.goal, 기본 10,000).
   //    지급 후 교사가 '다시 열기'로 재개설 가능 (이스터에그 반복 운영 — 사용자 요청).
   //    지급+마커를 한 트랜잭션으로 — 지급만 되고 마커가 안 남아 다음 날 또 주는 사고 차단.
@@ -225,23 +248,10 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     // 지급 실패는 다음 접속 때 재시도 (트랜잭션이라 절반만 반영되는 일 없음)
   }
 
-  // 5.5) 방학 마커 정리·독서 스윕은 위 0.5)~0.6)에서 이미 실행됨 — 결과만 옮겨 담는다.
+  // 6.5) 방학 마커 정리·독서 스윕은 위 0.5)~0.6)에서 이미 실행됨 — 결과만 옮겨 담는다.
   if (vacationRead) result.vacationRead = vacationRead;
   if (readMigratedDates.length) result.readMigratedDates = readMigratedDates;
 
-  // 6) 재집계 요청 처리 — 백필에서 방금 집계한 날짜는 제외 (같은 날 두 번 집계 불필요)
-  const already = new Set(result.aggregatedDates);
-  for (const date of claimed.redoDates) {
-    if (already.has(date)) {
-      result.redoneDates.push(date);
-      continue;
-    }
-    const r = await aggregateDate(date, settings, { skipIfEmpty: true });
-    if (r) {
-      result.redoneDates.push(date);
-      noteMissedRank(date, r);
-    }
-  }
-
+  // (재집계 요청 처리는 2)에서 선(先)수행 — 유실 방지)
   return result;
 }

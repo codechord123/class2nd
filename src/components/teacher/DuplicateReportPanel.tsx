@@ -73,9 +73,14 @@ export default function DuplicateReportPanel() {
     try {
       await deleteReport(r);
       // 그 자리에서 그날 점수 재계산 — 예약만 걸면 리포트·점수표에 옛 값이 남는다 (사용자 지적)
+      let redone = false;
       if (settings) {
         const day = kstDateOf(r.createdAt);
-        await aggregateDate(day, settings).catch(() => {}); // 실패해도 예약 경로가 다음에 처리
+        // 실패해도 deleteReport가 걸어둔 redoDates 예약이 다음 접속 때 처리 (autoRun이 실패를 큐에 되돌림)
+        redone = await aggregateDate(day, settings).then(
+          () => true,
+          () => false
+        );
         void qc.invalidateQueries({ queryKey: ["dailyScores", day] });
         void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       }
@@ -88,7 +93,12 @@ export default function DuplicateReportPanel() {
             )
             .filter((x) => x.reports.length >= 2) ?? null
       );
-      toast("🗑 삭제 + 그날 점수 재계산 완료", "success");
+      toast(
+        redone
+          ? "🗑 삭제 + 그날 점수 재계산 완료"
+          : "🗑 삭제 완료 — 점수는 다음 접속 때 자동 재계산돼요",
+        "success"
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "삭제에 실패했어요.", "error");
     } finally {

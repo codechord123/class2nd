@@ -296,7 +296,7 @@ function Tags({ r }: { r: ReadingReport2 }) {
 }
 
 export default function ReadingPage() {
-  const { role, studentId } = useSession();
+  const { role, studentId, preview } = useSession();
   const { toast, confirm } = useFeedback();
   const week = weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS);
   // 교사도 독서 감상문을 쓸 수 있게 — 저자 id 0(=선생님) 센티넬. 학생 권수·마라톤엔 안 섞인다.
@@ -314,9 +314,11 @@ export default function ReadingPage() {
   const qc = useQueryClient();
 
   // 교사 삭제는 그 자리에서 그날 점수까지 재계산 (사용자 요청 — 예약만 걸면 리포트에 옛 점수가 남음).
+  // 학생 화면 '미리보기' 중에도 Firebase 인증은 교사라 재계산이 가능하다 — role만 보면
+  // 미리보기 삭제가 조용히 예약 경로로 빠져 점수가 한동안 옛값으로 남는다 (실사례: 중복 삭제 후 +4 잔존).
   // 학생 삭제는 규칙상 집계 쓰기가 안 되므로 기존 예약(redoDates → 다음 교사 접속) 경로 유지.
   async function reaggAfterDelete(createdAt: number) {
-    if (role !== "teacher" || !settings) return false;
+    if ((role !== "teacher" && !preview) || !settings) return false;
     const d = kstDateOf(createdAt);
     try {
       await aggregateDate(d, settings);
@@ -324,7 +326,7 @@ export default function ReadingPage() {
       void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       return true;
     } catch {
-      return false; // 실패해도 삭제는 완료 — 예약 경로가 다음 접속 때 처리
+      return false; // 실패해도 삭제는 완료 — redoDates 예약이 다음 접속 때 처리 (autoRun이 실패를 큐에 되돌림)
     }
   }
 
@@ -557,7 +559,12 @@ export default function ReadingPage() {
                           .then(async () => {
                             setSelectedId(null);
                             const redone = await reaggAfterDelete(r.createdAt);
-                            if (redone) toast("🗑 삭제 + 그날 점수 재계산 완료", "success");
+                            toast(
+                              redone
+                                ? "🗑 삭제 + 그날 점수 재계산 완료"
+                                : "🗑 삭제 완료 — 점수는 다음 교사 접속 때 자동 재계산돼요",
+                              "success"
+                            );
                           })
                           .catch((e: Error) => toast(e.message, "error"));
                     }
