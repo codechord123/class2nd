@@ -708,7 +708,7 @@ async function aggregateDateInner(
         ranks, // 교사 순위 (점수 배분용 — 타이틀과 분리)
         mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
-        classTop, // 학급 전체 1위 (+2 추가 대상)
+        classTop, // 학급 전체 1위 (+1 가산 대상 — 모둠 1위 +1과 합쳐 +2)
         bossWinners, // 오늘의 부서장 (투표 최다 — 고정 +1점)
         bossReasons, // 부서장 투표 이유 (인기투표 억제 근거 — 리포트 표시)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)

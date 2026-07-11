@@ -106,7 +106,7 @@ export default function DailyReportPanel({
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
     mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
-    classTop?: number[]; // 학급 전체 1위 (+2 추가)
+    classTop?: number[]; // 학급 전체 1위 (+1 가산, 모둠 1위와 합쳐 +2)
     bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
     autoBestGroups?: number[]; // 오늘의 모둠 — 총점 합계 1위 (자동 타이틀)
     ranks?: Record<string, number>; // 교사 순위 (점수 배분)
@@ -621,7 +621,7 @@ export default function DailyReportPanel({
               </p>
               {(meta?.classTop ?? []).length > 0 && (
                 <p className="mt-0.5 text-xs text-warn">
-                  🏆 학급 1위(+2 추가): {(meta!.classTop ?? []).map(nm).join(", ")}
+                  🏆 학급 1위(+1 더, 합 +2): {(meta!.classTop ?? []).map(nm).join(", ")}
                 </p>
               )}
               {(meta?.bossWinners ?? []).length > 0 && (

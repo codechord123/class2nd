@@ -617,7 +617,7 @@ export default function TeacherPage() {
       {/* 🧰 관리 도구 — 접어둠 (가끔 씀) */}
       <details className="rounded-card border border-ink-200 bg-white shadow-card">
         <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
-          🧰 관리 도구 <span className="text-xs font-normal text-ink-400">— 비밀번호·전입·인쇄·CSV·감사·기타</span>
+          🧰 관리 도구 <span className="text-xs font-normal text-ink-400">— 비밀번호·전입·인쇄·CSV·백업·감사·기타</span>
         </summary>
         <div className="space-y-4 border-t border-ink-100 p-4">
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
