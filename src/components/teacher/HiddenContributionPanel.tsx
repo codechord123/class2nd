@@ -1,14 +1,16 @@
 "use client";
-// 🕵️ 숨은 기여 지급 — 금요일 루틴: 건의 탭 '숨은 기여' 메뉴로 들어온 추천(실명+이유)을 보고
-// 학생을 골라 실버 1개씩 지급한다. 공정 장치(사용자 확정 설계): ① 기준을 법률로 사전 공개
-// ② 추천은 실명+이유 필수(10자↑) ③ 보상량 고정(1개) ④ 주당 상한은 법률로 안내(운영)
-// ⑤ 지급 내역은 원장에 공개. 지급하면 추천에 resolved 표시 — 다음 주 목록에서 빠진다.
+// 🕵️ 숨은 기여 지급 — 금요일 루틴 (사용자 확정: 건의로 추천 → 학급 👍👎 투표로 결정 → 교사 지급).
+// 건의 게시판의 '숨은 기여 추천' 글과 찬반 투표 결과를 보고 학생을 골라 실버 1개씩 지급한다.
+// 공정 장치: ① 기준을 법률로 사전 공개 ② 추천은 실명+이유 필수(10자↑) ③ 학급 투표로 결정
+// ④ 보상량 고정(1개)·주당 상한은 법률로 안내 ⑤ 지급 내역은 원장에 공개.
+// 지급하면 추천에 resolved 표시 — 다음 주 목록에서 빠진다.
 import { useState } from "react";
 import { studentById } from "@/lib/roster";
 import { useGrantSilver } from "@/lib/query/wallet";
 import {
   useHiddenNominations,
   useResolveHiddenNominations,
+  reactionCounts,
   type Suggestion,
 } from "@/lib/query/board";
 import { useConstitution, useSaveConstitution } from "@/lib/query/classMeta";
@@ -21,8 +23,8 @@ const HIDDEN_LAW = {
   title: "숨은 기여",
   clauses: [
     "학급을 위해 드러나지 않게 일한 학생은 실버 1개를 받을 수 있다.",
-    "추천은 누구나 '투표·건의'의 숨은 기여 메뉴에서 할 수 있으며, 무엇을 했는지 이유를 반드시 적는다.",
-    "선생님은 매주 금요일 추천을 확인하여 지급하고, 지급 내역은 모두에게 공개한다.",
+    "추천은 누구나 건의 게시판의 '숨은 기여 추천'으로 할 수 있으며, 무엇을 했는지 이유를 반드시 적는다.",
+    "추천은 학급의 찬성 투표로 결정하고, 선생님이 매주 금요일 확인하여 지급한다. 지급 내역은 모두에게 공개한다.",
     "한 학생이 같은 주에 받을 수 있는 숨은 기여 실버는 2개를 넘지 않는다.",
     "자기 자신은 추천할 수 없다.",
   ],
@@ -117,8 +119,8 @@ export default function HiddenContributionPanel() {
         </button>
       </div>
       <p className="mt-1 text-xs text-ink-600">
-        금요일 루틴 — 아이들이 <b>투표·건의 → 🕵️ 숨은 기여</b>에서 보낸 추천(실명+이유)을 보고
-        골라 실버 1개씩. 지급 내역은 원장에 공개돼요. (주당 한 학생 2개 상한은 법률로 안내)
+        금요일 루틴 — 건의 게시판의 <b>숨은 기여 추천</b>과 학급 <b>👍👎 투표 결과</b>를 보고 골라
+        실버 1개씩. 지급 내역은 원장에 공개돼요. (주당 한 학생 2개 상한은 법률로 안내)
       </p>
       {!loaded ? (
         <button
@@ -131,7 +133,11 @@ export default function HiddenContributionPanel() {
         <>
           <ul className="mt-3 max-h-80 space-y-1.5 overflow-y-auto">
             {[...byReceiver.entries()]
-              .sort((a, b) => b[1].length - a[1].length)
+              // 찬성 투표 합이 많은 순 (동률이면 추천 건수 순) — 투표로 결정 (사용자 확정)
+              .sort((a, b) => {
+                const up = (l: Suggestion[]) => l.reduce((s, n) => s + reactionCounts(n).up, 0);
+                return up(b[1]) - up(a[1]) || b[1].length - a[1].length;
+              })
               .map(([to, list]) => (
                 <li key={to} className="rounded-btn bg-ink-50 px-3 py-2">
                   <label className="flex cursor-pointer items-start gap-2">
@@ -151,12 +157,19 @@ export default function HiddenContributionPanel() {
                     <span className="min-w-0 flex-1">
                       <b className="text-sm">{studentById.get(to)?.name ?? "?"}</b>
                       <span className="ml-1 text-xs text-ink-400">추천 {list.length}건</span>
-                      {list.map((n) => (
-                        <span key={n.id} className="block text-[12px] text-ink-600 [overflow-wrap:anywhere]">
-                          · {typeof n.studentId === "number" ? (studentById.get(n.studentId)?.name ?? "?") : "선생님"}
-                          : {n.content}
-                        </span>
-                      ))}
+                      {list.map((n) => {
+                        const rc = reactionCounts(n);
+                        return (
+                          <span key={n.id} className="block text-[12px] text-ink-600 [overflow-wrap:anywhere]">
+                            · {typeof n.studentId === "number" ? (studentById.get(n.studentId)?.name ?? "?") : "선생님"}
+                            : {n.content}{" "}
+                            <b className={rc.up > rc.down ? "text-success" : "text-ink-400"}>
+                              👍{rc.up}
+                            </b>
+                            {rc.down > 0 && <b className="text-danger"> 👎{rc.down}</b>}
+                          </span>
+                        );
+                      })}
                     </span>
                   </label>
                 </li>

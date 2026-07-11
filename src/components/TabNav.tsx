@@ -16,8 +16,8 @@ export const TABS = [
   { href: "/team", label: "모둠", accent: "bg-orange-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
   { href: "/shop", label: "상점", accent: "bg-pink-500" },
-  // 투표·건의를 한 탭으로 — 페이지 상단 스위처로 오간다. alt: 이 경로들에서도 탭이 활성화됨.
-  { href: "/vote", label: "투표·건의", accent: "bg-violet-500", alt: ["/board", "/hidden"] },
+  // 투표·건의를 한 탭으로 — 페이지 상단 스위처로 오간다. alt: 이 경로에서도 탭이 활성화됨.
+  { href: "/vote", label: "투표·건의", accent: "bg-violet-500", alt: ["/board"] },
   { href: "/seats", label: "자리", accent: "bg-amber-500" },
   { href: "/guide", label: "안내", accent: "bg-teal-600" },
 ] as const;

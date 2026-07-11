@@ -5,7 +5,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
-import { ROLE_INFO, studentById } from "@/lib/roster";
+import { ROLE_INFO, students, studentById } from "@/lib/roster";
 import { CIRCLED_NUMS, serializeClauses } from "@/lib/lawText";
 import Linkify from "@/components/ui/Linkify";
 import VoteBoardTabs from "@/components/VoteBoardTabs";
@@ -28,6 +28,7 @@ import {
   useReactSuggestion,
   useSetAgendaStatus,
   useEnactLaw,
+  useNominateHidden,
   reactionCounts,
   titleOf,
   AGENDA_STATUS,
@@ -563,6 +564,7 @@ export default function BoardPage() {
   const { data: posts } = useSuggestions(page * pageSize + 1);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(role === "teacher" ? "teacher" : studentId);
+  const nominateHidden = useNominateHidden(studentId);
   const { toast, confirm } = useFeedback();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -571,10 +573,11 @@ export default function BoardPage() {
   const [content, setContent] = useState("");
   const [teacherOnly, setTeacherOnly] = useState(false); // 🔒 선생님만 보기 (익명 대체)
   const [announce, setAnnounce] = useState(false); // 교사: 쓰면서 바로 공지로
-  const [postKind, setPostKind] = useState<"general" | "law">("general"); // 일반 안건 | 법률 제안
+  const [postKind, setPostKind] = useState<"general" | "law" | "hidden">("general"); // 일반 | 법률 | 숨은 기여
   const [postDept, setPostDept] = useState<string | null>(null); // 법률 제안의 담당 부서
   const [lawTitle, setLawTitle] = useState(""); // 법률 제안: 조 제목
   const [lawClauses, setLawClauses] = useState<string[]>([""]); // 법률 제안: 항별 내용
+  const [hiddenTarget, setHiddenTarget] = useState<number | null>(null); // 숨은 기여 추천 대상
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
@@ -583,16 +586,40 @@ export default function BoardPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const deleteMany = useDeleteSuggestions();
 
-  // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다.
-  // 🕵️ 숨은 기여 추천(kind "hidden")은 같은 컬렉션이지만 전용 메뉴(/hidden)에서만 다룬다 — 목록 제외.
+  // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
-    p.kind !== "hidden" &&
-    (!p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId));
+    !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
 
   const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
+    // 🕵️ 숨은 기여 추천 — 대상+이유(10자↑)로 공개 글 등록 → 친구들이 👍👎로 결정
+    if (postKind === "hidden") {
+      if (hiddenTarget == null) {
+        toast("추천할 친구를 골라주세요.", "warn");
+        return;
+      }
+      if (content.trim().length < 10) {
+        toast("무엇을 했는지 10글자 이상 적어주세요 — 이유가 공정함을 지켜요.", "warn");
+        return;
+      }
+      setBusy(true);
+      try {
+        await nominateHidden(hiddenTarget, studentById.get(hiddenTarget)?.name ?? "?", content);
+        setContent("");
+        setHiddenTarget(null);
+        setPostKind("general");
+        setWriting(false);
+        setPostBurst((k) => k + 1);
+        toast("🕵️ 추천했어요! 친구들의 👍 투표를 거쳐 선생님이 금요일에 지급해요.", "success");
+      } catch (e) {
+        toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     // 법률 제안: 부서 필수 + 조 제목 + 최소 1개 항. 제목/항을 title/content로 담는다.
     let submitTitle = title;
     let submitContent = content;
@@ -835,12 +862,13 @@ export default function BoardPage() {
 
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
-            {/* 종류 선택 — 일반 안건 vs 법률 제안 (법률은 채택되면 부서 법이 된다) */}
+            {/* 종류 선택 — 일반 안건 / 법률 제안 / 숨은 기여 추천 (건의→투표→지급, 사용자 확정) */}
             <div className="flex flex-wrap items-center gap-1.5">
               {(
                 [
                   { key: "general", label: "💬 일반 안건" },
                   { key: "law", label: "📜 법률 제안" },
+                  { key: "hidden", label: "🕵️ 숨은 기여 추천" },
                 ] as const
               ).map((k) => (
                 <button
@@ -860,8 +888,52 @@ export default function BoardPage() {
                   채택되면 그 부서의 법이 돼요 → 부서를 골라주세요
                 </span>
               )}
+              {postKind === "hidden" && (
+                <span className="text-[11px] text-ink-400">
+                  친구들의 👍 투표를 거쳐 선생님이 금요일에 실버 1개를 지급해요
+                </span>
+              )}
             </div>
-            {postKind === "law" ? (
+            {postKind === "hidden" ? (
+              /* 🕵️ 숨은 기여 추천 — 대상 선택(자기 제외) + 이유(10자↑). 👍👎로 학급이 결정 */
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {students
+                    .filter((s) => !s.inactive && s.id !== studentId)
+                    .map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setHiddenTarget(hiddenTarget === s.id ? null : s.id)}
+                        className={`press rounded-full border px-3 py-1.5 text-xs font-bold ${
+                          hiddenTarget === s.id
+                            ? "border-violet-400 bg-violet-500 text-white"
+                            : "border-ink-200 bg-white text-ink-600 hover:border-violet-300"
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                </div>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={
+                    hiddenTarget != null
+                      ? `${studentById.get(hiddenTarget)?.name}이(가) 학급을 위해 드러나지 않게 무엇을 했나요? (예: 아무도 안 볼 때 우유갑을 정리했어요)`
+                      : "먼저 위에서 추천할 친구를 골라주세요 (자기 자신은 추천할 수 없어요)"
+                  }
+                  rows={3}
+                  className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
+                />
+                {hiddenTarget != null && (
+                  <p className={`text-[11px] ${content.trim().length >= 10 ? "text-emerald-600" : "text-ink-400"}`}>
+                    {content.trim().length >= 10
+                      ? `✓ 좋아요! (${content.trim().length}글자)`
+                      : `10글자 이상 — ${10 - content.trim().length}글자 더 써주세요`}
+                  </p>
+                )}
+              </>
+            ) : postKind === "law" ? (
               /* 법률 제안 — 부서 + 조 제목 + 항별 내용 (헌법 탭과 같은 구조) */
               <>
                 <div className="flex flex-wrap gap-1.5">

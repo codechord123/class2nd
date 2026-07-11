@@ -84,14 +84,14 @@ export function useSuggestions(count: number) {
   });
 }
 
-// ── 🕵️ 숨은 기여 추천 — 건의 탭의 별도 메뉴 (suggestions 재사용: kind "hidden", 규칙 변경 불필요) ──
-// 추천은 비공개(teacherOnly) — 공개 추천은 인기투표가 되기 쉽고, '몰래 한 일'의 결이 깨진다.
-// 지급 내역은 지갑 원장으로 공개된다 (공정 장치: 실명+이유 필수·보상 고정·내역 공개).
+// ── 🕵️ 숨은 기여 추천 — 건의 게시판의 글 종류 (사용자 확정: 건의로 추천 → 👍👎 투표로 결정 →
+//    교사가 금요일 확인·지급). suggestions 재사용(kind "hidden") — 규칙 변경 불필요.
+//    공개 글이라 학급 전체가 찬성/반대로 결정에 참여한다. 지급 내역은 지갑 원장으로 공개.
 
-/** 숨은 기여 추천하기 — 자기 추천 금지, 이유 필수 */
+/** 숨은 기여 추천하기 — 자기 추천 금지, 이유 필수. 공개 글(찬반 투표 대상)로 올라간다 */
 export function useNominateHidden(myId: number | null) {
   const qc = useQueryClient();
-  return async (targetId: number, reason: string) => {
+  return async (targetId: number, targetName: string, reason: string) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (targetId === myId) throw new Error("자기 자신은 추천할 수 없어요.");
     if (!reason.trim()) throw new Error("무엇을 했는지 이유를 꼭 적어주세요.");
@@ -99,33 +99,16 @@ export function useNominateHidden(myId: number | null) {
       studentId: myId,
       kind: "hidden",
       targetId,
-      title: "",
+      title: `🕵️ 숨은 기여 추천: ${targetName}`,
       content: reason.trim(),
       isAnonymous: false,
-      teacherOnly: true, // 선생님만 보기 — 추천은 비공개, 지급은 공개
+      teacherOnly: false, // 공개 — 학급이 👍👎로 결정 (사용자 확정)
       comments: [],
       createdAt: Date.now(),
     });
     void qc.invalidateQueries({ queryKey: ["hiddenNominations"] });
+    void qc.invalidateQueries({ queryKey: ["suggestions"] });
   };
-}
-
-/** 내가 한 숨은 기여 추천 (학생) — 두 등호 필터라 인덱스 불필요 */
-export function useMyHiddenNominations(myId: number | null) {
-  return useQuery({
-    queryKey: ["hiddenNominations", "mine", myId],
-    enabled: myId != null,
-    queryFn: async (): Promise<Suggestion[]> => {
-      const q = query(
-        collection(db(), "suggestions"),
-        where("studentId", "==", myId),
-        where("kind", "==", "hidden")
-      );
-      const snap = await getDocs(q);
-      return snap.docs.map(toSuggestion).sort((a, b) => b.createdAt - a.createdAt);
-    },
-    staleTime: 5 * 60 * 1000,
-  });
 }
 
 /** 전체 숨은 기여 추천 (교사 지급 패널) — orderBy 없이 등호 필터만(복합 인덱스 회피), 정렬은 클라이언트 */
