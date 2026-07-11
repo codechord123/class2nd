@@ -11,7 +11,7 @@ import { useBalances } from "@/lib/query/wallet";
 import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
@@ -151,6 +151,9 @@ export default function MyStatus() {
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
   const doneRead = myWeekRead >= quota;
+  // 주말·공휴일엔 모둠 탭의 평가·투표·칭찬이 잠긴다 (Team 탭과 같은 판정) —
+  // 홈 할 일에도 띄우지 않아야 '눌렀는데 잠겨 있는' 헛걸음이 없다. 쉬는 날엔 독서·상점만.
+  const evalOpen = !isWeekend(today) && !(settings?.holidays ?? []).includes(today);
   const todos: {
     icon: string;
     label: string;
@@ -158,9 +161,13 @@ export default function MyStatus() {
     done?: boolean; // undefined = 완료 개념 없는 바로가기 (상점)
     href: string;
   }[] = [
-    { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
-    { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
-    { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
+    ...(evalOpen
+      ? [
+          { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
+          { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
+          { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
+        ]
+      : []),
     vacation
       ? {
           // 방학: 주간 미션이 없으니 완료 개념 없는 누적 표시 (상점 타일과 동일 취급)
@@ -180,6 +187,8 @@ export default function MyStatus() {
   ];
   const checkable = todos.filter((t) => t.done !== undefined);
   const doneCount = checkable.filter((t) => t.done).length;
+  // 쉬는 날 + 방학이면 체크 항목이 0개 — 0/0을 '완료'로 축하하지 않는다
+  const allDone = checkable.length > 0 && doneCount === checkable.length;
 
   return (
     <div className="space-y-4">
@@ -190,16 +199,18 @@ export default function MyStatus() {
       <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">
         {/* 전체 완료 순간의 축하 juice (완료 상태로 열어도 한 번 터짐 — 기분 좋음 우선) */}
         <JuiceBurst
-          fireKey={doneCount === checkable.length ? 1 : 0}
+          fireKey={allDone ? 1 : 0}
           emojis={["🎉", "✨", "🏆"]}
           className="left-1/2 top-3"
         />
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-ink-900">
-            {doneCount === checkable.length ? "🎉 오늘 할 일 완료!" : "📌 오늘 할 일"}
+            {allDone ? "🎉 오늘 할 일 완료!" : evalOpen ? "📌 오늘 할 일" : "🏖️ 오늘은 쉬는 날"}
           </h2>
           <span className="text-xs font-bold text-ink-500">
-            {doneCount}/{checkable.length} 완료
+            {evalOpen || checkable.length > 0
+              ? `${doneCount}/${checkable.length} 완료`
+              : "평가·칭찬은 학교 오는 날에!"}
           </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">

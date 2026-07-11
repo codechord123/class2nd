@@ -121,8 +121,8 @@ export default function GuidePage() {
           />
         </ol>
         <p className="rounded-btn bg-brand-weak/60 px-3 py-2 text-xs text-brand-strong">
-          💡 점수와 실버는 <b>실시간이 아니라 다음 날 아침</b>에 반영돼요 — 안 들어왔다고
-          걱정하지 마세요!
+          💡 평가 점수와 실버는 보통 <b>다음 날 아침</b>에 들어와요 — 안 들어왔다고 걱정하지
+          마세요! (🐢 독서 점수는 선생님이 그날 집계하면 바로 보여요)
         </p>
       </Section>
 
