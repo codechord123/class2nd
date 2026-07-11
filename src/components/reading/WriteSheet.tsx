@@ -10,6 +10,8 @@ import {
   type ReportForm,
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
+import { todayKST } from "@/lib/date";
+import { SEMESTER_START } from "@/lib/schedule";
 import { useFeedback } from "@/components/ui/Feedback";
 import JuiceBurst from "@/components/ui/Juice";
 import Button from "@/components/ui/Button";
@@ -294,7 +296,9 @@ export default function WriteSheet({
           ← 닫기
         </button>
         <span className="text-base font-extrabold text-ink-900">
-          감상문 {editingReport ? "수정" : "쓰기"} · {week}주차
+          {/* 방학(개학 전)엔 주차가 아직 없다 — 런처 버튼의 "🏖️ 방학" 표기와 일치시킴 */}
+          감상문 {editingReport ? "수정" : "쓰기"} ·{" "}
+          {todayKST() < SEMESTER_START ? "🏖️ 방학" : `${week}주차`}
         </span>
         {/* 정식본 수정 중엔 임시저장 숨김 — 초안 복사본이 생겨 나중에 중복 등록(+1)되는 사고 방지 */}
         {editingReport ? (
