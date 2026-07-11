@@ -2,6 +2,7 @@
 // 🙋 점수 이의제기 검토 (교사) — 학생이 받은 부서장 평가에 낸 이의제기를 확인하고,
 // 합당하면 점수를 조정(addBonus)하거나 반려한다. 조정은 그 집계일의 보너스로 더해 누적에 반영.
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { studentById } from "@/lib/roster";
 import { addBonus } from "@/lib/aggregate";
 import { useAllAppeals, useResolveAppeal } from "@/lib/query/appeals";
@@ -11,6 +12,7 @@ export default function AppealPanel() {
   const [open, setOpen] = useState(false);
   const { data: appeals, isFetching, refetch } = useAllAppeals(open);
   const resolve = useResolveAppeal();
+  const qc = useQueryClient();
   const { toast } = useFeedback();
   const [note, setNote] = useState<Record<string, string>>({});
   const [delta, setDelta] = useState<Record<string, number>>({});
@@ -40,6 +42,10 @@ export default function AppealPanel() {
         if (d !== 0 && !applied.current.has(a.id)) {
           await addBonus(a.date, a.studentId, d); // 그날 보너스로 조정 → 누적 반영
           applied.current.add(a.id);
+          // 점수 캐시 무효화 — 안 하면 조정한 점수가 점수표·리포트에 바로 안 뜬다 (staleTime 대기)
+          void qc.invalidateQueries({ queryKey: ["dailyScores", a.date] });
+          void qc.invalidateQueries({ queryKey: ["dailyScores", "_cumulative"] });
+          void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
         }
         await resolve.mutateAsync({ id: a.id, status: "resolved", teacherNote: memo, delta: d });
         toast(`조정 완료 (${d >= 0 ? "+" : ""}${d}점).`, "success");

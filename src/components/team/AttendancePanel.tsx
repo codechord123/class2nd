@@ -3,14 +3,19 @@
 // 모둠 칭찬 미션 '전원' 판정과 팀 보상(순위·미션·오늘의 모둠)에서 제외한다.
 // classData/attendance = { [date]: number[] } 단일 문서 (bestGroups와 동형·읽기 1회).
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { students } from "@/lib/roster";
 import { shiftDate, todayKST } from "@/lib/date";
 import { useAttendance, useSetAttendance } from "@/lib/query/classMeta";
+import { useSettings } from "@/lib/query/settings";
+import { aggregateDate } from "@/lib/aggregate";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function AttendancePanel() {
   const { data: attendance } = useAttendance();
   const setAttendance = useSetAttendance();
+  const { data: settings } = useSettings();
+  const qc = useQueryClient();
   const { toast } = useFeedback();
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
@@ -26,9 +31,17 @@ export default function AttendancePanel() {
     setBusy(true);
     try {
       await setAttendance(date, [...next]);
+      // 그 자리에서 그날 점수 재계산 — 예약만 걸면 과거 날짜 보정이 점수표에 영영 안 뜬다
+      // (오늘은 autoRun이 재집계하지만, 과거 날짜는 트리거가 없다). 결석은 드물어 읽기 비용 미미.
+      if (settings) {
+        await aggregateDate(date, settings).catch(() => {});
+        void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
+        void qc.invalidateQueries({ queryKey: ["dailyScores", "_cumulative"] });
+        void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+      }
       toast(
         next.has(id)
-          ? `${students.find((s) => s.id === id)?.name} 결석 처리했어요.`
+          ? `${students.find((s) => s.id === id)?.name} 결석 처리 + 그날 점수 재계산 완료.`
           : `${students.find((s) => s.id === id)?.name} 출석으로 되돌렸어요.`,
         "success"
       );
@@ -81,7 +94,7 @@ export default function AttendancePanel() {
       <p className="mt-1 text-[13px] text-ink-600">
         결석한 학생을 골라주세요. 결석 학생은 그날 <b>모둠 칭찬 미션 &lsquo;전원&rsquo; 판정</b>과{" "}
         <b>팀 보상(순위·미션·오늘의 모둠)</b>에서 자동 제외돼요 — 남은 모둠원이 미션을 달성할 수
-        있어요. (다음 집계 때 반영 · 칭찬 연속은 끊기지 않아요)
+        있어요. (누르면 그날 점수가 바로 재계산돼요 · 칭찬 연속은 끊기지 않아요)
       </p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {roster.map((s) => {
