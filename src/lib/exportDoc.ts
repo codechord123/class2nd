@@ -3,7 +3,7 @@
 // 브라우저 인쇄 → "PDF로 저장"으로 알림장에 바로 첨부할 수 있게 한다.
 // 읽기 예산: 기간 내 집계 문서(dailyScores, 하루 1개) + 그날 건의만 읽는다.
 // 오늘처럼 아직 집계 전인 날짜는 원시 평가를 대신 읽어 보완한다(교사 전용).
-import { collection, doc, documentId, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, documentId, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import type { DailyScoreRow } from "@/types";

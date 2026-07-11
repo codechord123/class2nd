@@ -59,12 +59,6 @@ export default function TransferPanel() {
     setNewName("");
   }
 
-  async function resetName() {
-    const renames = { ...(ov.renames ?? {}) };
-    delete renames[String(sid)];
-    await save({ ...ov, renames }, `↩️ ${sid}번 이름을 원래대로 되돌림`);
-  }
-
   // 전입 처리 — 번호 승계 + 기록 0에서 새로 시작 (사용자 확정).
   // 초기화 대상: 누적 점수·MVP·득표·칭찬 연속, 독서(총·주별·1학기 보정), 2학기 실버 잔액,
   // 이월 실버(사용량 = 이월분으로 채워 잔여 0). 과거 일일 기록 문서는 역사로 남는다.

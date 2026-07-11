@@ -3,7 +3,7 @@
 // 읽기 예산: 이미 캐시된 문서만 사용(readingStats·dailyScores·settings). 인쇄 시에만 그날 문서 추가 조회.
 import { useState } from "react";
 import { students, studentById } from "@/lib/roster";
-import { s1TotalOf, s1BooksOf } from "@/lib/staticData";
+import { s1TotalOf } from "@/lib/staticData";
 import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";

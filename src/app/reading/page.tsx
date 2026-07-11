@@ -281,19 +281,6 @@ function BookCover({ r, size, locked }: { r: ReadingReport2; size: "sm" | "lg"; 
   );
 }
 
-// 책 종류 태그 칩
-function Tags({ r }: { r: ReadingReport2 }) {
-  if (!(r.tags?.length ?? 0)) return null;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {r.tags!.map((t) => (
-        <span key={t} className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600">
-          {t}
-        </span>
-      ))}
-    </span>
-  );
-}
 
 export default function ReadingPage() {
   const { role, studentId, preview } = useSession();
