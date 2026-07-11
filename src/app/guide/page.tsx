@@ -163,6 +163,10 @@ export default function GuidePage() {
           </li>
           <li>🏆 2주(한 기)마다 세션 보상 — 아래 '세션과 보상' 카드에서 확인</li>
           <li>🎁 선생님이 특별히 잘한 일에 직접 지급</li>
+          <li>
+            💰 <b>저축 이자</b> — 세션이 끝날 때 남은 실버의 <b>10%</b>(최대 2개)를 이자로!
+            아껴 모으면 돈이 돈을 벌어요
+          </li>
         </ul>
         <p className="mt-1 font-bold text-ink-900">실버 쓰는 법</p>
         <ul className="list-inside list-disc space-y-1 text-xs text-ink-600">
