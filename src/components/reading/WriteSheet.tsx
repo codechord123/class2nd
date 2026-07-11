@@ -97,6 +97,7 @@ export default function WriteSheet({
   const initialForm = initial?.form ?? EMPTY;
   const [form, setForm] = useState<ReportForm>(initialForm);
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false); // 더블클릭 즉시 차단 (state는 같은 틱 연타를 못 막음)
 
   // 담을 내용 체크 — 기본 구성(defaultOn) + 이미 쓴 내용이 있는 항목(수정·이어쓰기 시 숨지 않게)
   const [enabled, setEnabled] = useState<Set<BodyKey>>(() => {
@@ -237,7 +238,10 @@ export default function WriteSheet({
   const pct = Math.min((bodyLen / charLimit) * 100, 100);
 
   async function submit(draft: boolean) {
-    if (busy) return;
+    // state(busy)는 같은 틱의 빠른 연타를 못 막는다(리렌더 전 두 클릭 모두 busy=false) —
+    // ref로 즉시 잠가 더블클릭 이중 등록을 차단 (실사례: 동일 감상문 0.4초 간격 2건 등록)
+    if (busy || submittingRef.current) return;
+    submittingRef.current = true;
     setBusy(true);
     try {
       if (!draft && bodyLen < charLimit)
@@ -277,6 +281,7 @@ export default function WriteSheet({
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
