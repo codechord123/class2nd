@@ -2,7 +2,7 @@
 // 건의 게시판 — 커뮤니티 게시판형 리빌드:
 //   목록(번호·제목·작성자·날짜·💬댓글수) → 클릭하면 상세 화면(본문+댓글 스레드).
 //   공지 상단 고정 · 검색 · 글쓰기 접기 · 더보기 페이지네이션.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { ROLE_INFO, students, studentById } from "@/lib/roster";
@@ -590,6 +590,33 @@ export default function BoardPage() {
   const [manage, setManage] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const deleteMany = useDeleteSuggestions();
+
+  // ✍️ 쓰다 만 글 보존 — 디벗이 꺼지거나 새로고침돼도 제목·내용이 남는다.
+  // 공용 기기 대비 학생별 키. 등록 성공 시 제목·내용이 비워지며 자동 삭제된다.
+  const draftKey = `board-draft-${role === "teacher" ? "t" : (studentId ?? 0)}`;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as { title?: string; content?: string };
+        if (d.title) setTitle((v) => v || d.title!);
+        if (d.content) setContent((v) => v || d.content!);
+      }
+    } catch {
+      // 파싱 실패 등 — 초안 없이 진행
+    }
+    // 마운트 시 1회 복원 (키는 세션 로그인 후 고정)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+  useEffect(() => {
+    try {
+      if (title.trim() || content.trim())
+        localStorage.setItem(draftKey, JSON.stringify({ title, content }));
+      else localStorage.removeItem(draftKey);
+    } catch {
+      // 저장 공간 부족 등 — 보존은 best-effort
+    }
+  }, [title, content, draftKey]);
 
   // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
