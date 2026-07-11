@@ -144,6 +144,22 @@ export function useRecentReports(count: number) {
   });
 }
 
+/** 검색·태그 필터용 전체 감상문 — 최근 N건 창(페이지)만으로는 옛 글이 검색에서 새는 버그가
+ *  있었다(실사례: 같은 날 두 번째 글이 검색에 안 잡힘). 필터를 쓰는 순간에만 넓게 1회 로드
+ *  (limit 1000·10분 캐시) — 평소 목록은 여전히 최근 N건만 읽는다 (읽기 예산). */
+export function useSearchReports(enabled: boolean) {
+  return useQuery({
+    queryKey: ["readingReports", "searchAll"],
+    enabled,
+    queryFn: async (): Promise<ReadingReport2[]> => {
+      const q = query(collection(db(), "readingReports"), orderBy("createdAt", "desc"), limit(1000));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ReadingReport2, "id">) }));
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 /** 내 임시저장 — 본인 것만 소량 조회(항상 전부 표시, 최근 N건 창에 밀리지 않음) */
 export function useMyDrafts(myId: number | null) {
   return useQuery({

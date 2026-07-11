@@ -12,6 +12,7 @@ import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import {
   useReadingStats,
   useRecentReports,
+  useSearchReports,
   useMyDrafts,
   useDeleteReport,
   useDeleteDraft,
@@ -368,9 +369,13 @@ export default function ReadingPage() {
     [s1Data]
   );
   // 2학기(최신)가 앞, 1학기가 뒤 — 최신순 게시판이 자연히 학기 역순이 된다
+  // 검색·태그 필터 중에는 전체(최근 1000건)를 넓게 읽어 찾는다 — 최근 N건 창만 뒤지면
+  // 옛 글이 검색에서 새는 버그 (실사례: 같은 날 두 번째 글·중복 글이 안 잡힘)
+  const filtering = Boolean(search.trim() || tagFilter);
+  const { data: searchPool } = useSearchReports(filtering);
   const allReports: ListReport[] = useMemo(
-    () => [...(reports ?? []), ...s1Items],
-    [reports, s1Items]
+    () => [...((filtering ? (searchPool ?? reports) : reports) ?? []), ...s1Items],
+    [reports, s1Items, filtering, searchPool]
   );
 
   // 🔒 비공개 글: 작성자 본인·교사만 내용 열람 가능
@@ -392,7 +397,6 @@ export default function ReadingPage() {
     });
 
   // 페이지네이션: 검색·태그 필터 중에는 결과 전체를 그대로 (페이지 개념이 헷갈리지 않게)
-  const filtering = Boolean(search.trim() || tagFilter);
   const knownPages = Math.max(
     1,
     Math.ceil(((reports?.length ?? 0) + (onlyS2 ? 0 : s1Items.length)) / pageSize)
