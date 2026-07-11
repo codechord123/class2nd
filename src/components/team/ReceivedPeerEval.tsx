@@ -1,6 +1,7 @@
 "use client";
 // 🤝 받은 부서장 평가 — 누가(실명) 내 미션을 0/1로 어떻게 봤는지, 그래서 몇 점인지 보여준다.
 // 억울하면 이의제기(사유) → 교사 검토. 캐시된 집계 문서(_meta.peerDetail) 재사용(추가 읽기 0).
+import { friendlyWriteError } from "@/lib/auth";
 import { useRef, useState } from "react";
 import { studentById } from "@/lib/roster";
 import { shiftDate, todayKST } from "@/lib/date";
@@ -70,7 +71,7 @@ export default function ReceivedPeerEval({
       setReason("");
       toast("이의제기를 접수했어요 — 선생님이 확인할 거예요.", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "접수에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "접수에 실패했어요."), "error");
     } finally {
       appealRef.current = false;
       setBusy(false);

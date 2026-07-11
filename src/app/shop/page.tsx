@@ -1,6 +1,7 @@
 "use client";
 // 상점 — 2학기 실버와 1학기 이월 지갑을 완전 격리 (요구사항 §D).
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
+import { friendlyWriteError } from "@/lib/auth";
 import { useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { todayKST } from "@/lib/date";
@@ -105,7 +106,7 @@ export default function ShopPage() {
       setBuyBurst((k) => k + 1);
       toast("💡 메뉴를 건의했어요! 선생님이 검토할 거예요.", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "건의에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "건의에 실패했어요."), "error");
     } finally {
       proposeRef.current = false;
       setBusy(false);
@@ -171,7 +172,7 @@ export default function ShopPage() {
         "success"
       );
     } catch (e) {
-      toast(e instanceof Error ? e.message : "신청에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "신청에 실패했어요."), "error");
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,6 @@
 "use client";
 // 투표 게시판 v2 — 설명·복수선택·익명·마감일·투표자 보기·검색.
+import { friendlyWriteError } from "@/lib/auth";
 import { useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById, students } from "@/lib/roster";
@@ -116,7 +117,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                   setEditing(false);
                   toast("✏️ 수정됐어요!", "success");
                 } catch (e) {
-                  toast(`⚠️ ${e instanceof Error ? e.message : "수정 실패"}`, "error");
+                  toast(`⚠️ ${friendlyWriteError(e, "수정 실패")}`, "error");
                 }
               }}
               className="press rounded-btn bg-brand px-3 py-1.5 text-xs font-bold text-white"
@@ -334,7 +335,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
       toast("✅ 투표가 만들어졌어요!");
       onDone();
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "생성 실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "생성 실패")}`, "error");
     } finally {
       submitRef.current = false;
       setBusy(false);

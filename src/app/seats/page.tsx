@@ -1,6 +1,7 @@
 "use client";
 // 자리 배치 및 일정 — 21주 사전계산 자리표(정적 JSON) + 승인된 swap 합성.
 // 실버 자리변경 신청: 전주 수요일 자정 마감 · 동일 자리 선착순.
+import { friendlyWriteError } from "@/lib/auth";
 import { useState } from "react";
 import { useSession } from "@/stores/session";
 import {
@@ -108,7 +109,7 @@ export default function SeatsPage() {
       toast("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.", "success");
       setShowRequest(false);
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "신청 실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "신청 실패")}`, "error");
     } finally {
       setBusy(false);
     }
