@@ -583,9 +583,11 @@ export default function BoardPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const deleteMany = useDeleteSuggestions();
 
-  // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
+  // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다.
+  // 🕵️ 숨은 기여 추천(kind "hidden")은 같은 컬렉션이지만 전용 메뉴(/hidden)에서만 다룬다 — 목록 제외.
   const canSee = (p: Suggestion) =>
-    !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
+    p.kind !== "hidden" &&
+    (!p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId));
 
   const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
   const selected = all.find((p) => p.id === selectedId && canSee(p));

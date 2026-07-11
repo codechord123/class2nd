@@ -2,10 +2,11 @@
 // 투표·건의 스위처 — 한 상단 탭 안에서 두 화면(/vote·/board)을 오간다.
 import Link from "next/link";
 
-export default function VoteBoardTabs({ current }: { current: "vote" | "board" }) {
+export default function VoteBoardTabs({ current }: { current: "vote" | "board" | "hidden" }) {
   const items = [
     { key: "vote", href: "/vote", label: "🗳️ 투표" },
     { key: "board", href: "/board", label: "🙋 건의" },
+    { key: "hidden", href: "/hidden", label: "🕵️ 숨은 기여" },
   ] as const;
   return (
     <div className="mb-4 flex gap-1.5">

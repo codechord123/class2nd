@@ -42,9 +42,11 @@ export interface Suggestion {
   teacherOnly?: boolean; // 🔒 선생님만 보기 — 작성자 본인과 교사에게만 노출
   isAnnouncement?: boolean; // 공지 고정 (교사)
   status?: AgendaStatus; // 안건 상태 (기본 논의중)
-  kind?: "law"; // "law" = 법률 제안 (없으면 일반 안건)
+  kind?: "law" | "hidden"; // "law" = 법률 제안 · "hidden" = 숨은 기여 추천 (없으면 일반 안건)
   lawDept?: string; // 법률 제안의 담당 부서 (ROLE_INFO.dept) — 채택 시 기본 선택
   enactedAsLaw?: boolean; // 채택 후 학급 법률로 등록됨
+  targetId?: number; // 숨은 기여 추천 대상 학생
+  resolved?: boolean; // 숨은 기여 — 교사가 지급 처리함 (다음 주 목록에서 제외)
   agree?: Record<string, boolean>; // studentId → 찬성
   disagree?: Record<string, boolean>; // studentId → 반대
   comments?: BoardComment[];
@@ -80,6 +82,74 @@ export function useSuggestions(count: number) {
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+}
+
+// ── 🕵️ 숨은 기여 추천 — 건의 탭의 별도 메뉴 (suggestions 재사용: kind "hidden", 규칙 변경 불필요) ──
+// 추천은 비공개(teacherOnly) — 공개 추천은 인기투표가 되기 쉽고, '몰래 한 일'의 결이 깨진다.
+// 지급 내역은 지갑 원장으로 공개된다 (공정 장치: 실명+이유 필수·보상 고정·내역 공개).
+
+/** 숨은 기여 추천하기 — 자기 추천 금지, 이유 필수 */
+export function useNominateHidden(myId: number | null) {
+  const qc = useQueryClient();
+  return async (targetId: number, reason: string) => {
+    if (myId == null) throw new Error("로그인이 필요해요.");
+    if (targetId === myId) throw new Error("자기 자신은 추천할 수 없어요.");
+    if (!reason.trim()) throw new Error("무엇을 했는지 이유를 꼭 적어주세요.");
+    await addDoc(collection(db(), "suggestions"), {
+      studentId: myId,
+      kind: "hidden",
+      targetId,
+      title: "",
+      content: reason.trim(),
+      isAnonymous: false,
+      teacherOnly: true, // 선생님만 보기 — 추천은 비공개, 지급은 공개
+      comments: [],
+      createdAt: Date.now(),
+    });
+    void qc.invalidateQueries({ queryKey: ["hiddenNominations"] });
+  };
+}
+
+/** 내가 한 숨은 기여 추천 (학생) — 두 등호 필터라 인덱스 불필요 */
+export function useMyHiddenNominations(myId: number | null) {
+  return useQuery({
+    queryKey: ["hiddenNominations", "mine", myId],
+    enabled: myId != null,
+    queryFn: async (): Promise<Suggestion[]> => {
+      const q = query(
+        collection(db(), "suggestions"),
+        where("studentId", "==", myId),
+        where("kind", "==", "hidden")
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(toSuggestion).sort((a, b) => b.createdAt - a.createdAt);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** 전체 숨은 기여 추천 (교사 지급 패널) — orderBy 없이 등호 필터만(복합 인덱스 회피), 정렬은 클라이언트 */
+export function useHiddenNominations(enabled: boolean) {
+  return useQuery({
+    queryKey: ["hiddenNominations", "all"],
+    enabled,
+    queryFn: async (): Promise<Suggestion[]> => {
+      const q = query(collection(db(), "suggestions"), where("kind", "==", "hidden"));
+      const snap = await getDocs(q);
+      return snap.docs.map(toSuggestion).sort((a, b) => b.createdAt - a.createdAt);
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+/** 지급 처리 — 추천 문서에 resolved 표시 (다음 금요일 목록에서 제외, 기록은 보존) */
+export function useResolveHiddenNominations() {
+  const qc = useQueryClient();
+  return async (ids: string[]) => {
+    const d = db();
+    await Promise.all(ids.map((id) => updateDoc(doc(d, "suggestions", id), { resolved: true })));
+    void qc.invalidateQueries({ queryKey: ["hiddenNominations"] });
+  };
 }
 
 /** 공지는 별도 소량 쿼리 — 오래된 공지가 페이지 밖으로 밀려도 항상 상단 고정 */
