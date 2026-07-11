@@ -626,6 +626,11 @@ export default function BoardPage() {
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
+    // 오프라인이면 쓰기가 조용히 큐잉돼 버튼이 멈춘다 — 먼저 알림 (초안은 자동 보존되어 있음)
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast("📡 인터넷이 끊겨 있어요 — 연결 후 다시 눌러주세요. 쓴 글은 저장돼 있어요!", "warn");
+      return;
+    }
     // 🕵️ 숨은 기여 추천 — 대상+이유(10자↑)로 공개 글 등록 → 친구들이 👍👎로 결정
     if (postKind === "hidden") {
       if (hiddenTarget == null) {

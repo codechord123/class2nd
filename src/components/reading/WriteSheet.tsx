@@ -240,6 +240,12 @@ export default function WriteSheet({
   const pct = Math.min((bodyLen / charLimit) * 100, 100);
 
   async function submit(draft: boolean) {
+    // 오프라인이면 Firestore 쓰기가 실패하지 않고 조용히 큐잉돼 버튼이 영원히 '등록 중'에
+    // 멈춘다 — 먼저 알리고 막는다 (와이파이 복구 후 다시 누르면 정상 등록, 글은 화면에 남음)
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast("📡 인터넷이 끊겨 있어요 — 와이파이를 확인하고 다시 눌러주세요. 쓴 글은 그대로 있어요!", "warn");
+      return;
+    }
     // state(busy)는 같은 틱의 빠른 연타를 못 막는다(리렌더 전 두 클릭 모두 busy=false) —
     // ref로 즉시 잠가 더블클릭 이중 등록을 차단 (실사례: 동일 감상문 0.4초 간격 2건 등록)
     if (busy || submittingRef.current) return;
