@@ -1,6 +1,6 @@
 "use client";
 // 투표 게시판 v2 — 설명·복수선택·익명·마감일·투표자 보기·검색.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { studentById, students } from "@/lib/roster";
 import Linkify from "@/components/ui/Linkify";
@@ -314,10 +314,12 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
   const [anonymous, setAnonymous] = useState(false);
   const [deadline, setDeadline] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef(false); // 같은 틱 더블클릭 이중 투표 생성 차단
   const { toast } = useFeedback();
 
   async function submit() {
-    if (busy) return;
+    if (busy || submitRef.current) return;
+    submitRef.current = true;
     setBusy(true);
     try {
       await createPoll({
@@ -333,6 +335,7 @@ function CreatePollForm({ onDone }: { onDone: () => void }) {
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "생성 실패"}`, "error");
     } finally {
+      submitRef.current = false;
       setBusy(false);
     }
   }

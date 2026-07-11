@@ -91,6 +91,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
+  const postingRef = useRef(false); // 같은 틱 더블클릭 이중 댓글 차단
   const [showAllComments, setShowAllComments] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -112,7 +113,8 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
   const visibleParents = showAllComments ? parents : parents.slice(-VISIBLE);
 
   async function submitComment() {
-    if (posting || !text.trim()) return;
+    if (posting || postingRef.current || !text.trim()) return;
+    postingRef.current = true;
     setPosting(true);
     try {
       await addComment(sug.id, text, replyTo ?? undefined);
@@ -121,6 +123,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
     } finally {
+      postingRef.current = false;
       setPosting(false);
     }
   }
@@ -580,6 +583,7 @@ export default function BoardPage() {
   const [hiddenTarget, setHiddenTarget] = useState<number | null>(null); // 숨은 기여 추천 대상
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef(false); // 같은 틱 더블클릭 이중 등록 차단 (busy state는 리렌더 전 두 번째 클릭을 못 막음)
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
   // 교사 정리 모드 — 체크박스로 여러 안건 선택 후 일괄 삭제
   const [manage, setManage] = useState(false);
@@ -604,6 +608,8 @@ export default function BoardPage() {
         toast("무엇을 했는지 10글자 이상 적어주세요 — 이유가 공정함을 지켜요.", "warn");
         return;
       }
+      if (submitRef.current) return;
+      submitRef.current = true;
       setBusy(true);
       try {
         await nominateHidden(hiddenTarget, studentById.get(hiddenTarget)?.name ?? "?", content);
@@ -616,6 +622,7 @@ export default function BoardPage() {
       } catch (e) {
         toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
       } finally {
+        submitRef.current = false;
         setBusy(false);
       }
       return;
@@ -640,6 +647,8 @@ export default function BoardPage() {
       submitTitle = lawTitle.trim();
       submitContent = body; // "① … ② …"
     }
+    if (submitRef.current) return;
+    submitRef.current = true;
     setBusy(true);
     try {
       await post(
@@ -663,6 +672,7 @@ export default function BoardPage() {
     } catch (e) {
       toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
     } finally {
+      submitRef.current = false;
       setBusy(false);
     }
   }

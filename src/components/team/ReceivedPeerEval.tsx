@@ -1,7 +1,7 @@
 "use client";
 // 🤝 받은 부서장 평가 — 누가(실명) 내 미션을 0/1로 어떻게 봤는지, 그래서 몇 점인지 보여준다.
 // 억울하면 이의제기(사유) → 교사 검토. 캐시된 집계 문서(_meta.peerDetail) 재사용(추가 읽기 0).
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { studentById } from "@/lib/roster";
 import { shiftDate, todayKST } from "@/lib/date";
 import { useDailyScores, useLatestAggregated, type DailyMeta } from "@/lib/query/evaluation";
@@ -29,6 +29,7 @@ export default function ReceivedPeerEval({
   const [openFrom, setOpenFrom] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const appealRef = useRef(false); // 같은 틱 더블클릭 이중 이의제기 차단
 
   const sid = String(studentId);
   const todayMeta = (todayScores as { _meta?: DailyMeta } | null | undefined)?._meta;
@@ -60,6 +61,8 @@ export default function ReceivedPeerEval({
       toast("이의제기 사유를 적어주세요.", "warn");
       return;
     }
+    if (appealRef.current) return;
+    appealRef.current = true;
     setBusy(true);
     try {
       await createAppeal({ date: date!, from, dept, reason });
@@ -69,6 +72,7 @@ export default function ReceivedPeerEval({
     } catch (e) {
       toast(e instanceof Error ? e.message : "접수에 실패했어요.", "error");
     } finally {
+      appealRef.current = false;
       setBusy(false);
     }
   }

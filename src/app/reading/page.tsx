@@ -2,7 +2,7 @@
 // 거북이 독서 — 하위탭 구조 리빌드:
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/lib/query/settings";
 import { aggregateDate } from "@/lib/aggregate";
@@ -64,6 +64,16 @@ function ReportBody({
   const addComment = useAddReportComment(role === "teacher" ? "teacher" : studentId);
   const deleteComment = useDeleteReportComment();
   const [text, setText] = useState("");
+  const sendingRef = useRef(false); // 같은 틱 더블클릭(또는 Enter+클릭) 이중 댓글 차단
+  const sendComment = () => {
+    if (sendingRef.current || !text.trim()) return;
+    sendingRef.current = true;
+    void addComment(r.id, text)
+      .then(() => setText(""), (err: Error) => toast(err.message, "error"))
+      .finally(() => {
+        sendingRef.current = false;
+      });
+  };
 
   const name = (id: number | "teacher") =>
     id === "teacher" ? "선생님" : (studentById.get(id)?.name ?? "?");
@@ -199,18 +209,15 @@ function ReportBody({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing && text.trim()) {
-                void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                sendComment();
               }
             }}
             placeholder="응원 댓글 달기…"
             className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
           />
           <button
-            onClick={() => {
-              if (!text.trim()) return;
-              void addComment(r.id, text).then(() => setText(""), (err: Error) => toast(err.message, "error"));
-            }}
+            onClick={sendComment}
             disabled={!text.trim()}
             className="press shrink-0 rounded-btn bg-brand px-3.5 py-2 text-sm font-bold text-white disabled:opacity-40"
           >

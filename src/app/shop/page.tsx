@@ -1,7 +1,7 @@
 "use client";
 // 상점 — 2학기 실버와 1학기 이월 지갑을 완전 격리 (요구사항 §D).
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { todayKST } from "@/lib/date";
 import { SEMESTER_START } from "@/lib/schedule";
@@ -45,6 +45,7 @@ export default function ShopPage() {
   const [tab, setTab] = useState<"shop" | "history">("shop");
   const [wallet, setWallet] = useState<WalletKind>(beta ? "s1" : "s2");
   const [busy, setBusy] = useState(false);
+  const proposeRef = useRef(false); // 같은 틱 더블클릭 이중 메뉴 건의 차단 (신청은 confirm 다이얼로그가 직렬화)
   const [directOpen, setDirectOpen] = useState(false);
   const [menuName, setMenuName] = useState(""); // 메뉴 제안 이름
   const [menuNote, setMenuNote] = useState(""); // 메뉴 제안 이유
@@ -94,6 +95,8 @@ export default function ShopPage() {
       toast("원하는 메뉴를 적어주세요.", "warn");
       return;
     }
+    if (proposeRef.current) return;
+    proposeRef.current = true;
     setBusy(true);
     try {
       await createMenuRequest(menuName, menuNote);
@@ -104,6 +107,7 @@ export default function ShopPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : "건의에 실패했어요.", "error");
     } finally {
+      proposeRef.current = false;
       setBusy(false);
     }
   }
