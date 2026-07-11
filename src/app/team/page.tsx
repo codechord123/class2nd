@@ -463,7 +463,7 @@ export default function TeamPage() {
           </h2>
           <span className="text-xs text-ink-400">{week}주차 · {date}</span>
         </div>
-        {/* 큰 숫자 2개를 앵커로 */}
+        {/* 큰 숫자 4개 — 개인(오늘·누적) + 우리 모둠(오늘·누적)을 한눈에 (사용자 요청) */}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-card bg-ink-50 p-3 text-center">
             <p className="text-xs text-ink-600">오늘 점수</p>
@@ -476,6 +476,47 @@ export default function TeamPage() {
             <p className="tnum mt-0.5 text-2xl font-extrabold text-brand-strong">{myCum ?? 0}</p>
           </div>
         </div>
+        {/* 우리 모둠 요약 + 응원 멘트 — 이미 읽는 문서(오늘 집계 _meta·누적 groupCum) 재사용 */}
+        {(() => {
+          const gid = String(myGroup.groupId);
+          const meta = (todayScores as { _meta?: { groupSums?: Record<string, number>; autoBestGroups?: number[] } } | null | undefined)?._meta;
+          const gToday = meta?.groupSums?.[gid];
+          const gCumMap = ((cumScores as Record<string, unknown> | null)?.groupCum ?? {}) as Record<string, number>;
+          const gCum = gCumMap[gid] ?? 0;
+          const ranked = Object.entries(gCumMap).sort((a, b) => b[1] - a[1]);
+          const myRank = ranked.findIndex(([k]) => k === gid) + 1; // 0 = 데이터 없음
+          const gap = myRank > 1 ? (ranked[0]?.[1] ?? 0) - gCum : 0;
+          const isBestToday = (meta?.autoBestGroups ?? []).includes(myGroup.groupId);
+          // 응원 멘트 — 상태에 따라 하나 (오늘의모둠 > 누적1위 > 추격권 > 기본)
+          const cheer = isBestToday
+            ? `👑 오늘의 모둠! 우리 ${myGroup.groupId}모둠 최고예요!`
+            : myRank === 1
+              ? "🏆 모둠 누적 1위 — 다 함께 선두를 지켜요!"
+              : myRank > 1 && gap <= 5
+                ? `🔥 1위까지 딱 ${gap}점 — 역전 가능해요!`
+                : "🐢 꾸준함이 이겨요 — 오늘도 우리 모둠 한 걸음!";
+          return (
+            <>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="rounded-card bg-orange-50 p-2.5 text-center">
+                  <p className="text-[11px] text-orange-700">👥 모둠 오늘</p>
+                  <p className="tnum mt-0.5 text-lg font-extrabold text-orange-800">
+                    {gToday ?? "–"}
+                  </p>
+                </div>
+                <div className="rounded-card bg-orange-100/70 p-2.5 text-center">
+                  <p className="text-[11px] text-orange-700">
+                    🏁 모둠 누적{myRank > 0 && <b className="ml-1">{myRank}위</b>}
+                  </p>
+                  <p className="tnum mt-0.5 text-lg font-extrabold text-orange-800">{gCum}</p>
+                </div>
+              </div>
+              <p className="mt-2 rounded-btn bg-amber-50 px-3 py-1.5 text-center text-xs font-bold text-amber-800">
+                {cheer}
+              </p>
+            </>
+          );
+        })()}
         {/* 다음 실버 게이지 — 누적 25점마다 실버 1개 자동 지급. 이미 읽는 누적 문서로 계산(추가 읽기 0) */}
         {(() => {
           const cumVal = Math.max(myCum ?? 0, 0);

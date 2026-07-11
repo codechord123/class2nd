@@ -1147,7 +1147,31 @@ export async function addBonus(date: string, studentId: number, delta: number): 
       const prevCum =
         typeof cum[String(studentId)] === "number" ? (cum[String(studentId)] as number) : 0;
       tx.set(dayRef, { [String(studentId)]: newRow }, { merge: true });
-      tx.set(cumRef, { [String(studentId)]: prevCum - prevRow.total + newRow.total }, { merge: true });
+
+      // 보너스는 모둠 점수(groupDayScore) 합산 대상 — 그날이 이미 모둠 누적에 반영된
+      // 날(groupCumApplied)이면 _meta.groupSums와 groupCum에도 델타를 같이 반영한다.
+      // (예전엔 개인만 고쳐서 이의제기·교사 보너스가 모둠 대항전에 빠지는 버그가 있었다.
+      //  오늘의 모둠 1위가 뒤바뀌는 극단 케이스는 그 날짜 재집계로 해결 — 여기선 합계만.)
+      const meta = (day._meta ?? {}) as { groupSums?: Record<string, number>; groupCumApplied?: boolean };
+      const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+      const g = scheduleOfWeek(week).groups.find(
+        (x) => x.chair === studentId || x.members.some((m) => m.studentId === studentId)
+      );
+      const groupPatch: Record<string, unknown> = {};
+      if (meta.groupCumApplied && g) {
+        const gid = String(g.groupId);
+        tx.set(
+          dayRef,
+          { _meta: { groupSums: { [gid]: (Number(meta.groupSums?.[gid]) || 0) + delta } } },
+          { merge: true }
+        );
+        groupPatch.groupCum = { [gid]: increment(delta) };
+      }
+      tx.set(
+        cumRef,
+        { [String(studentId)]: prevCum - prevRow.total + newRow.total, ...groupPatch },
+        { merge: true }
+      );
       return newBonus;
     });
   });
