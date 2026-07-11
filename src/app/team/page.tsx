@@ -5,6 +5,7 @@
 //  · 점수는 학생(개인)에게 귀속 — 2주마다 모둠이 바뀌어도 누적 유지
 // 읽기 예산: 학생 1일 = 본인 평가 2문서 + 집계 2문서. 저장 후 재조회 없음.
 import { useSession } from "@/stores/session";
+import { friendlyWriteError } from "@/lib/auth";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { students, studentById, ROLE_INFO } from "@/lib/roster";
@@ -302,7 +303,7 @@ export default function TeamPage() {
       setCompBurst((k) => k + 1); // 💌 버스트
       toast("💌 칭찬을 전달했어요!", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
     } finally {
       setSending(false);
     }
@@ -327,7 +328,7 @@ export default function TeamPage() {
       setBossPick(null);
       toast("🙌 오늘의 부서장 투표 완료!", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
     } finally {
       setMvpBusy(false);
     }
@@ -352,7 +353,7 @@ export default function TeamPage() {
       setCompBurst((k) => k + 1); // 🙋 전송 juice 공유
       toast("🙋 건의를 전달했어요!", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
     } finally {
       setSending(false);
     }
@@ -380,7 +381,7 @@ export default function TeamPage() {
       }
       toast(`${label}을 삭제했어요.`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "삭제에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "삭제에 실패했어요."), "error");
     }
   }
 
@@ -402,7 +403,7 @@ export default function TeamPage() {
       setEditPeer(null);
       toast("✏️ 수정됐어요!", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "수정에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "수정에 실패했어요."), "error");
     }
   }
 
@@ -1025,7 +1026,7 @@ export default function TeamPage() {
                   toast("전달됐어요!", "success");
                   setToTeacherText("");
                 } catch (e) {
-                  toast(e instanceof Error ? e.message : "전달에 실패했어요.", "error");
+                  toast(friendlyWriteError(e, "전달에 실패했어요."), "error");
                 } finally {
                   setSending(false);
                 }
@@ -1086,7 +1087,7 @@ export default function TeamPage() {
                       toast("📝 모둠 반성이 저장됐어요!", "success");
                       setReflText("");
                     } catch (e) {
-                      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+                      toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
                     } finally {
                       setSending(false);
                     }

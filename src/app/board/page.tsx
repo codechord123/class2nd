@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
+import { friendlyWriteError } from "@/lib/auth";
 import { ROLE_INFO, students, studentById } from "@/lib/roster";
 import { CIRCLED_NUMS, serializeClauses } from "@/lib/lawText";
 import Linkify from "@/components/ui/Linkify";
@@ -121,7 +122,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
       setText("");
       setReplyTo(null);
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "실패")}`, "error");
     } finally {
       postingRef.current = false;
       setPosting(false);
@@ -134,7 +135,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
     try {
       await run();
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "삭제 실패")}`, "error");
     }
   }
 
@@ -233,7 +234,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     await toggleAnnouncement(sug);
                     toast(sug.isAnnouncement ? "공지를 내렸어요." : "📌 공지로 올렸어요.");
                   } catch (e) {
-                    toast(`⚠️ ${e instanceof Error ? e.message : "실패"}`, "error");
+                    toast(`⚠️ ${friendlyWriteError(e, "실패")}`, "error");
                   }
                 }}
                 className="text-warn hover:opacity-80"
@@ -277,7 +278,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                   setEditing(false);
                   toast("✏️ 수정됐어요!", "success");
                 } catch (e) {
-                  toast(`⚠️ ${e instanceof Error ? e.message : "수정 실패"}`, "error");
+                  toast(`⚠️ ${friendlyWriteError(e, "수정 실패")}`, "error");
                 }
               }}
               className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
@@ -399,7 +400,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                     setPickingDept(false);
                     toast(`📜 ${r.emoji} ${r.dept} · ${r.key}법 제${n}조로 등록됐어요!`, "success");
                   } catch (e) {
-                    toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
+                    toast(`⚠️ ${friendlyWriteError(e, "등록 실패")}`, "error");
                   }
                 }}
                 className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
@@ -653,7 +654,7 @@ export default function BoardPage() {
         setPostBurst((k) => k + 1);
         toast("🕵️ 추천했어요! 친구들의 👍 투표를 거쳐 선생님이 금요일에 지급해요.", "success");
       } catch (e) {
-        toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
+        toast(`⚠️ ${friendlyWriteError(e, "등록 실패")}`, "error");
       } finally {
         submitRef.current = false;
         setBusy(false);
@@ -703,7 +704,7 @@ export default function BoardPage() {
       setPostBurst((k) => k + 1);
       toast("✅ 등록되었어요!");
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "등록 실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "등록 실패")}`, "error");
     } finally {
       submitRef.current = false;
       setBusy(false);
@@ -757,7 +758,7 @@ export default function BoardPage() {
       toast(`🗑️ ${picked.size}개 안건을 삭제했어요.`);
       exitManage();
     } catch (e) {
-      toast(`⚠️ ${e instanceof Error ? e.message : "삭제 실패"}`, "error");
+      toast(`⚠️ ${friendlyWriteError(e, "삭제 실패")}`, "error");
     }
   }
 

@@ -36,6 +36,19 @@ export function teacherPermissionHint(e: unknown): string | null {
   return "권한이 거부됐어요 — Firebase 콘솔에 firestore.rules 최신 버전이 게시됐는지 확인해주세요.";
 }
 
+/**
+ * 학생 쓰기 실패를 5학년이 읽을 수 있는 말로. permission-denied의 원문은 영어 규칙
+ * 추적문이라 그대로 토스트에 띄우면 무슨 말인지 알 수 없다. 학생에게 이 오류가 나는
+ * 흔한 원인은 '기기 인증(익명 uid)이 바뀌어 내 번호와의 연결이 풀린 것' — 재로그인이 처방.
+ */
+export function friendlyWriteError(e: unknown, fallback: string): string {
+  if (codeOf(e) === "permission-denied")
+    return "저장 권한이 없어요 — 로그아웃했다가 내 번호로 다시 로그인하면 풀려요! 🔑";
+  if (codeOf(e) === "unavailable" || codeOf(e) === "deadline-exceeded")
+    return "인터넷 연결이 불안정해요 — 와이파이를 확인하고 다시 시도해주세요.";
+  return e instanceof Error ? e.message : fallback;
+}
+
 /** 알 수 없는 오류를 진단 가능한 한국어 메시지로 (원인 코드 병기 — 원격 진단용) */
 function friendlyAuthError(e: unknown): Error {
   const code = codeOf(e);

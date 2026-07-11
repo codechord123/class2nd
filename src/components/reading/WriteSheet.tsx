@@ -10,6 +10,7 @@ import {
   type ReportForm,
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
+import { friendlyWriteError } from "@/lib/auth";
 import { todayKST } from "@/lib/date";
 import { SEMESTER_START } from "@/lib/schedule";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -287,7 +288,7 @@ export default function WriteSheet({
         return;
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "저장에 실패했어요.", "error");
+      toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
     } finally {
       submittingRef.current = false;
       setBusy(false);
