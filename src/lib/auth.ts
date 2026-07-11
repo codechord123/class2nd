@@ -23,6 +23,19 @@ export async function sha256(text: string): Promise<string> {
 
 const codeOf = (e: unknown): string => (e as { code?: string })?.code ?? "";
 
+/**
+ * 교사 작업이 permission-denied로 실패했을 때 원인을 스스로 짚어주는 안내.
+ * 'Missing or insufficient permissions'만 보이면 교사가 원인(인증 유실 vs 규칙 미게시)을
+ * 구분할 수 없다 — 이 기기의 실제 Firebase 인증 상태를 보고 정확한 처방을 낸다.
+ */
+export function teacherPermissionHint(e: unknown): string | null {
+  if (codeOf(e) !== "permission-denied") return null;
+  const u = firebaseAuth().currentUser;
+  if (!u || u.isAnonymous || !u.email)
+    return "이 기기의 로그인이 교사 계정이 아니에요(익명 상태) — 로그아웃 후 교사 이메일로 다시 로그인해주세요.";
+  return "권한이 거부됐어요 — Firebase 콘솔에 firestore.rules 최신 버전이 게시됐는지 확인해주세요.";
+}
+
 /** 알 수 없는 오류를 진단 가능한 한국어 메시지로 (원인 코드 병기 — 원격 진단용) */
 function friendlyAuthError(e: unknown): Error {
   const code = codeOf(e);

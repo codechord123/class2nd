@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, firebaseAuth } from "@/lib/firebase";
 import { isWeekend, shiftDate, todayKST } from "@/lib/date";
 import { SEMESTER_START } from "@/lib/schedule";
 import { BETA_END } from "@/components/BetaBanner";
@@ -68,7 +68,11 @@ export default function TodayBriefing({
   if (nHidden) chips.push({ key: "hidden", label: `🕵️ 숨은 기여 ${nHidden}건`, go: "manage" });
   if (nReset) chips.push({ key: "reset", label: `🔑 비밀번호 ${nReset}건`, go: "settings" });
 
-  // 규칙 미게시 감지 — 어느 컬렉션이 막혔는지 이름으로 알려준다
+  // 규칙 미게시 감지 — 어느 컬렉션이 막혔는지 이름으로 알려준다.
+  // 단, 이 기기의 인증이 익명(교사 이메일 아님)이면 규칙이 최신이어도 같은 오류가 난다 —
+  // 그 경우 '재로그인' 처방을 먼저 보여준다 (규칙 배너 오진 방지).
+  const u = firebaseAuth().currentUser;
+  const anonTeacher = !u || u.isAnonymous || !u.email;
   const missingRules = [
     ...(isDenied(appealErr) ? ["이의제기(scoreAppeals)"] : []),
     ...(isDenied(menuErr) ? ["메뉴 제안(menuRequests)"] : []),
@@ -83,8 +87,9 @@ export default function TodayBriefing({
       <h2 className="text-sm font-extrabold text-ink-800">📋 오늘 할 일</h2>
       {missingRules.length > 0 && (
         <p className="mt-2 rounded-btn bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700">
-          ⚠️ 최신 보안 규칙(firestore.rules)이 콘솔에 게시되지 않았어요 — {missingRules.join(", ")}
-          저장이 조용히 실패하는 상태예요. Firebase 콘솔 → Firestore → 규칙에 게시해 주세요.
+          {anonTeacher
+            ? "⚠️ 이 기기의 로그인이 교사 계정이 아니에요(익명 상태) — 집계·승인 등 모든 교사 작업이 실패해요. 로그아웃 후 교사 이메일로 다시 로그인해주세요."
+            : `⚠️ 최신 보안 규칙(firestore.rules)이 콘솔에 게시되지 않았어요 — ${missingRules.join(", ")} 저장이 조용히 실패하는 상태예요. Firebase 콘솔 → Firestore → 규칙에 게시해 주세요.`}
         </p>
       )}
       {missedRank && (

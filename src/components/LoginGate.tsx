@@ -35,16 +35,21 @@ export default function LoginGate({ children }: { children: React.ReactNode }) {
     return unsub;
   }, []);
 
-  // 세션은 살아있는데 Firebase 로그인이 풀린 경우 복구
+  // 세션은 살아있는데 Firebase 로그인이 풀린 경우 복구.
+  // 교사는 '익명 인증'도 유실로 본다 — 로그인 화면이 명단 표시용으로 익명 인증을 깔아두기 때문에,
+  // 교사 세션 + 익명 인증 조합이 되면 화면은 멀쩡한데 모든 교사 쓰기(집계 포함)가
+  // permission-denied로 조용히 실패한다 (실사례: 집계 실패 Missing or insufficient permissions).
   const [connErr, setConnErr] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
-    if (!authReady || fbUser) return;
-    if (role === "student") {
+    if (!authReady) return;
+    if (role === "teacher" && (!fbUser || fbUser.isAnonymous || !fbUser.email)) {
+      logout(); // 교사는 이메일 인증 필수 — 비밀번호 재입력
+      return;
+    }
+    if (role === "student" && !fbUser) {
       setConnErr(false);
       void signInAnonymously(firebaseAuth()).catch(() => setConnErr(true));
-    } else if (role === "teacher") {
-      logout(); // 교사는 비밀번호 재입력 필요
     }
   }, [authReady, fbUser, role, logout, retryKey]);
 

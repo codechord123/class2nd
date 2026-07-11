@@ -6,6 +6,7 @@ import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, payVacationReading, type AggregateResult } from "@/lib/aggregate";
+import { teacherPermissionHint } from "@/lib/auth";
 import { runAutoTasks } from "@/lib/autoRun";
 import { todayKST, weekOfDate } from "@/lib/date";
 import { studentById, students } from "@/lib/roster";
@@ -165,7 +166,9 @@ export default function TeacherPage() {
       .catch((e: unknown) => {
         // 자동 집계 실패를 조용히 삼키면 점수가 밀린 채 아무도 모른다 — 반드시 알린다
         toast(
-          `⚠️ 자동 집계·정산 실패: ${e instanceof Error ? e.message : String(e)} — 점수·집계 탭에서 수동 실행해주세요`,
+          `⚠️ 자동 집계·정산 실패: ${
+            teacherPermissionHint(e) ?? `${e instanceof Error ? e.message : String(e)} — 점수·집계 탭에서 수동 실행해주세요`
+          }`,
           "error"
         );
       });
@@ -201,7 +204,9 @@ export default function TeacherPage() {
           (streakNames ? ` · 💌 칭찬 연속 보너스: ${streakNames}점` : "")
       );
     } catch (e) {
-      setMsg(`⚠️ 집계 실패: ${e instanceof Error ? e.message : String(e)}`);
+      setMsg(
+        `⚠️ 집계 실패: ${teacherPermissionHint(e) ?? (e instanceof Error ? e.message : String(e))}`
+      );
     } finally {
       setBusy(false);
     }
