@@ -27,6 +27,7 @@ import TurtleEventPanel from "@/components/teacher/TurtleEventPanel";
 import ClassDashboard from "@/components/teacher/ClassDashboard";
 import UiTextPanel from "@/components/teacher/UiTextPanel";
 import TabConfigPanel from "@/components/teacher/TabConfigPanel";
+import BackupPanel from "@/components/teacher/BackupPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
@@ -118,11 +119,19 @@ export default function TeacherPage() {
           for (const dt of r.redoneDates)
             void qc.invalidateQueries({ queryKey: ["dailyScores", dt] });
           void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+          // 자가 점검이 찾은 날짜는 아래 🩺 토스트로 따로 알림 — 여기선 삭제 예약분만
+          const deleted = r.redoneDates.filter((dt) => !(r.healedDates ?? []).includes(dt));
+          if (deleted.length)
+            toast(
+              `♻️ 감상문 삭제 반영 재집계: ${deleted.map((dt) => dt.slice(5)).join(", ")}`,
+              "success"
+            );
+        }
+        if (r.healedDates?.length)
           toast(
-            `♻️ 감상문 삭제 반영 재집계: ${r.redoneDates.map((dt) => dt.slice(5)).join(", ")}`,
+            `🩺 독서 점수 자가 점검: ${r.healedDates.map((dt) => dt.slice(5)).join(", ")}에서 감상문 수와 점수가 안 맞아 자동으로 바로잡았어요`,
             "success"
           );
-        }
         if (r.missedRankDates.length)
           toast(
             `⚠️ 순위 미선정으로 순위 점수 0점 처리된 날: ${r.missedRankDates
@@ -621,6 +630,7 @@ export default function TeacherPage() {
           <BookletExportPanel />
         </div>
         <CsvExportPanel />
+        <BackupPanel />
         <LinksEditor />
         <CoinAuditPanel />
         <TurtleEventPanel />

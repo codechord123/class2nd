@@ -8,18 +8,34 @@
 // 하루 1회만 (classData/autoRun 마커를 트랜잭션으로 선점 → 탭 2개여도 이중 정산 없음).
 // 단, redoDates가 남아 있으면 이미 오늘 실행했어도 그 날짜들만 추가 처리한다.
 // 모든 작업이 멱등이라 수동 실행과 겹쳐도 점수가 어긋나지 않는다.
-import { arrayUnion, doc, getDoc, increment, runTransaction, setDoc } from "firebase/firestore";
+import {
+  arrayUnion,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  query,
+  runTransaction,
+  setDoc,
+  where,
+  type Firestore,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { shiftDate, todayKST } from "@/lib/date";
+import { kstDateOf, shiftDate, todayKST } from "@/lib/date";
 import {
   aggregateDate,
   dateRangeOfPeriod,
+  DAILY_READ_CAP,
   payVacationReading,
+  READ_POINTS_PER_BOOK,
   reaggregateReadingDates,
   settleSession,
   type SessionSettleResult,
   type VacationReadResult,
 } from "@/lib/aggregate";
+import { eventMultipliers, type EventBoost } from "@/lib/eventBoost";
+import { students } from "@/lib/roster";
 import type { ClassSettings } from "@/types";
 
 const MAX_BACKFILL_DAYS = 14; // 오래 접속 안 했을 때 소급 집계 상한 (읽기 예산 보호)
@@ -46,6 +62,59 @@ export interface AutoRunResult {
   readMigratedDates?: string[];
   /** 누적 모둠 점수(groupCum) 자동 마이그레이션 실행됨 — 화면 캐시 무효화 필요 */
   groupCumMigrated?: boolean;
+  /** 🩺 독서 점수 자가 점검이 불일치를 찾아 자동 재집계한 날짜들 */
+  healedDates?: string[];
+}
+
+/**
+ * 🩺 독서 점수 자가 점검 — 최근 날짜의 '집계된 read 점수'와 '실제 감상문 수'를 대조한다.
+ * 삭제·수정이 재집계로 이어지지 못한 사고(잠금 경합, 인증 유실, 큐 유실)가 나면
+ * 점수표에 옛 값이 조용히 남는다 — 여기서 잡아 그 날짜만 재집계 큐에 올린다.
+ * 비용: 감상문 범위 쿼리 1번 + 문서 N+1개 (하루 1회, 교사) — 읽기 예산 안.
+ */
+async function findStaleReadDates(d: Firestore, days: string[]): Promise<string[]> {
+  if (!days.length) return [];
+  const fromMs = new Date(days[0] + "T00:00:00+09:00").getTime();
+  const toMs = new Date(days[days.length - 1] + "T00:00:00+09:00").getTime() + 86400000;
+  const [reportsSnap, evSnap, ...daySnaps] = await Promise.all([
+    getDocs(
+      query(
+        collection(d, "readingReports"),
+        where("createdAt", ">=", fromMs),
+        where("createdAt", "<", toMs)
+      )
+    ),
+    getDoc(doc(d, "classData", "eventBoost")),
+    ...days.map((day) => getDoc(doc(d, "dailyScores", day))),
+  ]);
+  // 날짜별·학생별 실제 감상문 수 (초안 제외 — 집계와 같은 기준)
+  const counts: Record<string, Record<string, number>> = {};
+  reportsSnap.forEach((r) => {
+    const v = r.data();
+    if (v.isDraft) return;
+    const day = kstDateOf(Number(v.createdAt) || 0);
+    const sid = String(v.studentId);
+    (counts[day] ??= {})[sid] = (counts[day][sid] ?? 0) + 1;
+  });
+  const boost = evSnap.exists() ? (evSnap.data() as EventBoost) : undefined;
+  const stale: string[] = [];
+  days.forEach((day, i) => {
+    const snap = daySnaps[i];
+    if (!snap.exists()) return; // 아직 집계 전인 날 — 옛 값이 아니라 '없는' 것이니 통과
+    const rows = snap.data() as Record<string, unknown>;
+    const mult = eventMultipliers(boost, day).read;
+    for (const s of students) {
+      const row = rows[String(s.id)] as { read?: number } | undefined;
+      if (!row || typeof row !== "object") continue;
+      const expected =
+        Math.min(counts[day]?.[String(s.id)] ?? 0, DAILY_READ_CAP) * READ_POINTS_PER_BOOK * mult;
+      if ((row.read ?? 0) !== expected) {
+        stale.push(day);
+        break; // 이 날짜는 재집계 대상 확정 — 나머지 학생은 볼 필요 없음
+      }
+    }
+  });
+  return stale;
 }
 
 let inFlight: Promise<AutoRunResult | null> | null = null;
@@ -154,6 +223,24 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
     if (r.evaluatorCount > 0 && Object.keys(r.groupRanks).length === 0)
       result.missedRankDates.push(date);
   };
+
+  // 1.5) 🩺 독서 점수 자가 점검 (하루 1회) — 최근 3일 + 오늘의 read 점수를 실제 감상문 수와
+  //      대조해 불일치 날짜를 재집계 큐에 합류시킨다. 삭제·수정 반영이 어떤 이유로든 누락돼도
+  //      다음 교사 접속에서 스스로 복구된다 (실사례: 삭제된 중복 감상문의 +4 잔존).
+  if (claimed.freshRun) {
+    try {
+      const checkDays = [shiftDate(today, -3), shiftDate(today, -2), yesterday, today];
+      const stale = await findStaleReadDates(d, checkDays);
+      const fresh = stale.filter((day) => !claimed.redoDates.includes(day));
+      if (fresh.length) {
+        claimed.redoDates.push(...fresh);
+        claimed.redoDates.sort();
+        result.healedDates = fresh;
+      }
+    } catch {
+      // 점검 실패는 무시 — 내일 다시 검사 (점검은 보조 안전망)
+    }
+  }
 
   // 2) 재집계 요청을 '가장 먼저' 처리 — 선점에서 이미 큐를 비웠으므로, 뒤 단계(백필·정산)가
   //    던지면 요청이 영영 사라진다 (실사례: 감상문 삭제 후 read 점수가 계속 남음).

@@ -51,9 +51,10 @@ const SILVER_PER_SCORE = 25;
 const GOLD_PER_SILVER = 25;
 // 독서 하루 점수 상한 — 감상문을 몰아 써도 그날 점수는 이만큼 권수까지만 (권수 기록은 캡 없음).
 // 순위표(설정)처럼 자주 바꾸진 않아 상수로 둔다 (사용자 확정: 2권, 3권 허용 시 부정 우려).
-const DAILY_READ_CAP = 2;
+// export: autoRun의 독서 점수 자가 점검이 같은 공식으로 기대값을 계산한다 (이중 정의 방지).
+export const DAILY_READ_CAP = 2;
 // 감상문 1권당 점수 (사용자 확정: 개인 노력 비중을 높이려 1→2점).
-const READ_POINTS_PER_BOOK = 2;
+export const READ_POINTS_PER_BOOK = 2;
 // 칭찬 개인 점수 상한 (present 모둠원 전원 칭찬 시 만점).
 const COMP_MAX = 2;
 
