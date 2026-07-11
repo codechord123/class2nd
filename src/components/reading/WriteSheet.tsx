@@ -6,6 +6,7 @@ import {
   useSaveReport,
   reportBodyLength,
   BOOK_TAGS,
+  type BodyKey,
   type ReportForm,
 } from "@/lib/query/reading";
 import { useSettings } from "@/lib/query/settings";
@@ -16,8 +17,24 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 
 const EMPTY: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "",
-  authorIntent: "", connect: "", tags: [], isPrivate: false,
+  authorIntent: "", connect: "", reason: "", characters: "", recommend: "", freeText: "",
+  tags: [], isPrivate: false,
 };
+
+// 감상 본문 항목 레지스트리 — 체크리스트로 켜고 끄면 그 항목 칸이 나타난다 (레이아웃 = 체크 선택).
+//   defaultOn: '가이드 작성' 기본 구성. 자유 작성 프리셋은 freeText 하나만 켠다.
+const SECTIONS: { key: BodyKey; label: string; placeholder: string; rows: number; defaultOn: boolean }[] = [
+  { key: "reason", label: "🤔 이 책을 고른 이유", placeholder: "표지? 제목? 친구 추천? 왜 이 책을 집었나요?", rows: 3, defaultOn: true },
+  { key: "summary", label: "줄거리", placeholder: "", rows: 5, defaultOn: true },
+  { key: "characters", label: "👥 등장인물 소개", placeholder: "누가 나오나요? 어떤 성격인가요? 마음에 드는 인물은?", rows: 4, defaultOn: false },
+  { key: "scene", label: "인상 깊은 장면", placeholder: "", rows: 4, defaultOn: true },
+  { key: "quote", label: "마음에 남은 문장 (인용)", placeholder: "", rows: 3, defaultOn: true },
+  { key: "thoughts", label: "읽고 나서 든 생각과 느낌", placeholder: "", rows: 6, defaultOn: true },
+  { key: "authorIntent", label: "✍️ 작가는 왜 이 글을 썼을까?", placeholder: "작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요", rows: 3, defaultOn: true },
+  { key: "connect", label: "🙋 이 책을 나와 연결하면?", placeholder: "내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?", rows: 4, defaultOn: true },
+  { key: "recommend", label: "💌 누구에게 추천할까?", placeholder: "이 책이 어울리는 사람은 누구? 왜 그 사람에게 추천하나요?", rows: 3, defaultOn: false },
+  { key: "freeText", label: "🖊️ 자유롭게 쓰기", placeholder: "정해진 틀 없이 내 마음대로 감상을 써요 — 편지, 일기, 상상 이어쓰기도 좋아요", rows: 10, defaultOn: false },
+];
 
 // 유도 질문 로테이션 — 매번 같은 질문이면 감상이 틀에 박힌다 (열 때마다 한 세트 무작위)
 const PROMPTS: { summary: string; scene: string; quote: string; thoughts: string }[] = [
@@ -80,6 +97,29 @@ export default function WriteSheet({
   const initialForm = initial?.form ?? EMPTY;
   const [form, setForm] = useState<ReportForm>(initialForm);
   const [busy, setBusy] = useState(false);
+
+  // 담을 내용 체크 — 기본 구성(defaultOn) + 이미 쓴 내용이 있는 항목(수정·이어쓰기 시 숨지 않게)
+  const [enabled, setEnabled] = useState<Set<BodyKey>>(() => {
+    const s = new Set<BodyKey>();
+    for (const sec of SECTIONS) {
+      const has = ((initialForm as unknown as Record<string, string | undefined>)[sec.key] ?? "").trim().length > 0;
+      if (sec.defaultOn || has) s.add(sec.key);
+    }
+    return s;
+  });
+  const toggleSection = (k: BodyKey) =>
+    setEnabled((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  // 프리셋 — 가이드(기본 구성) / 자유(자유롭게 쓰기 하나). 이미 쓴 항목은 어느 쪽이든 유지.
+  const keysWithText = () =>
+    SECTIONS.filter((s) => ((form as unknown as Record<string, string | undefined>)[s.key] ?? "").trim()).map((s) => s.key);
+  const presetGuided = () =>
+    setEnabled(new Set<BodyKey>([...SECTIONS.filter((s) => s.defaultOn).map((s) => s.key), ...keysWithText()]));
+  const presetFree = () => setEnabled(new Set<BodyKey>(["freeText", ...keysWithText()]));
 
   // ── 자동저장(localStorage) — 쓰다가 크래시·새로고침·실수로 닫혀도 복구 ──
   // 서버에 안 쓰므로 읽기/쓰기 예산과 무관. 대상(새 글/초안/정식본)별로 슬롯을 나눈다.
@@ -162,8 +202,7 @@ export default function WriteSheet({
     recordBlocked((e.dataTransfer.getData("text") ?? "").length);
   };
   const BULK_INSERT = 15;
-  type BodyField = "summary" | "scene" | "quote" | "thoughts" | "authorIntent" | "connect";
-  const onBodyChange = (field: BodyField, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const onBodyChange = (field: BodyKey, e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const oldV = (form[field] as string | undefined) ?? "";
     const newV = e.target.value;
     const composing = (e.nativeEvent as { isComposing?: boolean }).isComposing;
@@ -343,41 +382,70 @@ export default function WriteSheet({
             <h3 className="text-base font-extrabold text-ink-900">2. 감상을 남겨요</h3>
             <span className="text-xs text-ink-600">칸을 합쳐 {charLimit}자 이상이면 정식 등록!</span>
           </div>
+          {/* 담을 내용 체크리스트 — 체크한 항목만 아래에 칸이 나타난다 (레이아웃 = 내 선택) */}
+          <div className="mt-3 rounded-btn bg-ink-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold text-ink-700">📋 어떤 내용을 담을까요? — 체크한 것만 칸이 생겨요</p>
+              <span className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={presetGuided}
+                  className="press rounded-btn bg-white px-2.5 py-1 text-[11px] font-bold text-ink-600 ring-1 ring-ink-200"
+                >
+                  📚 가이드 작성
+                </button>
+                <button
+                  type="button"
+                  onClick={presetFree}
+                  className="press rounded-btn bg-white px-2.5 py-1 text-[11px] font-bold text-ink-600 ring-1 ring-ink-200"
+                >
+                  🖊️ 자유 작성
+                </button>
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {SECTIONS.map((s) => {
+                const on = enabled.has(s.key);
+                const has = ((form as unknown as Record<string, string | undefined>)[s.key] ?? "").trim().length > 0;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => toggleSection(s.key)}
+                    className={`press rounded-full border px-2.5 py-1 text-[12px] font-medium ${
+                      on
+                        ? "border-brand bg-brand text-white"
+                        : "border-ink-200 bg-white text-ink-500 hover:border-ink-300"
+                    }`}
+                  >
+                    {on ? "✓ " : ""}
+                    {s.label}
+                    {!on && has && " ●"}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[10px] text-ink-400">
+              체크를 꺼도 이미 쓴 내용은 지워지지 않아요 (● 표시). 자유 작성은 틀 없이 한 칸에 쭉 써요.
+            </p>
+          </div>
           <div className="mt-3 space-y-3">
-            <Field label="줄거리">
-              <Textarea value={form.summary} onChange={(e) => onBodyChange("summary", e)} onPaste={onPasteBody} onDrop={onDropBody} placeholder={prompts.summary} rows={5} />
-            </Field>
-            <Field label="인상 깊은 장면">
-              <Textarea value={form.scene} onChange={(e) => onBodyChange("scene", e)} onPaste={onPasteBody} onDrop={onDropBody} placeholder={prompts.scene} rows={4} />
-            </Field>
-            <Field label="마음에 남은 문장 (인용)">
-              {/* 인용도 붙여넣기 금지 — 책 문장을 눈으로 보고 직접 옮겨적어요 */}
-              <Textarea value={form.quote} onChange={(e) => onBodyChange("quote", e)} onPaste={onPasteBody} onDrop={onDropBody} placeholder={prompts.quote} rows={3} />
-            </Field>
-            <Field label="읽고 나서 든 생각과 느낌">
-              <Textarea value={form.thoughts} onChange={(e) => onBodyChange("thoughts", e)} onPaste={onPasteBody} onDrop={onDropBody} placeholder={prompts.thoughts} rows={6} />
-            </Field>
-            {/* 생각 유도 질문 — 검색·복붙으로는 못 채우는 나만의 답 (사용자 요청) */}
-            <Field label="✍️ 작가는 왜 이 글을 썼을까?">
-              <Textarea
-                value={form.authorIntent ?? ""}
-                onChange={(e) => onBodyChange("authorIntent", e)}
-                onPaste={onPasteBody}
-                onDrop={onDropBody}
-                placeholder="작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요"
-                rows={3}
-              />
-            </Field>
-            <Field label="🙋 이 책을 나와 연결하면?">
-              <Textarea
-                value={form.connect ?? ""}
-                onChange={(e) => onBodyChange("connect", e)}
-                onPaste={onPasteBody}
-                onDrop={onDropBody}
-                placeholder="내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?"
-                rows={4}
-              />
-            </Field>
+            {SECTIONS.filter((s) => enabled.has(s.key)).map((s) => (
+              <Field key={s.key} label={s.label}>
+                <Textarea
+                  value={((form as unknown as Record<string, string | undefined>)[s.key] ?? "") as string}
+                  onChange={(e) => onBodyChange(s.key, e)}
+                  onPaste={onPasteBody}
+                  onDrop={onDropBody}
+                  placeholder={
+                    (s.key === "summary" || s.key === "scene" || s.key === "quote" || s.key === "thoughts"
+                      ? prompts[s.key]
+                      : s.placeholder) || s.placeholder
+                  }
+                  rows={s.rows}
+                />
+              </Field>
+            ))}
             {pasteHint && (
               <p className="rounded-btn bg-amber-50 px-3 py-2 text-[13px] font-medium text-amber-700">
                 🚫 붙여넣기는 막혀 있어요 — 감상문은 직접 손으로 써야 해요 🐢

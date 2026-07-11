@@ -71,6 +71,10 @@ export interface BookletEntry {
   thoughts?: string;
   authorIntent?: string; // 작가는 왜 이 글을 썼을까?
   connect?: string; // 이 책을 나와 연결하면?
+  reason?: string; // 이 책을 고른 이유
+  characters?: string; // 등장인물 소개
+  recommend?: string; // 누구에게 추천할까?
+  freeText?: string; // 자유롭게 쓰기
 }
 
 export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
@@ -80,6 +84,7 @@ export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
     dateStr: `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`,
     summary: r.summary, scene: r.scene, quote: r.quote, thoughts: r.thoughts,
     authorIntent: r.authorIntent, connect: r.connect,
+    reason: r.reason, characters: r.characters, recommend: r.recommend, freeText: r.freeText,
   };
 }
 
@@ -115,12 +120,16 @@ export function openBooklet(
   <h2>${esc(r.title)}</h2>
   <p class="chmeta">${meta}</p>
   <hr class="rule">
+  ${sec("이 책을 고른 이유", r.reason)}
   ${sec("줄거리", r.summary)}
+  ${sec("등장인물 소개", r.characters)}
   ${sec("인상 깊은 장면", r.scene)}
   ${r.quote?.trim() ? `<blockquote>“${esc(r.quote)}”</blockquote>` : ""}
   ${sec("읽고 난 생각", r.thoughts)}
   ${sec("작가는 왜 이 글을 썼을까?", r.authorIntent)}
   ${sec("이 책을 나와 연결하면?", r.connect)}
+  ${sec("누구에게 추천할까?", r.recommend)}
+  ${sec("자유롭게 쓰기", r.freeText)}
 </div>`;
     })
     .join("\n");

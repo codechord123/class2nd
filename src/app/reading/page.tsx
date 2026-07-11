@@ -122,7 +122,9 @@ function ReportBody({
             </>
           );
         })()}
+      {r.reason && <ReportSection label="이 책을 고른 이유" text={r.reason} />}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
+      {r.characters && <ReportSection label="등장인물 소개" text={r.characters} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
       {r.quote && (
         <div className="mt-4">
@@ -137,6 +139,8 @@ function ReportBody({
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
       {r.authorIntent && <ReportSection label="작가는 왜 이 글을 썼을까?" text={r.authorIntent} />}
       {r.connect && <ReportSection label="이 책을 나와 연결하면?" text={r.connect} />}
+      {r.recommend && <ReportSection label="누구에게 추천할까?" text={r.recommend} />}
+      {r.freeText && <ReportSection label="자유롭게 쓰기" text={r.freeText} />}
       {(onEdit || onDelete) && (
         <div className="mt-5 flex gap-2">
           {onEdit && (
@@ -311,6 +315,8 @@ export default function ReadingPage() {
       title: r.title, author: r.author ?? "", publisher: r.publisher ?? "",
       summary: r.summary ?? "", scene: r.scene ?? "", quote: r.quote ?? "",
       thoughts: r.thoughts ?? "", authorIntent: r.authorIntent ?? "", connect: r.connect ?? "",
+      reason: r.reason ?? "", characters: r.characters ?? "", recommend: r.recommend ?? "",
+      freeText: r.freeText ?? "",
       tags: r.tags ?? [], isPrivate: r.isPrivate ?? false,
     };
   }

@@ -34,6 +34,10 @@ export interface ReadingReport2 {
   thoughts: string; // 느낀 점
   authorIntent?: string; // 작가는 왜 이 글을 썼을까? (생각 유도 — 복붙 방지)
   connect?: string; // 이 책을 나와 연결하면? (개인 연결 — 복붙 방지)
+  reason?: string; // 이 책을 고른 이유
+  characters?: string; // 등장인물 소개
+  recommend?: string; // 누구에게 추천할까?
+  freeText?: string; // 자유롭게 쓰기 (자유 작성 모드)
   // 복붙·AI 의심 신호 (작성 순간에만 기록 — 소급 불가). 선생님만 참고.
   pastedChars?: number; // 외부에서 붙여넣은 총 글자 수 (자기 글 복사 제외 — 인용 칸도 제외)
   pasteCount?: number; // 외부 붙여넣기 횟수
@@ -63,19 +67,35 @@ export const BOOK_TAGS = [
 export type ReportForm = Pick<
   ReadingReport2,
   "title" | "author" | "publisher" | "summary" | "scene" | "quote" | "thoughts"
-> & { tags: string[]; isPrivate?: boolean; authorIntent?: string; connect?: string };
+> & {
+  tags: string[];
+  isPrivate?: boolean;
+  authorIntent?: string;
+  connect?: string;
+  reason?: string;
+  characters?: string;
+  recommend?: string;
+  freeText?: string;
+};
 
-/** 정식 등록 최소 글자수 검사 대상 — 장면+인용+줄거리+느낀점 + 작가의도·나와 연결(생각 유도) */
+/** 감상 본문 항목 키 — 폼 체크리스트·글자수·표시가 모두 이 목록을 공유한다 */
+export const BODY_KEYS = [
+  "reason", "summary", "characters", "scene", "quote", "thoughts", "authorIntent", "connect", "recommend", "freeText",
+] as const;
+export type BodyKey = (typeof BODY_KEYS)[number];
+
+/** 정식 등록 최소 글자수 검사 대상 — 모든 감상 항목의 합 (자유 작성 포함) */
 export function reportBodyLength(f: ReportForm): number {
-  return (f.scene + f.quote + f.summary + f.thoughts + (f.authorIntent ?? "") + (f.connect ?? ""))
-    .length;
+  return BODY_KEYS.reduce((a, k) => a + ((f as unknown as Record<string, string | undefined>)[k] ?? "").length, 0);
 }
 
 /** 복붙·속성 작성 의심 신호 (선생님만 참고) — 붙여넣기 비율·작성 속도.
  *  paste/fast 신호 계산은 이 함수 하나에 모아 임계값을 한곳에서 관리한다. */
 export function reportSuspicion(r: ReadingReport2): { paste: boolean; fast: boolean; measured: boolean } {
-  const bodyLen =
-    ((r.summary ?? "") + (r.scene ?? "") + (r.thoughts ?? "") + (r.authorIntent ?? "") + (r.connect ?? "")).length;
+  const bodyLen = BODY_KEYS.reduce(
+    (a, k) => a + ((r as unknown as Record<string, string | undefined>)[k] ?? "").length,
+    0
+  );
   const measured = r.pastedChars != null || r.writeMs != null; // 배포 후 작성분만 신호 있음
   const pasted = r.pastedChars ?? 0;
   // 붙여넣기: 감상 본문의 40% 이상을 붙였고, 그 양이 30자 이상
