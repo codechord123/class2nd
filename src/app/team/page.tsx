@@ -481,7 +481,20 @@ export default function TeamPage() {
           const gid = String(myGroup.groupId);
           const meta = (todayScores as { _meta?: { groupSums?: Record<string, number>; autoBestGroups?: number[] } } | null | undefined)?._meta;
           const gToday = meta?.groupSums?.[gid];
-          const gCumMap = ((cumScores as Record<string, unknown> | null)?.groupCum ?? {}) as Record<string, number>;
+          let gCumMap = ((cumScores as Record<string, unknown> | null)?.groupCum ?? {}) as Record<string, number>;
+          // groupCum이 아직 없으면(초기화 직후 등) 모둠 대항전(GroupGoals)과 같은 폴백 —
+          // 개인 누적 합으로 계산해 '누적 0'으로 보이지 않게 (다음 집계 때 새 회계로 자동 전환)
+          if (!Object.keys(gCumMap).length && cumScores) {
+            const cm = cumScores as Record<string, unknown>;
+            gCumMap = Object.fromEntries(
+              schedule.groups.map((g) => [
+                String(g.groupId),
+                [g.chair, ...g.members.map((m) => m.studentId)]
+                  .filter(isActive)
+                  .reduce((a, id) => a + (typeof cm[String(id)] === "number" ? (cm[String(id)] as number) : 0), 0),
+              ])
+            );
+          }
           const gCum = gCumMap[gid] ?? 0;
           const ranked = Object.entries(gCumMap).sort((a, b) => b[1] - a[1]);
           const myRank = ranked.findIndex(([k]) => k === gid) + 1; // 0 = 데이터 없음
