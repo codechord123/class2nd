@@ -97,6 +97,12 @@ export async function resetAllRecords(onProgress?: (msg: string) => void): Promi
   await deleteDoc(doc(d, "classData", "bestGroups")).catch(() => failed.push("bestGroups"));
   // 거북이 응원 클릭 — 카운트·이벤트 지급 마커까지 리셋 (개학 후 깜짝 이벤트를 처음부터)
   await deleteDoc(doc(d, "classData", "turtleClicks")).catch(() => failed.push("turtleClicks"));
+  // 자리 스왑 기록 — 신청(seatChangeRequests)만 지우고 이걸 남기면, 베타 연습으로 승인한
+  // 자리 교환이 초기화 후에도 자리표에 그대로 반영된다 (주차별 문서 전부, 없으면 no-op)
+  onProgress?.("자리 교환 기록 삭제 중…");
+  for (let w = 1; w <= TOTAL_WEEKS; w++) {
+    await deleteDoc(doc(d, "classData", `seatSwaps-${w}`)).catch(() => failed.push("seatSwaps"));
+  }
 
   // 4) 독서 정리 — 연습 감상문(READING_KEEP_FROM 이전)만 삭제 + 통계 재구축.
   //    남는 감상문은 week 필드도 재배치(방학=0주차) — 삭제 시 차감 버킷이 어긋나지 않게.
