@@ -173,7 +173,7 @@ export default function MyStatus() {
           // 방학: 주간 미션이 없으니 완료 개념 없는 누적 표시 (상점 타일과 동일 취급)
           icon: "🐢",
           label: `방학 독서 ${myWeekRead}권`,
-          sub: "1권 = +2점 (하루 2권)",
+          sub: "1권 = +2점 · 무제한",
           href: "/reading",
         }
       : {

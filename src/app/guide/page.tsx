@@ -136,7 +136,7 @@ export default function GuidePage() {
           <Row label="💌 칭찬하기" pts="최대 +2" desc="우리 모둠 친구를 칭찬하면 내 개인 점수! 전원 칭찬해야 만점 — 몰아주기로는 못 채워요" />
           <Row label="👑 부서장 표" pts="+1점" desc="'오늘의 부서장' 투표 최다 득표자에게 고정 +1 (이유를 꼭 적어요)" />
           <Row label="🏆 모둠 순위" pts="순위별" desc="선생님이 매긴 모둠 순위 점수 — 모둠원 전원 같이 받아요" />
-          <Row label="🐢 독서" pts="1권 +2점" desc="그날 쓴 감상문 1권당 +2점 (하루 2권까지 점수)" />
+          <Row label="🐢 독서" pts="1권 +2점" desc="그날 쓴 감상문 1권당 +2점 — 권수 제한 없이 쓴 만큼 점수!" />
           <Row label="🎯 칭찬 미션" pts="+1점" desc="우리 모둠 전원이 칭찬을 1개 이상 받으면 모둠 전체 +1" />
           <Row label="🎁 보너스" pts="±" desc="선생님이 특별히 주는(또는 빼는) 점수" />
         </div>
@@ -206,8 +206,8 @@ export default function GuidePage() {
       <Section icon="🐢" title="거북이 독서 마라톤" tint="bg-emerald-100">
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            감상문 <b>1권 = 그날 점수 +2점 + 학급 권수 +1권</b> (점수는 하루 2권까지, 권수는
-            제한 없이 쓴 만큼 인정!)
+            감상문 <b>1권 = 그날 점수 +2점 + 학급 권수 +1권</b> — 점수도 권수도 제한 없이 쓴
+            만큼 인정!
           </li>
           <li>
             정식 등록은 본문 네 칸을 합쳐 <b>{charLimit}자 이상</b> — 정성이 기준이에요.

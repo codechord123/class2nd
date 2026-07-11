@@ -24,7 +24,7 @@ export default function ReadingAlert() {
         {vacBooks > 0 && (
           <>
             {" "}
-            (지금 <b>{vacBooks}권</b> · 권당 +2점, 하루 2권까지)
+            (지금 <b>{vacBooks}권</b> · 권당 +2점, 제한 없음)
           </>
         )}{" "}
         — 주간 미션·스트릭은 개학부터!
