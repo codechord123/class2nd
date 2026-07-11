@@ -251,5 +251,9 @@ await setDoc(doc(db, "classData", "shopMenu"), {
   ],
 });
 
+// autoRun 마커 — 시드 누적은 Σ일별과 다른 픽스처라, 주간 정합 점검이 전원 오경보를
+// 내지 않게 오늘 점검한 것으로 표시 (감지기 자체를 검증할 땐 이 문서를 지우고 테스트)
+await setDoc(doc(db, "classData", "autoRun"), { cumCheckedOn: today }, { merge: true });
+
 console.log("✅ seed complete:", today);
 process.exit(0);
