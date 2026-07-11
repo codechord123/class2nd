@@ -4,17 +4,22 @@
 //  데이터와 새 유형에 대비한 점검 도구.) 삭제는 기존 경로 재사용 — 권수 차감 + 그날 재집계
 //  예약까지 자동이라 점수도 따라 보정된다. 버튼을 눌렀을 때만 전체 1회 조회 (교사 전용).
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { kstDateOf } from "@/lib/date";
 import { studentById } from "@/lib/roster";
 import { useDeleteReport, type ReadingReport2 } from "@/lib/query/reading";
+import { useSettings } from "@/lib/query/settings";
+import { aggregateDate } from "@/lib/aggregate";
 import { useFeedback } from "@/components/ui/Feedback";
 
 type DupGroup = { key: string; reports: ReadingReport2[] };
 
 export default function DuplicateReportPanel() {
   const deleteReport = useDeleteReport();
+  const { data: settings } = useSettings();
+  const qc = useQueryClient();
   const { toast, confirm } = useFeedback();
   const [groups, setGroups] = useState<DupGroup[] | null>(null); // null = 아직 안 검사
   const [busy, setBusy] = useState(false);
@@ -59,7 +64,7 @@ export default function DuplicateReportPanel() {
     const name = studentById.get(r.studentId)?.name ?? "?";
     const ok = await confirm({
       title: `${name}의 「${r.title}」 이 건을 삭제할까요?`,
-      body: "권수 1권 차감 + 그날 점수 재집계가 자동으로 예약돼요 (다음 교사 접속 때 반영).",
+      body: "권수 1권 차감 + 그날 점수가 바로 재계산돼요.",
       confirmLabel: "삭제",
       danger: true,
     });
@@ -67,6 +72,13 @@ export default function DuplicateReportPanel() {
     setBusy(true);
     try {
       await deleteReport(r);
+      // 그 자리에서 그날 점수 재계산 — 예약만 걸면 리포트·점수표에 옛 값이 남는다 (사용자 지적)
+      if (settings) {
+        const day = kstDateOf(r.createdAt);
+        await aggregateDate(day, settings).catch(() => {}); // 실패해도 예약 경로가 다음에 처리
+        void qc.invalidateQueries({ queryKey: ["dailyScores", day] });
+        void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+      }
       // 화면 갱신 — 지운 건 빼고, 1건만 남으면 묶음 해제
       setGroups(
         (prev) =>
@@ -76,7 +88,7 @@ export default function DuplicateReportPanel() {
             )
             .filter((x) => x.reports.length >= 2) ?? null
       );
-      toast("삭제했어요 — 권수·점수가 자동 보정돼요.", "success");
+      toast("🗑 삭제 + 그날 점수 재계산 완료", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "삭제에 실패했어요.", "error");
     } finally {

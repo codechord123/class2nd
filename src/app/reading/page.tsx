@@ -3,7 +3,9 @@
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettings } from "@/lib/query/settings";
+import { aggregateDate } from "@/lib/aggregate";
 import { useSession } from "@/stores/session";
 import { studentById } from "@/lib/roster";
 import { loadS1TurtleReading } from "@/lib/staticData";
@@ -301,6 +303,23 @@ export default function ReadingPage() {
   const { data: myDrafts } = useMyDrafts(authorId);
   const deleteReport = useDeleteReport();
   const deleteDraft = useDeleteDraft(authorId);
+  const { data: settings } = useSettings();
+  const qc = useQueryClient();
+
+  // 교사 삭제는 그 자리에서 그날 점수까지 재계산 (사용자 요청 — 예약만 걸면 리포트에 옛 점수가 남음).
+  // 학생 삭제는 규칙상 집계 쓰기가 안 되므로 기존 예약(redoDates → 다음 교사 접속) 경로 유지.
+  async function reaggAfterDelete(createdAt: number) {
+    if (role !== "teacher" || !settings) return false;
+    const d = kstDateOf(createdAt);
+    try {
+      await aggregateDate(d, settings);
+      void qc.invalidateQueries({ queryKey: ["dailyScores", d] });
+      void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
+      return true;
+    } catch {
+      return false; // 실패해도 삭제는 완료 — 예약 경로가 다음 접속 때 처리
+    }
+  }
 
   const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
   const [search, setSearch] = useState("");
@@ -528,7 +547,11 @@ export default function ReadingPage() {
                       });
                       if (ok)
                         void deleteReport(r)
-                          .then(() => setSelectedId(null))
+                          .then(async () => {
+                            setSelectedId(null);
+                            const redone = await reaggAfterDelete(r.createdAt);
+                            if (redone) toast("🗑 삭제 + 그날 점수 재계산 완료", "success");
+                          })
                           .catch((e: Error) => toast(e.message, "error"));
                     }
                   : undefined
