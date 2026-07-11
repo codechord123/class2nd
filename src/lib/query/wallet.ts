@@ -16,7 +16,6 @@ import {
   orderBy,
   query,
   runTransaction,
-  setDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -169,40 +168,42 @@ export function useDecideRequest(kind: WalletKind) {
   };
 }
 
-/** 교사 수동 지급(적립): 여러 명 동시 지급 — 원장 기록(인당 1건) + 잔액 일괄 증가 (2학기 실버) */
+/** 교사 수동 지급(적립): 여러 명 동시 지급 — 원장(인당 1건)·잔액·골드 재료를 한 트랜잭션으로.
+ *  순차 쓰기였을 땐 중간에 끊기면 원장과 잔액이 어긋나고 재시도 시 이중 지급 위험이 있었다.
+ *  (승인·차감과 동일한 원자성 — 전부 반영되거나 전부 안 되거나) */
 export function useGrantSilver() {
   const qc = useQueryClient();
   return async (studentIds: number[], amount: number, note: string) => {
     if (!studentIds.length) throw new Error("지급할 학생을 골라주세요.");
+    if (!Number.isInteger(amount) || amount <= 0) throw new Error("개수를 확인해주세요.");
     const d = db();
-    await Promise.all(
-      studentIds.map((studentId) =>
-        addDoc(collection(d, "coinTxns"), {
+    await runTransaction(d, async (tx) => {
+      for (const studentId of studentIds)
+        tx.set(doc(collection(d, "coinTxns")), {
           studentId,
           amount,
           item: note || "교사 지급",
           type: "earn",
           status: "approved",
           createdAt: Date.now(),
-        })
-      )
-    );
-    await setDoc(
-      doc(d, "coinTxns", "0_balances"),
-      Object.fromEntries(studentIds.map((sid) => [sid, increment(amount)])),
-      { merge: true }
-    );
-    // 교사 수동 지급도 '학급 실버 25개 → 골드 1개' 적립 재료에 포함 (사용자 확정).
-    // silverEarned에 누적해 두면 다음 자동 집계·정산의 grantMilestones가 골드로 환산한다.
-    await setDoc(
-      doc(d, "dailyScores", "_cumulative"),
-      {
-        silverEarned: Object.fromEntries(
-          studentIds.map((sid) => [String(sid), increment(amount)])
-        ),
-      },
-      { merge: true }
-    );
+        });
+      tx.set(
+        doc(d, "coinTxns", "0_balances"),
+        Object.fromEntries(studentIds.map((sid) => [sid, increment(amount)])),
+        { merge: true }
+      );
+      // 교사 수동 지급도 '학급 실버 25개 → 골드 1개' 적립 재료에 포함 (사용자 확정).
+      // silverEarned에 누적해 두면 다음 자동 집계·정산의 grantMilestones가 골드로 환산한다.
+      tx.set(
+        doc(d, "dailyScores", "_cumulative"),
+        {
+          silverEarned: Object.fromEntries(
+            studentIds.map((sid) => [String(sid), increment(amount)])
+          ),
+        },
+        { merge: true }
+      );
+    });
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
   };
 }
