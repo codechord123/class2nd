@@ -4,7 +4,7 @@
 // 공정 장치: ① 기준을 법률로 사전 공개 ② 추천은 실명+이유 필수(10자↑) ③ 학급 투표로 결정
 // ④ 보상량 고정(1개)·주당 상한은 법률로 안내 ⑤ 지급 내역은 원장에 공개.
 // 지급하면 추천에 resolved 표시 — 다음 주 목록에서 빠진다.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { studentById } from "@/lib/roster";
 import { useGrantSilver } from "@/lib/query/wallet";
 import {
@@ -74,49 +74,39 @@ export default function HiddenContributionPanel() {
     }
   }
 
-  // 조문을 헌법(의장 부서 법률)에 추가 — 같은 제목이 있으면 중복 방지
-  async function addLaw() {
-    if (busy || !constitution) return;
+  // 조문을 헌법(의장 부서 법률)에 자동 등록 (사용자 확정: 버튼 없이 추가) —
+  // 패널이 열릴 때 조문이 없으면 한 번만 넣는다. 제목 존재 검사로 멱등(다시 열어도 중복 없음).
+  const lawAdded = useRef(false);
+  useEffect(() => {
+    if (!constitution || lawAdded.current) return;
     const existing = constitution.lawsByDept?.[HIDDEN_LAW.dept] ?? [];
     if (existing.some((l) => l.includes(`(${HIDDEN_LAW.title})`))) {
-      toast("이미 '숨은 기여' 조문이 법률에 있어요.", "warn");
+      lawAdded.current = true; // 이미 있음
       return;
     }
-    const ok = await confirm({
-      title: "'숨은 기여' 조문을 법률에 추가할까요?",
-      body: "의장 부서 법률에 제N조(숨은 기여) ①~⑤항이 들어가요 — 기준을 미리 공개해 공정하게.",
-      confirmLabel: "법률에 추가",
-    });
-    if (!ok) return;
-    setBusy(true);
-    try {
-      const clause = composeClause(
-        existing.length + 1,
-        HIDDEN_LAW.title,
-        serializeClauses(HIDDEN_LAW.clauses)
-      );
-      await saveConstitution({
-        ...constitution,
-        lawsByDept: { ...(constitution.lawsByDept ?? {}), [HIDDEN_LAW.dept]: [...existing, clause] },
+    lawAdded.current = true; // 선(先)마킹 — 개발 모드 이중 이펙트·재렌더 중복 방지
+    const clause = composeClause(
+      existing.length + 1,
+      HIDDEN_LAW.title,
+      serializeClauses(HIDDEN_LAW.clauses)
+    );
+    void saveConstitution({
+      ...constitution,
+      lawsByDept: { ...(constitution.lawsByDept ?? {}), [HIDDEN_LAW.dept]: [...existing, clause] },
+    })
+      .then(() => toast("📜 '숨은 기여' 조문이 의장 법률에 자동 등록됐어요.", "success"))
+      .catch(() => {
+        lawAdded.current = false; // 실패 시 다음 렌더에서 재시도
       });
-      toast("📜 '숨은 기여' 조문을 법률에 추가했어요.", "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "추가에 실패했어요.", "error");
-    } finally {
-      setBusy(false);
-    }
-  }
+  }, [constitution, saveConstitution, toast]);
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-bold">🕵️ 숨은 기여 지급</h2>
-        <button
-          onClick={() => void addLaw()}
-          className="press rounded-btn bg-ink-100 px-2.5 py-1.5 text-xs font-bold text-ink-600"
-        >
-          📜 법률로 추가
-        </button>
+        <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] text-ink-500">
+          📜 의장 법률 자동 등록
+        </span>
       </div>
       <p className="mt-1 text-xs text-ink-600">
         금요일 루틴 — 건의 게시판의 <b>숨은 기여 추천</b>과 학급 <b>👍👎 투표 결과</b>를 보고 골라
