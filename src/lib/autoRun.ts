@@ -187,7 +187,8 @@ async function doRun(settings: ClassSettings): Promise<AutoRunResult | null> {
         r.readingTop.length > 0 ||
         r.readingTopGroupMembers.length > 0 ||
         r.missionTopMembers.length > 0 ||
-        Object.keys(r.streakPoints).length > 0;
+        Object.keys(r.streakPoints).length > 0 ||
+        Object.keys(r.interest).length > 0;
       if (!r.alreadySettled && granted) {
         result.settledPeriods.push(p);
         result.settleResults.push(r);

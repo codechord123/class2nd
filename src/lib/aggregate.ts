@@ -778,8 +778,14 @@ export interface SessionSettleResult {
   missionTopMembers: number[];
   growthTop: number[]; // 성장상 — 지난 세션 대비 총점 상승폭 최다 (2기부터)
   streakPoints: Record<string, number>; // studentId → 스트릭 보너스(누적 점수 가산)
+  interest: Record<string, number>; // 💰 저축 이자 — 세션 말 잔액의 10% 내림, 세션당 상한 2
   alreadySettled: boolean;
 }
+
+// 저축 이자 (사용자 확정): 세션 정산 때 잔액 × 10% 내림, 상한 2개.
+// 상한이 공정 장치 — 이자는 본질이 부익부라, 상한 없이는 격차가 가속된다.
+const INTEREST_RATE = 0.1;
+const INTEREST_CAP = 2;
 
 const STREAK_CAP = 3; // 스트릭 보상 상한 (주당 최대 보너스 점수)
 
@@ -817,6 +823,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       missionTopMembers: data.missionTopMembers ?? [],
       growthTop: data.growthTop ?? [],
       streakPoints: data.streakPoints ?? {},
+      interest: data.interest ?? {},
       alreadySettled: true,
     };
   }
@@ -958,8 +965,20 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
 
   const entries = Object.entries(grant);
   const hasStreak = Object.keys(streakPoints).length > 0;
+
+  // 💰 저축 이자 — 세션 말 잔액의 10% 내림, 상한 2개 (사용자 확정: 저축 습관 + 격차 억제).
+  const balSnap = await getDoc(doc(d, "coinTxns", "0_balances"));
+  const bals = (balSnap.exists() ? balSnap.data() : {}) as Record<string, number>;
+  const interest: Record<string, number> = {};
+  for (const s of students) {
+    const bal = typeof bals[String(s.id)] === "number" ? bals[String(s.id)] : 0;
+    const n = Math.min(Math.floor(Math.max(bal, 0) * INTEREST_RATE), INTEREST_CAP);
+    if (n > 0) interest[String(s.id)] = n;
+  }
+  const hasInterest = Object.keys(interest).length > 0;
+
   // 지급 대상이 전혀 없으면 마커를 남기지 않아 재실행 가능하게 둔다
-  if (entries.length === 0 && !hasStreak) {
+  if (entries.length === 0 && !hasStreak && !hasInterest) {
     return {
       period,
       range: [start, end],
@@ -973,6 +992,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       missionTopMembers: [],
       growthTop: [],
       streakPoints: {},
+      interest: {},
       alreadySettled: false,
     };
   }
@@ -998,6 +1018,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       missionTopMembers,
       growthTop,
       streakPoints,
+      interest: {},
       alreadySettled: true,
     };
   }
@@ -1012,12 +1033,23 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       createdAt: Date.now(),
     });
   }
-  if (entries.length) {
-    await setDoc(
-      doc(d, "coinTxns", "0_balances"),
-      Object.fromEntries(entries.map(([sid, n]) => [sid, increment(n)])),
-      { merge: true }
-    );
+  // 이자는 별도 원장 줄로 — 아이가 내역에서 "저축해서 받았다"를 구분해 보게 (금융 교육 목적)
+  for (const [sid, n] of Object.entries(interest)) {
+    await addDoc(collection(d, "coinTxns"), {
+      studentId: Number(sid),
+      amount: n,
+      item: `💰 저축 이자 (${period}기)`,
+      type: "earn",
+      status: "approved",
+      createdAt: Date.now(),
+    });
+  }
+  if (entries.length || hasInterest) {
+    // 같은 학생이 보상+이자를 둘 다 받을 수 있으므로 학생별로 합산해 한 번만 increment
+    const balDelta: Record<string, ReturnType<typeof increment>> = {};
+    for (const sid of new Set([...Object.keys(grant).map(String), ...Object.keys(interest)]))
+      balDelta[sid] = increment((grant[Number(sid)] ?? 0) + (interest[sid] ?? 0));
+    await setDoc(doc(d, "coinTxns", "0_balances"), balDelta, { merge: true });
   }
   // 스트릭 보너스 → 누적 점수에 가산 (일일 재집계는 델타 방식이라 이 가산은 보존됨)
   if (hasStreak) {
@@ -1027,14 +1059,13 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       { merge: true }
     );
   }
-  // 세션 보상 실버도 '실버 25개 → 골드' 마일스톤에 누적 (문서 1회 재읽기 — 교사 경로)
-  if (entries.length) {
+  // 세션 보상·이자 실버도 '실버 25개 → 골드' 마일스톤에 누적 (문서 1회 재읽기 — 교사 경로)
+  if (entries.length || hasInterest) {
+    const extra: Record<string, number> = {};
+    for (const [sid, n] of entries) extra[sid] = (extra[sid] ?? 0) + n;
+    for (const [sid, n] of Object.entries(interest)) extra[sid] = (extra[sid] ?? 0) + n;
     const cumSnap = await getDoc(doc(d, "dailyScores", "_cumulative"));
-    await grantMilestones(
-      cumSnap.exists() ? cumSnap.data() : {},
-      Object.fromEntries(entries.map(([sid, n]) => [sid, n])),
-      "🏅 점수 25점 달성 보상"
-    );
+    await grantMilestones(cumSnap.exists() ? cumSnap.data() : {}, extra, "🏅 점수 25점 달성 보상");
   }
   // 선점 시 만든 마커에 결과 상세를 병합 (awardedAt은 선점 시각 유지)
   await setDoc(
@@ -1052,6 +1083,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       streakPoints,
       mvpCount,
       rank1Count,
+      interest,
       completedAt: Date.now(),
     },
     { merge: true }
@@ -1070,6 +1102,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     missionTopMembers,
     growthTop,
     streakPoints,
+    interest,
     alreadySettled: false,
   };
 }

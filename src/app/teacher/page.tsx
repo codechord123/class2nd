@@ -46,6 +46,7 @@ import AppealPanel from "@/components/teacher/AppealPanel";
 import ComplimentModerationPanel from "@/components/teacher/ComplimentModerationPanel";
 import EventBoostPanel from "@/components/teacher/EventBoostPanel";
 import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
+import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -249,6 +250,7 @@ export default function TeacherPage() {
       {tTab === "manage" && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
           <AppealPanel />
+          <HiddenContributionPanel />
           <BonusPanel />
           <ReadingAdjustPanel />
           <EventBoostPanel />
