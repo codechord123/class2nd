@@ -180,7 +180,7 @@ const PRINT_CSS = `
 `;
 
 /** 인쇄 문서를 새 창에 연다 (공용 래퍼). body는 카드형 HTML. */
-export function openPrintWindow(title: string, bodyHtml: string): void {
+export function openPrintWindow(title: string, bodyHtml: string, target?: Window | null): void {
   const printed = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric",
   }).format(new Date());
@@ -192,10 +192,28 @@ ${bodyHtml}
 <div class="docfoot">2학기 학급 자치 시스템 · ${esc(printed)} 출력</div>
 </div>
 </body></html>`;
-  const win = window.open("", "_blank");
+  // target: preOpenPrintWindow()로 '클릭 시점'에 미리 연 창. iOS 사파리는 await 뒤의
+  // window.open을 사용자 제스처와 무관한 팝업으로 보고 차단한다 (실사례: 아이폰에서
+  // 감상문집이 '여는 중…'에서 멈춤). 동기 호출부는 인자 생략(기존 동작).
+  const win = target === undefined ? window.open("", "_blank") : target;
   if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
+  win.document.open();
   win.document.write(html);
   win.document.close();
+}
+
+/** 데이터 로딩 '전'(클릭과 같은 동기 흐름)에 빈 인쇄 창을 먼저 연다 — iOS 팝업 차단 회피.
+ *  이후 openPrintWindow/openBooklet에 넘겨 내용을 채우고, 실패하면 호출부가 close()로 정리. */
+export function preOpenPrintWindow(): Window | null {
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(
+      '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>여는 중…</title></head>' +
+        '<body style="font-family:sans-serif;display:grid;place-items:center;height:90vh;color:#64748b">' +
+        "<p>📄 문서를 만드는 중이에요…</p></body></html>"
+    );
+  }
+  return win;
 }
 
 /** 아직 집계 전인 날짜의 칭찬/건의/바라는점을 원시 평가에서 직접 수집 */
@@ -228,6 +246,10 @@ export async function openRangePrintDoc(
   label: string,
   extraHtml?: string // 리포트 상단에 붙일 추가 섹션(예: 독서 현황) — 호출부의 캐시 데이터로 구성
 ): Promise<{ days: number; compliments: number; suggestions: number }> {
+  // 데이터 로딩 전에 창부터 — iOS 사파리가 await 뒤 window.open을 차단하기 때문 (아래 채움)
+  const win = preOpenPrintWindow();
+  if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
+  try {
   const d = db();
 
   // 1) 기간 내 집계 문서 (_cumulative는 "_"라 범위 밖)
@@ -407,9 +429,14 @@ export async function openRangePrintDoc(
     brandHeader(
       `${esc(label)} 학급 기록`,
       `${dateTitle(start)} ~ ${dateTitle(end)} · 2학기 학급 자치`
-    ) + sections.join("\n")
+    ) + sections.join("\n"),
+    win
   );
   return { days: byDate.size, compliments: allCompliments.length, suggestions: suggestions.length };
+  } catch (e) {
+    win.close(); // 로딩 실패 — '여는 중' 빈 창을 정리하고 호출부 토스트에 맡긴다
+    throw e;
+  }
 }
 
 // ── 학생 개인 리포트 — 상담·가정통신 첨부용 1장 ─────────────────
@@ -421,6 +448,10 @@ export async function openStudentPrintDoc(
   end: string,
   label: string
 ): Promise<{ days: number }> {
+  // 데이터 로딩 전에 창부터 — iOS 사파리가 await 뒤 window.open을 차단하기 때문 (아래 채움)
+  const win = preOpenPrintWindow();
+  if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
+  try {
   const d = db();
   const sname = name(sid);
 
@@ -544,7 +575,12 @@ export async function openStudentPrintDoc(
     brandHeader(
       `${esc(sname)} 개인 리포트`,
       `${esc(label)} · ${dateTitle(start)} ~ ${dateTitle(end)} · 2학기 학급 자치`
-    ) + sections.join("\n")
+    ) + sections.join("\n"),
+    win
   );
   return { days: dayRows.length };
+  } catch (e) {
+    win.close(); // 로딩 실패 — '여는 중' 빈 창 정리
+    throw e;
+  }
 }

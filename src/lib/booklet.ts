@@ -92,7 +92,8 @@ export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
 export function openBooklet(
   studentName: string,
   entries: BookletEntry[],
-  counts: { s1: number; s2: number; totalBooks: number }
+  counts: { s1: number; s2: number; totalBooks: number },
+  target?: Window | null // preOpenPrintWindow()로 클릭 시점에 미리 연 창 (iOS 팝업 차단 회피)
 ): void {
   const num = (i: number) => String(i + 1).padStart(2, "0");
 
@@ -156,8 +157,9 @@ ${chapters}
 </div>
 </body></html>`;
 
-  const win = window.open("", "_blank");
+  const win = target === undefined ? window.open("", "_blank") : target;
   if (!win) throw new Error("팝업이 차단되었어요. 팝업 허용 후 다시 시도해주세요.");
+  win.document.open();
   win.document.write(html);
   win.document.close();
 }

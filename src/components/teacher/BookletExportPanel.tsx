@@ -12,6 +12,7 @@ import {
   s2ReportToEntry,
   type BookletEntry,
 } from "@/lib/booklet";
+import { preOpenPrintWindow } from "@/lib/exportDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function BookletExportPanel() {
@@ -30,6 +31,13 @@ export default function BookletExportPanel() {
 
   async function print(sid: number) {
     if (busy != null) return;
+    // 창은 '클릭과 같은 동기 흐름'에서 먼저 연다 — iOS 사파리는 await(감상문 조회 +
+    // 1학기 백업 로딩) 뒤의 window.open을 팝업으로 차단한다 (실사례: 아이폰 '여는 중' 멈춤)
+    const win = preOpenPrintWindow();
+    if (!win) {
+      toast("팝업이 차단됐어요 — 주소창의 팝업 허용을 누르고 다시 시도해주세요.", "warn");
+      return;
+    }
     setBusy(sid);
     try {
       const [s2Reports, turtle] = await Promise.all([
@@ -48,15 +56,22 @@ export default function BookletExportPanel() {
         }));
       const entries = [...s1Entries, ...s2Reports.map(s2ReportToEntry)];
       if (!entries.length) {
+        win.close();
         toast("아직 쓴 감상문이 없어요.", "warn");
         return;
       }
-      openBooklet(studentById.get(sid)?.name ?? "?", entries, {
-        s1: s1Entries.length,
-        s2: s2Reports.length,
-        totalBooks: s1BooksOf(stats, sid) + (stats?.total?.[String(sid)] ?? 0),
-      });
+      openBooklet(
+        studentById.get(sid)?.name ?? "?",
+        entries,
+        {
+          s1: s1Entries.length,
+          s2: s2Reports.length,
+          totalBooks: s1BooksOf(stats, sid) + (stats?.total?.[String(sid)] ?? 0),
+        },
+        win
+      );
     } catch (e) {
+      win.close(); // '여는 중' 빈 창 정리
       toast(`⚠️ ${e instanceof Error ? e.message : "불러오기 실패"}`, "error");
     } finally {
       setBusy(null);
