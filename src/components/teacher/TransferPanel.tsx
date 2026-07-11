@@ -94,6 +94,9 @@ export default function TransferPanel() {
       setOv(next);
       applyRosterOverrides(next);
       // ② 누적 점수·타이틀·연속 기록 초기화
+      //    scoreSilverPaid·vacReadPaid·vacReadPoints도 함께 0으로 — 안 지우면 앞 번호 주인의
+      //    지급 이력이 남아, 새 학생은 (a) 마일스톤 실버가 옛 임계치(~100점)까지 안 나오고
+      //    (b) 방학 독서 청산이 increment(-옛값)을 걸어 시작 점수가 음수로 떨어진다.
       await setDoc(
         doc(d, "dailyScores", "_cumulative"),
         {
@@ -102,6 +105,9 @@ export default function TransferPanel() {
           mvpVotesTotal: { [key]: 0 },
           compStreak: { [key]: 0 },
           silverEarned: { [key]: 0 },
+          scoreSilverPaid: { [key]: 0 },
+          vacReadPaid: { [key]: 0 },
+          vacReadPoints: { [key]: 0 },
         },
         { merge: true }
       );

@@ -16,7 +16,6 @@ import {
   query,
   runTransaction,
   setDoc,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -165,42 +164,52 @@ export function useDecideSeatRequest() {
     cost = 0
   ) => {
     const d = db();
+    const reqRef = doc(d, "seatChangeRequests", req.id);
+    const balRef = doc(d, "coinTxns", "0_balances");
 
-    // 승인 + 비용 있으면: 잔액 검증 후 차감을 원자 처리 (부족하면 승인 자체를 막음)
-    if (approve && cost > 0) {
-      const balRef = doc(d, "coinTxns", "0_balances");
-      await runTransaction(d, async (tx) => {
+    // 승인/반려 상태 전환을 '신청 문서'를 트랜잭션 안에서 읽고 검사해 원자 처리.
+    // 이전에는 잔액 문서만 읽어(신청 문서는 읽지 않고 update만) 더블클릭·이중 실행 시
+    // 충돌 검출이 안 돼 실버가 두 번 빠지고, 스왑도 두 번 쌓여(arrayUnion at 값이 달라
+    // 중복 제거 안 됨) 같은 교환을 두 번 적용 → 원위치로 되돌아가는 사고가 있었다.
+    // 이제 pending이 아닌 신청은 트랜잭션이 무처리(false)로 끝내 side-effect도 안 돈다.
+    const didApprove = await runTransaction(d, async (tx) => {
+      const reqSnap = await tx.get(reqRef);
+      if (!reqSnap.exists() || reqSnap.data().status !== "pending") return false; // 이미 처리됨
+      if (approve && cost > 0) {
         const balSnap = await tx.get(balRef);
         const cur = (balSnap.exists() ? (balSnap.data()[String(req.studentId)] as number) : 0) ?? 0;
         if (cur < cost) throw new Error(`실버 부족으로 승인할 수 없어요 (현재 ${cur}개, 필요 ${cost}개).`);
         tx.set(balRef, { [req.studentId]: increment(-cost) }, { merge: true });
-        tx.update(doc(d, "seatChangeRequests", req.id), { status: "approved", decidedAt: Date.now() });
-      });
-      await addDoc(collection(d, "coinTxns"), {
-        studentId: req.studentId,
-        amount: cost,
-        item: `자리 변경 (${req.week}주차 ${req.targetGroup}모둠 ${req.targetRole})`,
-        type: "spend",
-        status: "approved",
-        createdAt: Date.now(),
-      });
-    } else {
-      await updateDoc(doc(d, "seatChangeRequests", req.id), {
-        status: approve ? "approved" : "rejected",
-        decidedAt: Date.now(),
-      });
-    }
+      }
+      tx.update(reqRef, { status: approve ? "approved" : "rejected", decidedAt: Date.now() });
+      return approve; // 이 호출이 pending→승인 전환에 성공했을 때만 true
+    });
 
-    if (approve && occupantId != null && occupantId !== req.studentId) {
-      await setDoc(
-        doc(d, "classData", `seatSwaps-${req.week}`),
-        { swaps: arrayUnion({ a: req.studentId, b: occupantId, at: Date.now() }) },
-        { merge: true }
-      );
+    // 아래는 이 호출이 실제로 '승인 전환'에 성공했을 때만 1회 실행 (이중 차감·이중 스왑 원천 차단)
+    if (didApprove) {
+      if (cost > 0) {
+        await addDoc(collection(d, "coinTxns"), {
+          studentId: req.studentId,
+          amount: cost,
+          item: `자리 변경 (${req.week}주차 ${req.targetGroup}모둠 ${req.targetRole})`,
+          type: "spend",
+          status: "approved",
+          createdAt: Date.now(),
+        });
+      }
+      if (occupantId != null && occupantId !== req.studentId) {
+        await setDoc(
+          doc(d, "classData", `seatSwaps-${req.week}`),
+          { swaps: arrayUnion({ a: req.studentId, b: occupantId, at: Date.now() }) },
+          { merge: true }
+        );
+      }
     }
     void qc.invalidateQueries({ queryKey: ["pendingSeatRequests"] });
     void qc.invalidateQueries({ queryKey: ["seatSwaps", req.week] });
     void qc.invalidateQueries({ queryKey: ["seatRequests", req.week] });
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+    // 이 호출이 실제로 승인 전환에 성공했는지 — UI가 이미 처리된 신청에 가짜 성공 토스트를 안 띄우게
+    return didApprove;
   };
 }

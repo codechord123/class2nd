@@ -451,9 +451,11 @@ export default function TeacherPage() {
                       try {
                         const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
                         const cost = settings!.seatChangeCost;
-                        await decideSeat(r, true, occ ?? undefined, cost);
+                        const done = await decideSeat(r, true, occ ?? undefined, cost);
                         toast(
-                          `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
+                          done
+                            ? `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
+                            : "이미 처리된 신청이에요."
                         );
                       } catch (e) {
                         toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
