@@ -5,7 +5,7 @@
 //  · 점수는 학생(개인)에게 귀속 — 2주마다 모둠이 바뀌어도 누적 유지
 // 읽기 예산: 학생 1일 = 본인 평가 2문서 + 집계 2문서. 저장 후 재조회 없음.
 import { useSession } from "@/stores/session";
-import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { students, studentById, ROLE_INFO } from "@/lib/roster";
 import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
@@ -276,6 +276,10 @@ export default function TeamPage() {
   // 부서장 평가 — 미션은 바로 보인다(게이트 없음). 마이너스가 없어 안 건드린 친구는 0점이라
   // 결석·미평가로 남에게 손해가 가지 않는다 (사용자 확정).
   const savedPeerChecks = (evalRec._peerChecks as Record<string, boolean[]> | undefined) ?? {};
+
+  // 주말·공휴일엔 평가·칭찬 잠금 (사용자 확정) — 학교 없는 날의 점수 쌓기 방지.
+  // 바라는 점·세션 반성(주말에 쓰는 기능)·기록 열람은 그대로 열린다.
+  const evalOpen = !isWeekend(date) && !(settings.holidays ?? []).includes(date);
 
   // 칭찬 보내기 (건의와 독립)
   async function submitComp() {
@@ -602,6 +606,18 @@ export default function TeamPage() {
       <div className="space-y-4 lg:flex lg:items-start lg:gap-4 lg:space-y-0">
       <div className="min-w-0 space-y-4 lg:flex-1">
 
+      {/* 주말·공휴일 — 평가·칭찬 잠금 안내 (기록 열람·바라는 점·세션 반성은 열림) */}
+      {!evalOpen && (
+        <section className="rounded-card border border-ink-200 bg-ink-50 p-5 text-center shadow-card">
+          <p className="text-3xl">🏖️</p>
+          <p className="mt-1 text-sm font-bold text-ink-700">오늘은 쉬는 날!</p>
+          <p className="mt-0.5 text-xs text-ink-500">
+            부서장 평가·칭찬은 학교 오는 날에만 열려요. 내 기록과 받은 마음은 언제든 볼 수 있어요.
+          </p>
+        </section>
+      )}
+
+      {evalOpen && (<>
       {/* 모둠 내 상호평가 — 부서장 평가: 내 부서 O/X 기준으로 다른 모둠원을 평가 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
@@ -721,10 +737,12 @@ export default function TeamPage() {
           );
         })()}
       </section>
+      </>)}
       </div>
 
       <div className="min-w-0 space-y-4 lg:flex-1">
-      {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지 */}
+      {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지. 주말·공휴일엔 잠금 */}
+      {evalOpen && (
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-bold">
@@ -908,6 +926,7 @@ export default function TeamPage() {
           </div>
         )}
       </section>
+      )}
 
       {/* 선생님에게 바라는 점 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">

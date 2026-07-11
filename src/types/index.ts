@@ -74,6 +74,8 @@ export interface ClassSettings {
   requestCloseHour: number;
   /** 학급 회장 학생 번호 — 골드토큰(학급 공용) 사용 신청 권한 (null = 미지정, 교사만) */
   presidentId?: number | null;
+  /** 공휴일(YYYY-MM-DD) — 주말과 함께 모둠 평가·칭찬이 잠기는 날 (교사 편집) */
+  holidays?: string[];
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {
@@ -89,6 +91,11 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   semesterEnd: "2027-01-08",
   requestOpenHour: 16,
   requestCloseHour: 24,
+  // 2학기(2026-08-17~2027-01-08) 공휴일 — 추석 연휴·개천절 대체·한글날·성탄절·신정
+  holidays: [
+    "2026-09-24", "2026-09-25", "2026-09-26",
+    "2026-10-05", "2026-10-09", "2026-12-25", "2027-01-01",
+  ],
 };
 
 // ── 1학기 이월 지갑 (정적 JSON — 별도 지갑 방식) ────────────────

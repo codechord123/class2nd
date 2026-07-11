@@ -74,6 +74,7 @@ export default function TeacherPage() {
   const [dOpen, setDOpen] = useState<number | null>(null);
   const [dClose, setDClose] = useState<number | null>(null);
   const [dPresident, setDPresident] = useState<number | null | undefined>(undefined); // undefined=미편집
+  const [dHolidays, setDHolidays] = useState<string | null>(null); // 공휴일 목록 편집 (줄바꿈 구분)
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -215,6 +216,14 @@ export default function TeacherPage() {
       requestOpenHour: dOpen ?? settings!.requestOpenHour,
       requestCloseHour: dClose ?? settings!.requestCloseHour,
       presidentId: dPresident !== undefined ? dPresident : (settings!.presidentId ?? null),
+      holidays:
+        dHolidays != null
+          ? dHolidays
+              .split(/[\n,]/)
+              .map((s) => s.trim())
+              .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s))
+              .sort()
+          : (settings!.holidays ?? []),
     };
     try {
       await saveSettings(next);
@@ -554,6 +563,22 @@ export default function TeacherPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* 공휴일·재량휴업일 — 주말과 함께 모둠 평가·칭찬이 잠기는 날 */}
+          <div className="rounded-card bg-ink-50 p-4 sm:col-span-2">
+            <span className="text-sm font-bold text-ink-800">🏖️ 공휴일·재량휴업일</span>
+            <p className="mt-1 text-xs text-ink-600">
+              이 날짜(+주말)엔 학생 화면의 부서장 평가·칭찬이 잠겨요. 한 줄에 하나씩
+              YYYY-MM-DD로 적어주세요 (재량휴업일도 여기에 추가).
+            </p>
+            <textarea
+              value={dHolidays ?? (settings.holidays ?? []).join("\n")}
+              onChange={(e) => setDHolidays(e.target.value)}
+              rows={4}
+              placeholder={"2026-09-24\n2026-09-25"}
+              className="tnum mt-2 w-full rounded-btn border border-ink-300 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
+            />
           </div>
         </div>
         <Button

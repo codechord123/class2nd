@@ -18,6 +18,12 @@ export function kstDateOf(ms: number): string {
   }).format(new Date(ms));
 }
 
+/** 주말(토·일) 여부 — KST 날짜 문자열 기준 */
+export function isWeekend(date: string): boolean {
+  const dow = new Date(date + "T00:00:00Z").getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
 /** 날짜 문자열("YYYY-MM-DD")에 일수를 더한 날짜 문자열 */
 export function shiftDate(date: string, days: number): string {
   const d = new Date(date + "T00:00:00Z");
