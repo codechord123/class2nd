@@ -85,6 +85,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
               <br />
               마감{" "}
               {new Date(poll.deadline).toLocaleDateString("ko-KR", {
+                timeZone: "Asia/Seoul",
                 month: "numeric",
                 day: "numeric",
               })}

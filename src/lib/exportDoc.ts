@@ -23,8 +23,10 @@ export const esc = (s: string) =>
 
 /** "2026-07-05" → "7월 5일 (일)" */
 export function dateTitle(date: string): string {
+  // getDay()는 '기기 시간대' 기준이라 KST가 아닌 기기(시간대 잘못 설정된 디벗 등)에서
+  // 요일이 하루 밀린다 — isWeekend(date.ts)와 같은 UTC 고정 방식으로 시간대 무관하게 계산.
   const dow = ["일", "월", "화", "수", "목", "금", "토"][
-    new Date(date + "T00:00:00+09:00").getDay()
+    new Date(date + "T00:00:00Z").getUTCDay()
   ];
   const [, m, d] = date.split("-").map(Number);
   return `${m}월 ${d}일 (${dow})`;

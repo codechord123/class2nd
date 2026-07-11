@@ -186,7 +186,7 @@ export default function SeatsPage() {
             <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
             <span className="text-xs text-ink-400">
               비용 {settings?.seatChangeCost ?? 10}실버 · <b>2주(기) 단위 적용</b> · 마감{" "}
-              {deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 수요일
+              {deadline.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" })} 수요일
               자정 · 선착순
             </span>
           </div>

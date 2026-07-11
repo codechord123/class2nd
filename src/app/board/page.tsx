@@ -41,7 +41,7 @@ function authorName(id: number | "teacher"): string {
 }
 
 function dateLabel(ms: number): string {
-  return new Date(ms).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+  return new Date(ms).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" });
 }
 
 const STATUS_STYLE: Record<AgendaStatus, string> = {
@@ -182,6 +182,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             </span>
             <span className="tnum">
               {new Date(sug.createdAt).toLocaleString("ko-KR", {
+                timeZone: "Asia/Seoul",
                 month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
               })}
             </span>
