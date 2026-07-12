@@ -10,6 +10,7 @@ import { useReadingStats } from "@/lib/query/reading";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import { useMyAppeals } from "@/lib/query/appeals";
 import { useWeekRequests } from "@/lib/query/seatChange";
+import { usePolls, votesOf, isPollClosed } from "@/lib/query/board";
 import { useCumulativeScores, useDailyScores, useLatestAggregated, useMyEvaluation, type DailyMeta } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
@@ -60,6 +61,8 @@ export default function MyStatus() {
   const sessionStartWeek = nowWeekNum - ((nowWeekNum - 1) % 2);
   const { data: weekReqs } = useWeekRequests(sessionStartWeek);
   const { data: myAppeals } = useMyAppeals(role === "student" ? studentId : null);
+  // 🗳 진행 중 투표 — 오늘 할 일 타일용 (투표 탭과 캐시 공유, 최근 1페이지만)
+  const { data: polls } = usePolls(1);
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
@@ -206,6 +209,10 @@ export default function MyStatus() {
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
   const doneRead = myWeekRead >= quota;
+  // 진행 중인데 아직 투표 안 한 것 — 있으면 오늘 할 일에 타일로 (참여가 학급 자치의 핵심)
+  const openUnvoted = (polls ?? []).filter(
+    (pl) => !isPollClosed(pl) && votesOf(pl, String(studentId)).length === 0
+  ).length;
   // 주말·공휴일엔 모둠 탭의 평가·투표·칭찬이 잠긴다 (Team 탭과 같은 판정) —
   // 홈 할 일에도 띄우지 않아야 '눌렀는데 잠겨 있는' 헛걸음이 없다. 쉬는 날엔 독서·상점만.
   const evalOpen = !isWeekend(today) && !(settings?.holidays ?? []).includes(today);
@@ -238,6 +245,9 @@ export default function MyStatus() {
           done: doneRead,
           href: "/reading",
         },
+    ...(openUnvoted > 0
+      ? [{ icon: "🗳", label: `투표 ${openUnvoted}건`, sub: "우리 반 일에 한 표!", href: "/vote" }]
+      : []),
     { icon: "🛒", label: "상점", sub: `실버 ${mySilver}개 쓰러 가기`, href: "/shop" },
   ];
   const checkable = todos.filter((t) => t.done !== undefined);
