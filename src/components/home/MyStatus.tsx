@@ -8,6 +8,8 @@ import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
+import { useMyAppeals } from "@/lib/query/appeals";
+import { useWeekRequests } from "@/lib/query/seatChange";
 import { useCumulativeScores, useDailyScores, useLatestAggregated, useMyEvaluation, type DailyMeta } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
@@ -53,6 +55,11 @@ export default function MyStatus() {
   // 🛒 상점 신청 결과 알림 — 상점 탭과 캐시 공유 (읽기 추가 최소)
   const { data: myS2Reqs } = useMyRequests("s2", role === "student" ? studentId : null);
   const { data: myS1Reqs } = useMyRequests("s1", role === "student" ? studentId : null);
+  // 💺 자리·🙋 이의제기 결과 알림 — 각 탭과 캐시 공유
+  const nowWeekNum = currentWeekNum();
+  const sessionStartWeek = nowWeekNum - ((nowWeekNum - 1) % 2);
+  const { data: weekReqs } = useWeekRequests(sessionStartWeek);
+  const { data: myAppeals } = useMyAppeals(role === "student" ? studentId : null);
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
@@ -167,6 +174,27 @@ export default function MyStatus() {
     .sort((a, b) => ((b as { decidedAt?: number }).decidedAt ?? 0) - ((a as { decidedAt?: number }).decidedAt ?? 0));
   const firstDecided = decided[0];
 
+  // 자리 신청 결과 — 이번 기(세션) 내 신청 중 결정된 것
+  const seatSeenKey = `seat-decided-seen-${studentId}`;
+  const seatSeenAt = typeof window !== "undefined" ? Number(localStorage.getItem(seatSeenKey) ?? 0) : 0;
+  const seatDecided = (weekReqs ?? [])
+    .filter(
+      (r) =>
+        r.studentId === studentId &&
+        r.status !== "pending" &&
+        ((r as { decidedAt?: number }).decidedAt ?? 0) > seatSeenAt
+    )
+    .sort((a, b) => ((b as { decidedAt?: number }).decidedAt ?? 0) - ((a as { decidedAt?: number }).decidedAt ?? 0))[0];
+
+  // 이의제기 답변 — 결과 자체를 배너에 담는다 (다른 화면엔 접수 표시만 있음)
+  const appealSeenKey = `appeal-decided-seen-${studentId}`;
+  const appealSeenAt = typeof window !== "undefined" ? Number(localStorage.getItem(appealSeenKey) ?? 0) : 0;
+  const appealDecided = (myAppeals ?? [])
+    .filter(
+      (a) => a.status !== "pending" && ((a as { resolvedAt?: number }).resolvedAt ?? 0) > appealSeenAt
+    )
+    .sort((a, b) => ((b as { resolvedAt?: number }).resolvedAt ?? 0) - ((a as { resolvedAt?: number }).resolvedAt ?? 0))[0];
+
   // 오늘 할 일 — Team 탭과 같은 판정 (내 평가 문서 하나, 캐시 공유라 추가 읽기 0)
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const targets = myGroup
@@ -250,6 +278,50 @@ export default function MyStatus() {
             {decided.length > 1 && ` 외 ${decided.length - 1}건`} — 신청 결과가 나왔어요!
           </span>
           <span className="shrink-0 text-xs font-bold text-amber-600">확인하기 →</span>
+        </a>
+      )}
+
+      {/* 💺 자리 신청 결과 배너 */}
+      {seatDecided && (
+        <a
+          href="/seats"
+          onClick={() => {
+            try { localStorage.setItem(seatSeenKey, String(Date.now())); } catch {}
+          }}
+          className="press flex items-center gap-2.5 rounded-card border border-amber-200 bg-amber-50 px-4 py-3 shadow-card"
+        >
+          <span className="text-2xl">💺</span>
+          <span className="min-w-0 flex-1 text-sm text-ink-800">
+            {seatDecided.status === "approved" ? (
+              <b>자리 변경 승인! {seatDecided.targetGroup}모둠 {seatDecided.targetRole} 지킴이로 이동해요 🎉</b>
+            ) : (
+              <b>자리 신청이 반려됐어요 — 다음 기에 다시 도전!</b>
+            )}
+          </span>
+          <span className="shrink-0 text-xs font-bold text-amber-600">자리표 보기 →</span>
+        </a>
+      )}
+
+      {/* 🙋 이의제기 답변 배너 — 결과를 배너가 직접 알려준다 */}
+      {appealDecided && (
+        <a
+          href="/team#received"
+          onClick={() => {
+            try { localStorage.setItem(appealSeenKey, String(Date.now())); } catch {}
+          }}
+          className="press flex items-center gap-2.5 rounded-card border border-brand/30 bg-brand-weak/40 px-4 py-3 shadow-card"
+        >
+          <span className="text-2xl">🙋</span>
+          <span className="min-w-0 flex-1 text-sm text-ink-800">
+            <b>
+              이의제기 답변:{" "}
+              {appealDecided.status === "resolved"
+                ? `✅ 인정${(appealDecided as { delta?: number }).delta ? ` (${(appealDecided as { delta?: number }).delta! > 0 ? "+" : ""}${(appealDecided as { delta?: number }).delta}점 조정)` : ""}`
+                : "검토 후 반려"}
+            </b>
+            {appealDecided.teacherNote && ` — “${appealDecided.teacherNote}”`}
+          </span>
+          <span className="shrink-0 text-xs font-bold text-brand-strong">자세히 →</span>
         </a>
       )}
 

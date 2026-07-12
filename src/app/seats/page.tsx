@@ -2,7 +2,7 @@
 // 자리 배치 및 일정 — 21주 사전계산 자리표(정적 JSON) + 승인된 swap 합성.
 // 실버 자리변경 신청: 전주 수요일 자정 마감 · 동일 자리 선착순.
 import { friendlyWriteError } from "@/lib/auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "@/stores/session";
 import {
   schedules,
@@ -59,6 +59,13 @@ export default function SeatsPage() {
   const [targetRole, setTargetRole] = useState<RoleKey>("질서");
   const [busy, setBusy] = useState(false);
   const [seatBurst, setSeatBurst] = useState(0); // 신청 성공 juice
+  // 홈 '자리 결과' 배너 읽음 처리 — 자리 탭을 연 순간 본 것으로
+  useEffect(() => {
+    if (role === "student" && studentId)
+      try {
+        localStorage.setItem(`seat-decided-seen-${studentId}`, String(Date.now()));
+      } catch {}
+  }, [role, studentId]);
   const { toast, confirm } = useFeedback();
 
   const deadline = seatChangeDeadline(sessionMeta.weekStart);
