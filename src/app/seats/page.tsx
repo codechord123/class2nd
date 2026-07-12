@@ -71,6 +71,13 @@ export default function SeatsPage() {
   const deadline = seatChangeDeadline(sessionMeta.weekStart);
   const deadlinePassed = new Date() > deadline;
 
+  // 고른 자리의 현재 주인 미리보기 — '누구와 바뀌는지'가 아이에겐 핵심 정보
+  const targetSid = schedule.groups
+    .find((g) => g.groupId === targetGroup)
+    ?.members.find((m) => m.role === targetRole)?.studentId;
+  const targetName = targetSid ? studentById.get(targetSid)?.name : null;
+  const isMySeat = targetSid != null && targetSid === studentId;
+
   // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
   // (잔액 1개로 상점·자리 이중 신청 방지. 문서는 모두 캐시 공유 — 추가 읽기 거의 0)
   const { data: s2Bal } = useBalances("s2");
@@ -99,7 +106,9 @@ export default function SeatsPage() {
     }
     const ok = await confirm({
       title: "자리를 바꿀까요?",
-      body: `${targetGroup}모둠 · ${targetRole} 지킴이로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,
+      body: `${targetGroup}모둠 · ${targetRole} 지킴이${
+        targetName ? ` (지금 ${targetName} 자리)` : ""
+      }로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,
       confirmLabel: "신청",
     });
     if (!ok) return;
@@ -235,11 +244,24 @@ export default function SeatsPage() {
                   </select>
                   <button
                     onClick={() => void submitRequest()}
-                    disabled={busy}
+                    disabled={busy || isMySeat}
                     className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   >
                     {busy ? "신청 중…" : "신청하기"}
                   </button>
+                  {/* 고른 자리의 현재 주인 — 승인되면 서로 자리가 바뀐다는 것을 미리 알림 */}
+                  <p className="w-full text-xs text-ink-500">
+                    {isMySeat ? (
+                      <>✋ 지금 내 자리예요 — 다른 자리를 골라주세요!</>
+                    ) : targetName ? (
+                      <>
+                        지금 그 자리엔 <b className="text-ink-700">{targetName}</b> — 승인되면
+                        서로 자리가 바뀌어요 🤝
+                      </>
+                    ) : (
+                      <>지금 비어 있는 자리예요.</>
+                    )}
+                  </p>
                 </div>
               )}
             </>
