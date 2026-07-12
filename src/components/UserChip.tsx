@@ -19,7 +19,7 @@ export default function UserChip() {
     role === "teacher" ? "선생님" : (studentById.get(studentId ?? 0)?.name ?? "학생");
 
   return (
-    <div className="flex items-center gap-1.5 text-sm">
+    <div className="flex flex-wrap items-center justify-end gap-1.5 gap-y-1 text-sm">
       <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-weak text-[11px] font-extrabold text-brand-strong">
         {label.charAt(0)}
       </span>
@@ -33,9 +33,10 @@ export default function UserChip() {
             const first = students.find((s) => !s.inactive)?.id ?? 1;
             enterPreview(first);
           }}
-          className="press rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100"
+          className="press whitespace-nowrap rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100"
+          aria-label="학생 화면 미리보기"
         >
-          👀 학생 화면
+          👀<span className="hidden sm:inline"> 학생 화면</span>
         </button>
       )}
       {preview ? (
@@ -57,7 +58,7 @@ export default function UserChip() {
           </select>
           <button
             onClick={exitPreview}
-            className="press rounded-full bg-warn px-2.5 py-1 text-xs font-bold text-white"
+            className="press whitespace-nowrap rounded-full bg-warn px-2.5 py-1 text-xs font-bold text-white"
           >
             ↩ 선생님으로
           </button>
@@ -78,7 +79,7 @@ export default function UserChip() {
               void fbLogout();
               logout();
             }}
-            className="press rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100"
+            className="press whitespace-nowrap rounded-full border border-ink-200 px-2.5 py-1 text-xs text-ink-600 hover:bg-ink-100"
           >
             로그아웃
           </button>

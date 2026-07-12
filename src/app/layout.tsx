@@ -32,13 +32,15 @@ export default function RootLayout({
           <header className="bg-white">
             <BetaBanner />
             <div className="mx-auto max-w-3xl px-4 lg:max-w-5xl">
-              <div className="flex items-center justify-between py-3">
-                <h1 className="flex items-center gap-2 text-[15px] font-extrabold tracking-tight text-ink-900">
+              <div className="flex items-center justify-between gap-2 py-3">
+                {/* 좁은 화면(아이폰 390px 교사 모드)에서 '학급 자\n치'로 꺾이지 않게 nowrap,
+                    장식용 2학기 칩은 sm 미만에서 숨겨 우측 버튼 자리를 확보 */}
+                <h1 className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[15px] font-extrabold tracking-tight text-ink-900">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand text-[13px] font-extrabold text-white shadow-card">
                     학
                   </span>
                   학급 자치
-                  <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold text-ink-500">
+                  <span className="hidden rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold text-ink-500 sm:inline-block">
                     2학기
                   </span>
                 </h1>
