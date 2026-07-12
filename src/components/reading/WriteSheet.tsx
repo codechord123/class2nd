@@ -279,7 +279,7 @@ export default function WriteSheet({
           ? "💾 임시저장 완료! 나중에 이어서 쓸 수 있어요."
           : editingReport
             ? "✅ 감상문이 수정되었어요!"
-            : "✅ 감상문이 정식 등록되었어요! +1권"
+            : studentId > 0 ? "✅ 감상문 등록! 📚 +1권 · 오늘 점수 +2점" : "✅ 감상문이 등록되었어요!"
       );
       if (!draft) {
         // 등록 juice — 📚 버스트를 잠깐 보여주고 닫는다 (성취의 한 박자)
@@ -495,7 +495,7 @@ export default function WriteSheet({
             </span>
             <span className="relative">
               <Button size="lg" variant="primary" onClick={() => void submit(false)} disabled={busy}>
-                {busy ? "저장 중…" : editingReport ? "수정 저장" : "정식 등록 (+1권)"}
+                {busy ? "저장 중…" : editingReport ? "수정 저장" : studentId > 0 ? "정식 등록 (+1권 · +2점)" : "정식 등록"}
               </Button>
               <JuiceBurst fireKey={doneBurst} emojis={["📚", "🐢", "✨"]} className="left-1/2 top-0" />
             </span>
