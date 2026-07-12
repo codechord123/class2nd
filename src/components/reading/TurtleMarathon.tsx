@@ -36,6 +36,12 @@ const BURSTS = [
   ],
 ];
 const CHEER_WORDS = ["힘내라 거북이!", "달려 달려~ 🏃", "한 권 더!", "가즈아 🍜"];
+// 연타 콤보 — 10연타마다 특별 연출 (순수 로컬, 전체 클릭 수 비공개 원칙과 무관)
+const COMBO_BURST = [
+  { e: "🔥", dx: "-18px", dy: "-30px", rot: "-25deg" },
+  { e: "🎉", dx: "4px", dy: "-36px", rot: "5deg" },
+  { e: "⭐", dx: "20px", dy: "-28px", rot: "25deg" },
+];
 
 export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const { data: settings } = useSettings();
@@ -45,6 +51,10 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
 
   const [capped, setCapped] = useState(false);
   const pendingRef = useRef(0);
+  // 연타 콤보 — 2초 안에 이어 누르면 쌓이고, 쉬면 리셋 (setHopKey 전에 갱신해 렌더에서 읽는다)
+  const comboRef = useRef(0);
+  const comboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (comboTimer.current) clearTimeout(comboTimer.current); }, []);
   // 기기별 일일 상한 — localStorage에 오늘 카운트 저장
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
   const dayCount = useRef<number | null>(null);
@@ -85,8 +95,10 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const progress = Math.min((total / goal) * 100, 100);
   const s1Progress = Math.min((s1Total / goal) * 100, 100);
 
-  const burst = BURSTS[hopKey % BURSTS.length];
-  const cheer = CHEER_WORDS[hopKey % CHEER_WORDS.length];
+  // 10연타마다 특별 버스트·응원말 — 연속 클릭에 '쌓이는 감각'을 준다
+  const comboHit = comboRef.current > 0 && comboRef.current % 10 === 0;
+  const burst = comboHit ? COMBO_BURST : BURSTS[hopKey % BURSTS.length];
+  const cheer = comboHit ? `${comboRef.current}연타! 🔥` : CHEER_WORDS[hopKey % CHEER_WORDS.length];
 
   return (
     // bare: 다른 카드 안에 합쳐 넣을 때 (독서 탭 상단 압축 — 카드 개수 줄이기)
@@ -112,6 +124,9 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
       <button
         type="button"
         onClick={() => {
+          comboRef.current += 1;
+          if (comboTimer.current) clearTimeout(comboTimer.current);
+          comboTimer.current = setTimeout(() => { comboRef.current = 0; }, 2000);
           setHopKey((k) => k + 1); // 상한을 넘어도 애니메이션은 그대로 (재미 유지)
           if (!bumpDaily()) {
             if (!capped) {
