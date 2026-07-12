@@ -7,7 +7,7 @@
 // 전부 permission-denied가 된다("로딩 안 됨" 증상). 인증 상태가 확정될 때까지
 // 콘텐츠 렌더를 보류하고, 세션은 학생인데 Firebase 로그인이 풀려 있으면
 // 익명 로그인을 자동 복구, 교사면 재로그인을 요청한다.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase";
 import { useSession } from "@/stores/session";
@@ -107,6 +107,7 @@ function LoginScreen({
   const [mode, setMode] = useState<"student" | "teacher">("student");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [password, setPassword] = useState("");
+  const pwRef = useRef<HTMLInputElement>(null); // 이름 선택 → 비밀번호로 시선·키보드 이동
   // 교사 이메일은 이 기기에 기억 — 다음부터 비밀번호만 입력 (사용자 요청)
   // SSR 하이드레이션 불일치를 피하려고 마운트 후에 채운다
   const [email, setEmail] = useState("");
@@ -288,7 +289,10 @@ function LoginScreen({
             {students.map((s) => (
               <button
                 key={s.id}
-                onClick={() => setSelectedId(s.id)}
+                onClick={() => {
+                  setSelectedId(s.id);
+                  pwRef.current?.focus(); // 제스처 안이라 디벗에서도 키보드가 바로 열린다
+                }}
                 className={`press rounded-btn py-2.5 text-xs font-bold transition-colors ${
                   selectedId === s.id
                     ? "bg-brand text-white shadow-card"
@@ -299,14 +303,26 @@ function LoginScreen({
               </button>
             ))}
           </div>
+          {/* 다음 할 일을 알려주는 한 줄 — 첫 로그인 날(개학) 25명이 헤매지 않게 */}
+          <p className="text-xs text-ink-500">
+            {selectedId ? (
+              <>
+                🔑 <b className="text-ink-800">{studentById.get(selectedId)?.name}</b>의 비밀번호를
+                입력해요 — 처음이면 지금 정하는 비밀번호가 등록돼요!
+              </>
+            ) : (
+              <>👆 먼저 위에서 내 이름을 눌러주세요.</>
+            )}
+          </p>
           <Input
+            ref={pwRef}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
             }}
-            placeholder="비밀번호 (처음이면 새로 정하는 비밀번호)"
+            placeholder="비밀번호"
           />
           <div className="text-right">
             <button
