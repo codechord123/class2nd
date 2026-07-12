@@ -60,8 +60,14 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const dayCount = useRef<number | null>(null);
   const bumpDaily = (): boolean => {
     try {
-      if (dayCount.current == null)
+      if (dayCount.current == null) {
         dayCount.current = Number(localStorage.getItem(`turtle-day-${todayKey}`) ?? 0);
+        // 지난 날짜 키 청소 — 안 하면 기기마다 하루 1개씩 영구 누적
+        // (삭제 중 인덱스가 재배열되므로 키를 먼저 모아서 지운다)
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith("turtle-day-") && k !== `turtle-day-${todayKey}`)
+          .forEach((k) => localStorage.removeItem(k));
+      }
       if (dayCount.current >= DAILY_CAP) return false;
       dayCount.current += 1;
       localStorage.setItem(`turtle-day-${todayKey}`, String(dayCount.current));
