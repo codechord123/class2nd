@@ -619,6 +619,14 @@ export default function BoardPage() {
     }
   }, [title, content, draftKey]);
 
+  // 딥링크: /board#law → 헌법 탭 CTA에서 온 학생에게 법률 제안 폼을 바로 열어준다
+  useEffect(() => {
+    if (window.location.hash === "#law") {
+      setWriting(true);
+      setPostKind("law");
+    }
+  }, []);
+
   // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
     !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
