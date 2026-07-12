@@ -7,7 +7,7 @@
 import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
-import { useBalances } from "@/lib/query/wallet";
+import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import { useCumulativeScores, useDailyScores, useLatestAggregated, useMyEvaluation, type DailyMeta } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
@@ -50,6 +50,9 @@ export default function MyStatus() {
   // 💌 받은 마음 알림 — 가장 최근 집계일의 칭찬 중 내가 받은 것 (팀 탭과 캐시 공유, 추가 읽기 최소)
   const { data: todayScores } = useDailyScores(today);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), role === "student");
+  // 🛒 상점 신청 결과 알림 — 상점 탭과 캐시 공유 (읽기 추가 최소)
+  const { data: myS2Reqs } = useMyRequests("s2", role === "student" ? studentId : null);
+  const { data: myS1Reqs } = useMyRequests("s1", role === "student" ? studentId : null);
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
@@ -155,6 +158,15 @@ export default function MyStatus() {
         ? `${Number(noteDate.slice(5, 7))}월 ${Number(noteDate.slice(8, 10))}일에`
         : "";
 
+  // 상점 신청 결과 — 마지막 확인 이후 승인/반려된 건 ("선생님 됐어요?"를 앱이 대신 답한다).
+  // 상점 탭을 열면 본 것으로 처리(shop 페이지에서 마커 갱신) → 배너 자동 소멸.
+  const seenKey = `shop-decided-seen-${studentId}`;
+  const seenAt = typeof window !== "undefined" ? Number(localStorage.getItem(seenKey) ?? 0) : 0;
+  const decided = [...(myS2Reqs ?? []), ...(myS1Reqs ?? [])]
+    .filter((r) => r.status !== "pending" && ((r as { decidedAt?: number }).decidedAt ?? 0) > seenAt)
+    .sort((a, b) => ((b as { decidedAt?: number }).decidedAt ?? 0) - ((a as { decidedAt?: number }).decidedAt ?? 0));
+  const firstDecided = decided[0];
+
   // 오늘 할 일 — Team 탭과 같은 판정 (내 평가 문서 하나, 캐시 공유라 추가 읽기 0)
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const targets = myGroup
@@ -221,6 +233,23 @@ export default function MyStatus() {
             <b>{noteLabel} 친구들이 보낸 마음 {myNotes}개</b>가 도착해 있어요!
           </span>
           <span className="shrink-0 text-xs font-bold text-pink-600">보러 가기 →</span>
+        </a>
+      )}
+
+      {/* 🛒 상점 신청 결과 배너 — 승인/반려가 나온 걸 홈에서 바로 알게 */}
+      {firstDecided && (
+        <a
+          href="/shop"
+          className="press flex items-center gap-2.5 rounded-card border border-amber-200 bg-amber-50 px-4 py-3 shadow-card"
+        >
+          <span className="text-2xl">🛒</span>
+          <span className="min-w-0 flex-1 text-sm text-ink-800">
+            <b>
+              "{firstDecided.item}" {firstDecided.status === "approved" ? "✅ 승인" : "❌ 반려"}
+            </b>
+            {decided.length > 1 && ` 외 ${decided.length - 1}건`} — 신청 결과가 나왔어요!
+          </span>
+          <span className="shrink-0 text-xs font-bold text-amber-600">확인하기 →</span>
         </a>
       )}
 

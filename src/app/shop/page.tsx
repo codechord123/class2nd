@@ -2,7 +2,7 @@
 // 상점 — 2학기 실버와 1학기 이월 지갑을 완전 격리 (요구사항 §D).
 // 구매는 신청 → 교사 승인. 이월 지갑 잔액 = 정적 silverRemaining − 승인된 사용량.
 import { friendlyWriteError } from "@/lib/auth";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { todayKST } from "@/lib/date";
 import { SEMESTER_START } from "@/lib/schedule";
@@ -52,6 +52,14 @@ export default function ShopPage() {
   const [menuNote, setMenuNote] = useState(""); // 메뉴 제안 이유
   const [buyBurst, setBuyBurst] = useState(0); // 신청·예약 성공 juice
   const { toast, confirm } = useFeedback();
+
+  // 홈 '신청 결과' 배너 읽음 처리 — 상점을 연 순간 결과를 본 것으로 (배너 자동 소멸)
+  useEffect(() => {
+    if (role === "student" && studentId)
+      try {
+        localStorage.setItem(`shop-decided-seen-${studentId}`, String(Date.now()));
+      } catch {}
+  }, [role, studentId]);
 
   const createRequest = useCreateSpendRequest(wallet, studentId);
   const createGoldRequest = useCreateSpendRequest("s1", studentId);
