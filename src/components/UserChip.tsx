@@ -3,7 +3,7 @@
 // 교사는 '학생 화면' 미리보기로 로그아웃 없이 학생 뷰를 오갈 수 있다 (사용자 요청).
 import { useEffect, useState } from "react";
 import { useSession } from "@/stores/session";
-import { students, studentById } from "@/lib/roster";
+import { nameInitial, students, studentById } from "@/lib/roster";
 import { logout as fbLogout } from "@/lib/auth";
 import PasswordSheet from "@/components/PasswordSheet";
 
@@ -21,7 +21,7 @@ export default function UserChip() {
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5 gap-y-1 text-sm">
       <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-weak text-[11px] font-extrabold text-brand-strong">
-        {label.charAt(0)}
+        {nameInitial(label)}
       </span>
       <span className="font-bold text-ink-700">
         {label}

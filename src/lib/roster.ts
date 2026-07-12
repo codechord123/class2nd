@@ -34,6 +34,12 @@ export const students: Student[] = Object.keys(genderMap).map((name, i) => ({
 
 export const studentById = new Map(students.map((s) => [s.id, s]));
 
+// 아바타 이니셜 — 성이 아니라 이름 첫 글자 (김씨가 7명이라 성 이니셜은 식별 불가)
+export function nameInitial(name: string): string {
+  if (name === "선생님") return "선"; // 호칭은 사람 이름 규칙(성+이름) 미적용
+  return name.length >= 3 ? name.charAt(1) : name.charAt(0);
+}
+
 // ── 전학생·전출 오버라이드 (classData/roster 문서 — 코드 수정 없이 명단 반영) ──
 // 전입생은 전출간 친구의 번호를 이어받는 방식: 이름 변경 + 비밀번호 초기화로 처리.
 // 전출은 이름에 "(전출)" 표시 + inactive 플래그 (평가 대상·칭찬 미션에서 제외).

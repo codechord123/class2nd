@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { friendlyWriteError } from "@/lib/auth";
-import { ROLE_INFO, students, studentById } from "@/lib/roster";
+import { ROLE_INFO, nameInitial, students, studentById } from "@/lib/roster";
 import { CIRCLED_NUMS, serializeClauses } from "@/lib/lawText";
 import Linkify from "@/components/ui/Linkify";
 import VoteBoardTabs from "@/components/VoteBoardTabs";
@@ -444,7 +444,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
                 {/* 아바타 + 말풍선 — 감상문 댓글과 동일 문법 (앱 전체 일관성) */}
                 <div className="flex items-start gap-2">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-weak text-xs font-extrabold text-brand-strong">
-                    {authorName(c.studentId).charAt(0)}
+                    {nameInitial(authorName(c.studentId))}
                   </span>
                   <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm bg-ink-100 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">

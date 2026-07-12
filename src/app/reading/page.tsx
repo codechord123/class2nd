@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/lib/query/settings";
 import { aggregateDate } from "@/lib/aggregate";
 import { useSession } from "@/stores/session";
-import { studentById } from "@/lib/roster";
+import { nameInitial, studentById } from "@/lib/roster";
 import { loadS1TurtleReading } from "@/lib/staticData";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
@@ -184,7 +184,7 @@ function ReportBody({
         {(r.comments ?? []).map((c) => (
           <div key={c.id} className="mt-2 flex items-start gap-2">
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-extrabold text-emerald-700">
-              {name(c.studentId).charAt(0)}
+              {nameInitial(name(c.studentId))}
             </span>
             <div className="min-w-0 rounded-2xl rounded-tl-sm bg-ink-100 px-3 py-2">
               <span className="text-xs font-bold text-ink-500">{name(c.studentId)}</span>
