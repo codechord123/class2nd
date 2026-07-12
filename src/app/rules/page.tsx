@@ -555,11 +555,34 @@ export default function RulesPage() {
         ) : editing ? (
           editingUI
         ) : viewItems.length === 0 ? (
-          <EmptyState
-            emoji="📝"
-            title="아직 내용이 없어요"
-            desc={role === "teacher" ? "✏️ 수정을 눌러 채워주세요." : "곧 채워질 거예요!"}
-          />
+          // 빈 상태에 '만드는 경로'를 안내 — 헌법·법률은 학생이 직접 만드는 것이 이 탭의 본질
+          role === "teacher" ? (
+            <EmptyState emoji="📝" title="아직 내용이 없어요" desc="✏️ 수정을 눌러 채워주세요." />
+          ) : tab === "articles" ? (
+            <EmptyState
+              emoji="🏛️"
+              title="아직 헌법이 없어요"
+              desc="헌법은 우리 반 투표로 만들어져요 — 첫 규칙을 우리 손으로!"
+              action={
+                <a href="/vote" className="press rounded-btn bg-brand px-4 py-2 text-xs font-bold text-white">
+                  🗳 투표하러 가기
+                </a>
+              }
+            />
+          ) : tab === "laws" ? (
+            <EmptyState
+              emoji="📜"
+              title="아직 법률이 없어요"
+              desc="법률은 부서장이 제안해요 — 건의 탭의 '📜 법률 제안'으로 우리 부서 법을 만들어봐요!"
+              action={
+                <a href="/board" className="press rounded-btn bg-brand px-4 py-2 text-xs font-bold text-white">
+                  ✍️ 법률 제안하러 가기
+                </a>
+              }
+            />
+          ) : (
+            <EmptyState emoji="🎭" title="아직 내용이 없어요" desc="곧 채워질 거예요!" />
+          )
         ) : (
           <ol className="mt-4 space-y-2">
             {viewItems.map((line, i) => (
