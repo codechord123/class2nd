@@ -45,11 +45,70 @@ import ReceivedNotes from "@/components/team/ReceivedNotes";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DailyScoreRow, RoleKey } from "@/types";
 
 const roleEmoji = Object.fromEntries(ROLE_INFO.map((r) => [r.key, r.emoji]));
 const COMP_MIN = 10; // 칭찬 최소 글자 수 — "ㅇㅇ" 같은 한 글자 땡 방지 (사용자 확정)
+
+// 📍 오늘의 3가지 플로팅 진행 바 — 긴 화면 어디에 있어도 남은 일이 보인다.
+// 칩을 누르면 그 섹션으로 부드럽게 이동, 3가지 완료 순간엔 초록 배지가 잠깐 반짝
+// (완료 상태로 다시 들어와도 한 번 반짝 — 홈 JuiceBurst와 같은 '기분 좋음 우선').
+// 부모의 조기 return 아래에서 훅을 못 쓰므로(React #310) 자체 훅을 가진 컴포넌트로 분리.
+function TodayProgressBar({
+  doneScores,
+  doneMvp,
+  doneComp,
+}: {
+  doneScores: boolean;
+  doneMvp: boolean;
+  doneComp: boolean;
+}) {
+  const allDone3 = doneScores && doneMvp && doneComp;
+  const [doneFlash, setDoneFlash] = useState(false);
+  useEffect(() => {
+    if (!allDone3) return;
+    setDoneFlash(true);
+    const t = setTimeout(() => setDoneFlash(false), 2600);
+    return () => clearTimeout(t);
+  }, [allDone3]);
+
+  if (allDone3)
+    return doneFlash ? (
+      <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
+        <div className="badge-pop rounded-full bg-success px-4 py-2 text-sm font-bold text-white shadow-pop">
+          🎉 오늘의 3가지 완료!
+        </div>
+      </div>
+    ) : null;
+
+  return (
+    <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
+      <div className="flex items-center gap-1 rounded-full border border-ink-200 bg-white/95 px-2 py-1.5 shadow-pop backdrop-blur">
+        {(
+          [
+            ["peer-eval", "🤝 평가", doneScores],
+            ["boss-vote", "🙌 부서장", doneMvp],
+            ["compliment", "💌 칭찬", doneComp],
+          ] as const
+        ).map(([id, label, done]) => (
+          <button
+            key={id}
+            onClick={() =>
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className={`press rounded-full px-2.5 py-1 text-xs font-bold ${
+              done ? "text-success" : "bg-ink-50 text-ink-600"
+            }`}
+          >
+            {done ? "✅ " : ""}
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function TeamPage() {
   const { role, studentId } = useSession();
@@ -674,7 +733,7 @@ export default function TeamPage() {
 
       {evalOpen && (<>
       {/* 모둠 내 상호평가 — 부서장 평가: 내 부서 O/X 기준으로 다른 모둠원을 평가 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section id="peer-eval" className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>
         <p className="mt-1 text-[13px] text-ink-600">
           나는 우리 모둠의 <b>{roleEmoji[myRole] ?? "👑"} {myRole} 부서장</b>! 친구가 지킨{" "}
@@ -709,7 +768,7 @@ export default function TeamPage() {
 
       {/* 오늘의 부서장 투표 — '그날 부서 일을 가장 잘한 사람'. 최다 득표자 고정 +1점.
           이유를 반드시 적게 해서 인기투표를 억제한다 (사용자 확정). */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section id="boss-vote" className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🙌 오늘의 부서장</h3>
         <p className="mt-1 text-[13px] text-ink-600">{uiTextOf(uiText, "team.bossDesc")}</p>
         {(() => {
@@ -792,13 +851,14 @@ export default function TeamPage() {
           );
         })()}
       </section>
+      <TodayProgressBar doneScores={doneScores} doneMvp={doneMvp} doneComp={doneComp} />
       </>)}
       </div>
 
       <div className="min-w-0 space-y-4 lg:flex-1">
       {/* 오늘의 칭찬(필수) & 건의(선택) — 자유 선택 + 골고루 넛지. 주말·공휴일엔 잠금 */}
       {evalOpen && (
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section id="compliment" className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-bold">
             💌 오늘의 칭찬
@@ -815,18 +875,6 @@ export default function TeamPage() {
               ) : null;
             })()}
           </h3>
-          {/* 오늘 평가 완성 체크리스트 */}
-          <span className="flex gap-1.5 text-[11px]">
-            <span className={doneScores ? "text-success" : "text-ink-300"}>
-              {doneScores ? "✅" : "○"} 평가
-            </span>
-            <span className={doneMvp ? "text-success" : "text-ink-300"}>
-              {doneMvp ? "✅" : "○"} 부서장
-            </span>
-            <span className={doneComp ? "text-success" : "text-ink-300"}>
-              {doneComp ? "✅" : "○"} 칭찬
-            </span>
-          </span>
         </div>
         <p className="mt-1 text-[13px] text-ink-600">
           오늘 고마웠던 친구를 골라 칭찬해요. 내가 쓴 칭찬은 <b>다음 날 그 친구에게 내 이름과
