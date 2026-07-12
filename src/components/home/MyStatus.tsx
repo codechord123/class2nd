@@ -288,7 +288,11 @@ export default function MyStatus() {
           onClick={() => {
             try { localStorage.setItem(seatSeenKey, String(Date.now())); } catch {}
           }}
-          className="press flex items-center gap-2.5 rounded-card border border-amber-200 bg-amber-50 px-4 py-3 shadow-card"
+          className={`press flex items-center gap-2.5 rounded-card border px-4 py-3 shadow-card ${
+            seatDecided.status === "approved"
+              ? "border-success/30 bg-success-weak" // 승인 = 초록 (인접한 상점 앰버와 구분)
+              : "border-ink-200 bg-ink-50"
+          }`}
         >
           <span className="text-2xl">💺</span>
           <span className="min-w-0 flex-1 text-sm text-ink-800">
@@ -298,7 +302,7 @@ export default function MyStatus() {
               <b>자리 신청이 반려됐어요 — 다음 기에 다시 도전!</b>
             )}
           </span>
-          <span className="shrink-0 text-xs font-bold text-amber-600">자리표 보기 →</span>
+          <span className={`shrink-0 text-xs font-bold ${seatDecided.status === "approved" ? "text-success" : "text-ink-500"}`}>자리표 보기 →</span>
         </a>
       )}
 
