@@ -8,10 +8,10 @@ import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useBalances } from "@/lib/query/wallet";
-import { useCumulativeScores, useMyEvaluation } from "@/lib/query/evaluation";
+import { useCumulativeScores, useDailyScores, useLatestAggregated, useMyEvaluation, type DailyMeta } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
-import { isWeekend, todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
@@ -47,6 +47,9 @@ export default function MyStatus() {
   const { data: cum } = useCumulativeScores();
   const today = todayKST();
   const { data: myEval } = useMyEvaluation(today, role === "student" ? studentId : null);
+  // 💌 받은 마음 알림 — 가장 최근 집계일의 칭찬 중 내가 받은 것 (팀 탭과 캐시 공유, 추가 읽기 최소)
+  const { data: todayScores } = useDailyScores(today);
+  const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), role === "student");
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
@@ -140,6 +143,18 @@ export default function MyStatus() {
   const myRole = roleOf(nowWeek, studentId);
   const myTotalBooks = s1BooksOf(stats, studentId) + (stats?.total?.[String(studentId)] ?? 0);
 
+  // 받은 마음 배너 — 오늘 집계가 있으면 오늘, 없으면 최근 집계일 기준 (ReceivedNotes와 동일 소스)
+  const todayMeta = (todayScores as { _meta?: DailyMeta } | null | undefined)?._meta;
+  const noteMeta = todayMeta ?? latestAgg?.meta;
+  const noteDate = todayMeta ? today : latestAgg?.date;
+  const myNotes = (noteMeta?.compliments ?? []).filter((c) => c.to === studentId).length;
+  const noteLabel =
+    noteDate === today
+      ? "오늘"
+      : noteDate
+        ? `${Number(noteDate.slice(5, 7))}월 ${Number(noteDate.slice(8, 10))}일에`
+        : "";
+
   // 오늘 할 일 — Team 탭과 같은 판정 (내 평가 문서 하나, 캐시 공유라 추가 읽기 0)
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
   const targets = myGroup
@@ -194,6 +209,20 @@ export default function MyStatus() {
     <div className="space-y-4">
       {/* ① 거북이 독서 통합 — 학급 미션(배너) 바로 아래 붙여서 최상단 (사용자 확정) */}
       {readingCard({ weekRead: myWeekRead, totalBooks: myTotalBooks })}
+
+      {/* 💌 받은 마음 배너 — 칭찬 받은 걸 3단계 파고들지 않아도 홈에서 바로 알게 (발견성) */}
+      {myNotes > 0 && noteDate && (
+        <a
+          href="/team#received"
+          className="press flex items-center gap-2.5 rounded-card border border-pink-200 bg-pink-50 px-4 py-3 shadow-card"
+        >
+          <span className="text-2xl">💌</span>
+          <span className="min-w-0 flex-1 text-sm text-ink-800">
+            <b>{noteLabel} 친구들이 보낸 마음 {myNotes}개</b>가 도착해 있어요!
+          </span>
+          <span className="shrink-0 text-xs font-bold text-pink-600">보러 가기 →</span>
+        </a>
+      )}
 
       {/* ② 오늘 할 일 — 큰 타일 */}
       <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">

@@ -137,6 +137,13 @@ export default function TeamPage() {
   const [tab, setTab] = useState<"eval" | "me" | "group">("eval");
   const [groupTab, setGroupTab] = useState<"group" | "class">("group"); // 모둠·학급 하위 탭
   const [meTab, setMeTab] = useState<"stats" | "received">("stats"); // 내 기록 하위 탭
+  // 홈 '받은 마음' 배너 딥링크 — /team#received로 오면 내 기록 > 받은 것을 바로 연다
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#received") {
+      setTab("me");
+      setMeTab("received");
+    }
+  }, []);
   const [tView, setTView] = useState<"group" | "student">("group"); // 교사용 하위 탭
   const [tSid, setTSid] = useState(students.find((s) => !s.inactive)?.id ?? 1); // 교사 개인별 선택
   const [tDate, setTDate] = useState(todayKST()); // 교사 모둠 기록 날짜별 보기
