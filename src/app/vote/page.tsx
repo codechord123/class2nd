@@ -42,6 +42,9 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
   const totalMarks = counts.reduce((a, b) => a + b, 0);
   const maxCount = Math.max(...counts, 0);
   const myVotes = studentId != null ? votesOf(poll, String(studentId)) : [];
+  // 밴드왜건 방지 — 학생은 투표하기 전엔 득표수·막대를 못 본다 (내 생각대로 고르게).
+  // 투표하는 순간 결과가 공개되는 것이 보상. 교사·마감된 투표는 항상 공개.
+  const showResults = closed || role !== "student" || myVotes.length > 0;
 
   return (
     <section
@@ -161,7 +164,7 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ${
                     winner ? "bg-warn-weak" : chosen ? "bg-brand-weak" : "bg-ink-100"
                   }`}
-                  style={{ width: `${pct}%` }}
+                  style={{ width: showResults ? `${pct}%` : "0%" }}
                 />
                 <span className="relative flex items-center justify-between gap-2">
                   <span>
@@ -169,9 +172,11 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
                     {chosen && "✓ "}
                     {opt}
                   </span>
-                  <span className="shrink-0 text-xs text-ink-400">
-                    {counts[i]}표 ({pct}%)
-                  </span>
+                  {showResults && (
+                    <span className="shrink-0 text-xs text-ink-400">
+                      {counts[i]}표 ({pct}%)
+                    </span>
+                  )}
                 </span>
               </button>
             </li>
@@ -179,6 +184,11 @@ function PollCard({ poll, onDone }: { poll: Poll; onDone?: () => void }) {
         })}
       </ul>
 
+      {!showResults && (
+        <p className="mt-2 text-xs text-ink-400">
+          🕵️ 결과는 투표하면 바로 보여요 — 친구 따라 말고 내 생각대로!
+        </p>
+      )}
       {/* 투표 후 완료 — 선택하면 활성화, 누르면 목록으로 */}
       {onDone && role === "student" && !closed && (
         <button
@@ -453,8 +463,8 @@ function PollRow({ p, myId, onOpen }: { p: Poll; myId: number | null; onOpen: ()
           <span className="tnum">👥{voterIds.length}</span>
         </span>
       </span>
-      {/* 선두 옵션 미리보기 — 열지 않아도 판세가 보임 */}
-      {total > 0 && (
+      {/* 선두 옵션 미리보기 — 내가 투표했거나 마감된 것만 (투표 전 판세 노출 = 따라 찍기 유발) */}
+      {total > 0 && (iVoted || closed) && (
         <span className="mt-1.5 block">
           <span className="flex items-center justify-between text-[11px] text-ink-500">
             <span className="truncate">
