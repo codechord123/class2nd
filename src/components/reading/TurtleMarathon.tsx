@@ -51,8 +51,8 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
 
   const [capped, setCapped] = useState(false);
   const pendingRef = useRef(0);
-  // 연타 콤보 — 2초 안에 이어 누르면 쌓이고, 쉬면 리셋 (setHopKey 전에 갱신해 렌더에서 읽는다)
-  const comboRef = useRef(0);
+  // 연타 콤보 — 2초 안에 이어 누르면 쌓이고, 쉬면 리셋
+  const [combo, setCombo] = useState(0);
   const comboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (comboTimer.current) clearTimeout(comboTimer.current); }, []);
   // 기기별 일일 상한 — localStorage에 오늘 카운트 저장
@@ -96,9 +96,9 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const s1Progress = Math.min((s1Total / goal) * 100, 100);
 
   // 10연타마다 특별 버스트·응원말 — 연속 클릭에 '쌓이는 감각'을 준다
-  const comboHit = comboRef.current > 0 && comboRef.current % 10 === 0;
+  const comboHit = combo > 0 && combo % 10 === 0;
   const burst = comboHit ? COMBO_BURST : BURSTS[hopKey % BURSTS.length];
-  const cheer = comboHit ? `${comboRef.current}연타! 🔥` : CHEER_WORDS[hopKey % CHEER_WORDS.length];
+  const cheer = comboHit ? `${combo}연타! 🔥` : CHEER_WORDS[hopKey % CHEER_WORDS.length];
 
   return (
     // bare: 다른 카드 안에 합쳐 넣을 때 (독서 탭 상단 압축 — 카드 개수 줄이기)
@@ -124,9 +124,9 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
       <button
         type="button"
         onClick={() => {
-          comboRef.current += 1;
+          setCombo((c) => c + 1);
           if (comboTimer.current) clearTimeout(comboTimer.current);
-          comboTimer.current = setTimeout(() => { comboRef.current = 0; }, 2000);
+          comboTimer.current = setTimeout(() => setCombo(0), 2000);
           setHopKey((k) => k + 1); // 상한을 넘어도 애니메이션은 그대로 (재미 유지)
           if (!bumpDaily()) {
             if (!capped) {
