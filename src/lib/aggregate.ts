@@ -19,7 +19,7 @@ import {
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, todayKST, weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow, RoleKey } from "@/types";
@@ -663,7 +663,11 @@ async function aggregateDateInner(
     const cumAny = cum as Record<string, unknown>;
     const period = periodOfWeek(week);
     const streakDay = (cumAny.compStreakDay as string) ?? "";
-    const isSchoolDay = evalSnap.size > 0;
+    // 학사일 = 제출이 있는 날 '그리고' 주말·공휴일이 아닌 날.
+    // 제출 존재만 보면 시계가 틀린 기기의 주말 날짜 제출 한 건이 그날을 학사일로
+    // 둔갑시켜 나머지 전원의 연속을 끊는다 — 달력 판정을 겹쳐 원천 차단.
+    const isSchoolDay =
+      evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
     if (date >= streakDay) {
       const sameDay = streakDay === date;
       let base =
