@@ -171,6 +171,8 @@ export default function DailyReportPanel({
           else if ((r.mvp ?? 0) > 0) bs.push(`<span class="bc mvp">⭐ MVP</span>`);
           if ((r.best ?? 0) > 0) bs.push(`<span class="bc best">👑 오늘의 모둠</span>`);
           if ((r.boss ?? 0) > 0) bs.push(`<span class="bc boss">🙌 오늘의 부서장</span>`);
+          if ((r.fair ?? 0) > 0) bs.push(`<span class="bc praise">🤝 페어플레이</span>`);
+          if ((r.allDone ?? 0) > 0) bs.push(`<span class="bc read">📌 할 일 완주</span>`);
           if ((r.read ?? 0) > 0) bs.push(`<span class="bc read">🐢 독서 +${r.read}점</span>`);
           if ((r.comp ?? 0) > 0) bs.push(`<span class="bc praise">💌 칭찬하기 +${r.comp}</span>`);
           if (praisedSet.has(id)) bs.push(`<span class="bc praise">💌 칭찬 받음</span>`);

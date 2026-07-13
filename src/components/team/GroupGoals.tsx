@@ -118,13 +118,20 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
       const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
         (id) => !studentById.get(id)?.inactive
       );
-      yGroupSums[String(g.groupId)] = groupDayScore(srcRows, ids).total;
+      // 팀 단위 보너스(🔥 미션 연속·📌 전원 완주)는 행이 아니라 _meta에 있다 —
+      // 더하지 않으면 저장된 모둠 점수·오늘의 모둠 판정과 어긋난다
+      const teamExtra =
+        (yMeta?.missionStreakBonus?.[String(g.groupId)] ?? 0) +
+        ((yMeta?.allDoneGroups ?? []).includes(g.groupId) ? 1 : 0);
+      yGroupSums[String(g.groupId)] = groupDayScore(srcRows, ids).total + teamExtra;
     }
   const yMax = Math.max(0, ...Object.values(yGroupSums));
+  // 오늘의 모둠 타이틀은 저장된 판정을 우선 (재계산은 규칙 변경 전 문서 폴백)
   const yBest = new Set(
-    Object.entries(yGroupSums)
-      .filter(([, v]) => v === yMax && yMax > 0)
-      .map(([k]) => Number(k))
+    (yMeta?.autoBestGroups?.length ? yMeta.autoBestGroups : null) ??
+      Object.entries(yGroupSums)
+        .filter(([, v]) => v === yMax && yMax > 0)
+        .map(([k]) => Number(k))
   );
   const yMission = new Set(yMeta?.missionGroups ?? []);
   const hasYesterday = Object.values(yGroupSums).some((v) => v !== 0);

@@ -233,7 +233,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       const receivedCount: Record<string, number> = {};
       const reflections: RangeReport["reflections"] = [];
       const sumByCat: Record<string, Record<string, number>> = {};
-      const CATS = ["peer", "groupRank", "bonus", "mission", "comp", "boss", "mvp", "best", "read"] as const;
+      const CATS = ["peer", "groupRank", "bonus", "mission", "comp", "boss", "fair", "allDone", "mvp", "best", "read"] as const;
       let compliments = 0,
         suggestions = 0,
         missionAchievements = 0,
@@ -302,6 +302,10 @@ export interface DailyMeta {
   autoBestGroups?: number[]; // 오늘의 모둠 (총점 1위)
   classTop?: number[]; // 학급 전체 1위 = 오늘의 MVP
   missionGroups?: number[]; // 칭찬 미션 달성 모둠
+  missionStreakBonus?: Record<string, number>; // 🔥 미션 연속 팀 보너스 (모둠별)
+  allDoneStudents?: number[]; // 📌 할 일 5개 완주 학생 (+1)
+  allDoneGroups?: number[]; // 📌 전원 완주 모둠 (+1 팀 점수)
+  fairWinners?: number[]; // 🤝 오늘의 페어플레이 (배려왕)
   peerDetail?: Record<
     string,
     { from: number; dept: string; checks: boolean[]; score: number }[]
