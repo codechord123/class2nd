@@ -570,7 +570,17 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (+1은 다음 페이지 존재 탐지)
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const { data: posts } = useSuggestions(page * pageSize + 1);
+  // 건의 목록은 법률 글을 클라이언트에서 제외하므로, 최근 글이 법률로 가득하면
+  // 가져온 창이 통째로 걸러져 페이지가 비어 보인다 — 법률 제외 글이 페이지를
+  // 채울 때까지 가져오는 양을 늘린다 (컬렉션 끝에 닿으면 멈춤 = 읽기 상한 유지)
+  const [fetchExtra, setFetchExtra] = useState(0);
+  const need = page * pageSize + 1;
+  const { data: posts } = useSuggestions(need + fetchExtra);
+  useEffect(() => {
+    if (!posts) return;
+    const nonLaw = posts.filter((p) => !p.isAnnouncement && p.kind !== "law").length;
+    if (nonLaw < need && posts.length >= need + fetchExtra) setFetchExtra((e) => e + 20);
+  }, [posts, need, fetchExtra]);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(role === "teacher" ? "teacher" : studentId);
   const nominateHidden = useNominateHidden(studentId);
@@ -798,7 +808,8 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
         .filter(matches);
   // 검색 중·법률 모드에는 결과 전체, 평소엔 현재 페이지 분량만
   const pageItems = kw || lawMode ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
-  const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
+  // 페이지 수는 법률 제외 후 실제 보이는 글 수 기준 (법률 포함으로 세면 빈 페이지가 생긴다)
+  const knownPages = Math.max(1, Math.ceil(normal.length / pageSize));
 
   // 정리 모드: 현재 화면에 보이는 글(공지 + 현재 페이지) 대상 선택·삭제
   const manageTargets = [...pinned, ...pageItems];
