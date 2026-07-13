@@ -12,6 +12,7 @@ const MULTS: { key: keyof EventBoost; label: string }[] = [
   { key: "comp", label: "💌 칭찬(개인)" },
   { key: "mission", label: "🎯 칭찬 미션(팀)" },
   { key: "mvp", label: "⭐ MVP" },
+  { key: "fair", label: "🤝 페어플레이" },
   { key: "read", label: "🐢 독서" },
 ];
 
@@ -22,8 +23,10 @@ export default function EventBoostPanel() {
   const [draft, setDraft] = useState<EventBoost | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const cur = draft ?? saved ?? DEFAULT_EVENT_BOOST;
-  const dirty = JSON.stringify(cur) !== JSON.stringify(saved ?? DEFAULT_EVENT_BOOST);
+  // 저장된 구버전 문서엔 fair가 없을 수 있어 기본값 위에 병합 (undefined 스테퍼 방지)
+  const base = { ...DEFAULT_EVENT_BOOST, ...(saved ?? {}) };
+  const cur = draft ?? base;
+  const dirty = JSON.stringify(cur) !== JSON.stringify(base);
   const set = (patch: Partial<EventBoost>) => setDraft({ ...cur, ...patch });
 
   const boostedList = MULTS.filter((m) => (cur[m.key] as number) > 1)

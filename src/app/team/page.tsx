@@ -16,6 +16,7 @@ import {
   useDailyScores,
   useCumulativeScores,
   useLatestAggregated,
+  useSaveFair,
   useSaveMvp,
   useSavePeerChecks,
   useSavePeerNotes,
@@ -58,13 +59,15 @@ const COMP_MIN = 10; // 칭찬 최소 글자 수 — "ㅇㅇ" 같은 한 글자 
 function TodayProgressBar({
   doneScores,
   doneMvp,
+  doneFair,
   doneComp,
 }: {
   doneScores: boolean;
   doneMvp: boolean;
+  doneFair: boolean;
   doneComp: boolean;
 }) {
-  const allDone3 = doneScores && doneMvp && doneComp;
+  const allDone3 = doneScores && doneMvp && doneFair && doneComp;
   const [doneFlash, setDoneFlash] = useState(false);
   useEffect(() => {
     if (!allDone3) return;
@@ -77,7 +80,7 @@ function TodayProgressBar({
     return doneFlash ? (
       <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
         <div className="badge-pop rounded-full bg-success px-4 py-2 text-sm font-bold text-white shadow-pop">
-          🎉 오늘의 3가지 완료!
+          🎉 오늘의 4가지 완료!
         </div>
       </div>
     ) : null;
@@ -87,8 +90,9 @@ function TodayProgressBar({
       <div className="flex items-center gap-1 rounded-full border border-ink-200 bg-white/95 px-2 py-1.5 shadow-pop backdrop-blur">
         {(
           [
-            ["peer-eval", "🤝 평가", doneScores],
+            ["peer-eval", "📋 평가", doneScores],
             ["boss-vote", "🙌 부서장", doneMvp],
+            ["fair-vote", "🤝 페어플레이", doneFair],
             ["compliment", "💌 칭찬", doneComp],
           ] as const
         ).map(([id, label, done]) => (
@@ -121,6 +125,7 @@ export default function TeamPage() {
   const savePeerChecks = useSavePeerChecks(date, studentId);
   const { data: peerCriteria } = usePeerCriteria();
   const saveMvp = useSaveMvp(date, studentId);
+  const saveFair = useSaveFair(date, studentId);
   const savePeer = useSavePeerNotes(date, studentId);
   const saveToTeacher = useSaveToTeacher(date, studentId);
   const saveReflection = useSaveReflection(date, studentId);
@@ -161,6 +166,7 @@ export default function TeamPage() {
   const [mvpBusy, setMvpBusy] = useState(false); // 부서장 투표 저장 중 추가 클릭 무시
   const [bossPick, setBossPick] = useState<number | null>(null); // 부서장 투표 대상(제출 전)
   const [bossReason, setBossReason] = useState(""); // 부서장 투표 이유(필수)
+  const [fairBusy, setFairBusy] = useState(false); // 🤝 페어플레이 투표 저장 중 추가 클릭 무시
   // 보낸 칭찬·건의 인라인 수정 (당일 한정 — 평가 문서가 오늘 것이라 자연히 오늘만 가능)
   const [editPeer, setEditPeer] = useState<{ kind: "comp" | "sug"; tid: string; text: string } | null>(null);
   const { toast, confirm } = useFeedback();
@@ -338,6 +344,7 @@ export default function TeamPage() {
   // 부서장 평가는 '선택'이라 전원 요구하지 않는다(안 하면 0점, 강요 X). 한 명이라도 했으면 ✅.
   const doneScores = targets.some((t) => typeof evalRec[t.studentId] === "number");
   const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
+  const doneFair = typeof evalRec._fair === "number" && (evalRec._fair as number) > 0;
   const doneComp = Object.values(savedComp).some((v) => v?.trim());
 
   // 부서장 평가 — 미션은 바로 보인다(게이트 없음). 마이너스가 없어 안 건드린 친구는 0점이라
@@ -640,7 +647,7 @@ export default function TeamPage() {
         {/* 오늘 점수 출처 — 별도 줄 */}
         {myRow ? (
           <div className="mt-2 flex flex-wrap justify-center gap-1 text-xs">
-            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">🤝 부서장 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
+            <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">📋 부서장 {myRow.peer >= 0 ? "+" : ""}{myRow.peer}</span>
             {myRow.groupRank !== 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">🏆 순위 +{myRow.groupRank}</span>
             )}
@@ -655,6 +662,9 @@ export default function TeamPage() {
             )}
             {(myRow.boss ?? 0) > 0 && (
               <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">👑 부서장 표 +{myRow.boss}</span>
+            )}
+            {(myRow.fair ?? 0) > 0 && (
+              <span className="rounded-full bg-success-weak px-2 py-0.5 text-success">🤝 페어플레이 +{myRow.fair}</span>
             )}
             {(myRow.mvp ?? 0) > 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">⭐ MVP +{myRow.mvp}</span>
@@ -858,7 +868,65 @@ export default function TeamPage() {
           );
         })()}
       </section>
-      <TodayProgressBar doneScores={doneScores} doneMvp={doneMvp} doneComp={doneComp} />
+
+      {/* 🤝 오늘의 페어플레이 — '모둠원 사이에서 배려를 가장 잘한 사람'. 최다 득표자 +1점.
+          부서장 투표(일 잘함)와 축이 다르다: 여기는 태도·배려를 본다 (사용자 확정). */}
+      <section id="fair-vote" className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-4 shadow-card">
+        <h3 className="text-lg font-bold">🤝 오늘의 페어플레이</h3>
+        <p className="mt-1 text-[13px] text-ink-600">
+          오늘 모둠원을 가장 잘 <b>배려</b>한 친구는 누구인가요? 양보하고, 도와주고, 기다려준
+          친구에게 한 표! (모둠 최다 득표 +1점)
+        </p>
+        {(() => {
+          const rec = (myEval as Record<string, unknown> | undefined) ?? {};
+          const votedId = typeof rec._fair === "number" && rec._fair > 0 ? (rec._fair as number) : null;
+          return (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {targets.map((t) => {
+                  const picked = votedId === t.studentId;
+                  return (
+                    <button
+                      key={t.studentId}
+                      onClick={() => {
+                        if (fairBusy) return;
+                        setFairBusy(true);
+                        const next = picked ? 0 : t.studentId; // 같은 친구 다시 누르면 취소
+                        void saveFair(next)
+                          .then(() =>
+                            toast(
+                              next
+                                ? `🤝 ${studentById.get(next)?.name}에게 페어플레이 한 표!`
+                                : "페어플레이 투표를 취소했어요."
+                            , next ? "success" : undefined)
+                          )
+                          .catch((e: Error) => toast(`⚠️ ${e.message}`, "error"))
+                          .finally(() => setFairBusy(false));
+                      }}
+                      disabled={fairBusy}
+                      className={`press rounded-full border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
+                        picked
+                          ? "border-success bg-success text-white"
+                          : "border-ink-200 bg-white text-ink-600 hover:border-success/40"
+                      }`}
+                    >
+                      {picked && "🤝 "}
+                      {studentById.get(t.studentId)?.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {votedId != null && (
+                <p className="mt-2 text-xs text-ink-500">
+                  ✓ <b>{studentById.get(votedId)?.name}</b>에게 투표함 — 다른 친구를 누르면
+                  바꿀 수 있어요.
+                </p>
+              )}
+            </>
+          );
+        })()}
+      </section>
+      <TodayProgressBar doneScores={doneScores} doneMvp={doneMvp} doneFair={doneFair} doneComp={doneComp} />
       </>)}
       </div>
 

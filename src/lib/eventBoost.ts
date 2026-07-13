@@ -9,6 +9,7 @@ export interface EventBoost {
   comp: number; // 칭찬 개인 점수 배수
   mission: number; // 칭찬 미션(팀) 배수
   mvp: number; // MVP 배수
+  fair?: number; // 🤝 페어플레이 배수 (구버전 문서엔 없음 → 1)
   read: number; // 독서 배수
 }
 
@@ -20,6 +21,7 @@ export const DEFAULT_EVENT_BOOST: EventBoost = {
   comp: 1,
   mission: 1,
   mvp: 1,
+  fair: 1,
   read: 1,
 };
 
@@ -27,9 +29,10 @@ export interface EventMult {
   comp: number;
   mission: number;
   mvp: number;
+  fair: number;
   read: number;
 }
-export const NO_BOOST: EventMult = { comp: 1, mission: 1, mvp: 1, read: 1 };
+export const NO_BOOST: EventMult = { comp: 1, mission: 1, mvp: 1, fair: 1, read: 1 };
 
 /** 그 날짜에 적용할 배수 — 이벤트가 활성·기간 안일 때만, 아니면 전부 ×1. */
 export function eventMultipliers(b: EventBoost | undefined, date: string): EventMult {
@@ -39,6 +42,7 @@ export function eventMultipliers(b: EventBoost | undefined, date: string): Event
     comp: b.comp || 1,
     mission: b.mission || 1,
     mvp: b.mvp || 1,
+    fair: b.fair || 1,
     read: b.read || 1,
   };
 }

@@ -92,6 +92,26 @@ export function useSaveMvp(date: string, myId: number | null) {
   };
 }
 
+/** 🤝 오늘의 페어플레이 투표 — 모둠원 중 배려를 가장 잘한 친구 1명 (같은 평가 문서 _fair 필드).
+ *  0 = 취소. 자기 투표는 집계에서 무효 처리. 추가 읽기 0. */
+export function useSaveFair(date: string, myId: number | null) {
+  const qc = useQueryClient();
+  return async (fairId: number) => {
+    if (myId == null) return;
+    await setDoc(
+      doc(db(), "evaluations", date, "entries", String(myId)),
+      { _fair: fairId },
+      { merge: true }
+    ).catch((e) => {
+      throw friendlyWriteError(e);
+    });
+    qc.setQueryData(["evaluation", date, myId], (prev: PeerEvaluation | undefined) => ({
+      ...prev,
+      _fair: fairId,
+    }));
+  };
+}
+
 /**
  * 모둠원 칭찬 & 건의 — 친구별로(모두가 받을 수 있게) 저장.
  *   _compliments: { targetId: 칭찬글 }  ·  _peerSuggestions: { targetId: 건의글 }

@@ -108,6 +108,7 @@ export default function DailyReportPanel({
     mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
     classTop?: number[]; // 학급 전체 1위 (+1 가산, 모둠 1위와 합쳐 +2)
     bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
+    fairWinners?: number[]; // 🤝 오늘의 페어플레이 (배려왕 투표 최다)
     autoBestGroups?: number[]; // 오늘의 모둠 — 총점 합계 1위 (자동 타이틀)
     ranks?: Record<string, number>; // 교사 순위 (점수 배분)
     missionGroups?: number[];
@@ -627,6 +628,11 @@ export default function DailyReportPanel({
               {(meta?.bossWinners ?? []).length > 0 && (
                 <p className="mt-0.5 text-xs text-ink-600">
                   👑 오늘의 부서장(투표): {(meta!.bossWinners ?? []).map(nm).join(", ")}
+                </p>
+              )}
+              {(meta?.fairWinners ?? []).length > 0 && (
+                <p className="mt-0.5 text-xs text-success">
+                  🤝 오늘의 페어플레이(배려왕): {(meta!.fairWinners ?? []).map(nm).join(", ")}
                 </p>
               )}
             </div>

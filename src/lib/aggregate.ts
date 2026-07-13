@@ -300,6 +300,7 @@ async function aggregateDateInner(
   //    "_"로 시작하는 키는 점수가 아닌 부가 필드(_mvp, _compliment)
   const peer: Record<number, number> = {};
   const mvpVotes: Record<number, number> = {};
+  const fairVotes: Record<number, number> = {}; // 🤝 페어플레이 (배려왕) 득표
   // 칭찬·건의·바라는 점도 _meta에 보관 → 기간 인쇄(일/주/월)가 집계 문서만 읽으면 되게 함
   const compliments: { from: number; to: number; text: string }[] = [];
   const peerSuggestions: { from: number; to: number; text: string }[] = [];
@@ -325,6 +326,9 @@ async function aggregateDateInner(
       const reason = (data._mvpReason as string | undefined)?.trim();
       if (reason) bossReasons.push({ from, to: data._mvp, text: reason });
     }
+    // 🤝 페어플레이 투표 — 모둠원 중 배려를 가장 잘한 친구 (자기 투표 무효, 0=취소)
+    if (typeof data._fair === "number" && data._fair > 0 && data._fair !== from)
+      fairVotes[data._fair] = (fairVotes[data._fair] ?? 0) + 1;
     // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments) — 자기 칭찬 무효
     const legacy = data._compliment as { to: number; text: string } | undefined;
     if (legacy?.text && legacy.to !== from)
@@ -456,6 +460,16 @@ async function aggregateDateInner(
     if (max > 0) bossWinners.push(...ids.filter((id) => (mvpVotes[id] ?? 0) === max));
   }
 
+  // 4-3) 🤝 오늘의 페어플레이 (투표): 각 모둠 최다 득표(1표 이상, 동점 모두).
+  //      "모둠원 사이에서 배려를 가장 잘한 사람" — 최다 득표자에게 고정 +1점 (사용자 확정).
+  const fairWinners: number[] = [];
+  for (const g of schedule.groups) {
+    const ids = activeIdsOf(g);
+    const max = Math.max(0, ...ids.map((id) => fairVotes[id] ?? 0));
+    if (max > 0) fairWinners.push(...ids.filter((id) => (fairVotes[id] ?? 0) === max));
+  }
+  const fairSet = new Set(fairWinners);
+
   // 5) 학생별 행 구성 (기존 보너스는 유지)
   //    1차 기본 점수 = 부서장평가 + 선생님 모둠순위 + 칭찬미션 + 독서(2권 캡) + 부서장(고정+1) + 교사보너스
   //    (MVP·오늘의 모둠 보너스는 이 기본 점수 확정 후 별도 단계에서 가산 — 순환 방지)
@@ -472,6 +486,7 @@ async function aggregateDateInner(
       mission: number;
       comp: number;
       boss: number;
+      fair: number;
       read: number;
       sum: number;
     }
@@ -494,6 +509,8 @@ async function aggregateDateInner(
     // 이벤트 배수 적용 (칭찬 미션·개인, 독서). 이벤트 없으면 ev.*=1이라 변화 없음.
     const mission = !absent && missionSet.has(groupOfStudent[s.id]) ? 1 * ev.mission : 0;
     const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1 (결석은 bossSet에서 이미 제외)
+    // 🤝 페어플레이 — 모둠 최다 득표자 고정 +1 (이벤트 배수 적용, 결석은 fairSet에서 이미 제외)
+    const fair = fairSet.has(s.id) ? 1 * ev.fair : 0;
     // 칭찬 개인 점수 — 결석 학생은 칭찬을 못 하니 자연히 0 (comp에 없음)
     const cm = (comp[s.id] ?? 0) * ev.comp;
     // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지, 권당 READ_POINTS_PER_BOOK점 (권수 기록은 캡 없음)
@@ -505,8 +522,9 @@ async function aggregateDateInner(
       mission,
       comp: cm,
       boss,
+      fair,
       read,
-      sum: p + gr + bonus + mission + cm + boss + read,
+      sum: p + gr + bonus + mission + cm + boss + fair + read,
     };
   }
 
@@ -545,6 +563,7 @@ async function aggregateDateInner(
       mission: b.mission,
       comp: b.comp,
       boss: b.boss,
+      fair: b.fair,
       mvp,
       read: b.read,
       best: 0, // 오늘의 모둠 보너스는 아래에서 선정 후 가산
@@ -589,6 +608,7 @@ async function aggregateDateInner(
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
     bestGroupWins?: Record<string, number>; // 오늘의 모둠(autoBest)에 든 횟수 — 팀 기여도
+    fairWins?: Record<string, number>; // 🤝 페어플레이 선정 횟수 — 우리 반 통계
     // 이 외에 칭찬 연속 보너스 상태 필드(compStreak*, compBonusToday)가 함께 저장된다
   };
   const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
@@ -598,6 +618,7 @@ async function aggregateDateInner(
           | {
               mvpVotes?: Record<string, number>;
               mvpWinners?: number[];
+              fairWinners?: number[];
               autoBestGroups?: number[];
               autoBestMembers?: number[]; // 그 날 best=1 받은 실제 명단 (재집계 차감용)
               groupSums?: Record<string, number>;
@@ -613,6 +634,11 @@ async function aggregateDateInner(
   for (const w of mvpWinners) mvpWins[String(w)] = (mvpWins[String(w)] ?? 0) + 1;
   for (const [sid, n] of Object.entries(mvpVotes))
     mvpVotesTotal[String(sid)] = (mvpVotesTotal[String(sid)] ?? 0) + n;
+
+  // 🤝 페어플레이 선정 횟수 (우리 반 통계) — mvpWins와 같은 멱등 방식 (이전 명단 빼고 새로 더함)
+  const fairWins = { ...cum.fairWins };
+  for (const w of prevMeta.fairWinners ?? []) fairWins[String(w)] = (fairWins[String(w)] ?? 0) - 1;
+  for (const w of fairWinners) fairWins[String(w)] = (fairWins[String(w)] ?? 0) + 1;
 
   // 오늘의 모둠 포함 횟수(팀 기여도) — 실제 오늘의 모둠(autoBestGroups) 모둠원 전원 +1.
   // 멱등: 같은 날 재집계 시 이전에 실제로 준 명단(_meta.autoBestMembers)을 빼고 새로 더한다.
@@ -716,6 +742,8 @@ async function aggregateDateInner(
         classTop, // 학급 전체 1위 (+1 가산 대상 — 모둠 1위 +1과 합쳐 +2)
         bossWinners, // 오늘의 부서장 (투표 최다 — 고정 +1점)
         bossReasons, // 부서장 투표 이유 (인기투표 억제 근거 — 리포트 표시)
+        fairVotes, // 🤝 페어플레이 득표 (모둠원 배려왕 투표)
+        fairWinners, // 오늘의 페어플레이 (모둠별 최다 득표 — 고정 +1점)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
         autoBestMembers, // best=1 받은 실제 명단 (재집계 시 결석 변동에도 멱등 차감)
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
@@ -733,6 +761,7 @@ async function aggregateDateInner(
       mvpWins,
       mvpVotesTotal,
       bestGroupWins,
+      fairWins,
     }),
   ]);
 

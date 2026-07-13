@@ -30,12 +30,14 @@ export default function MyRecord({
   const cum = (cumScores ?? {}) as {
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
+    fairWins?: Record<string, number>;
     compStreak?: Record<string, number>;
   } & Record<string, unknown>;
   const sid = String(studentId);
   const score = typeof cum[sid] === "number" ? (cum[sid] as number) : 0;
   const mvpWins = cum.mvpWins?.[sid] ?? 0;
   const bossVotes = cum.mvpVotesTotal?.[sid] ?? 0;
+  const fairWins = cum.fairWins?.[sid] ?? 0;
   const totalBooks = s1BooksOf(stats, studentId) + (stats?.total?.[sid] ?? 0);
 
   const curWeek = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
@@ -57,11 +59,12 @@ export default function MyRecord({
   const cumCat = cumReport?.sumByCat?.[sid] ?? {};
   // 항목별 라벨 (일간·누적 공용)
   const CAT_LABELS = [
-    { key: "peer", icon: "🤝", label: "부서장 평가" },
+    { key: "peer", icon: "📋", label: "부서장 평가" },
     { key: "groupRank", icon: "🏆", label: "모둠 순위" },
     { key: "mission", icon: "🎯", label: "칭찬 미션" },
     { key: "comp", icon: "💌", label: "칭찬하기" },
     { key: "boss", icon: "🙌", label: "오늘의 부서장" },
+    { key: "fair", icon: "🤝", label: "페어플레이" },
     { key: "mvp", icon: "⭐", label: "MVP" },
     { key: "best", icon: "👑", label: "오늘의 모둠" },
     { key: "read", icon: "🐢", label: "독서" },
@@ -77,11 +80,12 @@ export default function MyRecord({
   const aggDate = todayRow ? today : latestAgg?.date;
   const parts = myRow
     ? [
-        { icon: "🤝", label: "부서장 평가", v: myRow.peer ?? 0 },
+        { icon: "📋", label: "부서장 평가", v: myRow.peer ?? 0 },
         { icon: "🏆", label: "모둠 순위", v: myRow.groupRank ?? 0 },
         { icon: "🎯", label: "칭찬 미션", v: myRow.mission ?? 0 },
         { icon: "💌", label: "칭찬하기", v: myRow.comp ?? 0 },
         { icon: "🙌", label: "오늘의 부서장", v: myRow.boss ?? 0 },
+        { icon: "🤝", label: "페어플레이", v: myRow.fair ?? 0 },
         { icon: "⭐", label: "MVP", v: myRow.mvp ?? 0 },
         { icon: "👑", label: "오늘의 모둠", v: myRow.best ?? 0 },
         { icon: "🐢", label: "독서", v: myRow.read ?? 0 },
@@ -100,6 +104,7 @@ export default function MyRecord({
     { label: "🐢 총 권수 (1+2학기)", value: totalBooks, cls: "bg-success-weak text-success" },
     { label: "⭐ MVP 횟수", value: mvpWins, cls: "bg-warn-weak text-warn" },
     { label: "👑 부서장 득표", value: bossVotes, cls: "bg-ink-50 text-ink-900" },
+    { label: "🤝 페어플레이 선정", value: fairWins, cls: "bg-success-weak text-success" },
   ];
 
   return (
