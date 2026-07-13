@@ -60,14 +60,24 @@ export default function GroupBreakdown({
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
 
+  // 팀 단위 보너스(🔥 미션 연속·📌 전원 완주)는 행이 아니라 _meta에 있다 — 저장된 모둠 점수와 일치시키는 오버레이
+  const meta = ((targetHasRows ? targetScores?._meta : latestAgg?.rows?._meta) ?? {}) as {
+    missionStreakBonus?: Record<string, number>;
+    allDoneGroups?: number[];
+  };
+  const streakOf = (gid: number) => meta.missionStreakBonus?.[String(gid)] ?? 0;
+  const allDoneSet = new Set(meta.allDoneGroups ?? []);
+
   // 모둠 점수 규칙은 lib/groupScore가 단일 출처 — 집계·대항전·리포트와 항상 동일
   const groups = schedule.groups.map((g) => {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
       (id) => !studentById.get(id)?.inactive
     );
-    return { groupId: g.groupId, ids, score: groupDayScore(rows, ids) };
+    const score = groupDayScore(rows, ids);
+    const teamExtra = streakOf(g.groupId) + (allDoneSet.has(g.groupId) ? 1 : 0);
+    return { groupId: g.groupId, ids, score, teamExtra, total: score.total + teamExtra };
   });
-  if (groups.every((g) => g.score.total === 0) && !dateProp) return null;
+  if (groups.every((g) => g.total === 0) && !dateProp) return null;
 
   const fmtDay = `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
   const isToday = date === today;
@@ -82,7 +92,7 @@ export default function GroupBreakdown({
       </div>
       <div className="mt-3 space-y-2">
         {[...groups]
-          .sort((a, b) => b.score.total - a.score.total)
+          .sort((a, b) => b.total - a.total)
           .map((g) => {
             const mine = myStudentId != null && g.ids.includes(myStudentId);
             const personal = PERSONAL_ONLY.filter((p) => (g.score[p.key] as number) !== 0);
@@ -96,7 +106,7 @@ export default function GroupBreakdown({
                     {g.groupId}모둠{mine && " ★"}
                   </p>
                   <p className="text-xs text-ink-500">
-                    모둠 점수 <b className="tnum text-sm text-ink-900">{g.score.total}</b>점
+                    모둠 점수 <b className="tnum text-sm text-ink-900">{g.total}</b>점
                   </p>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1">
@@ -117,6 +127,16 @@ export default function GroupBreakdown({
                       </span>
                     );
                   })}
+                  {streakOf(g.groupId) > 0 && (
+                    <span className="rounded-full bg-pink-100 px-1.5 py-0.5 text-[11px] font-bold text-pink-600">
+                      🔥 미션 연속 <b className="tnum">+{streakOf(g.groupId)}</b>
+                    </span>
+                  )}
+                  {allDoneSet.has(g.groupId) && (
+                    <span className="rounded-full bg-brand-weak px-1.5 py-0.5 text-[11px] font-bold text-brand-strong">
+                      📌 전원 할 일 완주 <b className="tnum">+1</b>
+                    </span>
+                  )}
                 </div>
                 {personal.length > 0 && (
                   <p className="mt-1 text-[10px] text-ink-400">
@@ -134,8 +154,9 @@ export default function GroupBreakdown({
           })}
       </div>
       <p className="mt-2 text-[11px] text-ink-400">
-        모둠 점수 = <b>선생님 순위(1회) + 칭찬 미션(달성 +1) + 독서 + 보너스</b>. 서로 주고받는
-        평가·득표·MVP는 개인 점수에만 들어가요 — 몰아주기 방지!
+        모둠 점수 = <b>선생님 순위(1회) + 칭찬 미션(달성 +1) + 🔥 미션 연속 + 📌 전원 할 일
+        완주 + 독서 + 보너스</b>. 서로 주고받는 평가·득표·페어플레이·MVP는 개인 점수에만
+        들어가요 — 몰아주기 방지!
       </p>
     </section>
   );

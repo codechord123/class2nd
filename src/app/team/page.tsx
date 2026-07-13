@@ -666,6 +666,9 @@ export default function TeamPage() {
             {(myRow.fair ?? 0) > 0 && (
               <span className="rounded-full bg-success-weak px-2 py-0.5 text-success">🤝 페어플레이 +{myRow.fair}</span>
             )}
+            {(myRow.allDone ?? 0) > 0 && (
+              <span className="rounded-full bg-brand-weak px-2 py-0.5 text-brand-strong">📌 할 일 완주 +{myRow.allDone}</span>
+            )}
             {(myRow.mvp ?? 0) > 0 && (
               <span className="rounded-full bg-warn-weak px-2 py-0.5 text-warn">⭐ MVP +{myRow.mvp}</span>
             )}

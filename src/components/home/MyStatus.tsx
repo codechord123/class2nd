@@ -203,8 +203,10 @@ export default function MyStatus() {
   const targets = myGroup
     ? [myGroup.chair, ...myGroup.members.map((m) => m.studentId)].filter((id) => id !== studentId)
     : [];
-  const doneScores = targets.length > 0 && targets.every((id) => typeof evalRec[id] === "number");
+  // 완료 판정은 Team 탭·완주 보너스 집계와 동일하게 '한 명 이상 평가' (기준 불일치 혼란 방지)
+  const doneScores = targets.some((id) => typeof evalRec[id] === "number");
   const doneMvp = typeof evalRec._mvp === "number" && (evalRec._mvp as number) > 0;
+  const doneFair = typeof evalRec._fair === "number" && (evalRec._fair as number) > 0;
   const doneComp = Object.values(
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
@@ -225,9 +227,10 @@ export default function MyStatus() {
   }[] = [
     ...(evalOpen
       ? [
-          { icon: "🤝", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team" },
-          { icon: "👑", label: "부서장 투표", sub: "1표당 +1점", done: doneMvp, href: "/team" },
-          { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team" },
+          { icon: "📋", label: "부서장 평가", sub: "내 부서 기준으로", done: doneScores, href: "/team#peer-eval" },
+          { icon: "👑", label: "부서장 투표", sub: "가장 잘한 부서장", done: doneMvp, href: "/team#boss-vote" },
+          { icon: "🤝", label: "페어플레이 투표", sub: "배려왕 한 표!", done: doneFair, href: "/team#fair-vote" },
+          { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team#compliment" },
         ]
       : []),
     vacation
@@ -357,6 +360,13 @@ export default function MyStatus() {
               : "평가·칭찬은 학교 오는 날에!"}
           </span>
         </div>
+        {/* 📌 완주 보너스 안내 — 독서는 '오늘 1권'이 기준 (주간 미션과 별개) */}
+        {evalOpen && (
+          <p className="mt-1 text-[11px] text-ink-400">
+            💡 할 일 5개(상점 제외, 독서는 <b>오늘 1권</b>)를 다 하면 <b>+1점</b> — 모둠
+            전원이 다 하면 <b>모둠 점수 +1</b> 더!
+          </p>
+        )}
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {todos.map((t) => (
             <a

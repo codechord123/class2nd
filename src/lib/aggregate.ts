@@ -309,6 +309,10 @@ async function aggregateDateInner(
   const bossReasons: { from: number; to: number; text: string }[] = []; // 부서장 투표 이유 (인기투표 억제·리포트 근거)
   // 부서장 평가 O/X 상세 — 실명 공개·이의제기용 (수신자별로 접어 저장)
   const peerChecksRaw: { from: number; to: number; checks: boolean[] }[] = [];
+  // 📌 오늘 할 일 완주 판정 재료 — 항목별 '한 사람' 집합
+  const evalSubmitters = new Set<number>(); // 부서장 평가 제출
+  const mvpVoters = new Set<number>(); // 부서장 투표
+  const fairVoters = new Set<number>(); // 페어플레이 투표
   evalSnap.forEach((entry) => {
     const data = entry.data();
     const from = Number(entry.id);
@@ -320,15 +324,19 @@ async function aggregateDateInner(
         if (Number(to) === from || !Array.isArray(checks)) continue;
         peer[Number(to)] = (peer[Number(to)] ?? 0) + peerScoreFromChecks(checks.map(Boolean));
         peerChecksRaw.push({ from, to: Number(to), checks: checks.map(Boolean) });
+        evalSubmitters.add(from);
       }
     if (typeof data._mvp === "number" && data._mvp > 0 && data._mvp !== from) {
       mvpVotes[data._mvp] = (mvpVotes[data._mvp] ?? 0) + 1; // _mvp:0 = 취소, 자기 투표 무효
+      mvpVoters.add(from);
       const reason = (data._mvpReason as string | undefined)?.trim();
       if (reason) bossReasons.push({ from, to: data._mvp, text: reason });
     }
     // 🤝 페어플레이 투표 — 모둠원 중 배려를 가장 잘한 친구 (자기 투표 무효, 0=취소)
-    if (typeof data._fair === "number" && data._fair > 0 && data._fair !== from)
+    if (typeof data._fair === "number" && data._fair > 0 && data._fair !== from) {
       fairVotes[data._fair] = (fairVotes[data._fair] ?? 0) + 1;
+      fairVoters.add(from);
+    }
     // 구버전 단일 칭찬(_compliment) + 신버전 친구별 칭찬(_compliments) — 자기 칭찬 무효
     const legacy = data._compliment as { to: number; text: string } | undefined;
     if (legacy?.text && legacy.to !== from)
@@ -470,6 +478,32 @@ async function aggregateDateInner(
   }
   const fairSet = new Set(fairWinners);
 
+  // 4-4) 📌 오늘 할 일 완주 보너스 (사용자 확정 2026-07-13):
+  //   할 일 5개(부서장 평가·부서장 투표·페어플레이·칭찬 보내기·독서 1권 이상 — 상점 제외)를
+  //   모두 한 학생 +1점(allDone). 모둠원 전원(결석·전출 제외) 완주면 그 모둠 점수도 +1.
+  //   주말·공휴일(평가 잠금일)엔 지급하지 않는다 — 학사일 판정은 연속 보너스와 동일.
+  const senders = new Set(compliments.map((c) => c.from));
+  const bonusSchoolDay =
+    evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
+  const allDoneSet = new Set<number>();
+  if (bonusSchoolDay)
+    for (const s of students) {
+      if (s.inactive || absentSet.has(s.id)) continue;
+      if (
+        evalSubmitters.has(s.id) &&
+        mvpVoters.has(s.id) &&
+        fairVoters.has(s.id) &&
+        senders.has(s.id) &&
+        (readCount[s.id] ?? 0) > 0
+      )
+        allDoneSet.add(s.id);
+    }
+  const allDoneGroups: number[] = [];
+  for (const g of schedule.groups) {
+    const ids = activeIdsOf(g);
+    if (ids.length && ids.every((id) => allDoneSet.has(id))) allDoneGroups.push(g.groupId);
+  }
+
   // 5) 학생별 행 구성 (기존 보너스는 유지)
   //    1차 기본 점수 = 부서장평가 + 선생님 모둠순위 + 칭찬미션 + 독서(2권 캡) + 부서장(고정+1) + 교사보너스
   //    (MVP·오늘의 모둠 보너스는 이 기본 점수 확정 후 별도 단계에서 가산 — 순환 방지)
@@ -487,6 +521,7 @@ async function aggregateDateInner(
       comp: number;
       boss: number;
       fair: number;
+      allDone: number;
       read: number;
       sum: number;
     }
@@ -511,6 +546,8 @@ async function aggregateDateInner(
     const boss = bossSet.has(s.id) ? 1 : 0; // 최다 득표자 고정 +1 (결석은 bossSet에서 이미 제외)
     // 🤝 페어플레이 — 모둠 최다 득표자 고정 +1 (이벤트 배수 적용, 결석은 fairSet에서 이미 제외)
     const fair = fairSet.has(s.id) ? 1 * ev.fair : 0;
+    // 📌 오늘 할 일 5개 완주 +1 (결석·쉬는 날은 allDoneSet에서 이미 제외)
+    const allDone = allDoneSet.has(s.id) ? 1 : 0;
     // 칭찬 개인 점수 — 결석 학생은 칭찬을 못 하니 자연히 0 (comp에 없음)
     const cm = (comp[s.id] ?? 0) * ev.comp;
     // 독서: 감상문 편수만큼이되 하루 DAILY_READ_CAP권까지, 권당 READ_POINTS_PER_BOOK점 (권수 기록은 캡 없음)
@@ -523,8 +560,9 @@ async function aggregateDateInner(
       comp: cm,
       boss,
       fair,
+      allDone,
       read,
-      sum: p + gr + bonus + mission + cm + boss + fair + read,
+      sum: p + gr + bonus + mission + cm + boss + fair + allDone + read,
     };
   }
 
@@ -564,6 +602,7 @@ async function aggregateDateInner(
       comp: b.comp,
       boss: b.boss,
       fair: b.fair,
+      allDone: b.allDone,
       mvp,
       read: b.read,
       best: 0, // 오늘의 모둠 보너스는 아래에서 선정 후 가산
@@ -581,6 +620,8 @@ async function aggregateDateInner(
     const ids = activeIdsOf(g);
     groupSums[g.groupId] = groupDayScore(rows as unknown as Record<string, unknown>, ids).total;
   }
+  // 📌 모둠원 전원 할 일 완주 → 모둠 점수 +1 (모둠당 1회 — 사용자 확정)
+  for (const gid of allDoneGroups) groupSums[gid] = (groupSums[gid] ?? 0) + 1;
 
   // ── 누적 문서·이전 집계 메타 (아래 미션 연속·통계 계산이 모두 이 둘을 쓴다) ──
   type CumDoc = Record<string, number> & {
@@ -767,6 +808,8 @@ async function aggregateDateInner(
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
         missionGroups,
         missionStreakBonus, // 🔥 미션 연속 팀 보너스 (모둠별 — 과거 날짜 재집계 시 재반영 재료)
+        allDoneStudents: [...allDoneSet], // 📌 할 일 5개 완주 학생 (+1)
+        allDoneGroups, // 📌 전원 완주 모둠 (+1 팀 점수)
         peerDetail, // 부서장 평가 O/X 상세 (수신자별 — 실명 공개·이의제기용)
         compliments,
         peerSuggestions,

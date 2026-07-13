@@ -110,6 +110,9 @@ export default function DailyReportPanel({
     bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
     fairWinners?: number[]; // 🤝 오늘의 페어플레이 (배려왕 투표 최다)
     autoBestGroups?: number[]; // 오늘의 모둠 — 총점 합계 1위 (자동 타이틀)
+    missionStreakBonus?: Record<string, number>; // 🔥 미션 연속 팀 보너스
+    allDoneStudents?: number[]; // 📌 할 일 5개 완주 학생
+    allDoneGroups?: number[]; // 📌 전원 완주 모둠 (+1)
     ranks?: Record<string, number>; // 교사 순위 (점수 배분)
     missionGroups?: number[];
     compliments?: { from: number; to: number; text: string }[];
@@ -185,7 +188,10 @@ export default function DailyReportPanel({
           .map((g) => {
             const ids = [g.chair, ...g.members.map((m) => m.studentId)];
             const isBest = autoBestSet.has(g.groupId);
-            const gSum = groupScoreOf(ids).total;
+            const gSum =
+              groupScoreOf(ids).total +
+              (meta?.missionStreakBonus?.[String(g.groupId)] ?? 0) +
+              ((meta?.allDoneGroups ?? []).includes(g.groupId) ? 1 : 0);
             const rows = ids
               .map((id) => {
                 const badges = kidBadges(id);
@@ -508,6 +514,9 @@ export default function DailyReportPanel({
                   {/* 모둠 점수 분해 — 반영 항목 칩 + 합계 (개인 전용 항목은 표에서 확인) */}
                   {(() => {
                     const gs = groupScoreOf(memberIds);
+                    // 팀 단위 보너스(행이 아니라 _meta에 저장) — 저장된 모둠 점수와 일치시키는 오버레이
+                    const streak = meta?.missionStreakBonus?.[String(g.groupId)] ?? 0;
+                    const allDone = (meta?.allDoneGroups ?? []).includes(g.groupId) ? 1 : 0;
                     return (
                       <p className="mt-1.5 flex flex-wrap items-center gap-1">
                         {GROUP_PARTS.map((p) => {
@@ -528,8 +537,18 @@ export default function DailyReportPanel({
                             </span>
                           );
                         })}
+                        {streak > 0 && (
+                          <span className="rounded-full bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold text-pink-600">
+                            🔥 미션 연속 <b className="tnum">+{streak}</b>
+                          </span>
+                        )}
+                        {allDone > 0 && (
+                          <span className="rounded-full bg-brand-weak px-1.5 py-0.5 text-[10px] font-bold text-brand-strong">
+                            📌 전원 완주 <b className="tnum">+1</b>
+                          </span>
+                        )}
                         <span className="rounded-full bg-ink-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                          = 모둠 점수 <b className="tnum">{gs.total}</b>점
+                          = 모둠 점수 <b className="tnum">{gs.total + streak + allDone}</b>점
                         </span>
                       </p>
                     );
@@ -633,6 +652,13 @@ export default function DailyReportPanel({
               {(meta?.fairWinners ?? []).length > 0 && (
                 <p className="mt-0.5 text-xs text-success">
                   🤝 오늘의 페어플레이(배려왕): {(meta!.fairWinners ?? []).map(nm).join(", ")}
+                </p>
+              )}
+              {(meta?.allDoneStudents ?? []).length > 0 && (
+                <p className="mt-0.5 text-xs text-brand-strong">
+                  📌 할 일 5개 완주(+1): {(meta!.allDoneStudents ?? []).map(nm).join(", ")}
+                  {(meta?.allDoneGroups ?? []).length > 0 &&
+                    ` · 전원 완주 모둠(+1): ${(meta!.allDoneGroups ?? []).map((g) => `${g}모둠`).join(", ")}`}
                 </p>
               )}
             </div>
