@@ -85,15 +85,21 @@ export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!item.trim()) throw new Error("사고 싶은 것을 적어주세요.");
     if (!Number.isInteger(amount) || amount <= 0) throw new Error("개수를 확인해주세요.");
-    await addDoc(collection(db(), COLL[kind]), {
+    const docBody = {
       studentId: myId,
       amount,
       item: item.trim(),
       type,
-      status: "pending",
+      status: "pending" as const,
       createdAt: Date.now(),
       reserved: opts?.reserved ?? false,
-    });
+    };
+    const ref = await addDoc(collection(db(), COLL[kind]), docBody);
+    // 낙관적 캐시 반영 — 재조회가 끝나기 전에 연달아 신청해도 잔액 홀드에 즉시 잡힌다
+    // (invalidate만으로는 refetch 공백 동안 이중 신청이 통과하는 버그가 있었음)
+    qc.setQueryData<SpendRequest[]>(["spendRequests", kind, myId], (old) =>
+      old ? [{ id: ref.id, ...docBody }, ...old] : old
+    );
     void qc.invalidateQueries({ queryKey: ["spendRequests", kind, myId] });
   };
 }

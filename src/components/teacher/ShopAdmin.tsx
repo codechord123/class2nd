@@ -123,6 +123,15 @@ const fmtDate = (ms: number) => {
   const d = kstDateOf(ms);
   return `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 };
+/** 신청 시각 포함 — 시간창 안 신청인지 판단할 수 있게 (사용자 요청) */
+const fmtDateTime = (ms: number) =>
+  new Date(ms).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
 function EntryRow({ e, showDate }: { e: Entry; showDate?: boolean }) {
   const v = signedAmount(e.type, e.amount);
@@ -273,6 +282,9 @@ export default function ShopAdmin() {
                         🕓 예약
                       </span>
                     )}
+                    <span className="tnum shrink-0 text-xs text-ink-400">
+                      {fmtDateTime(p.r.createdAt)} 신청
+                    </span>
                     {/* 승인 판단 정보 — 부족하면 빨간 경고 (승인 시 트랜잭션이 최종 차단) */}
                     <span
                       className={`shrink-0 text-xs ${

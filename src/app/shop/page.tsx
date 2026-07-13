@@ -9,11 +9,13 @@ import { SEMESTER_START } from "@/lib/schedule";
 import { getS1WalletOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
 import ShopAdmin from "@/components/teacher/ShopAdmin";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useBalances,
   useMyRequests,
   useCreateSpendRequest,
   signedAmount,
+  type SpendRequest,
   type WalletKind,
 } from "@/lib/query/wallet";
 import {
@@ -36,6 +38,16 @@ const STATUS_STYLE = {
 } as const;
 const WALLET_LABEL = { s2: "2학기 실버", s1: "이월 실버" } as const;
 
+/** 신청 시각 — "7월 12일 오후 8:23" (KST) */
+const fmtWhen = (ms: number) =>
+  new Date(ms).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
 export default function ShopPage() {
   const { role, studentId } = useSession();
   const { data: s2Bal } = useBalances("s2");
@@ -52,6 +64,15 @@ export default function ShopPage() {
   const [menuNote, setMenuNote] = useState(""); // 메뉴 제안 이유
   const [buyBurst, setBuyBurst] = useState(0); // 신청·예약 성공 juice
   const { toast, confirm } = useFeedback();
+  const qc = useQueryClient();
+
+  // 신청 시간창 라벨·배너가 페이지를 열어둔 채로도 최신이 되게 30초마다 재렌더
+  // (판정 자체는 클릭 순간에 다시 하지만, 화면 표시도 따라와야 혼란이 없다)
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setClockTick((k) => k + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   // 홈 '신청 결과' 배너 읽음 처리 — 상점을 연 순간 결과를 본 것으로 (배너 자동 소멸)
   useEffect(() => {
@@ -94,6 +115,26 @@ export default function ShopPage() {
   const s1Hold = holdOf(myS1);
   const availOf = (w: WalletKind) =>
     w === "s2" ? myS2Balance - s2Hold : myS1Remaining - s1Hold;
+  // 골드도 대기 중 신청은 이미 쓴 것으로 — 연속 신청 이중 지출 방지 (골드 신청은 s1 컬렉션에 기록)
+  const goldHold = (myS1 ?? [])
+    .filter((r) => r.status === "pending" && r.type === "gold")
+    .reduce((a, r) => a + r.amount, 0);
+  // 확인 다이얼로그 뒤 최종 재검증용 — 렌더 클로저가 아니라 최신 캐시에서 직접 홀드를 계산
+  // (신청 성공 시 낙관적 캐시 갱신과 짝을 이뤄, 연타로도 잔액을 넘길 수 없다)
+  const freshAvailOf = (w: WalletKind) => {
+    const reqs = qc.getQueryData<SpendRequest[]>(["spendRequests", w, studentId]) ?? [];
+    const hold = reqs
+      .filter((r) => r.status === "pending" && r.type !== "gold")
+      .reduce((a, r) => a + r.amount, 0);
+    return (w === "s2" ? myS2Balance : myS1Remaining) - hold;
+  };
+  const freshGoldLeft = () => {
+    const reqs = qc.getQueryData<SpendRequest[]>(["spendRequests", "s1", studentId]) ?? [];
+    const hold = reqs
+      .filter((r) => r.status === "pending" && r.type === "gold")
+      .reduce((a, r) => a + r.amount, 0);
+    return goldLeft - hold;
+  };
 
   // 직접 입력 신청 — 검증 → 확인 다이얼로그 → 신청.
   // 시간창 밖이면 '예약 담기' — 접수는 되고 승인은 똑같이 다음 날 아침 (깜빡 방지)
@@ -139,8 +180,13 @@ export default function ShopPage() {
         );
         return;
       }
-      if (m.price > goldLeft) {
-        toast("학급 골드토큰이 부족해요.", "warn");
+      if (m.price > goldLeft - goldHold) {
+        toast(
+          goldHold > 0
+            ? "승인 기다리는 골드 신청까지 계산하면 학급 골드가 부족해요."
+            : "학급 골드토큰이 부족해요.",
+          "warn"
+        );
         return;
       }
     } else {
@@ -155,26 +201,35 @@ export default function ShopPage() {
         return;
       }
     }
+    // 시간창은 클릭 '지금'을 기준으로 다시 판정 — 페이지를 열어둔 채 자정을 넘기면
+    // 렌더 시점 값(requestOpen)이 낡아서, 시간 밖인데 정식 신청으로 접수되던 버그
+    const openNow = isRequestOpen(openHour, closeHour);
     const cost =
       m.wallet === "gold"
         ? `학급 골드토큰 ${m.price}개를 사용해요`
         : `${WALLET_LABEL[wallet]} 지갑에서 ${m.price}개가 나가요`;
     const ok = await confirm({
-      title: requestOpen ? `"${m.name}" 신청할까요?` : `"${m.name}" 예약으로 담을까요?`,
-      body: requestOpen
+      title: openNow ? `"${m.name}" 신청할까요?` : `"${m.name}" 예약으로 담을까요?`,
+      body: openNow
         ? `${cost} (선생님 승인 후)`
         : `지금은 신청 시간(${windowLabel})이 아니라 예약으로 담아요. ${cost} — 선생님이 다음 날 아침에 승인해요.`,
-      confirmLabel: requestOpen ? "신청" : "예약 담기",
+      confirmLabel: openNow ? "신청" : "예약 담기",
     });
     if (!ok) return;
+    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 다른 신청이 반영됐을 수 있다
+    if (m.wallet === "gold" ? m.price > freshGoldLeft() : m.price > freshAvailOf(wallet)) {
+      toast("승인 기다리는 신청까지 계산하면 잔액이 모자라요.", "warn");
+      return;
+    }
     setBusy(true);
     try {
+      const reserved = !isRequestOpen(openHour, closeHour); // 제출 순간 기준 (다이얼로그 체류 대비)
       if (m.wallet === "gold")
-        await createGoldRequest(m.price, m.name, "gold", { reserved: !requestOpen });
-      else await createRequest(m.price, m.name, "spend", { reserved: !requestOpen });
+        await createGoldRequest(m.price, m.name, "gold", { reserved });
+      else await createRequest(m.price, m.name, "spend", { reserved });
       setBuyBurst((k) => k + 1);
       toast(
-        requestOpen
+        !reserved
           ? `"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`
           : `🕓 "${m.name}" 예약 완료! 내일 아침에 승인돼요.`,
         "success"
@@ -408,6 +463,7 @@ export default function ShopPage() {
                       ? `🥇 학급 골드 ${r.amount}개`
                       : `${r.wallet === "s2" ? "2학기" : "이월"} 실버 ${r.amount}개`}
                     {r.reserved && " · 🕓 예약"}
+                    <span className="tnum"> · {fmtWhen(r.createdAt)}</span>
                   </span>
                 </span>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_STYLE.pending}`}>
@@ -443,9 +499,7 @@ export default function ShopPage() {
                     <b className="text-[15px] text-ink-900">{r.item}</b>{" "}
                     <span className="text-xs text-ink-600">
                       · {r.type === "gold" ? "🥇 골드" : r.wallet === "s2" ? "2학기" : "이월"}
-                      <span className="tnum">
-                        {" "}· {new Date(r.createdAt).getMonth() + 1}월 {new Date(r.createdAt).getDate()}일
-                      </span>
+                      <span className="tnum"> · {fmtWhen(r.createdAt)}</span>
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">

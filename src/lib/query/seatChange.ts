@@ -81,14 +81,19 @@ export function useCreateSeatRequest(myId: number | null) {
     if (taken) throw new Error("이미 먼저 신청한 친구가 있어요. (선착순)");
     if (req.existing.some((r) => r.studentId === myId && r.status === "pending"))
       throw new Error("이 주차에 이미 신청했어요.");
-    await addDoc(collection(db(), "seatChangeRequests"), {
+    const docBody = {
       studentId: myId,
       week: req.week,
       targetGroup: req.targetGroup,
       targetRole: req.targetRole,
-      status: "pending",
+      status: "pending" as const,
       createdAt: Date.now(),
-    });
+    };
+    const ref = await addDoc(collection(db(), "seatChangeRequests"), docBody);
+    // 낙관적 캐시 반영 — 재조회 공백 동안의 연속 신청도 홀드·중복 검사에 바로 잡히게
+    qc.setQueryData<SeatChangeRequest[]>(["seatRequests", req.week], (old) =>
+      old ? [...old, { id: ref.id, ...docBody }] : old
+    );
     void qc.invalidateQueries({ queryKey: ["seatRequests", req.week] });
   };
 }
