@@ -563,7 +563,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
 }
 
 // ── 목록 화면 ────────────────────────────────────────────────────
-export default function BoardPage() {
+// view="laws"면 📜 법률 전용 게시판으로 동작 (/laws 라우트가 이 컴포넌트를 재사용)
+// — 법률 제안이 많아 일반 안건이 묻혀서 독립 (사용자 요청)
+export default function BoardPage({ view = "board" }: { view?: "board" | "laws" }) {
   const { role, studentId } = useSession();
   // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (+1은 다음 페이지 존재 탐지)
   const [pageSize, setPageSize] = useState(10);
@@ -586,10 +588,10 @@ export default function BoardPage() {
   const [lawClauses, setLawClauses] = useState<string[]>([""]); // 법률 제안: 항별 내용
   const [hiddenTarget, setHiddenTarget] = useState<number | null>(null); // 숨은 기여 추천 대상
   const [search, setSearch] = useState("");
-  // 📜 법률 모아보기 — null=끔, ""=전 부서, "법무부" 등=그 부서만.
+  // 📜 법률 탭 부서 필터 — ""=전 부서, "법무부" 등=그 부서만.
   // 부서별로 어떤 법이 올라와 통과(채택)됐는지/안 됐는지 한눈에 (사용자 요청)
-  const [lawDeptFilter, setLawDeptFilter] = useState<string | null>(null);
-  const { data: lawPosts } = useLawPosts(lawDeptFilter != null);
+  const [lawDeptFilter, setLawDeptFilter] = useState("");
+  const { data: lawPosts } = useLawPosts(view === "laws");
   const enactLaws = useEnactLaws();
   const [busy, setBusy] = useState(false);
   const submitRef = useRef(false); // 같은 틱 더블클릭 이중 등록 차단 (busy state는 리렌더 전 두 번째 클릭을 못 막음)
@@ -626,12 +628,13 @@ export default function BoardPage() {
     }
   }, [title, content, draftKey]);
 
-  // 딥링크: /board#law → 헌법 탭 CTA에서 온 학생에게 법률 제안 폼을 바로 열어준다
+  // 딥링크: /laws#write (구 /board#law) → 헌법 탭 CTA에서 온 학생에게 법률 제안 폼을 바로 열어준다
   useEffect(() => {
-    if (window.location.hash === "#law") {
+    if (view === "laws" && ["#write", "#law"].includes(window.location.hash)) {
       setWriting(true);
       setPostKind("law");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 상세 모달 Escape 닫기 — 구형 데스크탑 키보드 사용자 배려
@@ -748,8 +751,8 @@ export default function BoardPage() {
     const commentText = (p.comments ?? []).map((c) => c.text).join(" ");
     return `${titleOf(p)} ${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
   };
-  // 📜 법률 모아보기 모드 — 전용 쿼리 결과를 부서로 거른다 (공지·페이지네이션 대신 전체 표시)
-  const lawMode = lawDeptFilter != null;
+  // 📜 법률 탭 — 전용 쿼리 결과를 부서로 거른다 (공지·페이지네이션 대신 전체 표시)
+  const lawMode = view === "laws";
   const lawItems = lawMode
     ? (lawPosts ?? [])
         .filter(canSee)
@@ -786,9 +789,13 @@ export default function BoardPage() {
   }
 
   const pinned = lawMode ? [] : (announcements ?? []).filter(matches);
+  // 건의 탭에서는 법률 글을 뺀다 — 법률은 📜 법률 탭이 전담 (일반 안건이 묻히지 않게)
   const normal = lawMode
     ? lawItems
-    : (posts ?? []).filter((p) => !p.isAnnouncement).filter(canSee).filter(matches);
+    : (posts ?? [])
+        .filter((p) => !p.isAnnouncement && p.kind !== "law")
+        .filter(canSee)
+        .filter(matches);
   // 검색 중·법률 모드에는 결과 전체, 평소엔 현재 페이지 분량만
   const pageItems = kw || lawMode ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
   const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
@@ -908,10 +915,10 @@ export default function BoardPage() {
 
   return (
     <div className="space-y-4">
-      <VoteBoardTabs current="board" />
+      <VoteBoardTabs current={lawMode ? "laws" : "board"} />
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-          <h3 className="text-lg font-bold">📬 안건·토론</h3>
+          <h3 className="text-lg font-bold">{lawMode ? "📜 우리 반 법률" : "📬 안건·토론"}</h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
@@ -941,10 +948,20 @@ export default function BoardPage() {
             {role != null && !manage && (
               <span className="relative">
                 <button
-                  onClick={() => setWriting((v) => !v)}
+                  onClick={() => {
+                    // 법률 탭에서는 글 종류가 법률 제안으로 고정
+                    if (lawMode && !writing) setPostKind("law");
+                    setWriting((v) => !v);
+                  }}
                   className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
                 >
-                  {writing ? "닫기" : role === "teacher" ? "✏️ 글 올리기" : "✏️ 안건 올리기"}
+                  {writing
+                    ? "닫기"
+                    : lawMode
+                      ? "✍️ 법률 제안"
+                      : role === "teacher"
+                        ? "✏️ 글 올리기"
+                        : "✏️ 안건 올리기"}
                 </button>
                 <JuiceBurst fireKey={postBurst} emojis={["📬", "✨", "💙"]} className="left-1/2 top-0" />
               </span>
@@ -952,26 +969,18 @@ export default function BoardPage() {
           </div>
         </div>
 
-        {/* 📜 법률 모아보기 — 부서별로 통과(채택)/논의중/보류를 한눈에 (사용자 요청) */}
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-ink-100 px-4 py-2.5">
-          <button
-            onClick={() => setLawDeptFilter(null)}
-            className={`press rounded-full px-3 py-1 text-xs font-bold ${
-              !lawMode ? "bg-ink-800 text-white" : "bg-ink-100 text-ink-500"
-            }`}
-          >
-            💬 전체 안건
-          </button>
-          <button
-            onClick={() => setLawDeptFilter("")}
-            className={`press rounded-full px-3 py-1 text-xs font-bold ${
-              lawMode && !lawDeptFilter ? "bg-violet-600 text-white" : "bg-ink-100 text-ink-500"
-            }`}
-          >
-            📜 법률 모아보기
-          </button>
-          {lawMode &&
-            ROLE_INFO.map((r) => (
+        {/* 📜 법률 탭 전용 — 부서 필터 + 통과(채택)/논의중/보류 요약 (사용자 요청) */}
+        {lawMode && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-ink-100 px-4 py-2.5">
+            <button
+              onClick={() => setLawDeptFilter("")}
+              className={`press rounded-full px-3 py-1 text-xs font-bold ${
+                !lawDeptFilter ? "bg-violet-600 text-white" : "bg-ink-100 text-ink-500"
+              }`}
+            >
+              전체
+            </button>
+            {ROLE_INFO.map((r) => (
               <button
                 key={r.dept}
                 onClick={() => setLawDeptFilter(r.dept)}
@@ -984,14 +993,15 @@ export default function BoardPage() {
                 {r.emoji} {r.dept}
               </button>
             ))}
-          {lawMode && lawPosts && (
-            <span className="ml-auto text-[11px] text-ink-500">
-              ✅ 채택 <b className="tnum">{lawCount("채택")}</b> · 💬 논의중{" "}
-              <b className="tnum">{lawCount("논의중")}</b> · ⏸ 보류{" "}
-              <b className="tnum">{lawCount("보류")}</b>
-            </span>
-          )}
-        </div>
+            {lawPosts && (
+              <span className="ml-auto text-[11px] text-ink-500">
+                ✅ 채택 <b className="tnum">{lawCount("채택")}</b> · 💬 논의중{" "}
+                <b className="tnum">{lawCount("논의중")}</b> · ⏸ 보류{" "}
+                <b className="tnum">{lawCount("보류")}</b>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ⚖️ 채택 법률 일괄 등록 (교사) — 채택됐지만 헌법 탭에 아직 없는 법률을 한 번에 */}
         {lawMode && role === "teacher" && enactables.length > 0 && (
@@ -1038,33 +1048,33 @@ export default function BoardPage() {
 
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
-            {/* 종류 선택 — 일반 안건 / 법률 제안 / 숨은 기여 추천 (건의→투표→지급, 사용자 확정) */}
+            {/* 종류 선택 — 건의 탭: 일반 안건/숨은 기여. 법률 탭은 법률 제안 고정 (독립 탭) */}
             <div className="flex flex-wrap items-center gap-1.5">
-              {(
-                [
-                  { key: "general", label: "💬 일반 안건" },
-                  { key: "law", label: "📜 법률 제안" },
-                  { key: "hidden", label: "🕵️ 숨은 기여 추천" },
-                ] as const
-              ).map((k) => (
-                <button
-                  key={k.key}
-                  onClick={() => setPostKind(k.key)}
-                  className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
-                    postKind === k.key
-                      ? "bg-ink-800 text-white"
-                      : "bg-white text-ink-500 border border-ink-200"
-                  }`}
-                >
-                  {k.label}
-                </button>
-              ))}
-              {postKind === "law" && (
-                <span className="text-[11px] text-ink-400">
-                  채택되면 그 부서의 법이 돼요 → 부서를 골라주세요
+              {lawMode ? (
+                <span className="text-xs font-bold text-violet-700">
+                  📜 법률 제안 — 채택되면 그 부서의 법이 돼요 → 부서를 골라주세요
                 </span>
+              ) : (
+                (
+                  [
+                    { key: "general", label: "💬 일반 안건" },
+                    { key: "hidden", label: "🕵️ 숨은 기여 추천" },
+                  ] as const
+                ).map((k) => (
+                  <button
+                    key={k.key}
+                    onClick={() => setPostKind(k.key)}
+                    className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                      postKind === k.key
+                        ? "bg-ink-800 text-white"
+                        : "bg-white text-ink-500 border border-ink-200"
+                    }`}
+                  >
+                    {k.label}
+                  </button>
+                ))
               )}
-              {postKind === "hidden" && (
+              {!lawMode && postKind === "hidden" && (
                 <span className="text-[11px] text-ink-400">
                   친구들의 👍 투표를 거쳐 선생님이 금요일에 실버 1개를 지급해요
                 </span>
@@ -1235,7 +1245,7 @@ export default function BoardPage() {
             <EmptyState
               emoji="📜"
               title={lawDeptFilter ? `${lawDeptFilter} 법률 제안이 아직 없어요` : "법률 제안이 아직 없어요"}
-              desc="글쓰기에서 '📜 법률 제안'을 골라 우리 부서 법을 올려보세요!"
+              desc="위의 ✍️ 법률 제안 버튼으로 우리 부서 법을 올려보세요!"
             />
           ) : (
             <EmptyState emoji="📭" title="아직 안건이 없어요" desc="첫 안건을 올려보세요!" />

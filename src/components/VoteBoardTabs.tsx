@@ -1,11 +1,13 @@
 "use client";
-// 투표·건의 스위처 — 한 상단 탭 안에서 두 화면(/vote·/board)을 오간다.
+// 투표·건의·법률 스위처 — 한 상단 탭 안에서 세 화면(/vote·/board·/laws)을 오간다.
+// 법률은 건의에서 독립 (사용자 요청 — 법률 제안이 많아져 일반 안건이 묻히는 문제)
 import Link from "next/link";
 
-export default function VoteBoardTabs({ current }: { current: "vote" | "board" }) {
+export default function VoteBoardTabs({ current }: { current: "vote" | "board" | "laws" }) {
   const items = [
     { key: "vote", href: "/vote", label: "🗳️ 투표" },
     { key: "board", href: "/board", label: "🙋 건의" },
+    { key: "laws", href: "/laws", label: "📜 법률" },
   ] as const;
   return (
     <div className="mb-4 flex gap-1.5">

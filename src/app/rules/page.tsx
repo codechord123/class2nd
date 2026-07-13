@@ -573,9 +573,9 @@ export default function RulesPage() {
             <EmptyState
               emoji="📜"
               title="아직 법률이 없어요"
-              desc="법률은 부서장이 제안해요 — 건의 탭의 '📜 법률 제안'으로 우리 부서 법을 만들어봐요!"
+              desc="법률은 부서장이 제안해요 — 📜 법률 탭에서 우리 부서 법을 만들어봐요!"
               action={
-                <a href="/board#law" className="press rounded-btn bg-brand px-4 py-2 text-xs font-bold text-white">
+                <a href="/laws#write" className="press rounded-btn bg-brand px-4 py-2 text-xs font-bold text-white">
                   ✍️ 법률 제안하러 가기
                 </a>
               }
