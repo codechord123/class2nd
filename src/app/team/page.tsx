@@ -938,14 +938,17 @@ export default function TeamPage() {
           <h3 className="text-lg font-bold">
             💌 오늘의 칭찬
             {(() => {
-              // 칭찬 연속(학사일) — 5일 +1점 · 10일 +2점. 누적 문서의 compStreak 재사용 (추가 읽기 0)
+              // 🔥 미션 연속(팀·학사일) — 3~5일차 +1 · 6~8일차 +2 · 9일차 +3 · 10일차 +4 (모둠 점수).
+              // 누적 문서의 missionStreak 재사용 (추가 읽기 0)
               const st =
-                ((cumScores as Record<string, unknown> | null)?.compStreak as
+                ((cumScores as Record<string, unknown> | null)?.missionStreak as
                   | Record<string, number>
-                  | undefined)?.[String(studentId)] ?? 0;
+                  | undefined)?.[String(myGroup?.groupId ?? 0)] ?? 0;
+              const nextLabel =
+                st < 3 ? "3일부터 팀 +1" : st < 6 ? "팀 +1 중 · 6일부터 +2" : st < 9 ? "팀 +2 중 · 9일 +3" : st < 10 ? "팀 +3 중 · 10일 +4" : "팀 +4 만점!";
               return st > 0 ? (
                 <span className="ml-1.5 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-bold text-pink-600">
-                  🔥 연속 {st}일 {st < 5 ? `(5일 +1점)` : st < 10 ? `(10일 +2점)` : ""}
+                  🔥 우리 모둠 미션 연속 {st}일 ({nextLabel})
                 </span>
               ) : null;
             })()}

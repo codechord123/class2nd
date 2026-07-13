@@ -35,8 +35,8 @@ export interface AggregateResult {
   milestoneSilver?: Record<string, number>;
   /** 이번 집계로 적립된 학급 골드 */
   milestoneGold?: number;
-  /** 칭찬 연속 보너스 — 이번 집계로 5일(+1)/10일(+2) 도달한 학생 */
-  compStreakBonus?: Record<string, number>;
+  /** 🔥 미션 연속 팀 보너스 — 이번 집계로 모둠 점수에 가산된 몫 (groupId → 점수) */
+  missionStreakBonus?: Record<string, number>;
 }
 
 // ── 마일스톤 보상 (사용자 확정 규칙) ─────────────────────────────
@@ -581,6 +581,81 @@ async function aggregateDateInner(
     const ids = activeIdsOf(g);
     groupSums[g.groupId] = groupDayScore(rows as unknown as Record<string, unknown>, ids).total;
   }
+
+  // ── 누적 문서·이전 집계 메타 (아래 미션 연속·통계 계산이 모두 이 둘을 쓴다) ──
+  type CumDoc = Record<string, number> & {
+    mvpWins?: Record<string, number>;
+    mvpVotesTotal?: Record<string, number>;
+    bestGroupWins?: Record<string, number>; // 오늘의 모둠(autoBest)에 든 횟수 — 팀 기여도
+    fairWins?: Record<string, number>; // 🤝 페어플레이 선정 횟수 — 우리 반 통계
+    // 이 외에 미션 연속 상태 필드(missionStreak*)가 함께 저장된다
+  };
+  const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
+  const prevMeta =
+    (prevSnap.exists()
+      ? (prevSnap.data()._meta as
+          | {
+              mvpVotes?: Record<string, number>;
+              mvpWinners?: number[];
+              fairWinners?: number[];
+              autoBestGroups?: number[];
+              autoBestMembers?: number[]; // 그 날 best=1 받은 실제 명단 (재집계 차감용)
+              groupSums?: Record<string, number>;
+              groupCumApplied?: boolean;
+              missionStreakBonus?: Record<string, number>; // 그날 준 미션 연속 팀 보너스
+            }
+          | undefined)
+      : undefined) ?? {};
+
+  // 5-2b) 🔥 칭찬 미션 연속 (팀 점수) — 모둠이 미션(전원 칭찬 받기)을 '학사일 기준' 연속
+  //   달성하면 그날 모둠 점수에 구간 보너스 가산 (사용자 확정 2026-07-13, 구 개인 5/10일
+  //   보너스를 대체): 연속 3~5일차 +1 · 6~8일차 +2 · 9일차 +3 · 10일차 +4.
+  //   세션(기)이 바뀌면 리셋 (월~금×2주 = 10일 만점). 주말·공휴일은 연속을 끊지도 늘리지도 않음.
+  //   멱등: 같은 날 재집계는 missionStreakPrev(전날 상태)에서 다시 계산.
+  //   과거 날짜 재집계는 연속 상태를 건드리지 않고, 그날 저장했던 보너스만 다시 반영.
+  const bandBonus = (n: number) => (n >= 10 ? 4 : n >= 9 ? 3 : n >= 6 ? 2 : n >= 3 ? 1 : 0);
+  const missionStreakBonus: Record<string, number> = {};
+  {
+    const cumAny = cum as Record<string, unknown>;
+    const period = periodOfWeek(week);
+    const streakDay = (cumAny.missionStreakDay as string) ?? "";
+    // 학사일 = 제출이 있는 날 그리고 주말·공휴일이 아닌 날 (칭찬 연속과 동일한 달력 판정)
+    const isSchoolDay =
+      evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
+    if (date >= streakDay) {
+      const sameDay = streakDay === date;
+      let base =
+        (sameDay
+          ? (cumAny.missionStreakPrev as Record<string, number>)
+          : (cumAny.missionStreak as Record<string, number>)) ?? {};
+      if (!sameDay && ((cumAny.missionStreakPeriod as number) ?? period) !== period) base = {};
+      const newStreak: Record<string, number> = {};
+      for (const g of schedule.groups) {
+        const gid = String(g.groupId);
+        const prev = base[gid] ?? 0;
+        const next = isSchoolDay ? (missionSet.has(g.groupId) ? prev + 1 : 0) : prev;
+        if (next > 0) newStreak[gid] = next;
+        const b = isSchoolDay ? bandBonus(next) : 0;
+        if (b > 0) {
+          missionStreakBonus[gid] = b;
+          groupSums[g.groupId] = (groupSums[g.groupId] ?? 0) + b;
+        }
+      }
+      cumAny.missionStreak = newStreak;
+      cumAny.missionStreakPrev = base;
+      cumAny.missionStreakDay = date;
+      cumAny.missionStreakPeriod = period;
+    } else {
+      // 과거 날짜 재집계 — 그날 실제로 줬던 보너스를 그대로 재반영 (모둠 누적 멱등 유지)
+      for (const [gid, b] of Object.entries(prevMeta.missionStreakBonus ?? {})) {
+        if (b > 0) {
+          missionStreakBonus[gid] = b;
+          groupSums[Number(gid)] = (groupSums[Number(gid)] ?? 0) + b;
+        }
+      }
+    }
+  }
+
   const bestSum = Math.max(0, ...Object.values(groupSums));
   const autoBestGroups =
     bestSum > 0
@@ -604,28 +679,7 @@ async function aggregateDateInner(
   }
 
   // 6) 저장: 그날 문서 1개 + 누적 문서 1개 (이전 집계분 빼고 더해 멱등)
-  type CumDoc = Record<string, number> & {
-    mvpWins?: Record<string, number>;
-    mvpVotesTotal?: Record<string, number>;
-    bestGroupWins?: Record<string, number>; // 오늘의 모둠(autoBest)에 든 횟수 — 팀 기여도
-    fairWins?: Record<string, number>; // 🤝 페어플레이 선정 횟수 — 우리 반 통계
-    // 이 외에 칭찬 연속 보너스 상태 필드(compStreak*, compBonusToday)가 함께 저장된다
-  };
-  const cum = (cumSnap.exists() ? cumSnap.data() : {}) as CumDoc;
-  const prevMeta =
-    (prevSnap.exists()
-      ? (prevSnap.data()._meta as
-          | {
-              mvpVotes?: Record<string, number>;
-              mvpWinners?: number[];
-              fairWinners?: number[];
-              autoBestGroups?: number[];
-              autoBestMembers?: number[]; // 그 날 best=1 받은 실제 명단 (재집계 차감용)
-              groupSums?: Record<string, number>;
-              groupCumApplied?: boolean;
-            }
-          | undefined)
-      : undefined) ?? {};
+  //    (cum·prevMeta는 미션 연속 계산 때문에 5-2b 앞에서 이미 로드됨)
   const mvpWins = { ...cum.mvpWins };
   const mvpVotesTotal = { ...cum.mvpVotesTotal };
   for (const w of prevMeta.mvpWinners ?? []) mvpWins[String(w)] = (mvpWins[String(w)] ?? 0) - 1;
@@ -678,57 +732,20 @@ async function aggregateDateInner(
     cumAny.groupCumRule = 2; // 회계 규칙 버전 — autoRun이 구규칙 누적을 감지해 재전환하는 마커
   }
 
-  // ── 칭찬 연속 보너스 (사용자 확정) ─────────────────────────────
-  // 학사일(평가 제출이 있는 날) 기준으로 칭찬을 연속으로 보내면:
-  //   5일 연속 도달 시 +1점 · 10일 연속 도달 시 +2점 (누적 점수 직접 가산).
-  // 세션(기)이 바뀌면 연속이 리셋된다 (월~금 ×2주 = 10일이 만점).
-  // 멱등 장치: 같은 날 재집계 시 compStreakPrev(전날 상태)에서 다시 계산하고,
-  // 그날 이미 준 보너스(compBonusToday)를 빼고 새로 더한다. 과거 날짜 재집계는 건드리지 않음.
-  const compStreakBonus: Record<string, number> = {};
+  // ── 구 개인 칭찬 연속 보너스(5일 +1 / 10일 +2) 셀프 청산 — 재도입 금지 ──
+  // 2026-07-13 사용자 확정으로 '모둠 미션 연속'(5-2b, 팀 점수)으로 대체됨.
+  // 오늘 이미 줬던 개인 보너스만 되돌리고 상태 필드를 제거한다 (과거 지급분은 기록 유지).
   {
     const cumAny = cum as Record<string, unknown>;
-    const period = periodOfWeek(week);
-    const streakDay = (cumAny.compStreakDay as string) ?? "";
-    // 학사일 = 제출이 있는 날 '그리고' 주말·공휴일이 아닌 날.
-    // 제출 존재만 보면 시계가 틀린 기기의 주말 날짜 제출 한 건이 그날을 학사일로
-    // 둔갑시켜 나머지 전원의 연속을 끊는다 — 달력 판정을 겹쳐 원천 차단.
-    const isSchoolDay =
-      evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
-    if (date >= streakDay) {
-      const sameDay = streakDay === date;
-      let base =
-        (sameDay
-          ? (cumAny.compStreakPrev as Record<string, number>)
-          : (cumAny.compStreak as Record<string, number>)) ?? {};
-      const oldBonus = sameDay ? ((cumAny.compBonusToday as Record<string, number>) ?? {}) : {};
-      // 새 기(세션) 진입 — 연속 리셋 (같은 날 재집계는 이미 리셋된 base라 통과)
-      if (!sameDay && ((cumAny.compStreakPeriod as number) ?? period) !== period) base = {};
-
-      const senders = new Set(compliments.map((c) => c.from));
-      const newStreak: Record<string, number> = {};
-      const newBonus: Record<string, number> = {};
-      for (const s of students) {
-        const sid = String(s.id);
-        const prev = base[sid] ?? 0;
-        // 결석은 연속을 끊지 않는다 — 아파서 못 온 날 스트릭이 0이 되지 않게 유지(사용자 확정)
-        const absent = absentSet.has(s.id);
-        const next = absent ? prev : isSchoolDay ? (senders.has(s.id) ? prev + 1 : 0) : prev;
-        if (next > 0) newStreak[sid] = next;
-        if (isSchoolDay && !absent) {
-          if (next === 5) newBonus[sid] = 1;
-          else if (next === 10) newBonus[sid] = 2;
-          if (newBonus[sid]) compStreakBonus[sid] = newBonus[sid];
-        }
-      }
-      for (const sid of new Set([...Object.keys(oldBonus), ...Object.keys(newBonus)])) {
-        cum[sid] = (cum[sid] ?? 0) - (oldBonus[sid] ?? 0) + (newBonus[sid] ?? 0);
-      }
-      cumAny.compStreak = newStreak;
-      cumAny.compStreakPrev = base;
-      cumAny.compStreakDay = date;
-      cumAny.compStreakPeriod = period;
-      cumAny.compBonusToday = newBonus;
+    if (cumAny.compStreakDay === date) {
+      const oldBonus = (cumAny.compBonusToday as Record<string, number>) ?? {};
+      for (const [sid, n] of Object.entries(oldBonus)) cum[sid] = (cum[sid] ?? 0) - n;
     }
+    delete cumAny.compStreak;
+    delete cumAny.compStreakPrev;
+    delete cumAny.compStreakDay;
+    delete cumAny.compStreakPeriod;
+    delete cumAny.compBonusToday;
   }
 
   await Promise.all([
@@ -749,6 +766,7 @@ async function aggregateDateInner(
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)
         missionGroups,
+        missionStreakBonus, // 🔥 미션 연속 팀 보너스 (모둠별 — 과거 날짜 재집계 시 재반영 재료)
         peerDetail, // 부서장 평가 O/X 상세 (수신자별 — 실명 공개·이의제기용)
         compliments,
         peerSuggestions,
@@ -774,7 +792,7 @@ async function aggregateDateInner(
     groupRanks: ranks,
     milestoneSilver: ms.silver,
     milestoneGold: ms.gold,
-    compStreakBonus,
+    missionStreakBonus,
   };
 }
 

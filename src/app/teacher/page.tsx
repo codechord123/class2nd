@@ -221,13 +221,13 @@ export default function TeacherPage() {
       void qc.invalidateQueries({ queryKey: ["dailyScores", date] });
       void qc.invalidateQueries({ queryKey: ["cumulativeScores"] });
       const noBest = Object.keys(r.groupRanks).length === 0;
-      const streakNames = Object.entries(r.compStreakBonus ?? {})
-        .map(([sid, n]) => `${studentById.get(Number(sid))?.name} +${n}`)
+      const streakNames = Object.entries(r.missionStreakBonus ?? {})
+        .map(([gid, n]) => `${gid}모둠 +${n}`)
         .join(", ");
       setMsg(
         `✅ ${date} 집계 완료 — 평가 ${r.evaluatorCount}명 제출` +
           (noBest ? " · ⚠️ 오늘의 모둠 미선정(순위 점수 0점) — 아래에서 선정 후 재집계하세요" : "") +
-          (streakNames ? ` · 💌 칭찬 연속 보너스: ${streakNames}점` : "")
+          (streakNames ? ` · 🔥 미션 연속 팀 보너스: ${streakNames}점` : "")
       );
     } catch (e) {
       setMsg(

@@ -8,7 +8,7 @@ import { useDailyScores, useLatestAggregated, useRangeReport } from "@/lib/query
 import { useSettings } from "@/lib/query/settings";
 import { s1BooksOf } from "@/lib/staticData";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
-import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { groupOf, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { weekBooks, readingStreaks } from "@/lib/readingStreak";
 import type { DailyScoreRow } from "@/types";
@@ -31,7 +31,7 @@ export default function MyRecord({
     mvpWins?: Record<string, number>;
     mvpVotesTotal?: Record<string, number>;
     fairWins?: Record<string, number>;
-    compStreak?: Record<string, number>;
+    missionStreak?: Record<string, number>;
   } & Record<string, unknown>;
   const sid = String(studentId);
   const score = typeof cum[sid] === "number" ? (cum[sid] as number) : 0;
@@ -92,9 +92,10 @@ export default function MyRecord({
         { icon: "🎁", label: "선생님 보너스", v: myRow.bonus ?? 0 },
       ]
     : [];
-  // 스트릭 현황 — 칭찬 연속(매일 칭찬 보내기) + 독서 연속(주간 목표 달성)
+  // 스트릭 현황 — 모둠 미션 연속(팀·전원 칭찬 받기) + 독서 연속(주간 목표 달성)
   const quota = settings?.weeklyReadingQuota ?? 3;
-  const compStreak = cum.compStreak?.[sid] ?? 0;
+  const myGroupId = groupOf(curWeek, studentId)?.groupId ?? 0;
+  const missionStreak = cum.missionStreak?.[String(myGroupId)] ?? 0;
   const vacation = today < SEMESTER_START;
   const readStreak = vacation ? 0 : readingStreaks(stats, studentId, quota, curWeek).current;
   const fmtDay = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
@@ -164,8 +165,8 @@ export default function MyRecord({
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5 border-t border-ink-200/60 pt-2">
                   <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
-                    🔥 칭찬 연속 <b className="tnum text-rose-500">{compStreak}</b>일
-                    <span className="text-ink-400"> — 5일 +1점 · 10일 +2점</span>
+                    🔥 모둠 미션 연속 <b className="tnum text-rose-500">{missionStreak}</b>일
+                    <span className="text-ink-400"> — 3일 +1 · 6일 +2 · 9일 +3 · 10일 +4 (팀)</span>
                   </span>
                   <span className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-600">
                     📚 독서 목표 연속 <b className="tnum text-emerald-600">{readStreak}</b>주
