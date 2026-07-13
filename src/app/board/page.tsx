@@ -29,6 +29,7 @@ import {
   useReactSuggestion,
   useSetAgendaStatus,
   useEnactLaw,
+  useLawPosts,
   useNominateHidden,
   reactionCounts,
   titleOf,
@@ -584,6 +585,10 @@ export default function BoardPage() {
   const [lawClauses, setLawClauses] = useState<string[]>([""]); // 법률 제안: 항별 내용
   const [hiddenTarget, setHiddenTarget] = useState<number | null>(null); // 숨은 기여 추천 대상
   const [search, setSearch] = useState("");
+  // 📜 법률 모아보기 — null=끔, ""=전 부서, "법무부" 등=그 부서만.
+  // 부서별로 어떤 법이 올라와 통과(채택)됐는지/안 됐는지 한눈에 (사용자 요청)
+  const [lawDeptFilter, setLawDeptFilter] = useState<string | null>(null);
+  const { data: lawPosts } = useLawPosts(lawDeptFilter != null);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef(false); // 같은 틱 더블클릭 이중 등록 차단 (busy state는 리렌더 전 두 번째 클릭을 못 막음)
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
@@ -627,11 +632,26 @@ export default function BoardPage() {
     }
   }, []);
 
+  // 상세 모달 Escape 닫기 — 구형 데스크탑 키보드 사용자 배려
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId]);
+
   // 🔒 선생님만 보기 글: 작성자 본인과 교사 외에는 목록에서 완전히 숨긴다
   const canSee = (p: Suggestion) =>
     !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
 
-  const all = [...(announcements ?? []), ...(posts ?? []).filter((p) => !p.isAnnouncement)];
+  // 법률 모아보기로 연 옛 글은 최근 목록(posts)에 없을 수 있어 lawPosts도 상세 조회 대상에 포함
+  const all = [
+    ...(announcements ?? []),
+    ...(posts ?? []).filter((p) => !p.isAnnouncement),
+    ...(lawPosts ?? []),
+  ];
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
   async function submit() {
@@ -726,10 +746,23 @@ export default function BoardPage() {
     const commentText = (p.comments ?? []).map((c) => c.text).join(" ");
     return `${titleOf(p)} ${p.content} ${author} ${commentText}`.toLowerCase().includes(kw);
   };
-  const pinned = (announcements ?? []).filter(matches);
-  const normal = (posts ?? []).filter((p) => !p.isAnnouncement).filter(canSee).filter(matches);
-  // 검색 중에는 결과 전체, 평소엔 현재 페이지 분량만
-  const pageItems = kw ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
+  // 📜 법률 모아보기 모드 — 전용 쿼리 결과를 부서로 거른다 (공지·페이지네이션 대신 전체 표시)
+  const lawMode = lawDeptFilter != null;
+  const lawItems = lawMode
+    ? (lawPosts ?? [])
+        .filter(canSee)
+        .filter(matches)
+        .filter((p) => !lawDeptFilter || p.lawDept === lawDeptFilter)
+    : [];
+  const lawCount = (st: AgendaStatus) =>
+    lawItems.filter((p) => (p.status ?? "논의중") === st).length;
+
+  const pinned = lawMode ? [] : (announcements ?? []).filter(matches);
+  const normal = lawMode
+    ? lawItems
+    : (posts ?? []).filter((p) => !p.isAnnouncement).filter(canSee).filter(matches);
+  // 검색 중·법률 모드에는 결과 전체, 평소엔 현재 페이지 분량만
+  const pageItems = kw || lawMode ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
   const knownPages = Math.max(1, Math.ceil((posts?.length ?? 0) / pageSize));
 
   // 정리 모드: 현재 화면에 보이는 글(공지 + 현재 페이지) 대상 선택·삭제
@@ -814,6 +847,11 @@ export default function BoardPage() {
                 📜 법률
               </span>
             )}
+            {p.kind === "law" && p.lawDept && (
+              <span className="shrink-0 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+                {p.lawDept}
+              </span>
+            )}
             <b className="truncate text-[15px] text-ink-900">{titleOf(p)}</b>
             {p.enactedAsLaw && <span className="shrink-0 text-xs">📜</span>}
           </span>
@@ -884,6 +922,47 @@ export default function BoardPage() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* 📜 법률 모아보기 — 부서별로 통과(채택)/논의중/보류를 한눈에 (사용자 요청) */}
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-ink-100 px-4 py-2.5">
+          <button
+            onClick={() => setLawDeptFilter(null)}
+            className={`press rounded-full px-3 py-1 text-xs font-bold ${
+              !lawMode ? "bg-ink-800 text-white" : "bg-ink-100 text-ink-500"
+            }`}
+          >
+            💬 전체 안건
+          </button>
+          <button
+            onClick={() => setLawDeptFilter("")}
+            className={`press rounded-full px-3 py-1 text-xs font-bold ${
+              lawMode && !lawDeptFilter ? "bg-violet-600 text-white" : "bg-ink-100 text-ink-500"
+            }`}
+          >
+            📜 법률 모아보기
+          </button>
+          {lawMode &&
+            ROLE_INFO.map((r) => (
+              <button
+                key={r.dept}
+                onClick={() => setLawDeptFilter(r.dept)}
+                className={`press rounded-full px-2.5 py-1 text-xs font-bold ${
+                  lawDeptFilter === r.dept
+                    ? "bg-violet-600 text-white"
+                    : "bg-violet-50 text-violet-700"
+                }`}
+              >
+                {r.emoji} {r.dept}
+              </button>
+            ))}
+          {lawMode && lawPosts && (
+            <span className="ml-auto text-[11px] text-ink-500">
+              ✅ 채택 <b className="tnum">{lawCount("채택")}</b> · 💬 논의중{" "}
+              <b className="tnum">{lawCount("논의중")}</b> · ⏸ 보류{" "}
+              <b className="tnum">{lawCount("보류")}</b>
+            </span>
+          )}
         </div>
 
         {/* 정리 모드 액션 바 — 전체 선택 + 선택 삭제 */}
@@ -1102,11 +1181,17 @@ export default function BoardPage() {
         )}
 
         {/* 목록 */}
-        {!posts && !announcements ? (
+        {(lawMode ? !lawPosts : !posts && !announcements) ? (
           <SkeletonList rows={5} />
         ) : !pinned.length && !normal.length ? (
           search ? (
             <EmptyState emoji="🔍" title="검색 결과가 없어요" />
+          ) : lawMode ? (
+            <EmptyState
+              emoji="📜"
+              title={lawDeptFilter ? `${lawDeptFilter} 법률 제안이 아직 없어요` : "법률 제안이 아직 없어요"}
+              desc="글쓰기에서 '📜 법률 제안'을 골라 우리 부서 법을 올려보세요!"
+            />
           ) : (
             <EmptyState emoji="📭" title="아직 안건이 없어요" desc="첫 안건을 올려보세요!" />
           )
@@ -1125,8 +1210,8 @@ export default function BoardPage() {
           </ul>
         )}
 
-        {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색 중엔 숨김) */}
-        {!kw && (posts?.length ?? 0) > 0 && (
+        {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색·법률 모아보기 중엔 숨김) */}
+        {!kw && !lawMode && (posts?.length ?? 0) > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5">
             <div className="flex items-center gap-1">
               {[10, 20].map((n) => (

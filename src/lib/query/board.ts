@@ -173,7 +173,23 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
     });
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
     if (isAnnouncement) void qc.invalidateQueries({ queryKey: ["announcements"] });
+    if (law) void qc.invalidateQueries({ queryKey: ["lawPosts"] });
   };
+}
+
+/** 📜 법률 제안 모아보기 — 부서별로 통과(채택)/논의중/보류를 한눈에.
+ *  등호 필터만 사용(복합 인덱스 회피) + 필터를 켠 사람만 조회 (읽기 예산). */
+export function useLawPosts(enabled: boolean) {
+  return useQuery({
+    queryKey: ["lawPosts"],
+    enabled,
+    queryFn: async (): Promise<Suggestion[]> => {
+      const q = query(collection(db(), "suggestions"), where("kind", "==", "law"));
+      const snap = await getDocs(q);
+      return snap.docs.map(toSuggestion).sort((a, b) => b.createdAt - a.createdAt);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 /** 제목 표시용 — 구버전(제목 없는) 글은 본문 앞부분으로 대체 */
@@ -351,6 +367,7 @@ export function useSetAgendaStatus() {
       prev?.map((s) => (s.id === sug.id ? { ...s, status } : s));
     qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
     qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+    qc.setQueriesData({ queryKey: ["lawPosts"] }, patch);
   };
 }
 
