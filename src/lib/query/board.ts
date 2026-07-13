@@ -358,6 +358,47 @@ export function useEnactLaw() {
   };
 }
 
+/** 교사: 채택된 법률 일괄 등록 — 헌법 문서 1회 읽기·1회 쓰기로 묶는다 (사용자 요청).
+ *  대상 = kind:law + 채택 + 아직 미등록(enactedAsLaw 아님) + 부서 지정된 글.
+ *  부서별로 기존 조 번호를 이어서 "제N조(제목) ①…" 형식으로 붙인다 (단건 등록과 동일 규칙). */
+export function useEnactLaws() {
+  const qc = useQueryClient();
+  return async (sugs: Suggestion[]): Promise<number> => {
+    const targets = sugs
+      .filter(
+        (s) => s.kind === "law" && s.lawDept && (s.status ?? "논의중") === "채택" && !s.enactedAsLaw
+      )
+      .sort((a, b) => a.createdAt - b.createdAt); // 먼저 제안된 법부터 조 번호
+    if (!targets.length) return 0;
+    const ref = doc(db(), "classData", "constitution");
+    const snap = await getDoc(ref);
+    const c = (snap.exists() ? snap.data() : {}) as { lawsByDept?: Record<string, string[]> };
+    const byDept: Record<string, string[]> = {};
+    for (const sug of targets) {
+      const dept = sug.lawDept!;
+      const laws = (byDept[dept] ??= [...(c.lawsByDept?.[dept] ?? [])]);
+      laws.push(
+        sug.content.trim()
+          ? `제${laws.length + 1}조(${sug.title?.trim() || "제목"}) ${sug.content.trim()}`
+          : titleOf(sug)
+      );
+    }
+    // merge: 건드린 부서 키만 갱신 — 다른 부서·미분류(laws)는 보존
+    await setDoc(ref, { lawsByDept: byDept }, { merge: true });
+    await Promise.all(
+      targets.map((s) => updateDoc(doc(db(), "suggestions", s.id), { enactedAsLaw: true }))
+    );
+    const ids = new Set(targets.map((s) => s.id));
+    const patch = (prev: Suggestion[] | undefined) =>
+      prev?.map((s) => (ids.has(s.id) ? { ...s, enactedAsLaw: true } : s));
+    qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
+    qc.setQueriesData({ queryKey: ["announcements"] }, patch);
+    qc.setQueriesData({ queryKey: ["lawPosts"] }, patch);
+    void qc.invalidateQueries({ queryKey: ["constitution"] });
+    return targets.length;
+  };
+}
+
 /** 교사: 안건 상태 변경 (논의중/채택/보류) */
 export function useSetAgendaStatus() {
   const qc = useQueryClient();

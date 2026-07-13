@@ -29,6 +29,7 @@ import {
   useReactSuggestion,
   useSetAgendaStatus,
   useEnactLaw,
+  useEnactLaws,
   useLawPosts,
   useNominateHidden,
   reactionCounts,
@@ -589,6 +590,7 @@ export default function BoardPage() {
   // 부서별로 어떤 법이 올라와 통과(채택)됐는지/안 됐는지 한눈에 (사용자 요청)
   const [lawDeptFilter, setLawDeptFilter] = useState<string | null>(null);
   const { data: lawPosts } = useLawPosts(lawDeptFilter != null);
+  const enactLaws = useEnactLaws();
   const [busy, setBusy] = useState(false);
   const submitRef = useRef(false); // 같은 틱 더블클릭 이중 등록 차단 (busy state는 리렌더 전 두 번째 클릭을 못 막음)
   const [postBurst, setPostBurst] = useState(0); // 등록 성공 juice
@@ -756,6 +758,32 @@ export default function BoardPage() {
     : [];
   const lawCount = (st: AgendaStatus) =>
     lawItems.filter((p) => (p.status ?? "논의중") === st).length;
+  // 채택됐지만 아직 헌법 탭에 등록 안 된 법률 — 교사 일괄 등록 대상 (현재 필터 범위)
+  const enactables = lawItems.filter(
+    (p) => (p.status ?? "논의중") === "채택" && !p.enactedAsLaw && p.lawDept
+  );
+
+  async function bulkEnact() {
+    if (busy || !enactables.length) return;
+    const depts = [...new Set(enactables.map((p) => p.lawDept!))];
+    if (
+      !(await confirm({
+        title: `채택된 법률 ${enactables.length}개를 헌법 탭에 등록할까요?`,
+        body: `${depts.join(" · ")} 부서에 조 번호가 이어서 붙어요. 등록 후엔 헌법 탭에서 수정할 수 있어요.`,
+        confirmLabel: "일괄 등록",
+      }))
+    )
+      return;
+    setBusy(true);
+    try {
+      const n = await enactLaws(enactables);
+      toast(`⚖️ 법률 ${n}개를 헌법 탭에 등록했어요!`, "success");
+    } catch (e) {
+      toast(`⚠️ ${friendlyWriteError(e, "일괄 등록 실패")}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const pinned = lawMode ? [] : (announcements ?? []).filter(matches);
   const normal = lawMode
@@ -964,6 +992,23 @@ export default function BoardPage() {
             </span>
           )}
         </div>
+
+        {/* ⚖️ 채택 법률 일괄 등록 (교사) — 채택됐지만 헌법 탭에 아직 없는 법률을 한 번에 */}
+        {lawMode && role === "teacher" && enactables.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 bg-violet-50/60 px-4 py-2.5">
+            <span className="text-xs text-violet-800">
+              ⚖️ 채택됐지만 아직 헌법 탭에 없는 법률 <b className="tnum">{enactables.length}개</b>
+              {lawDeptFilter && ` (${lawDeptFilter})`}
+            </span>
+            <button
+              onClick={() => void bulkEnact()}
+              disabled={busy}
+              className="press rounded-btn bg-violet-600 px-3.5 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+            >
+              📥 헌법 탭에 일괄 등록
+            </button>
+          </div>
+        )}
 
         {/* 정리 모드 액션 바 — 전체 선택 + 선택 삭제 */}
         {manage && (
