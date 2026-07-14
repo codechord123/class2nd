@@ -19,8 +19,11 @@ function QueryProviders({ children }: { children: React.ReactNode }) {
         // 단 permission-denied는 제외 — 규칙 미게시 감지(오늘 할 일 배너) 등이 신호로 쓰는 오류라
         // 전역 토스트를 띄우면 오진이 된다.
         queryCache: new QueryCache({
-          onError: (e) => {
+          onError: (e, query) => {
             if ((e as { code?: string })?.code === "permission-denied") return;
+            // 캐시된 데이터가 이미 화면에 있으면 백그라운드 재조회 실패는 조용히 —
+            // 다음 재조회가 알아서 복구한다. 토스트는 '정말 안 보일 때'(첫 로드 실패)만.
+            if (query.state.data !== undefined) return;
             const now = Date.now();
             if (now - lastErrToast < 10_000) return;
             lastErrToast = now;
