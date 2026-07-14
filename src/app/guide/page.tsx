@@ -112,7 +112,7 @@ export default function GuidePage() {
           <Step
             n={3}
             title={`저녁 ${windowLabel} — 상점 신청`}
-            desc="실버로 사고 싶은 것을 신청해요. 시간이 지나면 '예약 담기'로 미리 담을 수 있어요."
+            desc="실버로 사고 싶은 것을 신청해요. 이 시간에만 신청할 수 있어요 — 놓치면 내일!"
           />
           <Step
             n={4}
