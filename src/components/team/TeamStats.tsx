@@ -11,6 +11,7 @@ interface CumDoc {
   [sid: string]: number | Record<string, number> | undefined;
   mvpWins?: Record<string, number>;
   bestGroupWins?: Record<string, number>; // 오늘의 모둠 포함 횟수 (집계가 누적)
+  fairWins?: Record<string, number>; // 🤝 페어플레이(배려왕) 선정 횟수
 }
 
 function TopList({
@@ -90,7 +91,7 @@ export default function TeamStats({
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
       <h3 className="text-lg font-bold">📈 우리 반 통계</h3>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <TopList
           title="🏅 누적 점수 TOP 5"
           desc="매일 평가 집계의 합"
@@ -101,6 +102,12 @@ export default function TeamStats({
           title="⭐ MVP 횟수"
           desc="그날 점수 합산 모둠 1위 (동점 포함)"
           counts={cum.mvpWins ?? {}}
+          unit="회"
+        />
+        <TopList
+          title="🤝 페어플레이어"
+          desc="'배려왕' 투표에서 모둠 최다 득표로 뽑힌 횟수"
+          counts={cum.fairWins ?? {}}
           unit="회"
         />
         <TopList
