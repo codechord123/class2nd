@@ -165,6 +165,12 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
+    // 🕓 신청 시간 하드 차단 (사용자 확정 2026-07-14): 시간 밖엔 예약도 안 됨.
+    // 클릭 '지금'을 기준으로 다시 판정 (페이지를 열어둔 채 시간이 지나도 정확).
+    if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
+      toast(`지금은 신청 시간이 아니에요 — 정식 신청은 ${windowLabel}예요! 🕓`, "warn");
+      return;
+    }
     if (beta && m.wallet === "gold") {
       toast("개학 전(베타)이라 골드는 아직 못 써요 — 이월 실버만 쓸 수 있어요! 🐢", "warn");
       return;
@@ -201,39 +207,31 @@ export default function ShopPage() {
         return;
       }
     }
-    // 시간창은 클릭 '지금'을 기준으로 다시 판정 — 페이지를 열어둔 채 자정을 넘기면
-    // 렌더 시점 값(requestOpen)이 낡아서, 시간 밖인데 정식 신청으로 접수되던 버그
-    const openNow = isRequestOpen(openHour, closeHour);
     const cost =
       m.wallet === "gold"
         ? `학급 골드토큰 ${m.price}개를 사용해요`
         : `${WALLET_LABEL[wallet]} 지갑에서 ${m.price}개가 나가요`;
     const ok = await confirm({
-      title: openNow ? `"${m.name}" 신청할까요?` : `"${m.name}" 예약으로 담을까요?`,
-      body: openNow
-        ? `${cost} (선생님 승인 후)`
-        : `지금은 신청 시간(${windowLabel})이 아니라 예약으로 담아요. ${cost} — 선생님이 다음 날 아침에 승인해요.`,
-      confirmLabel: openNow ? "신청" : "예약 담기",
+      title: `"${m.name}" 신청할까요?`,
+      body: `${cost} (선생님 승인 후)`,
+      confirmLabel: "신청",
     });
     if (!ok) return;
-    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 다른 신청이 반영됐을 수 있다
+    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 시간이 지났거나 다른 신청이 반영됐을 수 있다
+    if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
+      toast(`신청 시간이 지났어요 — 정식 신청은 ${windowLabel}예요! 🕓`, "warn");
+      return;
+    }
     if (m.wallet === "gold" ? m.price > freshGoldLeft() : m.price > freshAvailOf(wallet)) {
       toast("승인 기다리는 신청까지 계산하면 잔액이 모자라요.", "warn");
       return;
     }
     setBusy(true);
     try {
-      const reserved = !isRequestOpen(openHour, closeHour); // 제출 순간 기준 (다이얼로그 체류 대비)
-      if (m.wallet === "gold")
-        await createGoldRequest(m.price, m.name, "gold", { reserved });
-      else await createRequest(m.price, m.name, "spend", { reserved });
+      if (m.wallet === "gold") await createGoldRequest(m.price, m.name, "gold");
+      else await createRequest(m.price, m.name, "spend");
       setBuyBurst((k) => k + 1);
-      toast(
-        !reserved
-          ? `"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`
-          : `🕓 "${m.name}" 예약 완료! 내일 아침에 승인돼요.`,
-        "success"
-      );
+      toast(`"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`, "success");
     } catch (e) {
       toast(friendlyWriteError(e, "신청에 실패했어요."), "error");
     } finally {
@@ -329,11 +327,11 @@ export default function ShopPage() {
         onChange={setTab}
       />
 
-      {/* 신청 시간창 안내 — 창 밖에는 '예약 담기'로 접수 (승인은 똑같이 다음 날 아침) */}
+      {/* 신청 시간창 안내 — 창 밖에는 신청 불가 (하드 차단, 사용자 확정) */}
       {tab === "shop" && role === "student" && studentId && !requestOpen && (
         <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm text-warn">
-          🕓 정식 신청 시간은 <b>{windowLabel}</b>이에요. 지금 담으면 <b>예약</b>으로
-          접수되고, 승인은 똑같이 다음 날 아침에 나요 — 깜빡할 걱정 없이 미리 담아두세요!
+          🕓 지금은 신청할 수 없어요 — 상점 신청은 <b>{windowLabel}</b>에만 할 수 있어요.
+          그 시간에 다시 와주세요!
         </div>
       )}
 
@@ -376,12 +374,12 @@ export default function ShopPage() {
                 </div>
                 <button
                   onClick={() => void requestMenuItem(m)}
-                  disabled={busy}
+                  disabled={busy || !requestOpen}
                   className={`press shrink-0 rounded-btn px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40 ${
                     m.wallet === "gold" ? "bg-warn" : "bg-brand"
                   }`}
                 >
-                  {requestOpen ? "신청" : "🕓 예약"}
+                  {requestOpen ? "신청" : "🕓 시간 아님"}
                 </button>
               </div>
             ))}
