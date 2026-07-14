@@ -12,8 +12,6 @@ import {
   getDoc,
   getDocs,
   increment,
-  limit,
-  orderBy,
   query,
   runTransaction,
   where,
@@ -60,15 +58,14 @@ export function useMyRequests(kind: WalletKind, myId: number | null) {
     queryKey: ["spendRequests", kind, myId],
     enabled: myId != null,
     queryFn: async (): Promise<SpendRequest[]> => {
-      // 최근 15건만 (읽기 한도 보호 — 21주간 무한 성장 방지)
-      const q = query(
-        collection(db(), COLL[kind]),
-        where("studentId", "==", myId),
-        orderBy("createdAt", "desc"),
-        limit(15)
-      );
+      // 단일 조건(studentId)만 — where+orderBy 복합 쿼리는 콘솔에 복합 색인이 없으면
+      // failed-precondition으로 통째로 실패한다 (실사례: 프로덕션에서 내역이 빈 목록으로
+      // 보이고 잔액 홀드도 0이 됨). 정렬은 클라이언트에서 (booklet.ts와 같은 컨벤션).
+      const q = query(collection(db(), COLL[kind]), where("studentId", "==", myId));
       const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SpendRequest, "id">) }));
+      return snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<SpendRequest, "id">) }))
+        .sort((a, b) => b.createdAt - a.createdAt);
     },
     staleTime: 5 * 60 * 1000,
   });

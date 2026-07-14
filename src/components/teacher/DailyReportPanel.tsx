@@ -159,6 +159,54 @@ export default function DailyReportPanel({
       const sections = [readingCard];
 
       if (meta) {
+        // ── 요약 — 화면 '전체' 탭의 요약 카드를 인쇄에도 그대로 (사용자 요청) ──
+        const namesOf = (ids?: number[]) => (ids ?? []).map((id) => esc(nm(id))).join(", ");
+        const gNames = (gs?: number[]) => (gs ?? []).map((g) => `${g}모둠`).join(", ");
+        const top5 = scoreRows.slice(0, 5);
+        const topHtml = top5.length
+          ? `<div class="rank">${top5
+              .map(
+                (r, i) =>
+                  `<div class="rk"><span class="m">${MEDAL[i] ?? `${i + 1}.`}</span><span class="rn">${esc(r.name)}</span><span class="rv">${r.row!.total}점</span></div>`
+              )
+              .join("")}</div>${scoreRows.length > 5 ? `<p class="muted">…외 ${scoreRows.length - 5}명</p>` : ""}`
+          : `<p class="muted">아직 집계 전이에요.</p>`;
+        const sumLines = [
+          mvpNames.length ? `<li>⭐ <b>오늘의 MVP</b>(점수 1위) — ${esc(mvpNames.join(", "))}</li>` : "",
+          (meta.classTop ?? []).length
+            ? `<li>🏆 <b>학급 1위</b>(+1 더, 합 +2) — ${namesOf(meta.classTop)}</li>`
+            : "",
+          (meta.bossWinners ?? []).length
+            ? `<li>👑 <b>오늘의 부서장</b>(투표) — ${namesOf(meta.bossWinners)}</li>`
+            : "",
+          (meta.fairWinners ?? []).length
+            ? `<li>🤝 <b>오늘의 페어플레이</b>(배려왕) — ${namesOf(meta.fairWinners)}</li>`
+            : "",
+          (meta.allDoneStudents ?? []).length
+            ? `<li>📌 <b>할 일 5개 완주</b>(+1) — ${namesOf(meta.allDoneStudents)}${
+                (meta.allDoneGroups ?? []).length
+                  ? ` · 전원 완주 모둠(+1): ${gNames(meta.allDoneGroups)}`
+                  : ""
+              }</li>`
+            : "",
+          (meta.autoBestGroups ?? []).length
+            ? `<li>🥇 <b>오늘의 모둠</b>(총점 1위) — ${gNames(meta.autoBestGroups)}${
+                rankPairs.length
+                  ? ` · 교사 순위: ${rankPairs.map(([g, r]) => `${r}위 ${g}모둠`).join(" · ")}`
+                  : ""
+              }</li>`
+            : "",
+          `<li>💌 <b>칭찬 ${compliments.length}건</b> · 🙋 건의 ${peerSug.length}건 · 📨 바라는 점 ${wishes.length}건</li>`,
+        ]
+          .filter(Boolean)
+          .join("");
+        sections.push(
+          `<div class="grid2">${card("오늘 점수 TOP 5", topHtml)}${card(
+            "오늘의 요약",
+            `<ul style="list-style:none;padding-left:2px;margin:0">${sumLines}</ul>`
+          )}</div>`
+        );
+
         // ── 1페이지: 학부모용 — '받은 것만' 뱃지로 (숫자표 대신, 3초에 읽히게) ──
         const praisedSet = new Set((meta.compliments ?? []).map((c) => c.to));
         const bossReasons = meta.bossReasons ?? [];
