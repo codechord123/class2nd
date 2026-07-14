@@ -6,7 +6,7 @@
 // 이미 캐시되는 문서만 재사용 (추가 읽기 0).
 import { useSession } from "@/stores/session";
 import { useSettings } from "@/lib/query/settings";
-import { useReadingStats } from "@/lib/query/reading";
+import { useReadingStats, useMyTodayReadCount } from "@/lib/query/reading";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import { useMyAppeals } from "@/lib/query/appeals";
 import { useWeekRequests } from "@/lib/query/seatChange";
@@ -45,6 +45,7 @@ export default function MyStatus() {
   const { role, studentId } = useSession();
   const { data: settings } = useSettings();
   const { data: stats } = useReadingStats();
+  const { data: myTodayRead } = useMyTodayReadCount(role === "student" ? studentId : null);
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
   const { data: cum } = useCumulativeScores();
@@ -210,7 +211,9 @@ export default function MyStatus() {
   const doneComp = Object.values(
     (evalRec._compliments as Record<string, string>) ?? {}
   ).some((v) => v?.trim());
-  const doneRead = myWeekRead >= quota;
+  // 📌 오늘 할 일 '독서' 완료 = 오늘 감상문 1편 이상 (완주 보너스 aggregate readCount>0와 동일 기준).
+  // 주간 미션(3권)이 아니라 '오늘 1편'이 완주 조건이라, 이 신호를 완주 판정에 쓴다.
+  const doneReadToday = (myTodayRead ?? 0) >= 1;
   // 진행 중인데 아직 투표 안 한 것 — 있으면 오늘 할 일에 타일로 (참여가 학급 자치의 핵심)
   const openUnvoted = (polls ?? []).filter(
     (pl) => !isPollClosed(pl) && votesOf(pl, String(studentId)).length === 0
@@ -231,23 +234,21 @@ export default function MyStatus() {
           { icon: "👑", label: "부서장 투표", sub: "가장 잘한 부서장", done: doneMvp, href: "/team#boss-vote" },
           { icon: "🤝", label: "페어플레이 투표", sub: "배려왕 한 표!", done: doneFair, href: "/team#fair-vote" },
           { icon: "💌", label: "칭찬 보내기", sub: "미션: 전원 받기", done: doneComp, href: "/team#compliment" },
+          // 🐢 독서 — 학사일엔 '오늘 1편'이 완주 5번째 항목 (주간 3권 미션과 별개)
+          {
+            icon: "🐢",
+            label: "감상문 쓰기",
+            sub: vacation ? "오늘 1편이면 완료 (+2점)" : `오늘 1편 (주 미션 ${quota}권)`,
+            done: doneReadToday,
+            href: "/reading",
+          },
         ]
-      : []),
-    vacation
-      ? {
-          // 방학: 주간 미션이 없으니 완료 개념 없는 누적 표시 (상점 타일과 동일 취급)
-          icon: "🐢",
-          label: `방학 독서 ${myWeekRead}권`,
-          sub: "1권 = +2점 · 무제한",
-          href: "/reading",
-        }
-      : {
-          icon: "🐢",
-          label: `독서 ${myWeekRead}/${quota}권`,
-          sub: "이번 주 미션",
-          done: doneRead,
-          href: "/reading",
-        },
+      : [
+          // 쉬는 날(주말·공휴일)엔 완주 대상이 아니라 단순 표시 — 독서는 언제나 열려 있음
+          vacation
+            ? { icon: "🐢", label: `방학 독서 ${myWeekRead}권`, sub: "1권 = +2점 · 무제한", href: "/reading" }
+            : { icon: "🐢", label: `독서 ${myWeekRead}/${quota}권`, sub: "이번 주 미션", href: "/reading" },
+        ]),
     ...(openUnvoted > 0
       ? [{ icon: "🗳", label: `투표 ${openUnvoted}건`, sub: "우리 반 일에 한 표!", href: "/vote" }]
       : []),

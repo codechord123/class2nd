@@ -144,6 +144,32 @@ export function useRecentReports(count: number) {
   });
 }
 
+/** 오늘 내가 정식 등록한 감상문 수 — 홈 '오늘 할 일' 완주 판정용 (집계 전에도 라이브).
+ *  createdAt 단일 범위 쿼리(집계와 동일 패턴 — 복합 인덱스 불요), 오늘의 반 글은 소량.
+ *  내 것·정식본만 클라이언트 필터. 완주 보너스(aggregate readCount>0)와 정확히 같은 기준. */
+export function useMyTodayReadCount(myId: number | null) {
+  return useQuery({
+    queryKey: ["myTodayReadCount", myId, todayKST()],
+    enabled: myId != null,
+    queryFn: async (): Promise<number> => {
+      const start = new Date(todayKST() + "T00:00:00+09:00").getTime();
+      const q = query(
+        collection(db(), "readingReports"),
+        where("createdAt", ">=", start),
+        where("createdAt", "<", start + 86400000)
+      );
+      const snap = await getDocs(q);
+      let n = 0;
+      snap.forEach((doc) => {
+        const d = doc.data();
+        if (d.studentId === myId && !d.isDraft) n++;
+      });
+      return n;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 /** 검색·태그 필터용 전체 감상문 — 최근 N건 창(페이지)만으로는 옛 글이 검색에서 새는 버그가
  *  있었다(실사례: 같은 날 두 번째 글이 검색에 안 잡힘). 필터를 쓰는 순간에만 넓게 1회 로드
  *  (limit 1000·10분 캐시) — 평소 목록은 여전히 최근 N건만 읽는다 (읽기 예산). */
@@ -250,6 +276,7 @@ export function useDeleteReport() {
     ).catch(() => {});
     void qc.invalidateQueries({ queryKey: STATS_KEY });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
+    void qc.invalidateQueries({ queryKey: ["myTodayReadCount"] }); // 홈 완주 카운트 라이브 반영
   };
 }
 
@@ -368,6 +395,7 @@ export function useSaveReport(myId: number | null) {
     }
     void qc.invalidateQueries({ queryKey: ["readingDrafts", myId] });
     void qc.invalidateQueries({ queryKey: ["readingReports"] });
+    void qc.invalidateQueries({ queryKey: ["myTodayReadCount"] }); // 홈 '오늘 할 일' 독서 완주 라이브 반영
     return ref.id;
   };
 }
