@@ -85,13 +85,27 @@ service cloud.firestore {
 
     // 학생이 만들 수 있는 원장 문서 = "본인 명의의 pending 사용 신청"뿐.
     // (적립·승인·잔액 변경은 전부 교사 전용 — 자가 적립/타인 명의 신청 차단)
+    // 🕓 시간창은 서버 시각(request.time, UTC)으로 KST 시(hour)를 계산해 판정 —
+    // 클라이언트 차단만으론 배포 전 옛 페이지를 열어둔 기기가 뚫린다(실사례 2026-07-14).
+    // 교사 설정(requestOpenHour/CloseHour)을 읽어 반영 (쓰기당 문서 1회 조회, KST는 DST 없음).
+    function inRequestWindow() {
+      let h = (request.time.toMillis() + 9 * 3600000) % 86400000 / 3600000;
+      let p = /databases/$(database)/documents/classData/settings;
+      let open = exists(p) && 'requestOpenHour' in get(p).data ? get(p).data.requestOpenHour : 16;
+      let close = exists(p) && 'requestCloseHour' in get(p).data ? get(p).data.requestCloseHour : 24;
+      return open == close % 24 ? true
+        : close == 24 ? h >= open
+        : open < close ? (h >= open && h < close)
+        : (h >= open || h < close % 24);
+    }
     function isValidSpendRequest() {
       return request.resource.data.status == "pending"
         && (request.resource.data.type == "spend" || request.resource.data.type == "gold")
         && request.resource.data.amount is int
         && request.resource.data.amount > 0
         && request.resource.data.amount <= 100
-        && ownsStudent(string(request.resource.data.studentId));
+        && ownsStudent(string(request.resource.data.studentId))
+        && inRequestWindow();
     }
 
     // 코인/실버 원장 (2학기) — 잔액 문서(0_balances)는 학생이 생성도 못 하게 (리셋 직후 탈취 방지)

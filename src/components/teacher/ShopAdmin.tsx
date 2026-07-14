@@ -260,39 +260,47 @@ export default function ShopAdmin() {
                   key={`${p.kind}-${p.r.id}`}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
                 >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
-                      {studentById.get(p.r.studentId)?.name}
-                    </span>
-                    <b className="truncate text-[15px] text-ink-900">{p.r.item}</b>
-                    {/* 골드 신청(type=gold)은 학급 공용 재화 — "이월 N개"로 오인하면 오승인 */}
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
-                        p.r.type === "gold"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-warn-weak text-warn"
-                      }`}
-                    >
-                      {p.r.type === "gold"
-                        ? `🥇 학급 골드 ${p.r.amount}개`
-                        : `${p.kind === "s2" ? "2학기" : "이월"} ${p.r.amount}개`}
-                    </span>
-                    {p.r.reserved && (
-                      <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-500">
-                        🕓 예약
+                  {/* 1줄: 이름 + 품목 (품목이 칩에 밀려 사라지지 않게 자기 줄 확보 — 실사례 수정) */}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                        {studentById.get(p.r.studentId)?.name}
                       </span>
-                    )}
-                    <span className="tnum shrink-0 text-xs text-ink-400">
-                      {fmtDateTime(p.r.createdAt)} 신청
+                      <b className="min-w-0 flex-1 truncate text-[15px] text-ink-900">
+                        {p.r.item?.trim() || <span className="text-ink-400">(품목 없음)</span>}
+                      </b>
                     </span>
-                    {/* 승인 판단 정보 — 부족하면 빨간 경고 (승인 시 트랜잭션이 최종 차단) */}
-                    <span
-                      className={`shrink-0 text-xs ${
-                        balanceOf(p) < p.r.amount ? "font-bold text-danger" : "text-ink-400"
-                      }`}
-                    >
-                      {p.r.type === "gold" ? "학급 골드" : "잔액"} {balanceOf(p)}개
-                      {balanceOf(p) < p.r.amount && " ⚠️ 부족"}
+                    {/* 2줄: 판단 정보 칩들 */}
+                    <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {/* 골드 신청(type=gold)은 학급 공용 재화 — "이월 N개"로 오인하면 오승인 */}
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                          p.r.type === "gold"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-warn-weak text-warn"
+                        }`}
+                      >
+                        {p.r.type === "gold"
+                          ? `🥇 학급 골드 ${p.r.amount}개`
+                          : `${p.kind === "s2" ? "2학기" : "이월"} ${p.r.amount}개`}
+                      </span>
+                      {p.r.reserved && (
+                        <span className="shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-xs font-bold text-ink-500">
+                          🕓 예약
+                        </span>
+                      )}
+                      <span className="tnum shrink-0 text-xs text-ink-400">
+                        {fmtDateTime(p.r.createdAt)} 신청
+                      </span>
+                      {/* 승인 판단 정보 — 부족하면 빨간 경고 (승인 시 트랜잭션이 최종 차단) */}
+                      <span
+                        className={`shrink-0 text-xs ${
+                          balanceOf(p) < p.r.amount ? "font-bold text-danger" : "text-ink-400"
+                        }`}
+                      >
+                        {p.r.type === "gold" ? "학급 골드" : "잔액"} {balanceOf(p)}개
+                        {balanceOf(p) < p.r.amount && " ⚠️ 부족"}
+                      </span>
                     </span>
                   </span>
                   <span className="flex gap-1.5">
