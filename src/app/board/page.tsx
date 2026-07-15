@@ -32,6 +32,7 @@ import {
   useEnactLaws,
   useLawPosts,
   useNominateHidden,
+  useHiddenNominations,
   reactionCounts,
   titleOf,
   AGENDA_STATUS,
@@ -563,9 +564,9 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
 }
 
 // ── 목록 화면 ────────────────────────────────────────────────────
-// view="laws"면 📜 법률 전용 게시판으로 동작 (/laws 라우트가 이 컴포넌트를 재사용)
-// — 법률 제안이 많아 일반 안건이 묻혀서 독립 (사용자 요청)
-export default function BoardPage({ view = "board" }: { view?: "board" | "laws" }) {
+// view="laws"면 📜 법률 전용, view="hidden"이면 🕵️ 숨은 기여 전용 게시판으로 동작
+// (/laws·/hidden 라우트가 이 컴포넌트를 재사용) — 제안·추천이 많아 일반 안건이 묻혀서 독립 (사용자 요청)
+export default function BoardPage({ view = "board" }: { view?: "board" | "laws" | "hidden" }) {
   const { role, studentId } = useSession();
   // 게시판형 페이지네이션 — n개씩 보기 + 페이지 번호 (+1은 다음 페이지 존재 탐지)
   const [pageSize, setPageSize] = useState(10);
@@ -578,8 +579,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   const { data: posts } = useSuggestions(need + fetchExtra);
   useEffect(() => {
     if (!posts) return;
-    const nonLaw = posts.filter((p) => !p.isAnnouncement && p.kind !== "law").length;
-    if (nonLaw < need && posts.length >= need + fetchExtra) setFetchExtra((e) => e + 20);
+    // 건의 목록은 법률·숨은기여를 클라이언트에서 제외하므로, 최근 창이 그런 글로 가득하면
+    // 통째로 걸러져 페이지가 빈다 — 일반 안건이 페이지를 채울 때까지 가져오는 양을 늘린다
+    const nonBoard = posts.filter(
+      (p) => !p.isAnnouncement && p.kind !== "law" && p.kind !== "hidden"
+    ).length;
+    if (nonBoard < need && posts.length >= need + fetchExtra) setFetchExtra((e) => e + 20);
   }, [posts, need, fetchExtra]);
   const { data: announcements } = useAnnouncements();
   const post = usePostSuggestion(role === "teacher" ? "teacher" : studentId);
@@ -602,6 +607,8 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   // 부서별로 어떤 법이 올라와 통과(채택)됐는지/안 됐는지 한눈에 (사용자 요청)
   const [lawDeptFilter, setLawDeptFilter] = useState("");
   const { data: lawPosts } = useLawPosts(view === "laws");
+  // 🕵️ 숨은 기여 탭 — kind:hidden 전용 조회 (필터 켠 탭에서만 — 읽기 예산)
+  const { data: hiddenNoms } = useHiddenNominations(view === "hidden");
   const enactLaws = useEnactLaws();
   const [busy, setBusy] = useState(false);
   const submitRef = useRef(false); // 같은 틱 더블클릭 이중 등록 차단 (busy state는 리렌더 전 두 번째 클릭을 못 막음)
@@ -639,10 +646,15 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   }, [title, content, draftKey]);
 
   // 딥링크: /laws#write (구 /board#law) → 헌법 탭 CTA에서 온 학생에게 법률 제안 폼을 바로 열어준다
+  // /hidden#write → 숨은 기여 추천 폼을 바로 열어준다
   useEffect(() => {
-    if (view === "laws" && ["#write", "#law"].includes(window.location.hash)) {
+    const wantWrite = ["#write", "#law"].includes(window.location.hash);
+    if (view === "laws" && wantWrite) {
       setWriting(true);
       setPostKind("law");
+    } else if (view === "hidden" && wantWrite) {
+      setWriting(true);
+      setPostKind("hidden");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -661,11 +673,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   const canSee = (p: Suggestion) =>
     !p.teacherOnly || role === "teacher" || (role === "student" && p.studentId === studentId);
 
-  // 법률 모아보기로 연 옛 글은 최근 목록(posts)에 없을 수 있어 lawPosts도 상세 조회 대상에 포함
+  // 법률·숨은기여 모아보기로 연 글은 최근 목록(posts)에 없을 수 있어 전용 쿼리도 상세 조회 대상에 포함
   const all = [
     ...(announcements ?? []),
     ...(posts ?? []).filter((p) => !p.isAnnouncement),
     ...(lawPosts ?? []),
+    ...(hiddenNoms ?? []),
   ];
   const selected = all.find((p) => p.id === selectedId && canSee(p));
 
@@ -763,12 +776,17 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   };
   // 📜 법률 탭 — 전용 쿼리 결과를 부서로 거른다 (공지·페이지네이션 대신 전체 표시)
   const lawMode = view === "laws";
+  const hiddenMode = view === "hidden";
   const lawItems = lawMode
     ? (lawPosts ?? [])
         .filter(canSee)
         .filter(matches)
         .filter((p) => !lawDeptFilter || p.lawDept === lawDeptFilter)
     : [];
+  // 🕵️ 숨은 기여 탭 — kind:hidden 전용 쿼리 결과 (최신순은 훅에서 이미 정렬)
+  const hiddenItems = hiddenMode ? (hiddenNoms ?? []).filter(canSee).filter(matches) : [];
+  // 아직 지급 안 된 추천 수 (금요일 지급 대기 — 학생·교사에게 진행 상황 표시)
+  const hiddenPending = hiddenItems.filter((p) => !p.resolved).length;
   const lawCount = (st: AgendaStatus) =>
     lawItems.filter((p) => (p.status ?? "논의중") === st).length;
   // 채택됐지만 아직 헌법 탭에 등록 안 된 법률 — 교사 일괄 등록 대상 (현재 필터 범위)
@@ -798,16 +816,19 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
     }
   }
 
-  const pinned = lawMode ? [] : (announcements ?? []).filter(matches);
-  // 건의 탭에서는 법률 글을 뺀다 — 법률은 📜 법률 탭이 전담 (일반 안건이 묻히지 않게)
+  const pinned = lawMode || hiddenMode ? [] : (announcements ?? []).filter(matches);
+  // 건의 탭에서는 법률·숨은기여 글을 뺀다 — 각각 📜 법률·🕵️ 숨은기여 탭이 전담 (일반 안건이 묻히지 않게)
   const normal = lawMode
     ? lawItems
-    : (posts ?? [])
-        .filter((p) => !p.isAnnouncement && p.kind !== "law")
-        .filter(canSee)
-        .filter(matches);
-  // 검색 중·법률 모드에는 결과 전체, 평소엔 현재 페이지 분량만
-  const pageItems = kw || lawMode ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
+    : hiddenMode
+      ? hiddenItems
+      : (posts ?? [])
+          .filter((p) => !p.isAnnouncement && p.kind !== "law" && p.kind !== "hidden")
+          .filter(canSee)
+          .filter(matches);
+  // 검색 중·법률·숨은기여 모드에는 결과 전체, 평소엔 현재 페이지 분량만
+  const pageItems =
+    kw || lawMode || hiddenMode ? normal : normal.slice((page - 1) * pageSize, page * pageSize);
   // 페이지 수는 법률 제외 후 실제 보이는 글 수 기준 (법률 포함으로 세면 빈 페이지가 생긴다)
   const knownPages = Math.max(1, Math.ceil(normal.length / pageSize));
 
@@ -882,7 +903,20 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                 공지
               </span>
             )}
-            {!pin && <StatusBadge sug={p} />}
+            {/* 숨은 기여는 안건 상태(논의중 등) 대신 추천/지급 상태로 표시 */}
+            {!pin && p.kind === "hidden" ? (
+              p.resolved ? (
+                <span className="shrink-0 rounded-full bg-success-weak px-2 py-0.5 text-[10px] font-bold text-success">
+                  ✅ 지급됨
+                </span>
+              ) : (
+                <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                  🕵️ 추천
+                </span>
+              )
+            ) : (
+              !pin && <StatusBadge sug={p} />
+            )}
             {p.teacherOnly && (
               <span className="shrink-0 rounded bg-ink-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
                 🔒 선생님만
@@ -926,10 +960,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
 
   return (
     <div className="space-y-4">
-      <VoteBoardTabs current={lawMode ? "laws" : "board"} />
+      <VoteBoardTabs current={lawMode ? "laws" : hiddenMode ? "hidden" : "board"} />
       <section className="rounded-card border border-ink-200 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 p-4">
-          <h3 className="text-lg font-bold">{lawMode ? "📜 우리 반 법률" : "📬 안건·토론"}</h3>
+          <h3 className="text-lg font-bold">
+            {lawMode ? "📜 우리 반 법률" : hiddenMode ? "🕵️ 숨은 기여 추천" : "📬 안건·토론"}
+          </h3>
           <div className="flex items-center gap-2">
             <input
               value={search}
@@ -960,8 +996,9 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
               <span className="relative">
                 <button
                   onClick={() => {
-                    // 법률 탭에서는 글 종류가 법률 제안으로 고정
+                    // 법률·숨은기여 탭에서는 글 종류가 각각 고정
                     if (lawMode && !writing) setPostKind("law");
+                    if (hiddenMode && !writing) setPostKind("hidden");
                     setWriting((v) => !v);
                   }}
                   className="press rounded-btn bg-brand px-3 py-1.5 text-sm font-bold text-white"
@@ -970,9 +1007,11 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                     ? "닫기"
                     : lawMode
                       ? "✍️ 법률 제안"
-                      : role === "teacher"
-                        ? "✏️ 글 올리기"
-                        : "✏️ 안건 올리기"}
+                      : hiddenMode
+                        ? "🕵️ 추천하기"
+                        : role === "teacher"
+                          ? "✏️ 글 올리기"
+                          : "✏️ 안건 올리기"}
                 </button>
                 <JuiceBurst fireKey={postBurst} emojis={["📬", "✨", "💙"]} className="left-1/2 top-0" />
               </span>
@@ -1010,6 +1049,22 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                 <b className="tnum">{lawCount("논의중")}</b> · ⏸ 보류{" "}
                 <b className="tnum">{lawCount("보류")}</b>
               </span>
+            )}
+          </div>
+        )}
+
+        {/* 🕵️ 숨은 기여 탭 안내 — 추천 흐름 + 지급 대기 현황 (사용자 요청: 건의에서 독립) */}
+        {hiddenMode && (
+          <div className="border-b border-ink-100 bg-violet-50/60 px-4 py-2.5">
+            <p className="text-xs leading-relaxed text-violet-800">
+              🕵️ <b>드러나지 않게 학급을 도운 친구</b>를 추천해요. 친구들의 👍 투표로 응원하면,
+              매주 <b>금요일 선생님이 확인해 실버 1개</b>를 지급해요. (자기 자신은 추천 못 해요)
+            </p>
+            {hiddenNoms && hiddenItems.length > 0 && (
+              <p className="mt-1 text-[11px] text-violet-500">
+                추천 <b className="tnum">{hiddenItems.length}</b>건 · 지급 대기{" "}
+                <b className="tnum">{hiddenPending}</b>건
+              </p>
             )}
           </div>
         )}
@@ -1059,38 +1114,21 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
 
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
-            {/* 종류 선택 — 건의 탭: 일반 안건/숨은 기여. 법률 탭은 법률 제안 고정 (독립 탭) */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {lawMode ? (
+            {/* 종류 안내 — 법률/숨은기여 탭은 각각 고정. 건의 탭은 일반 안건만이라 선택 UI 불필요
+                (숨은 기여는 🕵️ 숨은기여 탭으로 독립 — 사용자 요청) */}
+            {lawMode ? (
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-bold text-violet-700">
                   📜 법률 제안 — 채택되면 그 부서의 법이 돼요 → 부서를 골라주세요
                 </span>
-              ) : (
-                (
-                  [
-                    { key: "general", label: "💬 일반 안건" },
-                    { key: "hidden", label: "🕵️ 숨은 기여 추천" },
-                  ] as const
-                ).map((k) => (
-                  <button
-                    key={k.key}
-                    onClick={() => setPostKind(k.key)}
-                    className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
-                      postKind === k.key
-                        ? "bg-ink-800 text-white"
-                        : "bg-white text-ink-500 border border-ink-200"
-                    }`}
-                  >
-                    {k.label}
-                  </button>
-                ))
-              )}
-              {!lawMode && postKind === "hidden" && (
-                <span className="text-[11px] text-ink-400">
-                  친구들의 👍 투표를 거쳐 선생님이 금요일에 실버 1개를 지급해요
+              </div>
+            ) : hiddenMode ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-bold text-violet-700">
+                  🕵️ 숨은 기여 추천 — 친구를 고르고, 무엇을 했는지 적어주세요
                 </span>
-              )}
-            </div>
+              </div>
+            ) : null}
             {postKind === "hidden" ? (
               /* 🕵️ 숨은 기여 추천 — 대상 선택(자기 제외) + 이유(10자↑). 👍👎로 학급이 결정 */
               <>
@@ -1216,25 +1254,27 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
               </>
             )}
             <div className="flex items-center gap-3">
-              {role === "student" ? (
-                <label className="flex items-center gap-1.5 text-sm text-ink-500">
-                  <input
-                    type="checkbox"
-                    checked={teacherOnly}
-                    onChange={(e) => setTeacherOnly(e.target.checked)}
-                  />
-                  🔒 선생님만 보기 (몰래 전할 말)
-                </label>
-              ) : (
-                <label className="flex items-center gap-1.5 text-sm text-ink-500">
-                  <input
-                    type="checkbox"
-                    checked={announce}
-                    onChange={(e) => setAnnounce(e.target.checked)}
-                  />
-                  📌 공지로 고정
-                </label>
-              )}
+              {/* 숨은 기여는 공개 추천이라 선생님만 보기·공지 옵션 없음 */}
+              {!hiddenMode &&
+                (role === "student" ? (
+                  <label className="flex items-center gap-1.5 text-sm text-ink-500">
+                    <input
+                      type="checkbox"
+                      checked={teacherOnly}
+                      onChange={(e) => setTeacherOnly(e.target.checked)}
+                    />
+                    🔒 선생님만 보기 (몰래 전할 말)
+                  </label>
+                ) : (
+                  <label className="flex items-center gap-1.5 text-sm text-ink-500">
+                    <input
+                      type="checkbox"
+                      checked={announce}
+                      onChange={(e) => setAnnounce(e.target.checked)}
+                    />
+                    📌 공지로 고정
+                  </label>
+                ))}
               <button
                 onClick={() => void submit()}
                 disabled={busy}
@@ -1247,7 +1287,7 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
         )}
 
         {/* 목록 */}
-        {(lawMode ? !lawPosts : !posts && !announcements) ? (
+        {(lawMode ? !lawPosts : hiddenMode ? !hiddenNoms : !posts && !announcements) ? (
           <SkeletonList rows={5} />
         ) : !pinned.length && !normal.length ? (
           search ? (
@@ -1257,6 +1297,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
               emoji="📜"
               title={lawDeptFilter ? `${lawDeptFilter} 법률 제안이 아직 없어요` : "법률 제안이 아직 없어요"}
               desc="위의 ✍️ 법률 제안 버튼으로 우리 부서 법을 올려보세요!"
+            />
+          ) : hiddenMode ? (
+            <EmptyState
+              emoji="🕵️"
+              title="아직 추천이 없어요"
+              desc="드러나지 않게 학급을 도운 친구를 🕵️ 추천하기로 알려주세요!"
             />
           ) : (
             <EmptyState emoji="📭" title="아직 안건이 없어요" desc="첫 안건을 올려보세요!" />
@@ -1276,8 +1322,8 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
           </ul>
         )}
 
-        {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색·법률 모아보기 중엔 숨김) */}
-        {!kw && !lawMode && (posts?.length ?? 0) > 0 && (
+        {/* 게시판식 하단: n개씩 보기 + 페이지 번호 (검색·법률·숨은기여 모아보기 중엔 숨김) */}
+        {!kw && !lawMode && !hiddenMode && (posts?.length ?? 0) > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5">
             <div className="flex items-center gap-1">
               {[10, 20].map((n) => (
