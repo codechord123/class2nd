@@ -4,6 +4,9 @@
 //  · 선생님 순위(groupRank)·칭찬 미션(mission)은 모둠 단위 사건 — 모둠당 1회만
 //  · 페어플레이(fair)는 개인 점수 전용 (사용자 확정 2026-07-13 — 상호 투표라 담합 방지 원칙 적용)
 //  · 독서(read)·교사 보너스(bonus)는 외부 검증되는 개인 실적 — 인원 합산
+//  · 단, 독서의 모둠 합산은 '학사일'에만 (사용자 확정 2026-07-18): 주말·공휴일 감상문은
+//    개인 점수(+2/권)엔 그대로 들어가지만 모둠 대항 점수엔 반영하지 않는다.
+//    → schoolDay=false면 read를 모둠 합산에서 제외 (개인 행의 read는 건드리지 않음).
 // 개인 점수(rows의 total)는 이 규칙과 무관하게 전 항목이 각자 그대로다.
 import type { DailyScoreRow } from "@/types";
 
@@ -23,8 +26,10 @@ export interface GroupDayScore {
 
 export function groupDayScore(
   rows: Record<string, unknown>,
-  memberIds: number[]
+  memberIds: number[],
+  opts?: { schoolDay?: boolean } // 기본 true — false면 독서를 모둠 합산에서 제외 (주말·공휴일)
 ): GroupDayScore {
+  const schoolDay = opts?.schoolDay ?? true;
   const s: GroupDayScore = {
     total: 0,
     rankOnce: 0,
@@ -42,7 +47,8 @@ export function groupDayScore(
     if (!r) continue;
     if (!s.rankOnce && r.groupRank) s.rankOnce = r.groupRank;
     if (!s.missionOnce && r.mission) s.missionOnce = r.mission;
-    s.read += r.read ?? 0;
+    // 주말·공휴일 감상문은 모둠 점수 미반영 (개인 +2는 유지 — 사용자 확정 2026-07-18)
+    s.read += schoolDay ? (r.read ?? 0) : 0;
     s.bonus += r.bonus ?? 0;
     s.peer += r.peer ?? 0;
     s.comp += r.comp ?? 0;

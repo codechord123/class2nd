@@ -483,10 +483,12 @@ async function aggregateDateInner(
   //   모두 한 학생 +1점(allDone). 모둠원 전원(결석·전출 제외) 완주면 그 모둠 점수도 +1.
   //   주말·공휴일(평가 잠금일)엔 지급하지 않는다 — 학사일 판정은 연속 보너스와 동일.
   const senders = new Set(compliments.map((c) => c.from));
-  const bonusSchoolDay =
+  // 학사일 = 제출이 있는 날 그리고 주말·공휴일이 아닌 날. 할 일 완주·미션 연속·MVP·모둠 대항
+  // (독서 모둠 합산 포함)은 모두 이 판정을 공유한다 (사용자 확정). 주말 감상문은 개인 점수만.
+  const isSchoolDay =
     evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
   const allDoneSet = new Set<number>();
-  if (bonusSchoolDay)
+  if (isSchoolDay)
     for (const s of students) {
       if (s.inactive || absentSet.has(s.id)) continue;
       if (
@@ -569,26 +571,31 @@ async function aggregateDateInner(
   // 5-1) 오늘의 MVP (사용자 확정 규칙): 투표가 아니라 그날 모든 점수(기본 점수) 합산으로 —
   //      각 모둠 1위 +1점, 학급 전체 1위는 +2점 추가(모둠 1위 겸이므로 합 +3).
   //      동점자 모두 인정, 기본 점수 0점 초과일 때만 (기록 없는 날 전원 MVP 방지).
+  //      학사일에만 선정한다 (사용자 확정 2026-07-18) — 주말·공휴일엔 독서(개인 +2)만 쌓이고
+  //      MVP·오늘의 모둠 같은 '그날의 경쟁 보상'은 열리지 않는다.
   const mvpPts: Record<number, number> = {};
   const mvpWinners: number[] = []; // 모둠별 점수 1위(동점 포함) — ★ 표시·세션 '최다 MVP' 집계용
-  for (const g of schedule.groups) {
-    const ids = activeIdsOf(g);
-    const max = Math.max(0, ...ids.map((id) => baseParts[id]?.sum ?? 0));
-    if (max > 0)
-      for (const id of ids)
-        if ((baseParts[id]?.sum ?? 0) === max) {
-          mvpPts[id] = 1;
-          mvpWinners.push(id);
-        }
-  }
   const activeStudents = students.filter((s) => !s.inactive && !absentSet.has(s.id));
-  const classMax = Math.max(0, ...activeStudents.map((s) => baseParts[s.id]?.sum ?? 0));
-  const classTop =
-    classMax > 0
-      ? activeStudents.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id)
-      : [];
-  // 학급 1위는 모둠 1위(+1)를 겸하므로, 학급 가산 +1을 더해 합 +2 (사용자 확정)
-  for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 1;
+  const classTop: number[] = [];
+  if (isSchoolDay) {
+    for (const g of schedule.groups) {
+      const ids = activeIdsOf(g);
+      const max = Math.max(0, ...ids.map((id) => baseParts[id]?.sum ?? 0));
+      if (max > 0)
+        for (const id of ids)
+          if ((baseParts[id]?.sum ?? 0) === max) {
+            mvpPts[id] = 1;
+            mvpWinners.push(id);
+          }
+    }
+    const classMax = Math.max(0, ...activeStudents.map((s) => baseParts[s.id]?.sum ?? 0));
+    if (classMax > 0)
+      classTop.push(
+        ...activeStudents.filter((s) => baseParts[s.id]?.sum === classMax).map((s) => s.id)
+      );
+    // 학급 1위는 모둠 1위(+1)를 겸하므로, 학급 가산 +1을 더해 합 +2 (사용자 확정)
+    for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 1;
+  }
 
   const rows: Record<number, DailyScoreRow> = {};
   for (const s of students) {
@@ -615,10 +622,13 @@ async function aggregateDateInner(
   //      선생님 순위·칭찬 미션은 모둠당 1회, 독서·보너스는 합산.
   //      개인 행(rows)은 전 항목 각자 그대로 — 개인 점수는 바뀌지 않는다.
   //      best(오늘의 모둠 보너스)는 아직 0이라 모둠 점수·MVP 판정에 영향 없음(순환 차단).
+  //      독서의 모둠 합산은 학사일에만 — 주말·공휴일 감상문은 개인 점수만 (사용자 확정 2026-07-18).
   const groupSums: Record<number, number> = {};
   for (const g of schedule.groups) {
     const ids = activeIdsOf(g);
-    groupSums[g.groupId] = groupDayScore(rows as unknown as Record<string, unknown>, ids).total;
+    groupSums[g.groupId] = groupDayScore(rows as unknown as Record<string, unknown>, ids, {
+      schoolDay: isSchoolDay,
+    }).total;
   }
   // 📌 모둠원 전원 할 일 완주 → 모둠 점수 +1 (모둠당 1회 — 사용자 확정)
   for (const gid of allDoneGroups) groupSums[gid] = (groupSums[gid] ?? 0) + 1;
@@ -660,9 +670,7 @@ async function aggregateDateInner(
     const cumAny = cum as Record<string, unknown>;
     const period = periodOfWeek(week);
     const streakDay = (cumAny.missionStreakDay as string) ?? "";
-    // 학사일 = 제출이 있는 날 그리고 주말·공휴일이 아닌 날 (칭찬 연속과 동일한 달력 판정)
-    const isSchoolDay =
-      evalSnap.size > 0 && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
+    // 학사일 판정은 위에서 정의한 isSchoolDay 공유 (칭찬 연속·MVP·모둠 대항 모두 동일 기준)
     if (date >= streakDay) {
       const sameDay = streakDay === date;
       let base =
@@ -794,6 +802,7 @@ async function aggregateDateInner(
       ...rows,
       _meta: {
         aggregatedAt: Date.now(),
+        schoolDay: isSchoolDay, // 학사일 여부 — 표시 계층이 독서 모둠 합산·경쟁 보상 판정에 재사용
         ranks, // 교사 순위 (점수 배분용 — 타이틀과 분리)
         mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
@@ -1296,9 +1305,11 @@ export async function recomputeBestGroupWins(): Promise<Record<string, number>> 
         [g.chair, ...g.members.map((m) => m.studentId)].filter(
           (id) => !studentById.get(id)?.inactive
         );
+      // 구버전 문서엔 schoolDay가 없으니 날짜로 판정 (주말이면 독서 모둠 합산 제외)
+      const sDay = (data._meta as { schoolDay?: boolean })?.schoolDay ?? !isWeekend(day.id);
       const groupSums: Record<number, number> = {};
       for (const g of schedule.groups)
-        groupSums[g.groupId] = groupDayScore(data, activeIdsOf(g)).total;
+        groupSums[g.groupId] = groupDayScore(data, activeIdsOf(g), { schoolDay: sDay }).total;
       const bestSum = Math.max(0, ...Object.values(groupSums));
       if (bestSum > 0)
         for (const g of schedule.groups)

@@ -295,6 +295,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
  *  (documentId 내림차순 쿼리는 Firestore 미지원 — getDoc을 첫 히트에서 멈추는 방식이
  *   평일엔 1회, 주말을 건넌 월요일엔 3회 읽기로 가장 싸다. 최대 5일 전까지만.) */
 export interface DailyMeta {
+  schoolDay?: boolean; // 학사일 여부 — 주말·공휴일이면 독서 모둠 합산·경쟁 보상 제외 (없으면 날짜로 판정)
   compliments?: { from: number; to: number; text: string }[];
   peerSuggestions?: { from: number; to: number; text: string }[];
   bossReasons?: { from: number; to: number; text: string }[]; // 오늘의 부서장 추천 이유

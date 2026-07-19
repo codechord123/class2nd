@@ -3,7 +3,7 @@
 // 전부 이미 캐시되는 문서 재사용: 누적 점수(_cumulative) + 독서 통계 + 최근 집계일 메타.
 import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { useReadingStats } from "@/lib/query/reading";
 import {
@@ -112,6 +112,8 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   const ySchedule = yDate
     ? scheduleOfWeek(weekOfDate(yDate, SEMESTER_START, TOTAL_WEEKS))
     : schedule;
+  // 주말·공휴일 감상문은 모둠 합산 제외 (개인 +2만) — 사용자 확정 2026-07-18
+  const ySchoolDay = yMeta?.schoolDay ?? (yDate ? !isWeekend(yDate) : true);
   const yGroupSums: Record<string, number> = {};
   if (srcRows)
     for (const g of ySchedule.groups) {
@@ -123,7 +125,8 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
       const teamExtra =
         (yMeta?.missionStreakBonus?.[String(g.groupId)] ?? 0) +
         ((yMeta?.allDoneGroups ?? []).includes(g.groupId) ? 1 : 0);
-      yGroupSums[String(g.groupId)] = groupDayScore(srcRows, ids).total + teamExtra;
+      yGroupSums[String(g.groupId)] =
+        groupDayScore(srcRows, ids, { schoolDay: ySchoolDay }).total + teamExtra;
     }
   const yMax = Math.max(0, ...Object.values(yGroupSums));
   // 오늘의 모둠 타이틀은 저장된 판정을 우선 (재계산은 규칙 변경 전 문서 폴백)

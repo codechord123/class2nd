@@ -3,7 +3,7 @@
 // 오늘 집계가 있으면 오늘, 없으면 최근 집계일 — Team 탭이 이미 캐시하는 문서 2개 재사용 (추가 읽기 0).
 import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
 import { groupDayScore, type GroupDayScore } from "@/lib/groupScore";
 
@@ -64,16 +64,19 @@ export default function GroupBreakdown({
   const meta = ((targetHasRows ? targetScores?._meta : latestAgg?.rows?._meta) ?? {}) as {
     missionStreakBonus?: Record<string, number>;
     allDoneGroups?: number[];
+    schoolDay?: boolean;
   };
   const streakOf = (gid: number) => meta.missionStreakBonus?.[String(gid)] ?? 0;
   const allDoneSet = new Set(meta.allDoneGroups ?? []);
+  // 주말·공휴일 감상문은 모둠 점수 미반영 (개인 +2만) — 사용자 확정 2026-07-18
+  const schoolDay = meta.schoolDay ?? !isWeekend(date);
 
   // 모둠 점수 규칙은 lib/groupScore가 단일 출처 — 집계·대항전·리포트와 항상 동일
   const groups = schedule.groups.map((g) => {
     const ids = [g.chair, ...g.members.map((m) => m.studentId)].filter(
       (id) => !studentById.get(id)?.inactive
     );
-    const score = groupDayScore(rows, ids);
+    const score = groupDayScore(rows, ids, { schoolDay });
     const teamExtra = streakOf(g.groupId) + (allDoneSet.has(g.groupId) ? 1 : 0);
     return { groupId: g.groupId, ids, score, teamExtra, total: score.total + teamExtra };
   });

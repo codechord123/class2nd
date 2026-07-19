@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
-import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated, type DailyMeta } from "@/lib/query/evaluation";
 import { groupDayScore } from "@/lib/groupScore";
 import SubTabs from "@/components/ui/SubTabs";
@@ -50,6 +50,9 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
   const schedule = scheduleOfWeek(week);
+  // 학사일이 아니면(주말·공휴일) 독서는 개인 점수만 — 모둠 합산 제외 (사용자 확정 2026-07-18).
+  // 저장된 schoolDay 우선, 없으면(구버전 문서) 날짜로 판정.
+  const schoolDay = meta.schoolDay ?? !isWeekend(date);
   const rowOf = (id: number) => rows[String(id)] as DailyScoreRow | undefined;
   const bestGroups = meta.autoBestGroups ?? [];
   const classTop = meta.classTop ?? [];
@@ -169,7 +172,7 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
             (id) => !studentById.get(id)?.inactive
           );
           const isBest = bestGroups.includes(g.groupId);
-          const gScore = groupDayScore(rows, ids).total;
+          const gScore = groupDayScore(rows, ids, { schoolDay }).total;
           const mine = myStudentId != null && ids.includes(myStudentId);
           return (
             <div

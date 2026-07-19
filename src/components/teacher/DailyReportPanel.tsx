@@ -8,7 +8,7 @@ import { useReadingStats } from "@/lib/query/reading";
 import { useDailyScores, useRangeReport } from "@/lib/query/evaluation";
 import { useSettings } from "@/lib/query/settings";
 import { useClassBanner } from "@/lib/query/classMeta";
-import { weekOfDate } from "@/lib/date";
+import { isWeekend, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
@@ -100,11 +100,15 @@ export default function DailyReportPanel({
   // 학생/모둠의 항목별 점수 분해 — dailyScores 행 재사용 (추가 읽기 0).
   // 모둠 점수 규칙은 lib/groupScore 단일 출처 (내부 상호평가·MVP 제외, 순위·미션 1회)
   const rowOf = (id: number) => today?.[String(id)] as DailyScoreRow | undefined;
+  // 주말·공휴일 감상문은 모둠 합산 제외 (개인 +2만) — 사용자 확정 2026-07-18
+  const reportSchoolDay =
+    (today?._meta as { schoolDay?: boolean } | undefined)?.schoolDay ?? !isWeekend(date);
   const groupScoreOf = (ids: number[]) =>
-    groupDayScore((today ?? {}) as Record<string, unknown>, ids);
+    groupDayScore((today ?? {}) as Record<string, unknown>, ids, { schoolDay: reportSchoolDay });
 
   // 집계 문서의 _meta — 집계 후에만 존재
   const meta = (today?._meta ?? null) as {
+    schoolDay?: boolean; // 학사일 여부 — 주말·공휴일이면 독서 모둠 합산 제외
     mvpWinners?: number[]; // 점수 MVP (모둠별 1위)
     classTop?: number[]; // 학급 전체 1위 (+1 가산, 모둠 1위와 합쳐 +2)
     bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
