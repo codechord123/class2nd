@@ -17,6 +17,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { studentById } from "@/lib/roster";
 import { getS1WalletOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
 
@@ -240,6 +241,65 @@ export function useDeductSilver() {
       );
     });
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
+  };
+}
+
+/** 교사 실버 '사용' 차감 (여러 명 동시) — 상점 사용을 수동으로 기록·차감할 때.
+ *  useDeductSilver(단일·s2·회수)와 달리 '구매(사용)' 의미라 silverEarned(골드 적립 재료)는
+ *  건드리지 않는다(쓴 것은 번 것을 줄이지 않음). 지갑 선택:
+ *   · s2(2학기): coinTxns/0_balances 잔액을 −amount (음수 방지)
+ *   · s1(이월):  s1Spends/0_balances 사용량을 +amount (원장 원본은 정적 JSON — 남은 한도 초과 방지)
+ *  한 트랜잭션에서 전원 검증 후 반영 — 한 명이라도 잔액 부족이면 전체 취소(원자적). */
+export function useDeductMany() {
+  const qc = useQueryClient();
+  return async (
+    kind: WalletKind,
+    items: { studentId: number; amount: number }[],
+    note: string
+  ) => {
+    const valid = items.filter((i) => Number.isInteger(i.amount) && i.amount > 0);
+    if (!valid.length) throw new Error("차감할 학생과 개수를 입력해주세요.");
+    const d = db();
+    const coll = COLL[kind];
+    const balRef = doc(d, coll, "0_balances");
+    await runTransaction(d, async (tx) => {
+      const snap = await tx.get(balRef);
+      const bal = (snap.exists() ? snap.data() : {}) as Record<string, number>;
+      // 1) 전원 잔액 검증 (쓰기 전에 모두 확인 — 한 명이라도 부족하면 전체 취소)
+      for (const { studentId, amount } of valid) {
+        const nm = studentById.get(studentId)?.name ?? `${studentId}번`;
+        if (kind === "s2") {
+          const cur = Number(bal[String(studentId)] ?? 0);
+          if (cur < amount) throw new Error(`${nm}의 2학기 실버가 부족해요 (잔액 ${cur}개).`);
+        } else {
+          const original = getS1WalletOf(studentId)?.silverRemaining ?? 0;
+          const used = Number(bal[String(studentId)] ?? 0);
+          if (original - used < amount)
+            throw new Error(`${nm}의 이월 실버가 부족해요 (남은 ${original - used}개).`);
+        }
+      }
+      // 2) 원장 기록 (사용 = type "spend", 즉시 승인 상태)
+      for (const { studentId, amount } of valid) {
+        tx.set(doc(collection(d, coll)), {
+          studentId,
+          amount,
+          item: note || "교사 차감(사용)",
+          type: "spend",
+          status: "approved",
+          createdAt: Date.now(),
+        });
+      }
+      // 3) 잔액 문서 반영 — s2는 잔액 −, s1은 사용량 +
+      tx.set(
+        balRef,
+        Object.fromEntries(
+          valid.map((i) => [String(i.studentId), increment(kind === "s2" ? -i.amount : i.amount)])
+        ),
+        { merge: true }
+      );
+    });
+    void qc.invalidateQueries({ queryKey: ["balances", kind] });
+    void qc.invalidateQueries({ queryKey: ["spendRequests"] });
   };
 }
 

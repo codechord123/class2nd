@@ -16,6 +16,7 @@ import { classGoldLeft } from "@/lib/gold";
 import {
   useBalances,
   useGrantSilver,
+  useDeductMany,
   useAdjustClassGold,
   signedAmount,
 } from "@/lib/query/wallet";
@@ -84,6 +85,7 @@ export default function ClassDashboard() {
   const { data: s2Bal } = useBalances("s2");
   const { data: s1Used } = useBalances("s1");
   const grantSilver = useGrantSilver();
+  const deductMany = useDeductMany();
   const adjustGold = useAdjustClassGold();
   const { toast, confirm } = useFeedback();
   const qc = useQueryClient();
@@ -94,6 +96,11 @@ export default function ClassDashboard() {
   const [allAmt, setAllAmt] = useState("1"); // 전체 지급 개수
   const [allNote, setAllNote] = useState(""); // 전체 지급 사유 (선택)
   const [allBusy, setAllBusy] = useState(false);
+  // ➖ 여러 명 실버 차감 (상점 사용 수동 기록)
+  const [dedKind, setDedKind] = useState<"s1" | "s2">("s1"); // 방학 사용분은 이월(s1)이 기본
+  const [dedNote, setDedNote] = useState("");
+  const [dedSel, setDedSel] = useState<Record<number, string>>({}); // sid → 차감 개수(문자열). 존재=선택
+  const [dedBusy, setDedBusy] = useState(false);
   const [scoreAmt, setScoreAmt] = useState("1");
   const [scoreBusy, setScoreBusy] = useState(false);
   const [goldBusy, setGoldBusy] = useState(false);
@@ -183,6 +190,65 @@ export default function ClassDashboard() {
       toast(`⚠️ ${e instanceof Error ? e.message : "지급 실패"}`, "error");
     } finally {
       setAllBusy(false);
+    }
+  }
+
+  // ➖ 여러 명 실버 차감 — 지갑별 잔액 헬퍼 + 선택 토글 + 실행
+  const dedBalOf = (sid: number) =>
+    dedKind === "s2"
+      ? (s2Bal?.[String(sid)] ?? 0)
+      : (getS1WalletOf(sid)?.silverRemaining ?? 0) - (s1Used?.[String(sid)] ?? 0);
+  const toggleDed = (sid: number) =>
+    setDedSel((prev) => {
+      const next = { ...prev };
+      if (sid in next) delete next[sid];
+      else next[sid] = "1";
+      return next;
+    });
+  const dedEntries = Object.entries(dedSel).map(([sid, amt]) => ({
+    studentId: Number(sid),
+    amount: Number(amt),
+  }));
+  const dedTotal = dedEntries.reduce((a, e) => a + (Number.isFinite(e.amount) ? e.amount : 0), 0);
+
+  async function runDeduct() {
+    if (dedBusy) return;
+    const items = dedEntries.filter((e) => Number.isInteger(e.amount) && e.amount > 0);
+    if (!items.length) {
+      toast("차감할 학생과 개수를 골라주세요.", "warn");
+      return;
+    }
+    // 잔액 초과 사전 점검 (트랜잭션도 막지만, 누구인지 미리 알려주면 친절)
+    const over = items.find((e) => e.amount > dedBalOf(e.studentId));
+    if (over) {
+      toast(
+        `${studentById.get(over.studentId)?.name}의 ${dedKind === "s2" ? "2학기" : "이월"} 실버가 부족해요 (남은 ${dedBalOf(over.studentId)}개).`,
+        "warn"
+      );
+      return;
+    }
+    const walletName = dedKind === "s2" ? "2학기 실버" : "이월 실버";
+    if (
+      !(await confirm({
+        title: `${items.length}명에게서 ${walletName} 합 ${dedTotal}개를 차감할까요?`,
+        body: items
+          .map((e) => `${studentById.get(e.studentId)?.name} −${e.amount}`)
+          .join(" · "),
+        confirmLabel: `${items.length}명 차감`,
+        danger: true,
+      }))
+    )
+      return;
+    setDedBusy(true);
+    try {
+      await deductMany(dedKind, items, dedNote || `교사 차감(${walletName})`);
+      toast(`✅ ${items.length}명 · ${walletName} ${dedTotal}개 차감 완료`, "success");
+      setDedSel({});
+      setDedNote("");
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "차감 실패"}`, "error");
+    } finally {
+      setDedBusy(false);
     }
   }
 
@@ -294,6 +360,115 @@ export default function ClassDashboard() {
             className="press rounded-btn bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             {allBusy ? "지급 중…" : "전원 지급"}
+          </button>
+        </div>
+      </section>
+
+      {/* ➖ 여러 명 실버 차감 — 상점 사용을 수동으로 기록·차감 (예: 방학 이월 사용분 재입력) */}
+      <section className="rounded-card border border-rose-200 bg-rose-50/40 p-4 shadow-card">
+        <h2 className="text-lg font-bold text-rose-700">➖ 실버 차감 (여러 명)</h2>
+        <p className="mt-0.5 text-xs text-ink-600">
+          상점 사용을 수동으로 기록해요. 학생을 골라 개수를 적고 한 번에 차감해요 (잔액 부족이면
+          막혀요).
+        </p>
+
+        {/* 지갑 선택 */}
+        <div className="mt-2.5 flex items-center gap-1.5">
+          {(
+            [
+              { k: "s1" as const, label: "🎒 이월 실버" },
+              { k: "s2" as const, label: "💰 2학기 실버" },
+            ]
+          ).map((w) => (
+            <button
+              key={w.k}
+              onClick={() => setDedKind(w.k)}
+              className={`press rounded-full px-3 py-1.5 text-xs font-bold ${
+                dedKind === w.k ? "bg-rose-600 text-white" : "border border-ink-200 bg-white text-ink-500"
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+          <span className="ml-1 text-[11px] text-ink-400">
+            방학 사용분은 <b>이월 실버</b>예요
+          </span>
+        </div>
+
+        {/* 학생 선택 칩 — 잔액이 0인 학생은 흐리게 */}
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {students
+            .filter((s) => !s.inactive)
+            .map((s) => {
+              const on = s.id in dedSel;
+              const bal = dedBalOf(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggleDed(s.id)}
+                  className={`press rounded-full border px-2.5 py-1.5 text-xs font-bold ${
+                    on
+                      ? "border-rose-400 bg-rose-500 text-white"
+                      : bal <= 0
+                        ? "border-ink-100 bg-white text-ink-300"
+                        : "border-ink-200 bg-white text-ink-600 hover:border-rose-300"
+                  }`}
+                >
+                  {s.name}
+                  <span className={`ml-1 tnum font-normal ${on ? "text-white/80" : "text-ink-400"}`}>
+                    {bal}
+                  </span>
+                </button>
+              );
+            })}
+        </div>
+
+        {/* 선택된 학생 — 개수 입력 (기본 1) */}
+        {dedEntries.length > 0 && (
+          <div className="mt-3 space-y-1.5 rounded-btn bg-white/70 p-2.5">
+            {dedEntries.map((e) => (
+              <div key={e.studentId} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate font-medium text-ink-800">
+                  {studentById.get(e.studentId)?.name}
+                  <span className="ml-1 text-[11px] text-ink-400">잔액 {dedBalOf(e.studentId)}</span>
+                </span>
+                <span className="text-xs text-rose-600">−</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={dedBalOf(e.studentId)}
+                  value={dedSel[e.studentId]}
+                  onChange={(ev) =>
+                    setDedSel((prev) => ({ ...prev, [e.studentId]: ev.target.value }))
+                  }
+                  className="w-16 rounded-btn border border-ink-300 px-2 py-1 text-sm tnum"
+                  aria-label={`${studentById.get(e.studentId)?.name} 차감 개수`}
+                />
+                <button
+                  onClick={() => toggleDed(e.studentId)}
+                  className="press text-ink-400 hover:text-danger"
+                  aria-label="빼기"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <input
+            value={dedNote}
+            onChange={(e) => setDedNote(e.target.value)}
+            placeholder="사유 (선택) — 예: 방학 상점 사용 재입력"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-1.5 text-sm"
+          />
+          <button
+            onClick={() => void runDeduct()}
+            disabled={dedBusy || dedEntries.length === 0}
+            className="press rounded-btn bg-rose-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+          >
+            {dedBusy ? "차감 중…" : dedEntries.length ? `${dedEntries.length}명 차감` : "차감"}
           </button>
         </div>
       </section>
