@@ -85,12 +85,15 @@ export default function ClassDashboard() {
   const { data: s1Used } = useBalances("s1");
   const grantSilver = useGrantSilver();
   const adjustGold = useAdjustClassGold();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const qc = useQueryClient();
 
   const [sel, setSel] = useState<number | null>(null);
   const [grantAmt, setGrantAmt] = useState("1");
   const [grantNote, setGrantNote] = useState("");
+  const [allAmt, setAllAmt] = useState("1"); // 전체 지급 개수
+  const [allNote, setAllNote] = useState(""); // 전체 지급 사유 (선택)
+  const [allBusy, setAllBusy] = useState(false);
   const [scoreAmt, setScoreAmt] = useState("1");
   const [scoreBusy, setScoreBusy] = useState(false);
   const [goldBusy, setGoldBusy] = useState(false);
@@ -151,6 +154,36 @@ export default function ClassDashboard() {
       toast(`⚠️ ${e instanceof Error ? e.message : "지급 실패"}`, "error");
     }
     void kind;
+  }
+
+  // 👥 전체 학생 일괄 지급 — 전출(inactive) 제외. 25개 단위로 학급 골드가 자동 적립되니
+  // 실수 방지를 위해 확인 다이얼로그를 거친다 (한 번에 25명 × n개).
+  async function grantAll() {
+    if (allBusy) return;
+    const n = Number(allAmt);
+    if (!Number.isInteger(n) || n <= 0) {
+      toast("지급 개수는 1 이상의 정수여야 해요.", "warn");
+      return;
+    }
+    const ids = students.filter((s) => !s.inactive).map((s) => s.id);
+    if (
+      !(await confirm({
+        title: `전체 ${ids.length}명에게 실버 ${n}개씩 지급할까요?`,
+        body: `총 ${ids.length * n}개가 들어가요. 학급 실버 25개마다 골드 1개가 자동 적립돼요. (전출 학생 제외)`,
+        confirmLabel: `${ids.length}명 지급`,
+      }))
+    )
+      return;
+    setAllBusy(true);
+    try {
+      await grantSilver(ids, n, allNote || "학급 전체 지급");
+      toast(`✅ 전체 ${ids.length}명에게 실버 ${n}개씩 지급했어요`, "success");
+      setAllNote("");
+    } catch (e) {
+      toast(`⚠️ ${e instanceof Error ? e.message : "지급 실패"}`, "error");
+    } finally {
+      setAllBusy(false);
+    }
   }
 
   // 일반 점수 주기·빼기 — 오늘 날짜의 교사 보너스(addBonus 트랜잭션)로 기록.
@@ -228,6 +261,41 @@ export default function ClassDashboard() {
         <p className="mt-2 text-[11px] text-ink-400">
           + / − 는 즉석 보너스·감점이에요 (자동 적립과 별개로 기록돼요).
         </p>
+      </section>
+
+      {/* 👥 전체 실버 일괄 지급 — 이벤트·행사 보상 등을 반 전체에 한 번에 */}
+      <section className="rounded-card border border-emerald-200 bg-emerald-50/40 p-4 shadow-card">
+        <h2 className="text-lg font-bold text-emerald-800">👥 전체 실버 지급</h2>
+        <p className="mt-0.5 text-xs text-ink-600">
+          전출 학생을 뺀 <b>{students.filter((s) => !s.inactive).length}명 전원</b>에게 한 번에
+          지급해요 (행사·이벤트 보상 등).
+        </p>
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm text-ink-600">
+            개수
+            <input
+              type="number"
+              min={1}
+              value={allAmt}
+              onChange={(e) => setAllAmt(e.target.value)}
+              className="w-16 rounded-btn border border-ink-300 px-2.5 py-1.5 text-sm tnum"
+              aria-label="전체 지급 개수"
+            />
+          </label>
+          <input
+            value={allNote}
+            onChange={(e) => setAllNote(e.target.value)}
+            placeholder="사유 (선택) — 예: 학예회 보상"
+            className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-1.5 text-sm"
+          />
+          <button
+            onClick={() => void grantAll()}
+            disabled={allBusy}
+            className="press rounded-btn bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {allBusy ? "지급 중…" : "전원 지급"}
+          </button>
+        </div>
       </section>
 
       {/* 학급 합계 요약 */}
