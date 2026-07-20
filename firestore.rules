@@ -88,15 +88,18 @@ service cloud.firestore {
     // 🕓 시간창은 서버 시각(request.time, UTC)으로 KST 시(hour)를 계산해 판정 —
     // 클라이언트 차단만으론 배포 전 옛 페이지를 열어둔 기기가 뚫린다(실사례 2026-07-14).
     // 교사 설정(requestOpenHour/CloseHour)을 읽어 반영 (쓰기당 문서 1회 조회, KST는 DST 없음).
+    // 🔒 교사 사용 잠금(usageLocked)이 켜져 있으면 시간과 무관하게 학생 신청 차단 —
+    //    방학 등 '혹시 모를' 기간에 상점 사용을 서버에서 즉시 잠근다 (설정 문서 1회 조회).
     function inRequestWindow() {
-      let h = (request.time.toMillis() + 9 * 3600000) % 86400000 / 3600000;
       let p = /databases/$(database)/documents/classData/settings;
+      let locked = exists(p) && get(p).data.usageLocked == true;
+      let h = (request.time.toMillis() + 9 * 3600000) % 86400000 / 3600000;
       let open = exists(p) && 'requestOpenHour' in get(p).data ? get(p).data.requestOpenHour : 16;
       let close = exists(p) && 'requestCloseHour' in get(p).data ? get(p).data.requestCloseHour : 24;
-      return open == close % 24 ? true
+      return !locked && (open == close % 24 ? true
         : close == 24 ? h >= open
         : open < close ? (h >= open && h < close)
-        : (h >= open || h < close % 24);
+        : (h >= open || h < close % 24));
     }
     function isValidSpendRequest() {
       return request.resource.data.status == "pending"

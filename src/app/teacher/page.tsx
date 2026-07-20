@@ -80,6 +80,8 @@ export default function TeacherPage() {
   const [dClose, setDClose] = useState<number | null>(null);
   const [dPresident, setDPresident] = useState<number | null | undefined>(undefined); // undefined=미편집
   const [dHolidays, setDHolidays] = useState<string | null>(null); // 공휴일 목록 편집 (줄바꿈 구분)
+  const [dLockNote, setDLockNote] = useState<string | null>(null); // 사용 잠금 안내 문구 편집
+  const [lockBusy, setLockBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -235,6 +237,25 @@ export default function TeacherPage() {
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  // 🔒 사용 잠금 즉시 토글 — 전체 설정 저장을 기다리지 않고 바로 반영 (급한 잠금/해제)
+  async function toggleUsageLock() {
+    if (lockBusy || !settings) return;
+    setLockBusy(true);
+    const next: ClassSettings = {
+      ...settings,
+      usageLocked: !settings.usageLocked,
+      usageLockNote: (dLockNote ?? settings.usageLockNote ?? "").trim() || undefined,
+    };
+    try {
+      await saveSettings(next);
+      setMsg(next.usageLocked ? "🔒 학생 사용을 잠갔어요." : "🔓 학생 사용을 다시 열었어요.");
+    } catch (e) {
+      setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLockBusy(false);
     }
   }
 
@@ -565,6 +586,48 @@ export default function TeacherPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* 🔒 학생 사용 잠금 — 방학 등 '혹시 모를' 기간에 상점·자리 신청을 즉시 막는 마스터 스위치.
+              날짜 기반 방학·공휴일 설정과 별개이며, 거북이 독서·투표·칭찬은 잠기지 않는다. */}
+          <div
+            className={`rounded-card p-4 sm:col-span-2 ${
+              settings.usageLocked ? "bg-rose-50 ring-1 ring-rose-200" : "bg-ink-50"
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-bold text-ink-800">🔒 학생 사용 잠금 (상점·자리)</span>
+              <button
+                onClick={() => void toggleUsageLock()}
+                disabled={lockBusy}
+                className={`press rounded-btn px-4 py-2 text-sm font-bold text-white disabled:opacity-50 ${
+                  settings.usageLocked ? "bg-rose-600" : "bg-ink-400"
+                }`}
+              >
+                {settings.usageLocked ? "🔒 잠금 중 — 눌러서 열기" : "🔓 열림 — 눌러서 잠그기"}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-ink-600">
+              켜면 학생이 <b>실버·골드 사용(상점 신청)과 자리 신청</b>을 할 수 없어요. 날짜 설정과
+              별개인 즉시 스위치예요 — 거북이 독서·투표·칭찬은 그대로 열려 있어요.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                value={dLockNote ?? settings.usageLockNote ?? ""}
+                onChange={(e) => setDLockNote(e.target.value)}
+                placeholder="학생에게 보일 안내 (선택) — 예: 방학이라 상점을 잠시 닫았어요"
+                className="min-w-0 flex-1 rounded-btn border border-ink-300 px-3 py-1.5 text-sm"
+              />
+              {settings.usageLocked && (
+                <button
+                  onClick={() => void toggleUsageLock()}
+                  disabled={lockBusy}
+                  className="press rounded-btn border border-ink-300 bg-white px-3 py-1.5 text-xs font-bold text-ink-600"
+                >
+                  문구 저장
+                </button>
+              )}
             </div>
           </div>
 

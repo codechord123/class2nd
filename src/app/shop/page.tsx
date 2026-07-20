@@ -95,7 +95,11 @@ export default function ShopPage() {
   const openHour = settings?.requestOpenHour ?? 16;
   const closeHour = settings?.requestCloseHour ?? 24;
   const windowLabel = requestWindowLabel(openHour, closeHour);
-  const requestOpen = role === "teacher" || isRequestOpen(openHour, closeHour);
+  // 🔒 교사 수동 사용 잠금 — 시간창과 무관하게 학생 신청을 막는 마스터 스위치 (방학 등)
+  const usageLocked = Boolean(settings?.usageLocked);
+  const lockNote = settings?.usageLockNote?.trim() || "지금은 상점을 잠가 두었어요 — 잠시 후 다시 열려요.";
+  const requestOpen =
+    role === "teacher" || (!usageLocked && isRequestOpen(openHour, closeHour));
 
   // 교사는 상점 탭에서 관리 화면을 본다 (승인·기록·지급·메뉴판 — 교사탭에서 이동)
   if (role === "teacher") return <ShopAdmin />;
@@ -165,6 +169,11 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
+    // 🔒 교사 사용 잠금 — 시간창보다 먼저 판정 (방학 등 수동 잠금)
+    if (role !== "teacher" && usageLocked) {
+      toast(`🔒 ${lockNote}`, "warn");
+      return;
+    }
     // 🕓 신청 시간 하드 차단 (사용자 확정 2026-07-14): 시간 밖엔 예약도 안 됨.
     // 클릭 '지금'을 기준으로 다시 판정 (페이지를 열어둔 채 시간이 지나도 정확).
     if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
@@ -217,7 +226,11 @@ export default function ShopPage() {
       confirmLabel: "신청",
     });
     if (!ok) return;
-    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 시간이 지났거나 다른 신청이 반영됐을 수 있다
+    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 잠겼거나 시간이 지났을 수 있다
+    if (role !== "teacher" && usageLocked) {
+      toast(`🔒 ${lockNote}`, "warn");
+      return;
+    }
     if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
       toast(`신청 시간이 지났어요 — 정식 신청은 ${windowLabel}예요! 🕓`, "warn");
       return;
@@ -327,8 +340,14 @@ export default function ShopPage() {
         onChange={setTab}
       />
 
+      {/* 🔒 교사 사용 잠금 안내 — 시간창 안내보다 우선 */}
+      {tab === "shop" && role === "student" && studentId && usageLocked && (
+        <div className="rounded-btn bg-ink-100 px-4 py-2.5 text-sm font-medium text-ink-700">
+          🔒 {lockNote}
+        </div>
+      )}
       {/* 신청 시간창 안내 — 창 밖에는 신청 불가 (하드 차단, 사용자 확정) */}
-      {tab === "shop" && role === "student" && studentId && !requestOpen && (
+      {tab === "shop" && role === "student" && studentId && !usageLocked && !requestOpen && (
         <div className="rounded-btn bg-warn-weak px-4 py-2.5 text-sm text-warn">
           🕓 지금은 신청할 수 없어요 — 상점 신청은 <b>{windowLabel}</b>에만 할 수 있어요.
           그 시간에 다시 와주세요!
@@ -379,7 +398,7 @@ export default function ShopPage() {
                     m.wallet === "gold" ? "bg-warn" : "bg-brand"
                   }`}
                 >
-                  {requestOpen ? "신청" : "🕓 시간 아님"}
+                  {requestOpen ? "신청" : usageLocked ? "🔒 잠김" : "🕓 시간 아님"}
                 </button>
               </div>
             ))}

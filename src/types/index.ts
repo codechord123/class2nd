@@ -78,6 +78,12 @@ export interface ClassSettings {
   presidentId?: number | null;
   /** 공휴일(YYYY-MM-DD) — 주말과 함께 모둠 평가·칭찬이 잠기는 날 (교사 편집) */
   holidays?: string[];
+  /** 🔒 사용 잠금 — 켜면 학생의 재화 사용(상점 신청·자리 신청)을 즉시 막는다.
+   *  날짜 기반 방학·공휴일 설정과 별개인 수동 마스터 스위치 (방학 등 '혹시 모를' 기간 잠금용).
+   *  거북이 독서·투표·칭찬 등 다른 활동은 잠기지 않는다. */
+  usageLocked?: boolean;
+  /** 잠금 안내 문구 (학생에게 표시) — 비우면 기본 문구 */
+  usageLockNote?: string;
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {

@@ -85,6 +85,11 @@ export default function SeatsPage() {
 
   async function submitRequest() {
     if (busy) return;
+    // 🔒 교사 사용 잠금 — 재화 사용(자리 신청)도 상점과 함께 막는다 (방학 등 수동 잠금)
+    if (role === "student" && settings?.usageLocked) {
+      toast(`🔒 ${settings.usageLockNote?.trim() || "지금은 신청을 잠가 두었어요."}`, "warn");
+      return;
+    }
     const cost = settings?.seatChangeCost ?? 10;
     if (role === "student" && studentId) {
       const balance = s2Bal?.[String(studentId)] ?? 0;
