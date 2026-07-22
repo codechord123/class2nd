@@ -63,13 +63,13 @@ service cloud.firestore {
     match /scoreAppeals/{id} {
       allow read: if isTeacher()
         || (isAuthed() && ownsStudent(string(resource.data.studentId)));
-      allow create: if isAuthed()
+      allow create: if isTeacher() || (isAuthed()
         && ownsStudent(string(request.resource.data.studentId))
         && request.resource.data.status == "pending"
         && request.resource.data.reason is string
         && request.resource.data.reason.size() > 0
         && request.resource.data.reason.size() <= 500
-        && request.resource.data.date is string;
+        && request.resource.data.date is string);
       allow update, delete: if isTeacher();
     }
 
@@ -216,7 +216,7 @@ service cloud.firestore {
     // 본인 명의로만 생성, 교사가 검토 후 삭제(메뉴판 추가 or 반려).
     match /menuRequests/{reqId} {
       allow read: if isAuthed();
-      allow create: if isAuthed() && ownsStudent(string(request.resource.data.studentId));
+      allow create: if isTeacher() || (isAuthed() && ownsStudent(string(request.resource.data.studentId)));
       allow delete: if isTeacher();
     }
 

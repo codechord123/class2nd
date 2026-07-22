@@ -18,6 +18,9 @@ export const schedules = schedulesJson as unknown as SchedulesFile;
 
 export const SEMESTER_START = schedules.meta.semesterStart;
 export const TOTAL_WEEKS = schedules.meta.totalWeeks;
+/** 실제 개학일 (사용자 확정: 2026-08-18 화요일).
+ *  SEMESTER_START(8/17 월)는 주차 계산용 '월요일 앵커'라 하루 다르다 — D-day 표시는 이 값으로. */
+export const FIRST_SCHOOL_DAY = "2026-08-18";
 
 /** 오늘 날짜 기준 현재 주차 (1~21로 클램프). 개학 전이면 1. */
 export function currentWeekNum(now: Date = new Date()): number {

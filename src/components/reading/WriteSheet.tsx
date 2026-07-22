@@ -216,6 +216,25 @@ export default function WriteSheet({
     }
     setForm({ ...form, [field]: newV });
   };
+  // ③ IME 조합 경로 보강 — 조합 중(isComposing) 입력은 위 15자 가드를 통과하므로,
+  //    받아쓰기·마킹 텍스트가 조합인 척 큰 덩어리를 흘려 넣는 우회가 가능했다.
+  //    조합 '한 세션'에서 30자 이상 불어나면 세션 시작 값으로 되돌리고 기록한다.
+  //    (일반 한글 타자는 음절 단위로 조합이 끝나 세션당 증가폭이 1~2자 — 영향 없음)
+  const COMP_BULK = 30;
+  const compSnap = useRef<{ field: BodyKey; value: string } | null>(null);
+  const onCompStart = (field: BodyKey) => {
+    compSnap.current = { field, value: (form[field] as string | undefined) ?? "" };
+  };
+  const onCompEnd = (field: BodyKey, e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    const snap = compSnap.current;
+    compSnap.current = null;
+    if (!snap || snap.field !== field) return;
+    const grown = e.currentTarget.value.length - snap.value.length;
+    if (grown >= COMP_BULK) {
+      setForm({ ...form, [field]: snap.value });
+      recordBlocked(grown);
+    }
+  };
 
   // 저장하지 않은 변경이 있으면 닫기 전에 확인 (긴 글 유실 방지)
   const dirty = JSON.stringify(form) !== JSON.stringify(initialForm);
@@ -453,6 +472,8 @@ export default function WriteSheet({
                   onChange={(e) => onBodyChange(s.key, e)}
                   onPaste={onPasteBody}
                   onDrop={onDropBody}
+                  onCompositionStart={() => onCompStart(s.key)}
+                  onCompositionEnd={(e) => onCompEnd(s.key, e)}
                   placeholder={
                     (s.key === "summary" || s.key === "scene" || s.key === "quote" || s.key === "thoughts"
                       ? prompts[s.key]

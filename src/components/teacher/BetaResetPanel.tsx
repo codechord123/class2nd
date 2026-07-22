@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { resetAllRecords } from "@/lib/betaReset";
+import { collectBackup, downloadBackup, saveSnapshotToDevice } from "@/lib/backup";
+import { todayKST } from "@/lib/date";
 import { reaggregateReadingDates } from "@/lib/aggregate";
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -24,14 +26,28 @@ export default function BetaResetPanel() {
     });
     if (!ok1) return;
     const ok2 = await confirm({
-      title: "정말 초기화할까요? (되돌릴 수 없어요)",
-      body: "개학 전 새 출발용입니다. 삭제 후에는 복구할 수 없어요.",
-      confirmLabel: "전체 초기화 실행",
+      title: "정말 초기화할까요?",
+      body: "삭제 직전에 전체 백업 파일이 자동으로 내려받아져요 — 실수했더라도 그 파일로 복원할 수 있어요. (백업이 실패하면 초기화는 중단됩니다)",
+      confirmLabel: "백업 후 초기화 실행",
       danger: true,
     });
     if (!ok2) return;
     setBusy(true);
     try {
+      // 🛟 삭제 전 자동 백업 (실사례 2026-07-20: 방학 이월 실버 사용 기록이 초기화로 유실) —
+      // 파일 다운로드 + 이 기기 스냅샷 이중 저장. 백업이 실패하면 초기화를 중단한다.
+      setProgress("삭제 전 백업 저장 중…");
+      try {
+        const payload = await collectBackup(setProgress);
+        downloadBackup(payload, `pre-reset-${todayKST()}`);
+        await saveSnapshotToDevice(payload).catch(() => {}); // 스냅샷은 보조 — 실패해도 파일이 있으면 진행
+      } catch (e) {
+        toast(
+          `⚠️ 삭제 전 백업에 실패해 초기화를 중단했어요 — ${e instanceof Error ? e.message : "네트워크를 확인해주세요."}`,
+          "error"
+        );
+        return;
+      }
       const r = await resetAllRecords(setProgress);
       // 독서 점수 즉시 복원 — 자동 실행을 기다리면 다음 접속까지 아이들 누적이 0으로 보인다.
       // 남은 감상문 날짜 전체를 재집계해 일일 read(+2/편)를 다시 채운다 (멱등).

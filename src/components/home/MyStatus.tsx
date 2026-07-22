@@ -16,7 +16,7 @@ import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
-import { SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
+import { FIRST_SCHOOL_DAY, SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
 import { groupOf, roleOf } from "@/lib/schedule";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import ReadingAlert from "@/components/reading/ReadingAlert";
@@ -220,7 +220,13 @@ export default function MyStatus() {
   ).length;
   // 주말·공휴일엔 모둠 탭의 평가·투표·칭찬이 잠긴다 (Team 탭과 같은 판정) —
   // 홈 할 일에도 띄우지 않아야 '눌렀는데 잠겨 있는' 헛걸음이 없다. 쉬는 날엔 독서·상점만.
-  const evalOpen = !isWeekend(today) && !(settings?.holidays ?? []).includes(today);
+  // 방학(개학 전)엔 평일에도 학급 루틴이 없다 — 독서만 열려 있는 방학 모드 (베타 종료 후).
+  const evalOpen = !vacation && !isWeekend(today) && !(settings?.holidays ?? []).includes(today);
+  // 개학(8/18 화) D-day — 방학 모드 헤더에 표시
+  const daysToSchool = Math.ceil(
+    (new Date(FIRST_SCHOOL_DAY + "T00:00:00+09:00").getTime() -
+      new Date(today + "T00:00:00+09:00").getTime()) / 86400000
+  );
   const todos: {
     icon: string;
     label: string;
@@ -252,7 +258,13 @@ export default function MyStatus() {
     ...(openUnvoted > 0
       ? [{ icon: "🗳", label: `투표 ${openUnvoted}건`, sub: "우리 반 일에 한 표!", href: "/vote" }]
       : []),
-    { icon: "🛒", label: "상점", sub: `실버 ${mySilver}개 쓰러 가기`, href: "/shop" },
+    {
+      icon: "🛒",
+      label: "상점",
+      // 교사 사용 잠금 중엔 '쓰러 가기'로 헛걸음하지 않게 잠금 상태를 타일에서 미리 알림
+      sub: settings?.usageLocked ? "🔒 지금은 잠겨 있어요" : `실버 ${mySilver}개 쓰러 가기`,
+      href: "/shop",
+    },
   ];
   const checkable = todos.filter((t) => t.done !== undefined);
   const doneCount = checkable.filter((t) => t.done).length;
@@ -353,12 +365,20 @@ export default function MyStatus() {
         />
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-ink-900">
-            {allDone ? "🎉 오늘 할 일 완료!" : evalOpen ? "📌 오늘 할 일" : "🏖️ 오늘은 쉬는 날"}
+            {allDone
+              ? "🎉 오늘 할 일 완료!"
+              : evalOpen
+                ? "📌 오늘 할 일"
+                : vacation
+                  ? "🏖️ 신나는 여름 방학!"
+                  : "🏖️ 오늘은 쉬는 날"}
           </h2>
           <span className="text-xs font-bold text-ink-500">
             {evalOpen || checkable.length > 0
               ? `${doneCount}/${checkable.length} 완료`
-              : "평가·칭찬은 학교 오는 날에!"}
+              : vacation && daysToSchool > 0
+                ? `개학(8/18)까지 D-${daysToSchool}`
+                : "평가·칭찬은 학교 오는 날에!"}
           </span>
         </div>
         {/* 📌 완주 보너스 안내 — 독서는 '오늘 1권'이 기준 (주간 미션과 별개) */}

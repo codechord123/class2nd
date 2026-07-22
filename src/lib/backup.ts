@@ -6,7 +6,7 @@
 // 제스처 없이는 조용히 막힐 수 있어, 자동분은 이 기기의 IndexedDB에 저장(어디서든 확실)하고
 // 파일로 내려받기는 패널 목록에서 버튼으로 한다 (제스처 → 모든 브라우저에서 안전).
 // 비용: 1회 = 전 문서 읽기(학기말 ~3–5천 읽기, 무료 한도 5만/일의 10% 미만) — 주 1회 무부담.
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { todayKST } from "@/lib/date";
 
@@ -63,6 +63,59 @@ export async function collectBackup(
     docCount: docs,
     data: out,
   };
+}
+
+/** 백업 파일 파싱 + 검증 — 다른 앱 JSON·깨진 파일을 조용히 쓰는 사고 방지 */
+export function parseBackup(json: string): BackupPayload {
+  let p: unknown;
+  try {
+    p = JSON.parse(json);
+  } catch {
+    throw new Error("JSON 파일이 아니거나 파일이 깨져 있어요.");
+  }
+  const b = p as Partial<BackupPayload>;
+  if (b?.app !== "class2nd" || typeof b.data !== "object" || b.data == null)
+    throw new Error("이 앱(class2nd)의 백업 파일이 아니에요.");
+  return b as BackupPayload;
+}
+
+export interface RestoreResult {
+  written: number;
+  failed: string[]; // 실패한 컬렉션 (규칙 미게시 등)
+}
+
+/** 🛟 백업 복원 — 선택한 컬렉션의 문서를 같은 id로 다시 쓴다 (교사 전용).
+ *  · 같은 id 문서는 백업 내용으로 통째로 덮어쓴다 (merge 아님 — 백업 시점 그대로)
+ *  · 백업에 없는 '지금 있는' 문서는 지우지 않는다 — 복원 후 새로 쌓인 기록 보존
+ *  · 컬렉션 단위 격리: 하나가 권한 오류여도 나머지는 계속 (초기화와 동일한 태도) */
+export async function restoreBackup(
+  payload: BackupPayload,
+  collections: string[],
+  onProgress?: (msg: string) => void
+): Promise<RestoreResult> {
+  const d = db();
+  let written = 0;
+  const failed: string[] = [];
+  for (const name of collections) {
+    const bucket = payload.data[name];
+    if (!bucket) continue;
+    const entries = Object.entries(bucket);
+    onProgress?.(`${name} 복원 중… (${entries.length}개)`);
+    try {
+      // 25개씩 병렬 — 순차보다 수십 배 빠르고, 폭주는 방지
+      for (let i = 0; i < entries.length; i += 25) {
+        await Promise.all(
+          entries
+            .slice(i, i + 25)
+            .map(([id, data]) => setDoc(doc(d, name, id), data as Record<string, unknown>))
+        );
+        written += Math.min(25, entries.length - i);
+      }
+    } catch {
+      failed.push(name);
+    }
+  }
+  return { written, failed };
 }
 
 /** 페이로드를 JSON 파일로 다운로드 (사용자 제스처 안에서 부르는 것을 권장) */

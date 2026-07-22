@@ -351,9 +351,11 @@ export default function TeamPage() {
   // 결석·미평가로 남에게 손해가 가지 않는다 (사용자 확정).
   const savedPeerChecks = (evalRec._peerChecks as Record<string, boolean[]> | undefined) ?? {};
 
-  // 주말·공휴일엔 평가·칭찬 잠금 (사용자 확정) — 학교 없는 날의 점수 쌓기 방지.
+  // 주말·공휴일·방학(개학 전)엔 평가·칭찬 잠금 (사용자 확정) — 학교 없는 날의 점수 쌓기 방지.
+  // 방학 평일에 제출이 생기면 그날이 '학사일'로 판정돼 독서 모둠 합산까지 열리므로 함께 막는다.
   // 바라는 점·세션 반성(주말에 쓰는 기능)·기록 열람은 그대로 열린다.
-  const evalOpen = !isWeekend(date) && !(settings.holidays ?? []).includes(date);
+  const evalOpen =
+    date >= SEMESTER_START && !isWeekend(date) && !(settings.holidays ?? []).includes(date);
 
   // 칭찬 보내기 (건의와 독립)
   async function submitComp() {
