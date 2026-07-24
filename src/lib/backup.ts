@@ -21,7 +21,10 @@ export const BACKUP_COLLECTIONS = [
   "seatChangeRequests",
   "scoreAppeals",
   "menuRequests",
-  "groupVotes",
+  // groupVotes 제외 — 실데이터는 groupVotes/{date}/entries 하위컬렉션이라 부모 컬렉션 조회는
+  // 규칙상 차단(catch-all)되고 내용도 비어 있다. 이 한 컬렉션 때문에 백업 전체가 실패했었다
+  // (실사례 2026-07-25 발견: 주간 자동 백업이 계속 무산 → 초기화 때 복구할 백업이 없었음).
+  // 원시 평가(evaluations 하위)와 같은 이유로 백업 대상에서 제외한다.
   "dailyScores", // 일일 점수 + 누적
   "biweeklyScores", // 세션 정산 기록
   "classData", // 설정·순위·결석·법률 등
@@ -37,31 +40,44 @@ export interface BackupPayload {
   note: string;
   docCount: number;
   data: Record<string, Record<string, unknown>>;
+  /** 읽지 못한 컬렉션 (권한·네트워크) — 있으면 부분 백업이라는 뜻 */
+  failed?: string[];
 }
 
-/** 전 컬렉션을 읽어 백업 페이로드를 만든다 (다운로드/저장은 호출부 선택) */
+/** 전 컬렉션을 읽어 백업 페이로드를 만든다 (다운로드/저장은 호출부 선택).
+ *  컬렉션 단위 격리: 하나가 실패해도 나머지는 담고 failed에 기록한다 —
+ *  예전엔 한 컬렉션(groupVotes)의 권한 오류로 백업 '전체'가 무산됐다 (2026-07-25 발견). */
 export async function collectBackup(
   onProgress?: (msg: string) => void
 ): Promise<BackupPayload> {
   const d = db();
   const out: Record<string, Record<string, unknown>> = {};
+  const failed: string[] = [];
   let docs = 0;
   for (const [i, name] of BACKUP_COLLECTIONS.entries()) {
     onProgress?.(`${name} (${i + 1}/${BACKUP_COLLECTIONS.length})…`);
-    const snap = await getDocs(collection(d, name));
-    const bucket: Record<string, unknown> = {};
-    snap.forEach((x) => {
-      bucket[x.id] = x.data();
-      docs++;
-    });
-    out[name] = bucket;
+    try {
+      const snap = await getDocs(collection(d, name));
+      const bucket: Record<string, unknown> = {};
+      snap.forEach((x) => {
+        bucket[x.id] = x.data();
+        docs++;
+      });
+      out[name] = bucket;
+    } catch {
+      failed.push(name);
+    }
   }
+  // 전부 실패면 백업이라 부를 수 없다 — 호출부(초기화 전 백업 등)가 중단할 수 있게 던진다
+  if (docs === 0 && failed.length)
+    throw new Error(`백업할 데이터를 읽지 못했어요 (${failed.join(", ")})`);
   return {
     app: "class2nd",
     exportedAt: new Date().toISOString(),
-    note: "studentAuth(비밀번호 해시)·evaluations 하위(원시 평가)는 의도적으로 제외",
+    note: "studentAuth(비밀번호 해시)·evaluations/groupVotes 하위(원시 평가)는 의도적으로 제외",
     docCount: docs,
     data: out,
+    ...(failed.length ? { failed } : {}),
   };
 }
 
@@ -132,7 +148,7 @@ export function downloadBackup(payload: BackupPayload, label = ""): void {
 // ── 이 기기 스냅샷 보관함 (IndexedDB) — 자동 백업의 저장처 ──────────────
 const DB_NAME = "class2nd-backups";
 const STORE = "snapshots";
-const KEEP = 8; // 최근 8개(약 2달치)만 보관 — 기기 용량 보호
+const KEEP = 14; // 매일 백업 기준 최근 14개(2주치) 보관 — 기기 용량 보호 (개당 ~1-3MB)
 
 function openStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -220,29 +236,17 @@ export async function downloadSnapshot(key: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-// ── 주간 자동 백업 판정 — 금요일 22:00(KST) 이후 첫 접속 ──────────────
-const MARKER = "class2nd-auto-backup-at"; // 이 기기 기준 (기기마다 보관 = 이중 안전)
+// ── 일일 자동 백업 판정 — 그날(KST) 첫 교사 접속 (사용자 확정: 주 1회 → 매일) ──────
+// 서버가 없어 '정각 크론'은 불가 — 접속이 방아쇠라, 접속 없는 날은 건너뛴다.
+// 읽기 비용: 하루 1회 전 문서(~학기말 3-5천) = 무료 한도의 10% 미만.
+const MARKER = "class2nd-auto-backup-day"; // 이 기기 기준 (기기마다 보관 = 이중 안전)
 
-/** 가장 최근에 지난 '금요일 22:00 KST'의 epoch ms */
-export function lastFriday22(nowMs: number): number {
-  // KST 기준 요일·시각 계산 (고정 +9h — KST는 DST 없음)
-  const kst = new Date(nowMs + 9 * 3600_000);
-  const dow = kst.getUTCDay(); // 0=일 … 5=금
-  const past = new Date(kst);
-  past.setUTCDate(kst.getUTCDate() - ((dow - 5 + 7) % 7));
-  past.setUTCHours(22, 0, 0, 0);
-  if (past.getTime() > kst.getTime()) past.setUTCDate(past.getUTCDate() - 7);
-  return past.getTime() - 9 * 3600_000;
-}
-
-/** 이번 주 자동 백업이 아직이면 실행 — 완료 시 메타 반환, 아니면 null */
-export async function runWeeklyAutoBackup(): Promise<SnapshotMeta | null> {
-  const now = Date.now();
-  const due = lastFriday22(now);
-  const last = Number(localStorage.getItem(MARKER) ?? 0);
-  if (last >= due) return null; // 이번 주 몫은 이미 저장됨
+/** 오늘 몫 자동 백업이 아직이면 실행 — 완료 시 메타 반환, 아니면 null */
+export async function runDailyAutoBackup(): Promise<SnapshotMeta | null> {
+  const today = todayKST();
+  if (localStorage.getItem(MARKER) === today) return null; // 오늘 몫은 이미 저장됨
   const payload = await collectBackup();
-  const meta = await saveSnapshotToDevice(payload);
-  localStorage.setItem(MARKER, String(now));
+  const meta = await saveSnapshotToDevice(payload); // 같은 날짜 키는 덮어씀
+  localStorage.setItem(MARKER, today);
   return meta;
 }

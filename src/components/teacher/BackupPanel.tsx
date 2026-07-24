@@ -67,7 +67,12 @@ export default function BackupPanel() {
       const payload = await collectBackup(setProgress);
       downloadBackup(payload);
       setLast(`${todayKST()} · 문서 ${payload.docCount}개`);
-      toast(`🗄 백업 완료 — 문서 ${payload.docCount}개를 파일로 내려받았어요.`, "success");
+      toast(
+        payload.failed?.length
+          ? `🗄 백업 완료(일부 제외) — 문서 ${payload.docCount}개. 못 읽은 항목: ${payload.failed.join(", ")}`
+          : `🗄 백업 완료 — 문서 ${payload.docCount}개를 파일로 내려받았어요.`,
+        payload.failed?.length ? "warn" : "success"
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : "백업에 실패했어요.", "error");
     } finally {
@@ -147,8 +152,8 @@ export default function BackupPanel() {
         언제든 되돌릴 수 있어요. (비밀번호 정보는 담기지 않아요)
       </p>
       <p className="mt-1.5 rounded-btn bg-success-weak px-3 py-2 text-xs text-success">
-        ⏰ <b>매주 금요일 밤 10시가 지나면</b> 그 뒤 처음 접속할 때 이 기기에 자동 스냅샷이
-        저장돼요. 초기화를 실행할 때도 삭제 직전에 백업 파일이 자동으로 내려받아져요.
+        ⏰ <b>매일 첫 접속 때</b> 이 기기에 자동으로 JSON 스냅샷이 저장돼요 (최근 14일 보관).
+        초기화를 실행할 때도 삭제 직전에 백업 파일이 자동으로 내려받아져요.
       </p>
       <p className="mt-1.5 rounded-btn bg-warn-weak px-3 py-2 text-xs text-warn">
         💾 자동 스냅샷은 <b>이 기기 브라우저 안에만</b> 있어요 — 기기가 고장 나면 함께
