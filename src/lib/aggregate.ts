@@ -394,6 +394,18 @@ async function aggregateDateInner(
       roleOf[m.studentId] = m.role;
     }
   }
+  // 🔒 그날의 모둠 구성 박제 — 자리표(정적 JSON)는 회장단 선출·전입 등으로 갈아끼워질 수 있는데,
+  // 그때 과거 날짜를 재집계하면 '그날 실제 모둠'이 아닌 새 배치로 점수가 뒤바뀐다.
+  // 그래서 한 번 집계된 날은 그날 저장해둔 구성(_meta.groupOf)을 계속 쓴다 (2026-08-18 회장단 교체 대비).
+  const pinnedGroups = (prevSnap.exists()
+    ? (prevSnap.data()._meta as { groupOf?: Record<string, number> } | undefined)?.groupOf
+    : undefined);
+  if (pinnedGroups) {
+    for (const [sid, gid] of Object.entries(pinnedGroups)) {
+      const id = Number(sid);
+      if (Number.isFinite(id) && Number.isFinite(gid)) groupOfStudent[id] = Number(gid);
+    }
+  }
 
   // 부서장 평가 O/X 상세를 수신자별로 접는다 — 실명 공개·이의제기용 (점수는 peer[]로 이미 합산).
   const peerDetail: Record<
@@ -803,6 +815,7 @@ async function aggregateDateInner(
       _meta: {
         aggregatedAt: Date.now(),
         schoolDay: isSchoolDay, // 학사일 여부 — 표시 계층이 독서 모둠 합산·경쟁 보상 판정에 재사용
+        groupOf: groupOfStudent, // 🔒 그날의 모둠 구성 박제 (자리표 교체 후 재집계해도 점수가 안 흔들리게)
         ranks, // 교사 순위 (점수 배분용 — 타이틀과 분리)
         mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
