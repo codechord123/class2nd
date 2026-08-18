@@ -113,45 +113,50 @@ export function buildStudySheet(c: Constitution): string {
 }
 
 // ══════════════════════ ② 시험지 (+정답지) — 진짜 학교 시험지 양식 ══════════════════════
-// 바탕체·무채색·테두리 인적사항표·【N~M】 묶음 지시문·①~⑤ 선택형 — 실제 단원평가처럼 (사용자 확정).
+// 객관식 ①~⑤ 30문항 (사용자 확정 2026-08-18) · 2단 편집 · 정답지는 번호 그리드 별지.
+// 유형: A 빈칸 / B 부서 고르기 / C 부서의 법률 고르기 / D 헌법 조항 내용 / E 헌법·법률 구분.
 const EXAM_CSS = `<style>
   .exam { font-family: "Batang", "바탕", "Nanum Myeongjo", "Noto Serif KR", serif; color: #000; }
   .exam .exhead { border: 2.5px solid #000; border-bottom-width: 1.2px; padding: 10px 14px 8px; }
   .exam .exmeta { display: flex; justify-content: space-between; font-size: 11.5px; }
   .exam .exhead h1 { text-align: center; font-size: 22px; margin: 6px 0 2px; letter-spacing: 0.02em; }
   .exam .exsub { text-align: center; font-size: 11.5px; margin-bottom: 2px; }
-  .exam .nametbl { width: 100%; border-collapse: collapse; margin: 0 0 18px; }
+  .exam .nametbl { width: 100%; border-collapse: collapse; margin: 0 0 12px; }
   .exam .nametbl td { border: 1.2px solid #000; border-top: 0; font-size: 12px; text-align: center;
                       padding: 6px 4px; }
   .exam .nametbl td.lab { width: 11%; background: #f2f2f2; font-weight: 700; }
   .exam .nametbl td.in { width: 14%; }
   .exam .nametbl td.in.wide { width: 22%; }
-  .exam .direction { font-size: 12.5px; margin: 0 0 14px; }
-  .exam .sect { font-weight: 800; font-size: 13.5px; margin: 18px 0 8px; line-height: 1.6; }
-  .exam .sect .pts { font-weight: 700; }
-  .exam .bogi { border: 1.2px solid #000; padding: 7px 12px; font-size: 13px; margin: 6px 0 12px;
-                display: flex; gap: 8px; align-items: baseline; }
-  .exam .bogi .bt { font-weight: 800; flex: none; }
-  .exam .bogi .bw { line-height: 1.9; word-spacing: 1.2em; }
-  .exam .qq { font-size: 13.5px; line-height: 1.9; margin: 10px 0; page-break-inside: avoid; }
+  .exam .direction { font-size: 12px; margin: 0 0 10px; }
+  .exam .qbody { column-count: 2; column-gap: 26px; column-rule: 1px solid #999; }
+  .exam .sect { font-weight: 800; font-size: 12.5px; margin: 12px 0 6px; line-height: 1.55;
+                break-inside: avoid; }
+  .exam .bogi { border: 1.2px solid #000; padding: 5px 10px; font-size: 12px; margin: 4px 0 8px;
+                break-inside: avoid; }
+  .exam .bogi .bt { font-weight: 800; margin-right: 8px; }
+  .exam .qq { font-size: 12.5px; line-height: 1.75; margin: 8px 0; break-inside: avoid; }
   .exam .qq .no { font-weight: 800; margin-right: 2px; }
-  .exam .qq .paren { display: inline-block; min-width: 84px; border-bottom: 1.4px solid #000;
+  .exam .qq .paren { display: inline-block; min-width: 64px; border-bottom: 1.2px solid #000;
                      text-align: center; }
-  .exam .choices { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 13px; margin: 4px 0 0 18px; }
-  .exam .oxend { float: right; font-weight: 700; }
-  .exam .qtext { border-left: 2.5px solid #555; padding: 2px 0 2px 10px; margin: 4px 0 6px 4px;
-                 font-size: 13px; }
-  .exam .wbox { border: 1.2px solid #000; height: 84px; margin: 6px 0 4px; }
+  .exam .qtext { border-left: 2px solid #555; padding: 1px 0 1px 8px; margin: 3px 0 4px 2px;
+                 font-size: 12px; }
+  .exam .ch-in { display: flex; flex-wrap: wrap; gap: 2px 16px; font-size: 12px; margin: 3px 0 0 14px; }
+  .exam .ch-bl { font-size: 12px; margin: 2px 0 0 14px; }
+  .exam .ch-bl div { line-height: 1.65; }
   .exam .anspage { page-break-before: always; }
   .exam .anshead { border: 2px solid #000; text-align: center; font-size: 16px; font-weight: 800;
                    padding: 8px; margin-bottom: 12px; }
-  .exam .anstbl { width: 100%; border-collapse: collapse; }
-  .exam .anstbl th, .exam .anstbl td { border: 1px solid #000; font-size: 12.5px; padding: 6px 8px; }
-  .exam .anstbl th { background: #f2f2f2; width: 14%; }
-  .exam .anstbl td { text-align: left; }
+  .exam .anstbl { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .exam .anstbl th, .exam .anstbl td { border: 1px solid #000; font-size: 13px; padding: 6px 4px;
+                                       text-align: center; }
+  .exam .anstbl th { background: #f2f2f2; width: 9%; font-size: 12px; }
 </style>`;
 
 const CIRCLED = ["①", "②", "③", "④", "⑤"];
+// 빈칸 오답 보기가 모자랄 때 채우는 그럴듯한 낱말 (정답과 겹치면 자동 제외)
+const FILLER_WORDS = ["약속을", "즐겁게", "천천히", "정직하게", "도와주며", "스스로", "차례대로", "사이좋게"];
+
+interface Mcq { stem: string; quoted?: string; options: string[]; answer: number; inline: boolean }
 
 export function buildQuizSheet(c: Constitution, setNo: number, withAnswers: boolean): string {
   const r = rng(20260818 + setNo * 7919);
@@ -159,13 +164,133 @@ export function buildQuizSheet(c: Constitution, setNo: number, withAnswers: bool
   const laws = flatLaws(c);
   const deptLaws = laws.filter((l) => l.dept !== "우리 반 공통");
   const year = new Date().getFullYear();
-  const keyRows: [string, string][] = []; // [문항, 정답]
+
+  // ── 유형 A: 빈칸 객관식 — 헌법·법률 전 조항에서 핵심 낱말 뚫기 ──
+  const clauses = [
+    ...articles.map((a, i) => ({ text: a, label: `[헌법 제${i + 1}조]` })),
+    ...laws.map((l) => ({ text: l.text, label: `[${l.dept} 법률]` })),
+  ];
+  const blanks = clauses
+    .map((cl) => ({ ...cl, blank: pickBlank(cl.text, r) }))
+    .filter((x): x is typeof x & { blank: { blanked: string; answer: string } } => !!x.blank);
+  const wordPool = [...new Set(blanks.map((b) => b.blank.answer))];
+  const qA: Mcq[] = shuffle(blanks, r).map((b) => {
+    const distract = shuffle(
+      [...wordPool.filter((w) => w !== b.blank.answer), ...FILLER_WORDS.filter((w) => w !== b.blank.answer)],
+      r
+    ).slice(0, 4);
+    const options = shuffle([b.blank.answer, ...distract], r);
+    return {
+      stem: `${b.label} ${b.blank.blanked.replace(/<span class="blank">[^<]*<\/span>/, '<span class="paren">(\u00A0\u00A0\u00A0\u00A0)</span>')}`,
+      options,
+      answer: options.indexOf(b.blank.answer),
+      inline: true,
+    };
+  });
+
+  // ── 유형 B: 이 법률을 만든 부서는? (보기 = 부서 5개 고정) ──
+  const qB: Mcq[] = shuffle(deptLaws, r).map((l) => ({
+    stem: "다음 법률을 만든 부서는 어디입니까?",
+    quoted: l.text,
+    options: [...DEPTS],
+    answer: DEPTS.indexOf(l.dept),
+    inline: true,
+  }));
+  const bStems = new Set(qB.map((q) => q.quoted));
+
+  // ── 유형 C: ○○부의 법률로 알맞은 것은? (정답 1 + 다른 부서 법률 4) ──
+  const qC: Mcq[] = [];
+  for (const dept of shuffle([...new Set(deptLaws.map((l) => l.dept))], r)) {
+    const mine = shuffle(deptLaws.filter((l) => l.dept === dept), r);
+    const others = shuffle(deptLaws.filter((l) => l.dept !== dept), r).slice(0, 4);
+    if (!mine.length || others.length < 4) continue;
+    const correct = mine.find((m) => !bStems.has(m.text)) ?? mine[0];
+    const options = shuffle([correct.text, ...others.map((o) => o.text)], r);
+    qC.push({
+      stem: `다음 중 <u>${esc(dept)}</u>의 법률로 알맞은 것은 무엇입니까?`,
+      options,
+      answer: options.indexOf(correct.text),
+      inline: false,
+    });
+  }
+
+  // ── 유형 D: 헌법 제N조의 내용으로 알맞은 것은? ──
+  const qD: Mcq[] = shuffle(articles.map((a, i) => ({ a, i })), r).map(({ a, i }) => {
+    const distract = shuffle(
+      [...articles.filter((x) => x !== a), ...laws.map((l) => l.text).filter((t) => t !== a)],
+      r
+    ).slice(0, 4);
+    if (distract.length < 4) return null;
+    const options = shuffle([a, ...distract], r);
+    return {
+      stem: `다음 중 우리 반 헌법 <u>제${i + 1}조</u>의 내용으로 알맞은 것은 무엇입니까?`,
+      options,
+      answer: options.indexOf(a),
+      inline: false,
+    };
+  }).filter((x): x is Mcq => !!x);
+
+  // ── 유형 E: 헌법·법률 구분 — "법률인 것은?" / "헌법 조항인 것은?" ──
+  const qE: Mcq[] = [];
+  if (articles.length >= 4 && laws.length >= 1) {
+    for (let k = 0; k < 2 && k < laws.length; k++) {
+      const law = shuffle(laws, r)[k % laws.length];
+      const arts = shuffle(articles, r).slice(0, 4);
+      const options = shuffle([law.text, ...arts], r);
+      qE.push({
+        stem: "다음 중 우리 반 헌법 조항이 <u>아니라</u> 부서에서 만든 '법률'인 것은 무엇입니까?",
+        options,
+        answer: options.indexOf(law.text),
+        inline: false,
+      });
+    }
+  }
+  if (laws.length >= 4 && articles.length >= 1) {
+    for (let k = 0; k < 2 && k < articles.length; k++) {
+      const art = shuffle(articles, r)[k % articles.length];
+      const ls = shuffle(laws, r).slice(0, 4);
+      const options = shuffle([art, ...ls.map((l) => l.text)], r);
+      qE.push({
+        stem: "다음 중 부서 법률이 <u>아니라</u> 우리 반 '헌법' 조항인 것은 무엇입니까?",
+        options,
+        answer: options.indexOf(art),
+        inline: false,
+      });
+    }
+  }
+
+  // ── 30문항 배분: 기본 상한 A12·B8·C5·D5·E4 → 모자라면 A·B에서 보충, 넘치면 A부터 줄임 ──
+  const TARGET = 30;
+  const caps = [Math.min(qA.length, 12), Math.min(qB.length, 8), Math.min(qC.length, 5), Math.min(qD.length, 5), Math.min(qE.length, 4)];
+  let total = caps.reduce((x, y) => x + y, 0);
+  if (total < TARGET) {
+    const extraA = Math.min(qA.length - caps[0], TARGET - total);
+    caps[0] += extraA; total += extraA;
+    const extraB = Math.min(qB.length - caps[1], TARGET - total);
+    caps[1] += extraB; total += extraB;
+  } else if (total > TARGET) {
+    const cut = Math.min(total - TARGET, caps[0]);
+    caps[0] -= cut; total -= cut;
+  }
+  const sections: { title: string; items: Mcq[] }[] = [
+    { title: "다음 헌법과 법률의 빈칸에 들어갈 알맞은 말을 고르시오.", items: qA.slice(0, caps[0]) },
+    { title: "다음 법률을 만든 부서로 알맞은 것을 고르시오.", items: qB.slice(0, caps[1]) },
+    { title: "각 부서의 법률로 알맞은 것을 고르시오.", items: qC.slice(0, caps[2]) },
+    { title: "우리 반 헌법 조항의 내용으로 알맞은 것을 고르시오.", items: qD.slice(0, caps[3]) },
+    { title: "물음을 읽고 알맞은 것을 고르시오.", items: qE.slice(0, caps[4]) },
+  ].filter((s) => s.items.length > 0);
+
+  // ── 렌더 ──
+  const ptsNote = total === 30
+    ? "1~20번 각 3점, 21~30번 각 4점 (총 100점)"
+    : `총 ${total}문항 (문항당 ${total ? Math.round(100 / total * 10) / 10 : 0}점)`;
   let qNo = 0;
+  const answers: number[] = [];
   let html = EXAM_CSS + `<div class="exam">
     <div class="exhead">
       <div class="exmeta"><span>${year}학년도 2학기</span><span>학급 자치 (세트 ${setNo})</span></div>
       <h1>우리 반 헌법·법률 평가</h1>
-      <div class="exsub">5학년 ― 우리 반이 함께 만든 헌법과 법률</div>
+      <div class="exsub">5학년 ― 객관식 ${total}문항</div>
     </div>
     <table class="nametbl"><tr>
       <td class="lab">반</td><td class="in"></td>
@@ -173,71 +298,33 @@ export function buildQuizSheet(c: Constitution, setNo: number, withAnswers: bool
       <td class="lab">이름</td><td class="in wide"></td>
       <td class="lab">점수</td><td class="in"></td>
     </tr></table>
-    <p class="direction">※ 문제를 잘 읽고 알맞은 답을 쓰거나 고르시오.</p>`;
+    <p class="direction">※ 문제를 잘 읽고 알맞은 답 <b>하나</b>를 골라 번호를 쓰시오. ${ptsNote}</p>
+    <div class="qbody">`;
 
-  // 【빈칸 채우기】 헌법 — <보기>에서 골라 쓰기 (각 8점)
-  const fillArts = shuffle(articles.map((a, i) => ({ a, i })), r).slice(0, 5);
-  const fills = fillArts
-    .map(({ a, i }) => ({ i, blank: pickBlank(a, r) }))
-    .filter((x): x is { i: number; blank: { blanked: string; answer: string } } => !!x.blank);
-  if (fills.length) {
-    const s0 = qNo + 1, s1 = qNo + fills.length;
-    const bank = shuffle(fills.map((f) => f.blank.answer), r);
-    html += `<p class="sect">【${s0}~${s1}】 다음은 우리 반 헌법이다. 빈칸에 들어갈 알맞은 말을 &lt;보기&gt;에서 골라 쓰시오. <span class="pts">[각 8점]</span></p>
-      <div class="bogi"><span class="bt">&lt;보기&gt;</span><span class="bw">${bank.map(esc).join("  ")}</span></div>` +
-      fills.map((f) => {
-        qNo++;
-        keyRows.push([String(qNo), f.blank.answer]);
-        return `<div class="qq"><span class="no">${qNo}.</span> [제${f.i + 1}조] ${f.blank.blanked.replace(/<span class="blank">[^<]*<\/span>/, '<span class="paren">(\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0)</span>')}</div>`;
-      }).join("");
+  for (const sec of sections) {
+    const s0 = qNo + 1, s1 = qNo + sec.items.length;
+    html += `<p class="sect">【${s0}~${s1}】 ${sec.title}</p>`;
+    for (const q of sec.items) {
+      qNo++;
+      answers.push(q.answer);
+      html += `<div class="qq"><span class="no">${qNo}.</span> ${q.stem}` +
+        (q.quoted ? `<div class="qtext">${esc(q.quoted)}</div>` : "") +
+        (q.inline
+          ? `<div class="ch-in">${q.options.map((o, i) => `<span>${CIRCLED[i]} ${esc(o)}</span>`).join("")}</div>`
+          : `<div class="ch-bl">${q.options.map((o, i) => `<div>${CIRCLED[i]} ${esc(o)}</div>`).join("")}</div>`) +
+        `</div>`;
+    }
   }
+  html += `</div>`; // qbody
 
-  // 【선택형】 이 법률을 만든 부서 고르기 — ①~⑤ (각 7점)
-  const seenM = new Set<string>();
-  const mcq = shuffle(deptLaws, r).filter((l) => !seenM.has(l.dept) && seenM.add(l.dept)).slice(0, 4);
-  if (mcq.length >= 2) {
-    const s0 = qNo + 1, s1 = qNo + mcq.length;
-    html += `<p class="sect">【${s0}~${s1}】 다음 법률을 만든 부서로 알맞은 것을 고르시오. <span class="pts">[각 7점]</span></p>` +
-      mcq.map((m) => {
-        qNo++;
-        const ansIdx = DEPTS.indexOf(m.dept);
-        keyRows.push([String(qNo), `${CIRCLED[ansIdx]} ${m.dept}`]);
-        return `<div class="qq"><span class="no">${qNo}.</span><div class="qtext">${esc(m.text)}</div>
-          <div class="choices">${DEPTS.map((d, i) => `<span>${CIRCLED[i]} ${esc(d)}</span>`).join("")}</div></div>`;
-      }).join("");
-  }
-
-  // 【O/X】 옳으면 O, 틀리면 X (각 4점) — 절반은 부서를 바꿔치기한 오답 문장
-  const oxPool = shuffle(deptLaws.filter((l) => !mcq.includes(l)), r).slice(0, 2);
-  if (oxPool.length) {
-    const s0 = qNo + 1, s1 = qNo + oxPool.length;
-    html += `<p class="sect">【${s0}~${s1}】 다음 설명이 옳으면 O표, 틀리면 X표 하시오. <span class="pts">[각 4점]</span></p>` +
-      oxPool.map((l, idx) => {
-        qNo++;
-        const wrong = idx % 2 === 1;
-        const shownDept = wrong ? shuffle(DEPTS.filter((d) => d !== l.dept), r)[0] : l.dept;
-        keyRows.push([String(qNo), wrong ? `X (${l.dept}의 법률)` : "O"]);
-        return `<div class="qq"><span class="no">${qNo}.</span> "${esc(l.text)}"는 ${esc(shownDept)}에서 만든 법률이다. <span class="oxend">(&nbsp;&nbsp;&nbsp;&nbsp;)</span></div>`;
-      }).join("");
-  }
-
-  // 【서술형】 (각 14~12점 — 남은 배점을 나눠 100점 맞춤)
-  const used = fills.length * 8 + (mcq.length >= 2 ? mcq.length * 7 : 0) + oxPool.length * 4;
-  const remain = Math.max(100 - used, 20);
-  const each = Math.floor(remain / 2);
-  html += `<p class="sect">【${qNo + 1}~${qNo + 2}】 서술형 문제를 읽고 답을 쓰시오. <span class="pts">[${qNo + 1}번 ${each}점, ${qNo + 2}번 ${remain - each}점]</span></p>`;
-  qNo++;
-  keyRows.push([String(qNo), "자유 답안 — 조항을 정확히 쓰고 이유가 구체적이면 만점"]);
-  html += `<div class="qq"><span class="no">${qNo}.</span> 우리 반 헌법 중 가장 중요하다고 생각하는 조항 하나를 쓰고, 그렇게 생각한 이유를 쓰시오.<div class="wbox"></div></div>`;
-  qNo++;
-  keyRows.push([String(qNo), "자유 답안 — 실천 방법이 구체적이면 만점"]);
-  html += `<div class="qq"><span class="no">${qNo}.</span> 우리 반 법률을 잘 지키는 반이 되기 위해 내가 실천할 수 있는 일을 두 가지 쓰시오.<div class="wbox"></div></div>`;
-
-  if (withAnswers) {
-    html += `<div class="anspage"><div class="anshead">정답 및 채점 기준 (세트 ${setNo} · 교사용)</div>
-      <table class="anstbl"><tr><th>문항</th><td style="background:#f2f2f2;font-weight:700">정답</td></tr>` +
-      keyRows.map(([n, a]) => `<tr><th>${n}번</th><td>${esc(a).replace(/&lt;/g, "<").replace(/&gt;/g, ">")}</td></tr>`).join("") +
-      `</table></div>`;
+  if (withAnswers && total > 0) {
+    html += `<div class="anspage"><div class="anshead">정답표 (세트 ${setNo} · 교사용)</div>`;
+    for (let row = 0; row < total; row += 10) {
+      const idx = Array.from({ length: Math.min(10, total - row) }, (_, k) => row + k);
+      html += `<table class="anstbl"><tr><th>문항</th>${idx.map((i) => `<td style="background:#f8f8f8;font-weight:700">${i + 1}</td>`).join("")}</tr>` +
+        `<tr><th>정답</th>${idx.map((i) => `<td style="font-size:15px">${CIRCLED[answers[i]]}</td>`).join("")}</tr></table>`;
+    }
+    html += `</div>`;
   }
   return html + `</div>`;
 }

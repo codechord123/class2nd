@@ -78,7 +78,7 @@ export default function StudyPrintPanel() {
         </label>
       </div>
       <p className="mt-2 text-[11px] text-ink-400">
-        시험 구성: 빈칸 채우기(헌법) · O/X(부서 맞히기) · 연결하기(법률↔부서) · 생각 쓰기 2문항.
+        시험 구성: 객관식 ①~⑤ 30문항 (빈칸·부서 고르기·알맞은 법률·헌법 조항·헌법/법률 구분) · 100점.
         인쇄 창에서 "PDF로 저장"을 누르면 파일로도 남길 수 있어요.
       </p>
     </section>
