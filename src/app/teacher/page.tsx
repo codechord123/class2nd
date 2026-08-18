@@ -30,6 +30,7 @@ import UiTextPanel from "@/components/teacher/UiTextPanel";
 import TabConfigPanel from "@/components/teacher/TabConfigPanel";
 import BackupPanel from "@/components/teacher/BackupPanel";
 import BookletExportPanel from "@/components/teacher/BookletExportPanel";
+import StudyPrintPanel from "@/components/teacher/StudyPrintPanel";
 import CsvExportPanel from "@/components/teacher/CsvExportPanel";
 import DailyReportPanel from "@/components/teacher/DailyReportPanel";
 import TodaySubmissionsPanel from "@/components/teacher/TodaySubmissionsPanel";
@@ -710,6 +711,7 @@ export default function TeacherPage() {
           <BookletExportPanel />
         </div>
         <CsvExportPanel />
+        <StudyPrintPanel />
         <BackupPanel />
         <LinksEditor />
         <CoinAuditPanel />
