@@ -77,6 +77,10 @@ export default function SeatsPage() {
     ?.members.find((m) => m.role === targetRole)?.studentId;
   const targetName = targetSid ? studentById.get(targetSid)?.name : null;
   const isMySeat = targetSid != null && targetSid === studentId;
+  // 🈳 빈 역할 — 4명 모둠(전출로 24명이 되며 생김)에는 역할 하나가 공석이다.
+  // 자리 변경은 '두 사람이 맞바꾸는' 방식이라 상대가 없으면 성립하지 않는다
+  // (예전엔 신청·승인이 되면서 실버만 빠지고 자리는 그대로였음 — 2026-08-19 차단).
+  const isVacant = targetSid == null;
 
   // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
   // (잔액 1개로 상점·자리 이중 신청 방지. 문서는 모두 캐시 공유 — 추가 읽기 거의 0)
@@ -88,6 +92,10 @@ export default function SeatsPage() {
     // 🔒 교사 사용 잠금 — 재화 사용(자리 신청)도 상점과 함께 막는다 (방학 등 수동 잠금)
     if (role === "student" && settings?.usageLocked) {
       toast(`🔒 ${settings.usageLockNote?.trim() || "지금은 신청을 잠가 두었어요."}`, "warn");
+      return;
+    }
+    if (isVacant) {
+      toast("🈳 비어 있는 자리예요 — 친구와 맞바꾸는 신청만 할 수 있어요.", "warn");
       return;
     }
     const cost = settings?.seatChangeCost ?? 10;
@@ -249,7 +257,7 @@ export default function SeatsPage() {
                   </select>
                   <button
                     onClick={() => void submitRequest()}
-                    disabled={busy || isMySeat}
+                    disabled={busy || isMySeat || isVacant}
                     className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   >
                     {busy ? "신청 중…" : "신청하기"}
@@ -264,7 +272,10 @@ export default function SeatsPage() {
                         서로 자리가 바뀌어요 🤝
                       </>
                     ) : (
-                      <>지금 비어 있는 자리예요.</>
+                      <>
+                        🈳 지금 <b className="text-ink-700">비어 있는 자리</b>예요 — 자리 변경은
+                        친구와 맞바꾸는 것이라 빈자리로는 신청할 수 없어요. 다른 자리를 골라주세요!
+                      </>
                     )}
                   </p>
                 </div>

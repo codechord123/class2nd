@@ -8,6 +8,12 @@
 //      cost = α·Σ pair² + β·성별 4:0 모둠 + γ·같은 모둠 연속 + δ·같은 역할 연속 + ε·역할 편차
 // 자리는 2주마다 교체(요구사항) → 21주 = 11 로테이션(마지막 1주).
 // 시드 고정 PRNG라 재실행해도 동일한 결과가 나온다.
+//
+// 👻 가상 인물(GHOST) 방식 (2026-08-19, 전출로 24명이 되며 도입 — 사용자 확정):
+//   위원이 20명(5모둠×4역할)이 아닐 때, 빈 슬롯을 '가상 인물'로 채워 라틴 방진 구조를
+//   그대로 쓴다. 가상 인물이 배정된 모둠은 실제로는 한 명 적은 모둠이 되고,
+//   그 모둠의 역할 하나가 공석이 된다. 가상 인물은 출력 JSON에서 빠진다.
+//   제약: 가상 인물이 든 모둠(총원 4명)은 반드시 여2남2 (사용자 확정) — 하드 페널티.
 
 import { writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -35,7 +41,30 @@ if (chairsFile.provisional) {
   console.warn("⚠️ chairs.json이 아직 1학기 회장단 임시값입니다. 2학기 선출 후 갱신하세요.");
 }
 const chairIds = new Set(Object.values(chairs).map(idOf));
-const members = names.filter((n) => !chairIds.has(idOf(n))); // 위원 20명
+// 전출 등 배치 제외 학생 (chairs.json의 excluded) — 학생 번호(id)는 그대로 두고 배치에서만 뺀다
+const excluded = new Set(chairsFile.excluded ?? []);
+for (const n of excluded)
+  if (!names.includes(n)) throw new Error(`excluded에 없는 이름: ${n}`);
+if ([...excluded].some((n) => Object.values(chairs).includes(n)))
+  throw new Error("의장으로 지정된 학생은 excluded에 넣을 수 없습니다.");
+
+const realMembers = names.filter((n) => !chairIds.has(idOf(n)) && !excluded.has(n)); // 실제 위원
+// 👻 가상 인물로 20슬롯(5모둠×4역할)을 채운다 — 라틴 방진·어닐링 구조를 그대로 유지
+const SLOTS = 20;
+const GHOST = "__ghost__";
+if (realMembers.length > SLOTS)
+  throw new Error(`위원이 ${realMembers.length}명 — 슬롯(${SLOTS})을 넘습니다.`);
+const ghostCount = SLOTS - realMembers.length;
+const members = [...realMembers, ...Array.from({ length: ghostCount }, () => GHOST)];
+const isGhost = (m) => members[m] === GHOST;
+// 가상 인물은 id 0 — 페어·역할 통계에서 제외하는 표식
+const memberId = (m) => (isGhost(m) ? 0 : idOf(members[m]));
+const genderOfMember = (m) => (isGhost(m) ? null : genderMap[members[m]]);
+console.log(
+  `명단: 총 ${names.length - excluded.size}명 (의장 5 + 위원 ${realMembers.length})` +
+  (excluded.size ? ` · 제외 ${[...excluded].join(",")}` : "") +
+  (ghostCount ? ` · 👻 가상 인물 ${ghostCount}명 → ${5 - ghostCount}개 모둠은 5명, ${ghostCount}개 모둠은 4명` : "")
+);
 
 const ROLES = ["질서", "학습", "건강", "행정"];
 const SEMESTER_START = "2026-08-17"; // 월요일
@@ -60,7 +89,7 @@ const jump = [1, 2, 3, 4]; // 초기 역할별 모둠 점프 폭
 const assign = [];
 for (let p = 0; p < PERIODS; p++) {
   const row = [];
-  for (let m = 0; m < 20; m++) {
+  for (let m = 0; m < SLOTS; m++) {
     const g0 = m % 5;
     const r0 = Math.floor(m / 5);
     const r = (r0 + p) % 4;
@@ -72,38 +101,62 @@ for (let p = 0; p < PERIODS; p++) {
 
 // ── 비용 함수 ────────────────────────────────────────────────────
 // 제안 가중치(α10 β5 γ3 δ3 ε2)에서 성별쏠림·연속모둠을 강화해 튜닝
-const A = 10, B = 60, C = 25, D = 8, E = 4;
+// G: 4명 모둠(가상 인물이 든 모둠)의 여2남2 위반 — 사용자 확정 제약이라 압도적 페널티
+// H: 가상 인물이 같은 모둠에 연속으로 머무는 것(= 한 모둠만 계속 4명) 방지
+// I: 4명이 되는 횟수가 특정 모둠에 쏠리는 것 방지 (모둠별 횟수 분산) — 공평성
+// J: 5명 모둠도 성비 3:2를 지향 (4:1·5:0 방지) — '4명은 여2남2' 요구의 같은 취지.
+//    총원 남12여12에서 4명 모둠이 2:2면 나머지는 모두 3:2로 떨어진다 (수학적으로 달성 가능)
+const A = 10, B = 60, C = 25, D = 8, E = 4, G = 5000, H = 40, I = 120, J = 300;
 
 function pairKey(a, b) { return a < b ? a * 100 + b : b * 100 + a; }
 
+/** 한 기간의 배치를 모둠별로 펼친다 → [{ chairId, memberIdx[] }] */
+function groupsOf(assign, p) {
+  const gs = Array.from({ length: 5 }, (_, g) => ({ chairId: idOf(chairs[g + 1]), ms: [] }));
+  for (let m = 0; m < SLOTS; m++) gs[assign[p][m].g].ms.push(m);
+  return gs;
+}
+
 function cost(assign) {
   const pairCnt = new Map();
-  let gender40 = 0, consecG = 0, consecR = 0;
-  const roleCnt = Array.from({ length: 20 }, () => [0, 0, 0, 0]);
+  let gender40 = 0, consecG = 0, consecR = 0, quadViolation = 0, ghostStay = 0;
+  const quadPerGroup = [0, 0, 0, 0, 0]; // 모둠별 '4명이 된 횟수'
+  const roleCnt = Array.from({ length: SLOTS }, () => [0, 0, 0, 0]);
 
   for (let p = 0; p < PERIODS; p++) {
-    // 모둠 구성원 수집 (의장 포함)
-    const groupMembers = Array.from({ length: 5 }, (_, g) => [idOf(chairs[g + 1])]);
-    for (let m = 0; m < 20; m++) {
+    for (let m = 0; m < SLOTS; m++) {
       const { g, r } = assign[p][m];
-      groupMembers[g].push(idOf(members[m]));
       roleCnt[m][r]++;
       if (p > 0) {
         if (assign[p - 1][m].g === g) consecG++;
         if (assign[p - 1][m].r === r) consecR++;
+        // 가상 인물이 지난 기간과 같은 모둠 → 같은 모둠이 연속 4명 (불공평)
+        if (isGhost(m) && assign[p - 1][m].g === g) ghostStay++;
       }
     }
-    for (let g = 0; g < 5; g++) {
-      const ids = groupMembers[g];
-      // 만남 페어 (의장 포함 5명 → 10쌍)
-      for (let i = 0; i < ids.length; i++)
-        for (let j = i + 1; j < ids.length; j++) {
-          const k = pairKey(ids[i], ids[j]);
+    for (const [gi, grp] of groupsOf(assign, p).entries()) {
+      // 실제 인원만 (의장 + 가상 아닌 위원)
+      const realIds = [grp.chairId, ...grp.ms.filter((m) => !isGhost(m)).map(memberId)];
+      for (let i = 0; i < realIds.length; i++)
+        for (let j = i + 1; j < realIds.length; j++) {
+          const k = pairKey(realIds[i], realIds[j]);
           pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1);
         }
-      // 위원 4명 성별 쏠림
-      const genders = ids.slice(1).map((id) => genderMap[names[id - 1]]);
-      if (genders.every((x) => x === "M") || genders.every((x) => x === "F")) gender40++;
+      const hasGhost = grp.ms.some(isGhost);
+      const memberGenders = grp.ms.filter((m) => !isGhost(m)).map(genderOfMember);
+      if (hasGhost) {
+        quadPerGroup[gi]++;
+        // 총원 4명 모둠 → 의장 포함 여2남2 (사용자 확정)
+        const all = [genderMap[names[grp.chairId - 1]], ...memberGenders];
+        const male = all.filter((x) => x === "M").length;
+        if (all.length === 4 && male !== 2) quadViolation++;
+      } else {
+        // 5명 모둠 — 의장 포함 성비가 3:2를 벗어나면(4:1, 5:0) 페널티
+        const all = [genderMap[names[grp.chairId - 1]], ...memberGenders];
+        const male = all.filter((x) => x === "M").length;
+        const skew = Math.abs(male - (all.length - male));
+        if (skew > 1) gender40 += skew - 1; // 4:1 → 1, 5:0 → 3
+      }
     }
   }
 
@@ -111,12 +164,21 @@ function cost(assign) {
   for (const c of pairCnt.values()) pairSq += c * c;
 
   let roleStd = 0;
-  for (const cnts of roleCnt) {
+  for (let m = 0; m < SLOTS; m++) {
+    if (isGhost(m)) continue; // 가상 인물의 역할 편차는 무의미
     const mean = PERIODS / 4;
-    roleStd += Math.sqrt(cnts.reduce((s, c) => s + (c - mean) ** 2, 0) / 4);
+    roleStd += Math.sqrt(roleCnt[m].reduce((s, c) => s + (c - mean) ** 2, 0) / 4);
   }
 
-  return A * pairSq + B * gender40 + C * consecG + D * consecR + E * roleStd;
+  // 4명 모둠이 특정 모둠에 쏠리지 않게 — 모둠별 횟수의 제곱합(분산 대용)
+  let quadSpread = 0;
+  if (ghostCount) {
+    const mean = (PERIODS * ghostCount) / 5;
+    for (const q of quadPerGroup) quadSpread += (q - mean) ** 2;
+  }
+
+  return A * pairSq + J * gender40 + C * consecG + D * consecR + E * roleStd
+       + G * quadViolation + H * ghostStay + I * quadSpread;
 }
 
 // ── 시뮬레이티드 어닐링 ──────────────────────────────────────────
@@ -130,9 +192,9 @@ for (let it = 0; it < ITER; it++) {
   const T = T0 * Math.pow(T1 / T0, it / ITER);
   // 무작위 기간에서 위원 2명의 (모둠,역할) swap
   const p = Math.floor(rand() * PERIODS);
-  const m1 = Math.floor(rand() * 20);
-  let m2 = Math.floor(rand() * 20);
-  if (m1 === m2) m2 = (m2 + 1) % 20;
+  const m1 = Math.floor(rand() * SLOTS);
+  let m2 = Math.floor(rand() * SLOTS);
+  if (m1 === m2) m2 = (m2 + 1) % SLOTS;
   [assign[p][m1], assign[p][m2]] = [assign[p][m2], assign[p][m1]];
 
   const next = cost(assign);
@@ -151,54 +213,71 @@ for (let it = 0; it < ITER; it++) {
 // ── 검증 리포트 ──────────────────────────────────────────────────
 function report(assign) {
   const pairCnt = new Map();
-  let gender40 = 0, consecG = 0, consecR = 0;
-  const roleCnt = Array.from({ length: 20 }, () => [0, 0, 0, 0]);
+  let gender40 = 0, consecG = 0, consecR = 0, quadViolation = 0;
+  const quadGroups = {}; // 모둠별 '4명이 된 횟수'
+  const roleCnt = Array.from({ length: SLOTS }, () => [0, 0, 0, 0]);
   for (let p = 0; p < PERIODS; p++) {
-    const groupMembers = Array.from({ length: 5 }, (_, g) => [idOf(chairs[g + 1])]);
-    for (let m = 0; m < 20; m++) {
+    for (let m = 0; m < SLOTS; m++) {
       const { g, r } = assign[p][m];
-      groupMembers[g].push(idOf(members[m]));
       roleCnt[m][r]++;
       if (p > 0) {
         if (assign[p - 1][m].g === g) consecG++;
         if (assign[p - 1][m].r === r) consecR++;
       }
     }
-    for (let g = 0; g < 5; g++) {
-      const ids = groupMembers[g];
-      for (let i = 0; i < ids.length; i++)
-        for (let j = i + 1; j < ids.length; j++) {
-          const k = pairKey(ids[i], ids[j]);
+    for (const [gi, grp] of groupsOf(assign, p).entries()) {
+      const realIds = [grp.chairId, ...grp.ms.filter((m) => !isGhost(m)).map(memberId)];
+      for (let i = 0; i < realIds.length; i++)
+        for (let j = i + 1; j < realIds.length; j++) {
+          const k = pairKey(realIds[i], realIds[j]);
           pairCnt.set(k, (pairCnt.get(k) ?? 0) + 1);
         }
-      const genders = ids.slice(1).map((id) => genderMap[names[id - 1]]);
-      if (genders.every((x) => x === "M") || genders.every((x) => x === "F")) gender40++;
+      const hasGhost = grp.ms.some(isGhost);
+      const memberGenders = grp.ms.filter((m) => !isGhost(m)).map(genderOfMember);
+      if (hasGhost) {
+        quadGroups[gi + 1] = (quadGroups[gi + 1] ?? 0) + 1;
+        const all = [genderMap[names[grp.chairId - 1]], ...memberGenders];
+        if (all.length === 4 && all.filter((x) => x === "M").length !== 2) quadViolation++;
+      } else {
+        const all = [genderMap[names[grp.chairId - 1]], ...memberGenders];
+        const male = all.filter((x) => x === "M").length;
+        if (Math.abs(male - (all.length - male)) > 1) gender40++; // 5명 모둠 4:1 이상
+      }
     }
   }
   const counts = [...pairCnt.values()];
   const dist = {};
   for (const c of counts) dist[c] = (dist[c] ?? 0) + 1;
-  const totalPairs = (25 * 24) / 2;
+  const nActive = names.length - excluded.size;
+  const totalPairs = (nActive * (nActive - 1)) / 2;
   const neverMet = totalPairs - pairCnt.size;
-  const roleMinMax = roleCnt.map((c) => [Math.min(...c), Math.max(...c)]);
-  const worstRoleGap = Math.max(...roleMinMax.map(([lo, hi]) => hi - lo));
-  return { dist, neverMet, gender40, consecG, consecR, worstRoleGap, maxMeet: Math.max(...counts) };
+  const gaps = [];
+  for (let m = 0; m < SLOTS; m++)
+    if (!isGhost(m)) gaps.push(Math.max(...roleCnt[m]) - Math.min(...roleCnt[m]));
+  return {
+    dist, neverMet, totalPairs, gender40, consecG, consecR, quadViolation, quadGroups,
+    worstRoleGap: Math.max(...gaps), maxMeet: Math.max(...counts),
+  };
 }
 
 const rep = report(bestAssign);
 console.log("=== 어닐링 결과 ===");
 console.log("cost:", Math.round(best), `(초기 대비)`);
 console.log("만남 횟수 분포 {횟수: 쌍 수}:", rep.dist);
-console.log("한 번도 안 만난 쌍:", rep.neverMet, "/ 300");
+console.log("한 번도 안 만난 쌍:", rep.neverMet, "/", rep.totalPairs);
 console.log("최다 만남:", rep.maxMeet, "회");
-console.log("성별 4:0 모둠(기간×모둠 중):", rep.gender40);
+console.log("성비 쏠린 5명 모둠(4:1 이상):", rep.gender40, rep.gender40 === 0 ? "(모두 3:2 ✅)" : "");
 console.log("같은 모둠 연속:", rep.consecG, "| 같은 역할 연속:", rep.consecR);
 console.log("역할 횟수 최대 편차(학생별 max-min):", rep.worstRoleGap);
+if (ghostCount) {
+  console.log("👻 4명 모둠 여2남2 위반:", rep.quadViolation, rep.quadViolation === 0 ? "(제약 충족 ✅)" : "❌");
+  console.log("👻 모둠별 4명이 된 횟수:", rep.quadGroups, `(총 ${PERIODS}기간)`);
+}
 
 // ── 검증: 각 기간이 유효한 배치인지 (모둠×역할 전단사) ──────────
 for (let p = 0; p < PERIODS; p++) {
   const seen = new Set();
-  for (let m = 0; m < 20; m++) {
+  for (let m = 0; m < SLOTS; m++) {
     const { g, r } = bestAssign[p][m];
     const key = g * 10 + r;
     if (seen.has(key)) throw new Error(`기간 ${p + 1}: (모둠${g + 1},${ROLES[r]}) 중복!`);
@@ -221,9 +300,10 @@ for (let w = 1; w <= TOTAL_WEEKS; w++) {
   const groups = [];
   for (let g = 0; g < 5; g++) {
     const groupMembers = [];
-    for (let m = 0; m < 20; m++) {
+    for (let m = 0; m < SLOTS; m++) {
       const a = bestAssign[p][m];
-      if (a.g === g) groupMembers.push({ studentId: idOf(members[m]), role: ROLES[a.r] });
+      if (a.g === g && !isGhost(m)) // 👻 가상 인물은 출력하지 않는다 → 그 모둠은 한 명 적다
+        groupMembers.push({ studentId: memberId(m), role: ROLES[a.r] });
     }
     groupMembers.sort((x, y) => ROLES.indexOf(x.role) - ROLES.indexOf(y.role));
     groups.push({ groupId: g + 1, chair: idOf(chairs[g + 1]), members: groupMembers });
@@ -242,10 +322,13 @@ const out = {
     quality: {
       neverMetPairs: rep.neverMet,
       maxMeetCount: rep.maxMeet,
-      gender40Groups: rep.gender40,
+      genderSkewedGroups: rep.gender40, // 5명 모둠 중 4:1 이상 (0 = 전부 3:2)
       sameGroupConsecutive: rep.consecG,
       sameRoleConsecutive: rep.consecR,
+      quadGenderViolations: rep.quadViolation, // 4명 모둠 여2남2 위반 (0이어야 정상)
     },
+    excluded: [...excluded],
+    ghostSlots: ghostCount, // 가상 인물 수 = 4명이 되는 모둠 수(기간마다 1개)
   },
   weeks,
 };

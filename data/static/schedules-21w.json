@@ -8,11 +8,16 @@
     "seed": 20260817,
     "quality": {
       "neverMetPairs": 12,
-      "maxMeetCount": 3,
-      "gender40Groups": 0,
-      "sameGroupConsecutive": 1,
-      "sameRoleConsecutive": 0
-    }
+      "maxMeetCount": 4,
+      "genderSkewedGroups": 0,
+      "sameGroupConsecutive": 2,
+      "sameRoleConsecutive": 0,
+      "quadGenderViolations": 0
+    },
+    "excluded": [
+      "한민종"
+    ],
+    "ghostSlots": 1
   },
   "weeks": [
     {
@@ -22,58 +27,54 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 17,
+              "studentId": 21,
               "role": "질서"
             },
             {
-              "studentId": 24,
+              "studentId": 12,
               "role": "학습"
             },
             {
-              "studentId": 12,
+              "studentId": 16,
               "role": "건강"
             },
             {
-              "studentId": 6,
+              "studentId": 17,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 13,
+              "studentId": 9,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 1,
               "role": "학습"
             },
             {
-              "studentId": 8,
+              "studentId": 20,
               "role": "건강"
-            },
-            {
-              "studentId": 4,
-              "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 14,
               "role": "질서"
             },
             {
-              "studentId": 19,
+              "studentId": 4,
               "role": "학습"
             },
             {
@@ -81,21 +82,43 @@
               "role": "건강"
             },
             {
-              "studentId": 3,
+              "studentId": 8,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 19,
               "role": "질서"
             },
             {
+              "studentId": 25,
+              "role": "학습"
+            },
+            {
+              "studentId": 5,
+              "role": "건강"
+            },
+            {
               "studentId": 23,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 2,
+              "role": "질서"
+            },
+            {
+              "studentId": 3,
               "role": "학습"
             },
             {
@@ -103,29 +126,7 @@
               "role": "건강"
             },
             {
-              "studentId": 21,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 5,
-              "role": "질서"
-            },
-            {
-              "studentId": 2,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 16,
+              "studentId": 6,
               "role": "행정"
             }
           ]
@@ -139,58 +140,54 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 17,
+              "studentId": 21,
               "role": "질서"
             },
             {
-              "studentId": 24,
+              "studentId": 12,
               "role": "학습"
             },
             {
-              "studentId": 12,
+              "studentId": 16,
               "role": "건강"
             },
             {
-              "studentId": 6,
+              "studentId": 17,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 13,
+              "studentId": 9,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 1,
               "role": "학습"
             },
             {
-              "studentId": 8,
+              "studentId": 20,
               "role": "건강"
-            },
-            {
-              "studentId": 4,
-              "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 14,
               "role": "질서"
             },
             {
-              "studentId": 19,
+              "studentId": 4,
               "role": "학습"
             },
             {
@@ -198,21 +195,43 @@
               "role": "건강"
             },
             {
-              "studentId": 3,
+              "studentId": 8,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 19,
               "role": "질서"
             },
             {
+              "studentId": 25,
+              "role": "학습"
+            },
+            {
+              "studentId": 5,
+              "role": "건강"
+            },
+            {
               "studentId": 23,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 2,
+              "role": "질서"
+            },
+            {
+              "studentId": 3,
               "role": "학습"
             },
             {
@@ -220,29 +239,7 @@
               "role": "건강"
             },
             {
-              "studentId": 21,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 5,
-              "role": "질서"
-            },
-            {
-              "studentId": 2,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 16,
+              "studentId": 6,
               "role": "행정"
             }
           ]
@@ -256,32 +253,10 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
-            {
-              "studentId": 16,
-              "role": "질서"
-            },
             {
               "studentId": 4,
-              "role": "학습"
-            },
-            {
-              "studentId": 19,
-              "role": "건강"
-            },
-            {
-              "studentId": 23,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 3,
               "role": "질서"
             },
             {
@@ -289,43 +264,65 @@
               "role": "학습"
             },
             {
-              "studentId": 11,
+              "studentId": 1,
               "role": "건강"
             },
             {
-              "studentId": 5,
+              "studentId": 25,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 2,
+          "chair": 15,
+          "members": [
+            {
+              "studentId": 3,
+              "role": "질서"
+            },
+            {
+              "studentId": 23,
+              "role": "학습"
+            },
+            {
+              "studentId": 14,
+              "role": "건강"
+            },
+            {
+              "studentId": 21,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 21,
+              "studentId": 6,
               "role": "질서"
             },
             {
-              "studentId": 20,
+              "studentId": 16,
               "role": "학습"
             },
             {
-              "studentId": 6,
+              "studentId": 19,
               "role": "건강"
             },
             {
-              "studentId": 22,
+              "studentId": 20,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 2,
+              "studentId": 7,
               "role": "질서"
             },
             {
@@ -333,21 +330,21 @@
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 12,
               "role": "건강"
             },
             {
-              "studentId": 13,
+              "studentId": 2,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 12,
+              "studentId": 5,
               "role": "질서"
             },
             {
@@ -355,11 +352,7 @@
               "role": "학습"
             },
             {
-              "studentId": 18,
-              "role": "건강"
-            },
-            {
-              "studentId": 7,
+              "studentId": 9,
               "role": "행정"
             }
           ]
@@ -373,32 +366,10 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
-            {
-              "studentId": 16,
-              "role": "질서"
-            },
             {
               "studentId": 4,
-              "role": "학습"
-            },
-            {
-              "studentId": 19,
-              "role": "건강"
-            },
-            {
-              "studentId": 23,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 3,
               "role": "질서"
             },
             {
@@ -406,43 +377,65 @@
               "role": "학습"
             },
             {
-              "studentId": 11,
+              "studentId": 1,
               "role": "건강"
             },
             {
-              "studentId": 5,
+              "studentId": 25,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 2,
+          "chair": 15,
+          "members": [
+            {
+              "studentId": 3,
+              "role": "질서"
+            },
+            {
+              "studentId": 23,
+              "role": "학습"
+            },
+            {
+              "studentId": 14,
+              "role": "건강"
+            },
+            {
+              "studentId": 21,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 21,
+              "studentId": 6,
               "role": "질서"
             },
             {
-              "studentId": 20,
+              "studentId": 16,
               "role": "학습"
             },
             {
-              "studentId": 6,
+              "studentId": 19,
               "role": "건강"
             },
             {
-              "studentId": 22,
+              "studentId": 20,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 2,
+              "studentId": 7,
               "role": "질서"
             },
             {
@@ -450,21 +443,21 @@
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 12,
               "role": "건강"
             },
             {
-              "studentId": 13,
+              "studentId": 2,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 12,
+              "studentId": 5,
               "role": "질서"
             },
             {
@@ -472,11 +465,7 @@
               "role": "학습"
             },
             {
-              "studentId": 18,
-              "role": "건강"
-            },
-            {
-              "studentId": 7,
+              "studentId": 9,
               "role": "행정"
             }
           ]
@@ -490,102 +479,14 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 8,
+              "studentId": 16,
               "role": "질서"
-            },
-            {
-              "studentId": 11,
-              "role": "학습"
-            },
-            {
-              "studentId": 21,
-              "role": "건강"
             },
             {
               "studentId": 2,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 22,
-              "role": "질서"
-            },
-            {
-              "studentId": 18,
-              "role": "학습"
-            },
-            {
-              "studentId": 16,
-              "role": "건강"
-            },
-            {
-              "studentId": 24,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 7,
-              "role": "질서"
-            },
-            {
-              "studentId": 5,
-              "role": "학습"
-            },
-            {
-              "studentId": 4,
-              "role": "건강"
-            },
-            {
-              "studentId": 3,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 10,
-              "role": "질서"
-            },
-            {
-              "studentId": 6,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 12,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 13,
-              "role": "질서"
-            },
-            {
-              "studentId": 19,
               "role": "학습"
             },
             {
@@ -593,7 +494,91 @@
               "role": "건강"
             },
             {
+              "studentId": 10,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 2,
+          "chair": 15,
+          "members": [
+            {
+              "studentId": 8,
+              "role": "질서"
+            },
+            {
+              "studentId": 1,
+              "role": "학습"
+            },
+            {
+              "studentId": 7,
+              "role": "건강"
+            },
+            {
+              "studentId": 19,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
               "studentId": 17,
+              "role": "질서"
+            },
+            {
+              "studentId": 25,
+              "role": "학습"
+            },
+            {
+              "studentId": 5,
+              "role": "건강"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 9,
+              "role": "질서"
+            },
+            {
+              "studentId": 6,
+              "role": "학습"
+            },
+            {
+              "studentId": 21,
+              "role": "건강"
+            },
+            {
+              "studentId": 14,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 20,
+              "role": "질서"
+            },
+            {
+              "studentId": 12,
+              "role": "학습"
+            },
+            {
+              "studentId": 3,
+              "role": "건강"
+            },
+            {
+              "studentId": 4,
               "role": "행정"
             }
           ]
@@ -607,102 +592,14 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 8,
+              "studentId": 16,
               "role": "질서"
-            },
-            {
-              "studentId": 11,
-              "role": "학습"
-            },
-            {
-              "studentId": 21,
-              "role": "건강"
             },
             {
               "studentId": 2,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 22,
-              "role": "질서"
-            },
-            {
-              "studentId": 18,
-              "role": "학습"
-            },
-            {
-              "studentId": 16,
-              "role": "건강"
-            },
-            {
-              "studentId": 24,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 7,
-              "role": "질서"
-            },
-            {
-              "studentId": 5,
-              "role": "학습"
-            },
-            {
-              "studentId": 4,
-              "role": "건강"
-            },
-            {
-              "studentId": 3,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 10,
-              "role": "질서"
-            },
-            {
-              "studentId": 6,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 12,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 13,
-              "role": "질서"
-            },
-            {
-              "studentId": 19,
               "role": "학습"
             },
             {
@@ -710,7 +607,91 @@
               "role": "건강"
             },
             {
+              "studentId": 10,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 2,
+          "chair": 15,
+          "members": [
+            {
+              "studentId": 8,
+              "role": "질서"
+            },
+            {
+              "studentId": 1,
+              "role": "학습"
+            },
+            {
+              "studentId": 7,
+              "role": "건강"
+            },
+            {
+              "studentId": 19,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
               "studentId": 17,
+              "role": "질서"
+            },
+            {
+              "studentId": 25,
+              "role": "학습"
+            },
+            {
+              "studentId": 5,
+              "role": "건강"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 9,
+              "role": "질서"
+            },
+            {
+              "studentId": 6,
+              "role": "학습"
+            },
+            {
+              "studentId": 21,
+              "role": "건강"
+            },
+            {
+              "studentId": 14,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 20,
+              "role": "질서"
+            },
+            {
+              "studentId": 12,
+              "role": "학습"
+            },
+            {
+              "studentId": 3,
+              "role": "건강"
+            },
+            {
+              "studentId": 4,
               "role": "행정"
             }
           ]
@@ -724,40 +705,18 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 14,
               "role": "질서"
             },
             {
-              "studentId": 10,
+              "studentId": 19,
               "role": "학습"
             },
             {
-              "studentId": 17,
-              "role": "건강"
-            },
-            {
-              "studentId": 20,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 23,
-              "role": "질서"
-            },
-            {
-              "studentId": 7,
-              "role": "학습"
-            },
-            {
-              "studentId": 11,
+              "studentId": 25,
               "role": "건강"
             },
             {
@@ -767,19 +726,37 @@
           ]
         },
         {
-          "groupId": 3,
-          "chair": 1,
+          "groupId": 2,
+          "chair": 15,
           "members": [
             {
-              "studentId": 2,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
+              "studentId": 17,
               "role": "학습"
             },
             {
-              "studentId": 19,
+              "studentId": 2,
+              "role": "건강"
+            },
+            {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 4,
+              "role": "질서"
+            },
+            {
+              "studentId": 7,
+              "role": "학습"
+            },
+            {
+              "studentId": 20,
               "role": "건강"
             },
             {
@@ -790,18 +767,18 @@
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 24,
+              "studentId": 10,
               "role": "질서"
             },
             {
-              "studentId": 4,
+              "studentId": 3,
               "role": "학습"
             },
             {
-              "studentId": 3,
+              "studentId": 12,
               "role": "건강"
             },
             {
@@ -812,22 +789,22 @@
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 16,
+              "studentId": 23,
               "role": "질서"
             },
             {
-              "studentId": 12,
+              "studentId": 9,
               "role": "학습"
             },
             {
-              "studentId": 22,
+              "studentId": 16,
               "role": "건강"
             },
             {
-              "studentId": 5,
+              "studentId": 1,
               "role": "행정"
             }
           ]
@@ -841,40 +818,18 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 14,
               "role": "질서"
             },
             {
-              "studentId": 10,
+              "studentId": 19,
               "role": "학습"
             },
             {
-              "studentId": 17,
-              "role": "건강"
-            },
-            {
-              "studentId": 20,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 23,
-              "role": "질서"
-            },
-            {
-              "studentId": 7,
-              "role": "학습"
-            },
-            {
-              "studentId": 11,
+              "studentId": 25,
               "role": "건강"
             },
             {
@@ -884,19 +839,37 @@
           ]
         },
         {
-          "groupId": 3,
-          "chair": 1,
+          "groupId": 2,
+          "chair": 15,
           "members": [
             {
-              "studentId": 2,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
+              "studentId": 17,
               "role": "학습"
             },
             {
-              "studentId": 19,
+              "studentId": 2,
+              "role": "건강"
+            },
+            {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 4,
+              "role": "질서"
+            },
+            {
+              "studentId": 7,
+              "role": "학습"
+            },
+            {
+              "studentId": 20,
               "role": "건강"
             },
             {
@@ -907,18 +880,18 @@
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 24,
+              "studentId": 10,
               "role": "질서"
             },
             {
-              "studentId": 4,
+              "studentId": 3,
               "role": "학습"
             },
             {
-              "studentId": 3,
+              "studentId": 12,
               "role": "건강"
             },
             {
@@ -929,22 +902,22 @@
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 16,
+              "studentId": 23,
               "role": "질서"
             },
             {
-              "studentId": 12,
+              "studentId": 9,
               "role": "학습"
             },
             {
-              "studentId": 22,
+              "studentId": 16,
               "role": "건강"
             },
             {
-              "studentId": 5,
+              "studentId": 1,
               "role": "행정"
             }
           ]
@@ -958,18 +931,18 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 9,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 5,
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 3,
               "role": "건강"
             },
             {
@@ -980,36 +953,14 @@
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 20,
+              "studentId": 6,
               "role": "질서"
-            },
-            {
-              "studentId": 3,
-              "role": "학습"
-            },
-            {
-              "studentId": 13,
-              "role": "건강"
             },
             {
               "studentId": 12,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 8,
-              "role": "질서"
-            },
-            {
-              "studentId": 16,
               "role": "학습"
             },
             {
@@ -1017,47 +968,65 @@
               "role": "건강"
             },
             {
+              "studentId": 4,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 25,
+              "role": "질서"
+            },
+            {
               "studentId": 10,
+              "role": "학습"
+            },
+            {
+              "studentId": 8,
+              "role": "건강"
+            },
+            {
+              "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 5,
+              "studentId": 1,
               "role": "질서"
             },
             {
-              "studentId": 21,
+              "studentId": 14,
               "role": "학습"
             },
             {
-              "studentId": 18,
-              "role": "건강"
-            },
-            {
               "studentId": 17,
-              "role": "행정"
+              "role": "건강"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 20,
               "role": "질서"
             },
             {
-              "studentId": 6,
+              "studentId": 2,
               "role": "학습"
             },
             {
-              "studentId": 2,
+              "studentId": 21,
               "role": "건강"
             },
             {
@@ -1075,18 +1044,18 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 9,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 5,
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 3,
               "role": "건강"
             },
             {
@@ -1097,36 +1066,14 @@
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 20,
+              "studentId": 6,
               "role": "질서"
-            },
-            {
-              "studentId": 3,
-              "role": "학습"
-            },
-            {
-              "studentId": 13,
-              "role": "건강"
             },
             {
               "studentId": 12,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 8,
-              "role": "질서"
-            },
-            {
-              "studentId": 16,
               "role": "학습"
             },
             {
@@ -1134,47 +1081,65 @@
               "role": "건강"
             },
             {
+              "studentId": 4,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 25,
+              "role": "질서"
+            },
+            {
               "studentId": 10,
+              "role": "학습"
+            },
+            {
+              "studentId": 8,
+              "role": "건강"
+            },
+            {
+              "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 5,
+              "studentId": 1,
               "role": "질서"
             },
             {
-              "studentId": 21,
+              "studentId": 14,
               "role": "학습"
             },
             {
-              "studentId": 18,
-              "role": "건강"
-            },
-            {
               "studentId": 17,
-              "role": "행정"
+              "role": "건강"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 20,
               "role": "질서"
             },
             {
-              "studentId": 6,
+              "studentId": 2,
               "role": "학습"
             },
             {
-              "studentId": 2,
+              "studentId": 21,
               "role": "건강"
             },
             {
@@ -1192,81 +1157,11 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 16,
+              "studentId": 7,
               "role": "질서"
-            },
-            {
-              "studentId": 18,
-              "role": "학습"
-            },
-            {
-              "studentId": 6,
-              "role": "건강"
-            },
-            {
-              "studentId": 13,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 19,
-              "role": "질서"
-            },
-            {
-              "studentId": 17,
-              "role": "학습"
-            },
-            {
-              "studentId": 5,
-              "role": "건강"
-            },
-            {
-              "studentId": 22,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 24,
-              "role": "질서"
-            },
-            {
-              "studentId": 4,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 11,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 12,
-              "role": "질서"
-            },
-            {
-              "studentId": 23,
-              "role": "학습"
             },
             {
               "studentId": 10,
@@ -1279,23 +1174,89 @@
           ]
         },
         {
-          "groupId": 5,
+          "groupId": 2,
           "chair": 15,
+          "members": [
+            {
+              "studentId": 16,
+              "role": "질서"
+            },
+            {
+              "studentId": 8,
+              "role": "학습"
+            },
+            {
+              "studentId": 14,
+              "role": "건강"
+            },
+            {
+              "studentId": 3,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 17,
+              "role": "질서"
+            },
+            {
+              "studentId": 19,
+              "role": "학습"
+            },
+            {
+              "studentId": 6,
+              "role": "건강"
+            },
+            {
+              "studentId": 23,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
           "members": [
             {
               "studentId": 21,
               "role": "질서"
             },
             {
-              "studentId": 7,
+              "studentId": 20,
               "role": "학습"
             },
             {
-              "studentId": 3,
+              "studentId": 9,
               "role": "건강"
             },
             {
-              "studentId": 8,
+              "studentId": 12,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 5,
+              "role": "질서"
+            },
+            {
+              "studentId": 4,
+              "role": "학습"
+            },
+            {
+              "studentId": 1,
+              "role": "건강"
+            },
+            {
+              "studentId": 25,
               "role": "행정"
             }
           ]
@@ -1309,81 +1270,11 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 16,
+              "studentId": 7,
               "role": "질서"
-            },
-            {
-              "studentId": 18,
-              "role": "학습"
-            },
-            {
-              "studentId": 6,
-              "role": "건강"
-            },
-            {
-              "studentId": 13,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 19,
-              "role": "질서"
-            },
-            {
-              "studentId": 17,
-              "role": "학습"
-            },
-            {
-              "studentId": 5,
-              "role": "건강"
-            },
-            {
-              "studentId": 22,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 24,
-              "role": "질서"
-            },
-            {
-              "studentId": 4,
-              "role": "학습"
-            },
-            {
-              "studentId": 20,
-              "role": "건강"
-            },
-            {
-              "studentId": 11,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 12,
-              "role": "질서"
-            },
-            {
-              "studentId": 23,
-              "role": "학습"
             },
             {
               "studentId": 10,
@@ -1396,23 +1287,89 @@
           ]
         },
         {
-          "groupId": 5,
+          "groupId": 2,
           "chair": 15,
+          "members": [
+            {
+              "studentId": 16,
+              "role": "질서"
+            },
+            {
+              "studentId": 8,
+              "role": "학습"
+            },
+            {
+              "studentId": 14,
+              "role": "건강"
+            },
+            {
+              "studentId": 3,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 17,
+              "role": "질서"
+            },
+            {
+              "studentId": 19,
+              "role": "학습"
+            },
+            {
+              "studentId": 6,
+              "role": "건강"
+            },
+            {
+              "studentId": 23,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
           "members": [
             {
               "studentId": 21,
               "role": "질서"
             },
             {
-              "studentId": 7,
+              "studentId": 20,
               "role": "학습"
             },
             {
-              "studentId": 3,
+              "studentId": 9,
               "role": "건강"
             },
             {
-              "studentId": 8,
+              "studentId": 12,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 5,
+          "chair": 13,
+          "members": [
+            {
+              "studentId": 5,
+              "role": "질서"
+            },
+            {
+              "studentId": 4,
+              "role": "학습"
+            },
+            {
+              "studentId": 1,
+              "role": "건강"
+            },
+            {
+              "studentId": 25,
               "role": "행정"
             }
           ]
@@ -1426,63 +1383,81 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 23,
+              "studentId": 3,
               "role": "질서"
             },
             {
-              "studentId": 5,
+              "studentId": 23,
               "role": "학습"
             },
             {
-              "studentId": 21,
+              "studentId": 4,
               "role": "건강"
             },
             {
-              "studentId": 24,
+              "studentId": 9,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 12,
               "role": "질서"
             },
             {
-              "studentId": 2,
+              "studentId": 7,
               "role": "학습"
             },
             {
-              "studentId": 7,
+              "studentId": 25,
               "role": "건강"
             },
             {
-              "studentId": 20,
+              "studentId": 6,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 1,
               "role": "질서"
             },
             {
-              "studentId": 8,
+              "studentId": 21,
               "role": "학습"
             },
             {
-              "studentId": 12,
+              "studentId": 16,
               "role": "건강"
+            },
+            {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 8,
+              "role": "질서"
+            },
+            {
+              "studentId": 2,
+              "role": "학습"
             },
             {
               "studentId": 19,
@@ -1491,41 +1466,19 @@
           ]
         },
         {
-          "groupId": 4,
-          "chair": 25,
+          "groupId": 5,
+          "chair": 13,
           "members": [
             {
-              "studentId": 3,
+              "studentId": 20,
               "role": "질서"
             },
             {
-              "studentId": 11,
+              "studentId": 14,
               "role": "학습"
             },
             {
               "studentId": 17,
-              "role": "건강"
-            },
-            {
-              "studentId": 16,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 6,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
-              "role": "학습"
-            },
-            {
-              "studentId": 22,
               "role": "건강"
             },
             {
@@ -1543,63 +1496,81 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 23,
+              "studentId": 3,
               "role": "질서"
             },
             {
-              "studentId": 5,
+              "studentId": 23,
               "role": "학습"
             },
             {
-              "studentId": 21,
+              "studentId": 4,
               "role": "건강"
             },
             {
-              "studentId": 24,
+              "studentId": 9,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 12,
               "role": "질서"
             },
             {
-              "studentId": 2,
+              "studentId": 7,
               "role": "학습"
             },
             {
-              "studentId": 7,
+              "studentId": 25,
               "role": "건강"
             },
             {
-              "studentId": 20,
+              "studentId": 6,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 18,
+              "studentId": 1,
               "role": "질서"
             },
             {
-              "studentId": 8,
+              "studentId": 21,
               "role": "학습"
             },
             {
-              "studentId": 12,
+              "studentId": 16,
               "role": "건강"
+            },
+            {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 8,
+              "role": "질서"
+            },
+            {
+              "studentId": 2,
+              "role": "학습"
             },
             {
               "studentId": 19,
@@ -1608,41 +1579,19 @@
           ]
         },
         {
-          "groupId": 4,
-          "chair": 25,
+          "groupId": 5,
+          "chair": 13,
           "members": [
             {
-              "studentId": 3,
+              "studentId": 20,
               "role": "질서"
             },
             {
-              "studentId": 11,
+              "studentId": 14,
               "role": "학습"
             },
             {
               "studentId": 17,
-              "role": "건강"
-            },
-            {
-              "studentId": 16,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 5,
-          "chair": 15,
-          "members": [
-            {
-              "studentId": 6,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
-              "role": "학습"
-            },
-            {
-              "studentId": 22,
               "role": "건강"
             },
             {
@@ -1660,76 +1609,32 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 2,
+              "studentId": 5,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 19,
               "role": "학습"
             },
             {
-              "studentId": 18,
+              "studentId": 7,
               "role": "건강"
             },
             {
-              "studentId": 3,
+              "studentId": 14,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 19,
-              "role": "질서"
-            },
-            {
-              "studentId": 24,
-              "role": "학습"
-            },
-            {
-              "studentId": 10,
-              "role": "건강"
-            },
-            {
-              "studentId": 21,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 17,
-              "role": "질서"
-            },
-            {
-              "studentId": 6,
-              "role": "학습"
-            },
-            {
-              "studentId": 16,
-              "role": "건강"
-            },
-            {
-              "studentId": 7,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 13,
+              "studentId": 23,
               "role": "질서"
             },
             {
@@ -1741,29 +1646,69 @@
               "role": "건강"
             },
             {
-              "studentId": 23,
+              "studentId": 17,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 10,
+              "role": "질서"
+            },
+            {
+              "studentId": 9,
+              "role": "학습"
+            },
+            {
+              "studentId": 12,
+              "role": "건강"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 6,
+              "role": "질서"
+            },
+            {
+              "studentId": 4,
+              "role": "학습"
+            },
+            {
+              "studentId": 1,
+              "role": "건강"
+            },
+            {
+              "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 2,
               "role": "질서"
             },
             {
-              "studentId": 12,
+              "studentId": 25,
               "role": "학습"
             },
             {
-              "studentId": 5,
+              "studentId": 21,
               "role": "건강"
             },
             {
-              "studentId": 4,
+              "studentId": 3,
               "role": "행정"
             }
           ]
@@ -1777,76 +1722,32 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 2,
+              "studentId": 5,
               "role": "질서"
             },
             {
-              "studentId": 22,
+              "studentId": 19,
               "role": "학습"
             },
             {
-              "studentId": 18,
+              "studentId": 7,
               "role": "건강"
             },
             {
-              "studentId": 3,
+              "studentId": 14,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 19,
-              "role": "질서"
-            },
-            {
-              "studentId": 24,
-              "role": "학습"
-            },
-            {
-              "studentId": 10,
-              "role": "건강"
-            },
-            {
-              "studentId": 21,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 17,
-              "role": "질서"
-            },
-            {
-              "studentId": 6,
-              "role": "학습"
-            },
-            {
-              "studentId": 16,
-              "role": "건강"
-            },
-            {
-              "studentId": 7,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
-            {
-              "studentId": 13,
+              "studentId": 23,
               "role": "질서"
             },
             {
@@ -1858,29 +1759,69 @@
               "role": "건강"
             },
             {
-              "studentId": 23,
+              "studentId": 17,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 10,
+              "role": "질서"
+            },
+            {
+              "studentId": 9,
+              "role": "학습"
+            },
+            {
+              "studentId": 12,
+              "role": "건강"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
+              "studentId": 6,
+              "role": "질서"
+            },
+            {
+              "studentId": 4,
+              "role": "학습"
+            },
+            {
+              "studentId": 1,
+              "role": "건강"
+            },
+            {
+              "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 11,
+              "studentId": 2,
               "role": "질서"
             },
             {
-              "studentId": 12,
+              "studentId": 25,
               "role": "학습"
             },
             {
-              "studentId": 5,
+              "studentId": 21,
               "role": "건강"
             },
             {
-              "studentId": 4,
+              "studentId": 3,
               "role": "행정"
             }
           ]
@@ -1894,36 +1835,36 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 5,
+              "studentId": 8,
               "role": "질서"
             },
             {
-              "studentId": 7,
+              "studentId": 6,
               "role": "학습"
             },
             {
-              "studentId": 13,
+              "studentId": 17,
               "role": "건강"
             },
             {
-              "studentId": 10,
+              "studentId": 9,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 6,
+              "studentId": 16,
               "role": "질서"
             },
             {
-              "studentId": 8,
+              "studentId": 14,
               "role": "학습"
             },
             {
@@ -1931,17 +1872,17 @@
               "role": "건강"
             },
             {
-              "studentId": 17,
+              "studentId": 4,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 1,
               "role": "질서"
             },
             {
@@ -1953,51 +1894,47 @@
               "role": "건강"
             },
             {
-              "studentId": 22,
+              "studentId": 7,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 12,
-              "role": "질서"
-            },
-            {
-              "studentId": 16,
+              "studentId": 3,
               "role": "학습"
             },
             {
-              "studentId": 11,
+              "studentId": 20,
               "role": "건강"
             },
             {
-              "studentId": 19,
+              "studentId": 25,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 20,
+              "studentId": 19,
               "role": "질서"
             },
             {
-              "studentId": 3,
+              "studentId": 5,
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 10,
               "role": "건강"
             },
             {
-              "studentId": 18,
+              "studentId": 12,
               "role": "행정"
             }
           ]
@@ -2011,36 +1948,36 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 5,
+              "studentId": 8,
               "role": "질서"
             },
             {
-              "studentId": 7,
+              "studentId": 6,
               "role": "학습"
             },
             {
-              "studentId": 13,
+              "studentId": 17,
               "role": "건강"
             },
             {
-              "studentId": 10,
+              "studentId": 9,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 2,
-          "chair": 9,
+          "chair": 15,
           "members": [
             {
-              "studentId": 6,
+              "studentId": 16,
               "role": "질서"
             },
             {
-              "studentId": 8,
+              "studentId": 14,
               "role": "학습"
             },
             {
@@ -2048,17 +1985,17 @@
               "role": "건강"
             },
             {
-              "studentId": 17,
+              "studentId": 4,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 3,
-          "chair": 1,
+          "chair": 11,
           "members": [
             {
-              "studentId": 4,
+              "studentId": 1,
               "role": "질서"
             },
             {
@@ -2070,51 +2007,47 @@
               "role": "건강"
             },
             {
-              "studentId": 22,
+              "studentId": 7,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 12,
-              "role": "질서"
-            },
-            {
-              "studentId": 16,
+              "studentId": 3,
               "role": "학습"
             },
             {
-              "studentId": 11,
+              "studentId": 20,
               "role": "건강"
             },
             {
-              "studentId": 19,
+              "studentId": 25,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 20,
+              "studentId": 19,
               "role": "질서"
             },
             {
-              "studentId": 3,
+              "studentId": 5,
               "role": "학습"
             },
             {
-              "studentId": 24,
+              "studentId": 10,
               "role": "건강"
             },
             {
-              "studentId": 18,
+              "studentId": 12,
               "role": "행정"
             }
           ]
@@ -2128,10 +2061,10 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 8,
+              "studentId": 12,
               "role": "질서"
             },
             {
@@ -2143,65 +2076,21 @@
               "role": "건강"
             },
             {
-              "studentId": 5,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 3,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
-              "role": "학습"
-            },
-            {
-              "studentId": 21,
-              "role": "건강"
-            },
-            {
               "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
-          "groupId": 3,
-          "chair": 1,
+          "groupId": 2,
+          "chair": 15,
           "members": [
             {
-              "studentId": 7,
+              "studentId": 21,
               "role": "질서"
             },
-            {
-              "studentId": 2,
-              "role": "학습"
-            },
-            {
-              "studentId": 12,
-              "role": "건강"
-            },
-            {
-              "studentId": 24,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
             {
               "studentId": 10,
-              "role": "질서"
-            },
-            {
-              "studentId": 18,
               "role": "학습"
             },
             {
@@ -2209,29 +2098,69 @@
               "role": "건강"
             },
             {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 14,
+              "role": "질서"
+            },
+            {
+              "studentId": 9,
+              "role": "학습"
+            },
+            {
+              "studentId": 25,
+              "role": "건강"
+            },
+            {
+              "studentId": 2,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
               "studentId": 4,
+              "role": "질서"
+            },
+            {
+              "studentId": 7,
+              "role": "학습"
+            },
+            {
+              "studentId": 8,
+              "role": "건강"
+            },
+            {
+              "studentId": 23,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
               "studentId": 17,
               "role": "질서"
             },
             {
-              "studentId": 23,
-              "role": "학습"
-            },
-            {
-              "studentId": 22,
+              "studentId": 3,
               "role": "건강"
             },
             {
-              "studentId": 11,
+              "studentId": 1,
               "role": "행정"
             }
           ]
@@ -2245,10 +2174,10 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
-              "studentId": 8,
+              "studentId": 12,
               "role": "질서"
             },
             {
@@ -2260,65 +2189,21 @@
               "role": "건강"
             },
             {
-              "studentId": 5,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 3,
-              "role": "질서"
-            },
-            {
-              "studentId": 13,
-              "role": "학습"
-            },
-            {
-              "studentId": 21,
-              "role": "건강"
-            },
-            {
               "studentId": 16,
               "role": "행정"
             }
           ]
         },
         {
-          "groupId": 3,
-          "chair": 1,
+          "groupId": 2,
+          "chair": 15,
           "members": [
             {
-              "studentId": 7,
+              "studentId": 21,
               "role": "질서"
             },
-            {
-              "studentId": 2,
-              "role": "학습"
-            },
-            {
-              "studentId": 12,
-              "role": "건강"
-            },
-            {
-              "studentId": 24,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 4,
-          "chair": 25,
-          "members": [
             {
               "studentId": 10,
-              "role": "질서"
-            },
-            {
-              "studentId": 18,
               "role": "학습"
             },
             {
@@ -2326,29 +2211,69 @@
               "role": "건강"
             },
             {
+              "studentId": 5,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 14,
+              "role": "질서"
+            },
+            {
+              "studentId": 9,
+              "role": "학습"
+            },
+            {
+              "studentId": 25,
+              "role": "건강"
+            },
+            {
+              "studentId": 2,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 4,
+          "chair": 18,
+          "members": [
+            {
               "studentId": 4,
+              "role": "질서"
+            },
+            {
+              "studentId": 7,
+              "role": "학습"
+            },
+            {
+              "studentId": 8,
+              "role": "건강"
+            },
+            {
+              "studentId": 23,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
               "studentId": 17,
               "role": "질서"
             },
             {
-              "studentId": 23,
-              "role": "학습"
-            },
-            {
-              "studentId": 22,
+              "studentId": 3,
               "role": "건강"
             },
             {
-              "studentId": 11,
+              "studentId": 1,
               "role": "행정"
             }
           ]
@@ -2362,10 +2287,50 @@
       "groups": [
         {
           "groupId": 1,
-          "chair": 14,
+          "chair": 22,
           "members": [
             {
+              "studentId": 25,
+              "role": "질서"
+            },
+            {
+              "studentId": 8,
+              "role": "학습"
+            },
+            {
               "studentId": 21,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 2,
+          "chair": 15,
+          "members": [
+            {
+              "studentId": 2,
+              "role": "질서"
+            },
+            {
+              "studentId": 1,
+              "role": "학습"
+            },
+            {
+              "studentId": 9,
+              "role": "건강"
+            },
+            {
+              "studentId": 12,
+              "role": "행정"
+            }
+          ]
+        },
+        {
+          "groupId": 3,
+          "chair": 11,
+          "members": [
+            {
+              "studentId": 19,
               "role": "질서"
             },
             {
@@ -2377,69 +2342,25 @@
               "role": "건강"
             },
             {
-              "studentId": 12,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 2,
-          "chair": 9,
-          "members": [
-            {
-              "studentId": 23,
-              "role": "질서"
-            },
-            {
-              "studentId": 11,
-              "role": "학습"
-            },
-            {
-              "studentId": 2,
-              "role": "건강"
-            },
-            {
-              "studentId": 18,
-              "role": "행정"
-            }
-          ]
-        },
-        {
-          "groupId": 3,
-          "chair": 1,
-          "members": [
-            {
-              "studentId": 6,
-              "role": "질서"
-            },
-            {
               "studentId": 3,
-              "role": "학습"
-            },
-            {
-              "studentId": 5,
-              "role": "건강"
-            },
-            {
-              "studentId": 13,
               "role": "행정"
             }
           ]
         },
         {
           "groupId": 4,
-          "chair": 25,
+          "chair": 18,
           "members": [
             {
-              "studentId": 22,
+              "studentId": 10,
               "role": "질서"
             },
             {
-              "studentId": 19,
+              "studentId": 6,
               "role": "학습"
             },
             {
-              "studentId": 7,
+              "studentId": 5,
               "role": "건강"
             },
             {
@@ -2450,22 +2371,22 @@
         },
         {
           "groupId": 5,
-          "chair": 15,
+          "chair": 13,
           "members": [
             {
-              "studentId": 24,
+              "studentId": 23,
               "role": "질서"
             },
             {
-              "studentId": 10,
+              "studentId": 16,
               "role": "학습"
             },
             {
-              "studentId": 16,
+              "studentId": 14,
               "role": "건강"
             },
             {
-              "studentId": 8,
+              "studentId": 7,
               "role": "행정"
             }
           ]

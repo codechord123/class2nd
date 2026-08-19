@@ -503,6 +503,15 @@ export default function TeacherPage() {
                     void (async () => {
                       try {
                         const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                        // 🈳 빈 역할(4명 모둠의 공석)은 맞바꿀 상대가 없다 — 승인하면 실버만
+                        // 빠지고 자리는 그대로이므로 승인 자체를 막는다 (2026-08-19).
+                        if (occ == null) {
+                          toast(
+                            `🈳 ${r.targetGroup}모둠 ${r.targetRole} 자리는 비어 있어요 — 맞바꿀 친구가 없어 승인할 수 없습니다. 반려해주세요.`,
+                            "warn"
+                          );
+                          return;
+                        }
                         const cost = settings!.seatChangeCost;
                         const done = await decideSeat(r, true, occ ?? undefined, cost);
                         toast(
