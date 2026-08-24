@@ -329,10 +329,10 @@ export function buildQuizSheet(c: Constitution, setNo: number, withAnswers: bool
   return html + `</div>`;
 }
 
-// ══════════════════════ ③ 법률 빈칸 시험지 (부서별) ══════════════════════
-// 사용자 요청 2026-08-24 — 헌법 제외, 우리 반 '법률'만 부서별로 묶어 빈칸을 뚫는다.
-// 아이들이 자기 부서 법률을 책임지고 외우게 하는 게 목적이라 부서 단위 편집이 핵심.
-// 보기 상자는 선택 — 주면 고르기(쉬움), 빼면 직접 쓰기(어려움).
+// ══════════════════════ ③ 법률 빈칸 시험지 (부서별 개별 인쇄) ══════════════════════
+// 사용자 확정 2026-08-24 — 헌법 제외, 우리 반 '법률'만. 부서마다 목표 문항 수(기본 10)를
+// 채우고, 부서별로 '완결된 시험지 한 장'을 만들어 페이지를 나눈다("각각 인쇄").
+// 조항 수가 적어도 한 조항에서 서로 다른 낱말을 번갈아 뚫어 문항을 채운다(조항 순환).
 
 /** 받침 유무로 조사 고르기 — "의장이 / 법무부가" (한글 종성 판정) */
 function josa(word: string, withBatchim: string, without: string): string {
@@ -342,123 +342,146 @@ function josa(word: string, withBatchim: string, without: string): string {
   return (code - 0xac00) % 28 !== 0 ? withBatchim : without;
 }
 
-/** 문항 범위 표기 — 1문항이면 【3】, 여러 문항이면 【3~5】 */
-const rangeLabel = (a: number, b: number) => (a === b ? `${a}` : `${a}~${b}`);
-
-/** 한 조항에서 빈칸 n개 — 긴 어절부터 고르고, 끝 문장부호는 빈칸 밖에 남긴다.
- *  반환: 원본 어절 + 빈칸 위치 + 정답(부호 뺀 낱말) + 빈칸 뒤에 붙일 부호 */
-function pickBlanks(
-  text: string,
-  n: number,
-  r: () => number
-): { tokens: string[]; blanks: number[]; answers: string[]; trails: string[] } | null {
-  const tokens = text.split(/\s+/).filter(Boolean);
-  const chosen = tokens
-    .map((t, i) => ({ i, len: t.replace(/[^가-힣a-zA-Z]/g, "").length }))
-    .filter((x) => x.len >= 2)
-    .sort((a, b) => b.len - a.len || (r() < 0.5 ? -1 : 1))
-    .slice(0, Math.max(1, n))
-    .map((x) => x.i)
-    .sort((a, b) => a - b);
-  if (!chosen.length) return null;
-  const answers: string[] = [];
-  const trails: string[] = [];
-  for (const i of chosen) {
-    const m = tokens[i].match(/^(.*?)([.,!?]+)$/);
-    answers.push(m ? m[1] : tokens[i]);
-    trails.push(m ? m[2] : "");
-  }
-  return { tokens, blanks: chosen, answers, trails };
+/** 끝 문장부호를 낱말에서 떼어낸다 — 정답에 마침표가 섞이면 채점이 애매해진다 */
+function splitTrail(token: string): { word: string; trail: string } {
+  const m = token.match(/^(.*?)([.,!?]+)$/);
+  return m ? { word: m[1], trail: m[2] } : { word: token, trail: "" };
 }
+
+interface FillQ {
+  tokens: string[]; // 조항 어절
+  at: number; // 빈칸이 될 어절 위치
+  answer: string; // 정답 낱말 (부호 제외)
+  trail: string; // 빈칸 뒤에 남길 부호
+}
+
+/** 한 부서의 법률들로 목표 문항 수를 채운다 — 조항을 순환하며 서로 다른 낱말을 뚫는다.
+ *  (법률이 3개뿐이어도 조항당 여러 낱말을 돌아가며 뚫어 10문항을 만든다) */
+function fillQuestionsFor(laws: string[], want: number, r: () => number): FillQ[] {
+  const perLaw = laws.map((text) => {
+    const tokens = text.split(/\s+/).filter(Boolean);
+    const cand = tokens
+      .map((t, i) => ({ i, len: splitTrail(t).word.replace(/[^가-힣a-zA-Z0-9]/g, "").length }))
+      .filter((x) => x.len >= 2)
+      .sort((a, b) => b.len - a.len || (r() < 0.5 ? -1 : 1));
+    return { tokens, cand };
+  });
+  const out: FillQ[] = [];
+  // 라운드로빈 — 조항1의 1순위, 조항2의 1순위 … 그다음 각 조항의 2순위 (같은 문장 연속 방지)
+  for (let round = 0; out.length < want; round++) {
+    let added = 0;
+    for (const L of perLaw) {
+      if (out.length >= want) break;
+      const pick = L.cand[round];
+      if (!pick) continue;
+      const { word, trail } = splitTrail(L.tokens[pick.i]);
+      out.push({ tokens: L.tokens, at: pick.i, answer: word, trail });
+      added++;
+    }
+    if (!added) break; // 더 뚫을 낱말이 없다 — 가능한 만큼만
+  }
+  return out;
+}
+
+const LAWFILL_CSS = `<style>
+  .exam .fill { display:inline-block; min-width:88px; border-bottom:1.4px solid #000;
+                text-align:center; font-size:11px; color:#888; }
+  .exam .lawbank { border:1.2px solid #000; padding:6px 10px; font-size:12.5px; margin:0 0 10px;
+                   line-height:2; }
+  .exam .lawbank b { font-weight:800; margin-right:8px; }
+  .exam .lawbank span { display:inline-block; padding:0 8px; }
+  /* 부서별 시험지 — 한 장씩 페이지를 나눠 그대로 그 부서 학생에게 나눠줄 수 있게 */
+  .exam .sheet { page-break-after: always; }
+  .exam .sheet:last-of-type { page-break-after: auto; }
+  .exam .sheet .qq { font-size:13.5px; line-height:2.2; }
+  @media screen { .exam .sheet { border-bottom:2px dashed #bbb; padding-bottom:20px; margin-bottom:24px; } }
+</style>`;
 
 export function buildLawFillSheet(
   c: Constitution,
   setNo: number,
   withAnswers: boolean,
-  opts?: { showBank?: boolean; blanksPerClause?: number }
+  opts?: { showBank?: boolean; perDept?: number; onlyDept?: string }
 ): string {
   const r = rng(20260824 + setNo * 6247);
   const showBank = opts?.showBank ?? true;
-  const perClause = Math.min(Math.max(opts?.blanksPerClause ?? 1, 1), 2);
+  const perDept = Math.min(Math.max(opts?.perDept ?? 10, 1), 30);
   const year = new Date().getFullYear();
+
   const byDept = new Map<string, string[]>();
   for (const l of flatLaws(c)) byDept.set(l.dept, [...(byDept.get(l.dept) ?? []), l.text]);
-  // 부서 순서는 ROLE_INFO 기준, 미분류(우리 반 공통)는 맨 뒤
-  const depts = [...byDept.keys()].sort(
-    (a, b) =>
-      (DEPTS.indexOf(a) < 0 ? 99 : DEPTS.indexOf(a)) - (DEPTS.indexOf(b) < 0 ? 99 : DEPTS.indexOf(b))
-  );
+  const depts = [...byDept.keys()]
+    .filter((d) => !opts?.onlyDept || d === opts.onlyDept)
+    .sort(
+      (a, b) =>
+        (DEPTS.indexOf(a) < 0 ? 99 : DEPTS.indexOf(a)) -
+        (DEPTS.indexOf(b) < 0 ? 99 : DEPTS.indexOf(b))
+    );
 
-  let qNo = 0;
-  const keyRows: [string, string][] = [];
-  const sections: string[] = [];
-  const allAnswers: string[] = [];
+  const sheets: string[] = [];
+  const keysByDept: [string, string[]][] = [];
+  const shortDepts: string[] = []; // 목표 문항을 못 채운 부서 (법률이 적어서)
 
   for (const dept of depts) {
-    const items = byDept.get(dept) ?? [];
-    const built = items
-      .map((text) => ({ text, b: pickBlanks(text, perClause, r) }))
-      .filter((x): x is { text: string; b: NonNullable<ReturnType<typeof pickBlanks>> } => !!x.b);
-    if (!built.length) continue;
-    const s0 = qNo + 1;
-    const rows = built
-      .map((x) => {
-        qNo++;
-        allAnswers.push(...x.b.answers);
-        keyRows.push([String(qNo), x.b.answers.join(" / ")]);
-        // 어절을 그대로 잇되 빈칸 자리만 밑줄로 — 문장부호는 빈칸 뒤에 남는다
-        const bi = new Map(x.b.blanks.map((t, k) => [t, k]));
-        const html = x.b.tokens
-          .map((t, i) => {
-            const k = bi.get(i);
-            if (k === undefined) return esc(t);
-            const label = x.b.blanks.length > 1 ? `${k + 1}` : "&nbsp;&nbsp;";
-            return `<span class="fill">(${label})</span>${esc(x.b.trails[k])}`;
-          })
+    const qs = fillQuestionsFor(byDept.get(dept) ?? [], perDept, r);
+    if (!qs.length) continue;
+    if (qs.length < perDept) shortDepts.push(`${dept} ${qs.length}문항`);
+    keysByDept.push([dept, qs.map((q) => q.answer)]);
+    const each = Math.round((100 / qs.length) * 10) / 10;
+    const rows = qs
+      .map((q, k) => {
+        const line = q.tokens
+          .map((t, i) =>
+            i === q.at ? `<span class="fill">(&nbsp;&nbsp;)</span>${esc(q.trail)}` : esc(t)
+          )
           .join(" ");
-        return `<div class="qq"><span class="no">${qNo}.</span> ${html}</div>`;
+        // 번호는 부서 안에서 1번부터 — 각 장이 독립된 시험지라 통번호는 오히려 혼란스럽다
+        return `<div class="qq"><span class="no">${k + 1}.</span> ${line}</div>`;
       })
       .join("");
-    sections.push(
-      `<p class="sect">【${rangeLabel(s0, qNo)}】 ${deptEmoji(dept)} <u>${esc(dept)}</u>${josa(dept, "이", "가")} 만든 법률이다. 빈칸에 알맞은 말을 쓰시오.</p>${rows}`
-    );
+    const bank = showBank
+      ? `<div class="lawbank"><b>&lt;보기&gt;</b>${shuffle([...new Set(qs.map((q) => q.answer))], r)
+          .map((w) => `<span>${esc(w)}</span>`)
+          .join("")}</div>`
+      : "";
+    sheets.push(`<div class="sheet">
+      <div class="exhead">
+        <div class="exmeta"><span>${year}학년도 2학기</span><span>학급 자치 (세트 ${setNo})</span></div>
+        <h1>${deptEmoji(dept)} ${esc(dept)} 법률 평가</h1>
+        <div class="exsub">5학년 ― ${esc(dept)}${josa(dept, "이", "가")} 만든 법률 ${qs.length}문항</div>
+      </div>
+      <table class="nametbl"><tr>
+        <td class="lab">반</td><td class="in"></td>
+        <td class="lab">번호</td><td class="in"></td>
+        <td class="lab">이름</td><td class="in wide"></td>
+        <td class="lab">점수</td><td class="in"></td>
+      </tr></table>
+      <p class="direction">※ 우리 반 <b>${esc(dept)}</b>${josa(dept, "이", "가")} 만든 법률입니다. 빈칸에 들어갈 말을 정확히 쓰시오. [각 ${each}점]</p>
+      ${bank}${rows}
+    </div>`);
   }
 
-  const total = qNo;
-  const per = total ? Math.round((100 / total) * 10) / 10 : 0;
-  let html = EXAM_CSS + `<style>
-    .exam .fill { display:inline-block; min-width:96px; border-bottom:1.4px solid #000;
-                  text-align:center; font-size:11px; color:#888; }
-    .exam .lawbank { border:1.2px solid #000; padding:7px 12px; font-size:12.5px; margin:0 0 14px;
-                     line-height:2; }
-    .exam .lawbank b { font-weight:800; margin-right:10px; }
-    .exam .lawbank span { display:inline-block; padding:0 10px; }
-  </style><div class="exam">
-    <div class="exhead">
-      <div class="exmeta"><span>${year}학년도 2학기</span><span>학급 자치 (세트 ${setNo})</span></div>
-      <h1>우리 반 법률 평가</h1>
-      <div class="exsub">5학년 ― 부서별 법률 빈칸 ${total}문항</div>
-    </div>
-    <table class="nametbl"><tr>
-      <td class="lab">반</td><td class="in"></td>
-      <td class="lab">번호</td><td class="in"></td>
-      <td class="lab">이름</td><td class="in wide"></td>
-      <td class="lab">점수</td><td class="in"></td>
-    </tr></table>
-    <p class="direction">※ 우리 반 각 부서가 만든 법률입니다. 빈칸에 들어갈 말을 정확히 쓰시오.${
-      total ? ` [각 ${per}점]` : ""
-    }</p>`;
-  if (showBank && allAnswers.length)
-    html += `<div class="lawbank"><b>&lt;보기&gt;</b>${shuffle([...new Set(allAnswers)], r)
-      .map((w) => `<span>${esc(w)}</span>`)
-      .join("")}</div>`;
-  html += sections.join("");
+  let html = EXAM_CSS + LAWFILL_CSS + `<div class="exam">` + sheets.join("");
 
-  if (withAnswers && keyRows.length) {
-    html += `<div class="anspage"><div class="anshead">정답 (세트 ${setNo} · 교사용)</div>
-      <table class="anstbl"><tr><th>문항</th><td style="background:#f2f2f2;font-weight:700;text-align:left">정답</td></tr>` +
-      keyRows.map(([n, a]) => `<tr><th>${n}번</th><td style="text-align:left">${esc(a)}</td></tr>`).join("") +
-      `</table></div>`;
+  if (withAnswers && keysByDept.length) {
+    html += `<div class="anspage"><div class="anshead">정답 (세트 ${setNo} · 교사용)</div>`;
+    // 부서별로 묶어서 — 각 장이 독립 시험지라 정답도 부서 단위로 봐야 채점이 빠르다
+    for (const [dept, answers] of keysByDept) {
+      html += `<p style="font-weight:800;font-size:13px;margin:12px 0 4px">${deptEmoji(dept)} ${esc(dept)}</p>`;
+      for (let row = 0; row < answers.length; row += 10) {
+        const chunk = answers.slice(row, row + 10);
+        html += `<table class="anstbl"><tr><th>문항</th>${chunk
+          .map((_, i) => `<td style="background:#f8f8f8;font-weight:700">${row + i + 1}</td>`)
+          .join("")}</tr><tr><th>정답</th>${chunk
+          .map((a) => `<td style="font-size:12px">${esc(a)}</td>`)
+          .join("")}</tr></table>`;
+      }
+    }
+    if (shortDepts.length)
+      html += `<p style="font-size:11px;margin-top:10px">※ 법률 수가 적어 목표(${perDept}문항)를 못 채운 부서: ${esc(
+        shortDepts.join(", ")
+      )} — 해당 부서 법률을 더 등록하면 문항이 늘어납니다.</p>`;
+    html += `</div>`;
   }
   return html + `</div>`;
 }

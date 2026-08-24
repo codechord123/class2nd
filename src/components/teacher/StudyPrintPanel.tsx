@@ -12,6 +12,7 @@ export default function StudyPrintPanel() {
   const [setNo, setSetNo] = useState(1);
   const [withAnswers, setWithAnswers] = useState(true);
   const [lawBank, setLawBank] = useState(true); // 법률 빈칸 시험의 <보기> 제공 여부
+  const [perDept, setPerDept] = useState(10); // 부서별 문항 수
   const { toast } = useFeedback();
 
   const laws = c ? Object.values(c.lawsByDept ?? {}).flat().length + (c.laws?.length ?? 0) : 0;
@@ -29,7 +30,7 @@ export default function StudyPrintPanel() {
       else if (kind === "lawfill")
         openPrintWindow(
           `법률 빈칸 시험지 (세트 ${setNo})`,
-          buildLawFillSheet(c, setNo, withAnswers, { showBank: lawBank })
+          buildLawFillSheet(c, setNo, withAnswers, { showBank: lawBank, perDept })
         );
       else openPrintWindow(`헌법·법률 시험지 (세트 ${setNo})`, buildQuizSheet(c, setNo, withAnswers));
     } catch (e) {
@@ -64,7 +65,7 @@ export default function StudyPrintPanel() {
           disabled={!c}
           className="press col-span-2 rounded-btn bg-brand-strong py-2.5 text-sm font-bold text-white disabled:opacity-50"
         >
-          ✍️ 법률 빈칸 시험 인쇄 (부서별)
+          ✍️ 법률 빈칸 시험 인쇄 (부서별 {perDept}문항)
         </button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-ink-600">
@@ -88,6 +89,18 @@ export default function StudyPrintPanel() {
             onChange={(e) => setWithAnswers(e.target.checked)}
           />
           마지막 장에 정답지 포함
+        </label>
+        <label className="flex items-center gap-1.5">
+          부서별 문항
+          <select
+            value={perDept}
+            onChange={(e) => setPerDept(Number(e.target.value))}
+            className="rounded-btn border border-ink-300 px-2 py-1"
+          >
+            {[5, 8, 10, 12, 15].map((n) => (
+              <option key={n} value={n}>{n}문항</option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={lawBank} onChange={(e) => setLawBank(e.target.checked)} />
