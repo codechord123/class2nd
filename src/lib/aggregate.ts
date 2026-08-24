@@ -22,7 +22,7 @@ import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { isWeekend, todayKST, weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
-import type { ClassSettings, DailyScoreRow, RoleKey } from "@/types";
+import type { ClassSettings, DailyScoreRow, RoleKey, WeekSchedule } from "@/types";
 import { groupDayScore } from "@/lib/groupScore";
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
 import { eventMultipliers, type EventBoost } from "@/lib/eventBoost";
@@ -383,7 +383,18 @@ async function aggregateDateInner(
 
   // 4) 해당 날짜의 자리표에서 모둠 소속 확인 → 모둠원 전원 동일 순위 점수
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
-  const schedule = scheduleOfWeek(week);
+  // 🔒 그날의 자리 배치 박제 — 자리표(정적 JSON)는 회장단 선출·전입/전출로 갈아끼워지는데,
+  // 그때 과거 날짜를 재집계하면 '그날의 실제 모둠'이 아니라 새 배치로 모둠 점수·오늘의 모둠·
+  // 칭찬 미션이 다시 계산돼 점수가 뒤바뀐다 (2026-08-19 자리표 교체 때 실제로 발생).
+  // 한 번 집계된 날은 그날 저장해둔 배치(_meta.groupsSnap)를 그대로 쓴다 — 이 한 줄로
+  // 아래 모든 계산(groupSums·missionGroups·allDoneGroups·순위 배분…)이 함께 고정된다.
+  const prevMetaRaw = (prevSnap.exists() ? prevSnap.data()._meta : undefined) as
+    | { groupsSnap?: WeekSchedule["groups"]; groupOf?: Record<string, number> }
+    | undefined;
+  let schedule = scheduleOfWeek(week);
+  if (Array.isArray(prevMetaRaw?.groupsSnap) && prevMetaRaw.groupsSnap.length)
+    schedule = { ...schedule, groups: prevMetaRaw.groupsSnap };
+
   const groupOfStudent: Record<number, number> = {};
   const roleOf: Record<number, RoleKey> = {};
   for (const g of schedule.groups) {
@@ -394,14 +405,10 @@ async function aggregateDateInner(
       roleOf[m.studentId] = m.role;
     }
   }
-  // 🔒 그날의 모둠 구성 박제 — 자리표(정적 JSON)는 회장단 선출·전입 등으로 갈아끼워질 수 있는데,
-  // 그때 과거 날짜를 재집계하면 '그날 실제 모둠'이 아닌 새 배치로 점수가 뒤바뀐다.
-  // 그래서 한 번 집계된 날은 그날 저장해둔 구성(_meta.groupOf)을 계속 쓴다 (2026-08-18 회장단 교체 대비).
-  const pinnedGroups = (prevSnap.exists()
-    ? (prevSnap.data()._meta as { groupOf?: Record<string, number> } | undefined)?.groupOf
-    : undefined);
-  if (pinnedGroups) {
-    for (const [sid, gid] of Object.entries(pinnedGroups)) {
+  // 하위호환 — groupsSnap 이전에 집계된 문서는 모둠 소속(_meta.groupOf)만 박제돼 있다.
+  // 역할·의장 정보가 없어 멤버십만 교정한다 (다음 재집계 때 groupsSnap으로 승격).
+  if (!prevMetaRaw?.groupsSnap && prevMetaRaw?.groupOf) {
+    for (const [sid, gid] of Object.entries(prevMetaRaw.groupOf)) {
       const id = Number(sid);
       if (Number.isFinite(id) && Number.isFinite(gid)) groupOfStudent[id] = Number(gid);
     }
@@ -718,12 +725,18 @@ async function aggregateDateInner(
   }
 
   const bestSum = Math.max(0, ...Object.values(groupSums));
-  const autoBestGroups =
+  const tiedGroups =
     bestSum > 0
       ? Object.entries(groupSums)
           .filter(([, v]) => v === bestSum)
           .map(([k]) => Number(k))
       : [];
+  // 🏅 '오늘의 모둠'은 앞선 모둠을 가리는 상이다 — 전 모둠이 동점이면 1위가 없는 것과 같다.
+  // (선생님 순위를 안 넣은 날엔 모둠 점수가 칭찬 미션만 남아 전 모둠이 나란히 1점이 되는데,
+  //  그때 다섯 모둠 모두 '오늘의 모둠'이 되고 전원이 +1을 받아 상이 무의미해졌다.
+  //  실사례 2026-08-24 사용자 지적 — 전 모둠 동점이면 선정하지 않는다.)
+  const allTied = tiedGroups.length >= Object.keys(groupSums).length;
+  const autoBestGroups = allTied ? [] : tiedGroups;
 
   // 5-3) 오늘의 모둠 → 개인 +1 (맨 마지막 가산 — 사용자 확정).
   //      모둠 점수·MVP 선정이 모두 끝난 뒤라 이 보너스가 그 판정에 되먹임되지 않는다.
@@ -815,7 +828,8 @@ async function aggregateDateInner(
       _meta: {
         aggregatedAt: Date.now(),
         schoolDay: isSchoolDay, // 학사일 여부 — 표시 계층이 독서 모둠 합산·경쟁 보상 판정에 재사용
-        groupOf: groupOfStudent, // 🔒 그날의 모둠 구성 박제 (자리표 교체 후 재집계해도 점수가 안 흔들리게)
+        groupOf: groupOfStudent, // 🔒 그날의 모둠 구성 (하위호환용 — 표시 계층이 쓰기 편한 형태)
+        groupsSnap: schedule.groups, // 🔒 그날의 배치 전체(의장·역할 포함) — 재집계의 단일 출처
         ranks, // 교사 순위 (점수 배분용 — 타이틀과 분리)
         mvpVotes, // 오늘의 부서장 득표 (1표당 +1점)
         mvpWinners, // 점수 MVP — 모둠별 1위 (동점 포함)
@@ -825,6 +839,7 @@ async function aggregateDateInner(
         fairVotes, // 🤝 페어플레이 득표 (모둠원 배려왕 투표)
         fairWinners, // 오늘의 페어플레이 (모둠별 최다 득표 — 고정 +1점)
         autoBestGroups, // 오늘의 모둠 — 최종 총점 모둠 합계 1위 (자동 타이틀)
+        bestSkippedAllTied: allTied, // 전 모둠 동점이라 오늘의 모둠을 뽑지 않은 날
         autoBestMembers, // best=1 받은 실제 명단 (재집계 시 결석 변동에도 멱등 차감)
         groupSums, // 모둠별 총점 합계 (순위 1회 반영 — 리포트·누적 모둠 점수 재료)
         groupCumApplied: true, // 이 날 몫이 누적 모둠 점수에 반영됨 (재집계 멱등 마커)

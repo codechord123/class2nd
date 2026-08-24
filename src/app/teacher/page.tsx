@@ -39,6 +39,7 @@ import BetaResetPanel from "@/components/teacher/BetaResetPanel";
 import BannerEditor from "@/components/teacher/BannerEditor";
 import { BETA_END } from "@/components/BetaBanner";
 import ScoreDiagnosisPanel from "@/components/teacher/ScoreDiagnosisPanel";
+import BulkRecalcPanel from "@/components/teacher/BulkRecalcPanel";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
@@ -308,6 +309,7 @@ export default function TeacherPage() {
         <DailyReportPanel date={date} onDateChange={setDate} />
         <ClassDashboard />
         <ScoreDiagnosisPanel />
+        <BulkRecalcPanel />
       </>)}
 
       {/* 🛠 점수 관리 — 이의제기·보너스·독서권수·이벤트배수·베플·실버·골드·정산 (모든 보정 한곳) */}
