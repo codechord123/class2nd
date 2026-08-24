@@ -4,20 +4,21 @@
 import { useState } from "react";
 import { useConstitution } from "@/lib/query/classMeta";
 import { openPrintWindow } from "@/lib/exportDoc";
-import { buildStudySheet, buildQuizSheet } from "@/lib/studyDoc";
+import { buildStudySheet, buildQuizSheet, buildLawFillSheet } from "@/lib/studyDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function StudyPrintPanel() {
   const { data: c } = useConstitution();
   const [setNo, setSetNo] = useState(1);
   const [withAnswers, setWithAnswers] = useState(true);
+  const [lawBank, setLawBank] = useState(true); // 법률 빈칸 시험의 <보기> 제공 여부
   const { toast } = useFeedback();
 
   const laws = c ? Object.values(c.lawsByDept ?? {}).flat().length + (c.laws?.length ?? 0) : 0;
   const arts = c?.articles?.filter((a) => a.trim()).length ?? 0;
   const empty = arts === 0 && laws === 0;
 
-  function print(kind: "study" | "quiz") {
+  function print(kind: "study" | "quiz" | "lawfill") {
     if (!c) return;
     if (empty) {
       toast("아직 헌법·법률이 없어요 — 헌법 탭에서 먼저 등록해주세요.", "warn");
@@ -25,6 +26,11 @@ export default function StudyPrintPanel() {
     }
     try {
       if (kind === "study") openPrintWindow("우리 반 헌법·법률 학습지", buildStudySheet(c));
+      else if (kind === "lawfill")
+        openPrintWindow(
+          `법률 빈칸 시험지 (세트 ${setNo})`,
+          buildLawFillSheet(c, setNo, withAnswers, { showBank: lawBank })
+        );
       else openPrintWindow(`헌법·법률 시험지 (세트 ${setNo})`, buildQuizSheet(c, setNo, withAnswers));
     } catch (e) {
       toast(e instanceof Error ? e.message : "인쇄 창을 열지 못했어요.", "error");
@@ -51,7 +57,14 @@ export default function StudyPrintPanel() {
           disabled={!c}
           className="press rounded-btn bg-ink-800 py-2.5 text-sm font-bold text-white disabled:opacity-50"
         >
-          📝 시험지 인쇄
+          📝 시험지 인쇄 (객관식 30)
+        </button>
+        <button
+          onClick={() => print("lawfill")}
+          disabled={!c}
+          className="press col-span-2 rounded-btn bg-brand-strong py-2.5 text-sm font-bold text-white disabled:opacity-50"
+        >
+          ✍️ 법률 빈칸 시험 인쇄 (부서별)
         </button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-ink-600">
@@ -76,9 +89,14 @@ export default function StudyPrintPanel() {
           />
           마지막 장에 정답지 포함
         </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={lawBank} onChange={(e) => setLawBank(e.target.checked)} />
+          법률 빈칸에 &lt;보기&gt; 제공
+          <span className="text-ink-400">(빼면 직접 쓰기 — 어려움)</span>
+        </label>
       </div>
       <p className="mt-2 text-[11px] text-ink-400">
-        시험 구성: 객관식 ①~⑤ 30문항 (빈칸·부서 고르기·알맞은 법률·헌법 조항·헌법/법률 구분) · 100점.
+        시험지 2종: ① 객관식 30문항(헌법+법률 종합) ② 법률 빈칸 — 부서별로 묶어 자기 부서 법률을 외우게 하는 용도.
         인쇄 창에서 "PDF로 저장"을 누르면 파일로도 남길 수 있어요.
       </p>
     </section>
