@@ -70,6 +70,9 @@ export interface BookletEntry {
   quote?: string;
   thoughts?: string;
   authorIntent?: string; // 작가는 왜 이 글을 썼을까?
+  bookIntro?: string; // 📝 서평: 책소개
+  impressive?: string; // 📝 서평: 인상적인 부분과 그 까닭
+  critique?: string; // 📝 서평: 책에 대한 평가
   connect?: string; // 이 책을 나와 연결하면?
   reason?: string; // 이 책을 고른 이유
   characters?: string; // 등장인물 소개
@@ -84,6 +87,7 @@ export function s2ReportToEntry(r: ReadingReport2): BookletEntry {
     dateStr: `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`,
     summary: r.summary, scene: r.scene, quote: r.quote, thoughts: r.thoughts,
     authorIntent: r.authorIntent, connect: r.connect,
+    bookIntro: r.bookIntro, impressive: r.impressive, critique: r.critique,
     reason: r.reason, characters: r.characters, recommend: r.recommend, freeText: r.freeText,
   };
 }
@@ -131,6 +135,9 @@ export function openBooklet(
   ${sec("이 책을 나와 연결하면?", r.connect)}
   ${sec("누구에게 추천할까?", r.recommend)}
   ${sec("자유롭게 쓰기", r.freeText)}
+  ${sec("책소개", r.bookIntro)}
+  ${sec("인상적인 부분과 그 까닭", r.impressive)}
+  ${sec("책에 대한 평가", r.critique)}
 </div>`;
     })
     .join("\n");

@@ -154,6 +154,10 @@ function ReportBody({
       {r.connect && <ReportSection label="이 책을 나와 연결하면?" text={r.connect} />}
       {r.recommend && <ReportSection label="누구에게 추천할까?" text={r.recommend} />}
       {r.freeText && <ReportSection label="자유롭게 쓰기" text={r.freeText} />}
+      {/* 📝 서평 작성 모드 항목 */}
+      {r.bookIntro && <ReportSection label="책소개" text={r.bookIntro} />}
+      {r.impressive && <ReportSection label="인상적인 부분과 그 까닭" text={r.impressive} />}
+      {r.critique && <ReportSection label="책에 대한 평가" text={r.critique} />}
       {(onEdit || onDelete) && (
         <div className="mt-5 flex gap-2">
           {onEdit && (
@@ -333,6 +337,7 @@ export default function ReadingPage() {
       thoughts: r.thoughts ?? "", authorIntent: r.authorIntent ?? "", connect: r.connect ?? "",
       reason: r.reason ?? "", characters: r.characters ?? "", recommend: r.recommend ?? "",
       freeText: r.freeText ?? "",
+      bookIntro: r.bookIntro ?? "", impressive: r.impressive ?? "", critique: r.critique ?? "",
       tags: r.tags ?? [], isPrivate: r.isPrivate ?? false,
     };
   }

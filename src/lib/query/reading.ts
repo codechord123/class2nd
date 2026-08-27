@@ -38,6 +38,10 @@ export interface ReadingReport2 {
   characters?: string; // 등장인물 소개
   recommend?: string; // 누구에게 추천할까?
   freeText?: string; // 자유롭게 쓰기 (자유 작성 모드)
+  // 📝 서평 작성 모드 (사용자 확정 2026-08-24) — 책소개·줄거리·인상적인 부분과 까닭·평가
+  bookIntro?: string; // 책소개 (지은이·종류·어떤 책인지)
+  impressive?: string; // 인상적인 부분과 그 부분이 인상적인 까닭
+  critique?: string; // 책에 대한 평가
   // 복붙·AI 의심 신호 (작성 순간에만 기록 — 소급 불가). 선생님만 참고.
   pastedChars?: number; // 외부에서 붙여넣은 총 글자 수 (자기 글 복사 제외 — 인용 칸도 제외)
   pasteCount?: number; // 외부 붙여넣기 횟수
@@ -76,11 +80,15 @@ export type ReportForm = Pick<
   characters?: string;
   recommend?: string;
   freeText?: string;
+  bookIntro?: string;
+  impressive?: string;
+  critique?: string;
 };
 
 /** 감상 본문 항목 키 — 폼 체크리스트·글자수·표시가 모두 이 목록을 공유한다 */
 export const BODY_KEYS = [
   "reason", "summary", "characters", "scene", "quote", "thoughts", "authorIntent", "connect", "recommend", "freeText",
+  "bookIntro", "impressive", "critique", // 📝 서평 작성 모드
 ] as const;
 export type BodyKey = (typeof BODY_KEYS)[number];
 

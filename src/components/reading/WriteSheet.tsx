@@ -21,6 +21,7 @@ import { Field, Input, Textarea } from "@/components/ui/Field";
 const EMPTY: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "",
   authorIntent: "", connect: "", reason: "", characters: "", recommend: "", freeText: "",
+  bookIntro: "", impressive: "", critique: "",
   tags: [], isPrivate: false,
 };
 
@@ -28,6 +29,7 @@ const EMPTY: ReportForm = {
 //   defaultOn: '가이드 작성' 기본 구성. 자유 작성 프리셋은 freeText 하나만 켠다.
 const SECTIONS: { key: BodyKey; label: string; placeholder: string; rows: number; defaultOn: boolean }[] = [
   { key: "reason", label: "🤔 이 책을 고른 이유", placeholder: "표지? 제목? 친구 추천? 왜 이 책을 집었나요?", rows: 3, defaultOn: true },
+  { key: "bookIntro", label: "📘 책소개", placeholder: "어떤 책인가요? 지은이·갈래(동화/과학/역사…)·몇 쪽짜리인지, 어떤 이야기를 담고 있는지 소개해요", rows: 4, defaultOn: false },
   { key: "summary", label: "줄거리", placeholder: "", rows: 5, defaultOn: true },
   { key: "characters", label: "👥 등장인물 소개", placeholder: "누가 나오나요? 어떤 성격인가요? 마음에 드는 인물은?", rows: 4, defaultOn: false },
   { key: "scene", label: "인상 깊은 장면", placeholder: "", rows: 4, defaultOn: true },
@@ -37,7 +39,13 @@ const SECTIONS: { key: BodyKey; label: string; placeholder: string; rows: number
   { key: "connect", label: "🙋 이 책을 나와 연결하면?", placeholder: "내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?", rows: 4, defaultOn: true },
   { key: "recommend", label: "💌 누구에게 추천할까?", placeholder: "이 책이 어울리는 사람은 누구? 왜 그 사람에게 추천하나요?", rows: 3, defaultOn: false },
   { key: "freeText", label: "🖊️ 자유롭게 쓰기", placeholder: "정해진 틀 없이 내 마음대로 감상을 써요 — 편지, 일기, 상상 이어쓰기도 좋아요", rows: 10, defaultOn: false },
+  // 📝 서평 작성 모드 전용 (책소개는 위 summary 앞에 있다 — 서평 순서: 책소개→줄거리→인상→평가)
+  { key: "impressive", label: "✨ 인상적인 부분과 그 까닭", placeholder: "가장 인상적이었던 장면·문장을 쓰고, 왜 그 부분이 인상적이었는지 까닭까지 써요", rows: 6, defaultOn: false },
+  { key: "critique", label: "⭐ 책에 대한 평가", placeholder: "이 책은 어떤 점이 좋았나요? 아쉬운 점은? 별점을 준다면 몇 점이고 그 까닭은 무엇인가요?", rows: 6, defaultOn: false },
 ];
+
+// 📝 서평 작성 프리셋 — 사용자가 정한 4개 구성 (책소개 → 줄거리 → 인상적인 부분과 까닭 → 평가)
+const REVIEW_KEYS: BodyKey[] = ["bookIntro", "summary", "impressive", "critique"];
 
 // 유도 질문 로테이션 — 매번 같은 질문이면 감상이 틀에 박힌다 (열 때마다 한 세트 무작위)
 const PROMPTS: { summary: string; scene: string; quote: string; thoughts: string }[] = [
@@ -124,6 +132,7 @@ export default function WriteSheet({
   const presetGuided = () =>
     setEnabled(new Set<BodyKey>([...SECTIONS.filter((s) => s.defaultOn).map((s) => s.key), ...keysWithText()]));
   const presetFree = () => setEnabled(new Set<BodyKey>(["freeText", ...keysWithText()]));
+  const presetReview = () => setEnabled(new Set<BodyKey>([...REVIEW_KEYS, ...keysWithText()]));
 
   // ── 자동저장(localStorage) — 쓰다가 크래시·새로고침·실수로 닫혀도 복구 ──
   // 서버에 안 쓰므로 읽기/쓰기 예산과 무관. 대상(새 글/초안/정식본)별로 슬롯을 나눈다.
@@ -436,6 +445,13 @@ export default function WriteSheet({
                 >
                   🖊️ 자유 작성
                 </button>
+                <button
+                  type="button"
+                  onClick={presetReview}
+                  className="press rounded-btn bg-white px-2.5 py-1 text-[11px] font-bold text-ink-600 ring-1 ring-ink-200"
+                >
+                  📝 서평 작성
+                </button>
               </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -461,7 +477,7 @@ export default function WriteSheet({
               })}
             </div>
             <p className="mt-1.5 text-[10px] text-ink-400">
-              체크를 꺼도 이미 쓴 내용은 지워지지 않아요 (● 표시). 자유 작성은 틀 없이 한 칸에 쭉 써요.
+              체크를 꺼도 이미 쓴 내용은 지워지지 않아요 (● 표시). 자유 작성은 틀 없이 한 칸에 쭉, 서평 작성은 책소개·줄거리·인상적인 부분·평가 순서로 써요.
             </p>
           </div>
           <div className="mt-3 space-y-3">
