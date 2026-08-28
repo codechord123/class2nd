@@ -485,3 +485,101 @@ export function buildLawFillSheet(
   }
   return html + `</div>`;
 }
+
+// ══════════════════════ ④ 헌법·법률 전문 인쇄 (게시·배부용) ══════════════════════
+// 사용자 요청 2026-08-24 — 학습지·시험지와 달리 '문서 그 자체'. 교실 뒷벽에 붙이거나
+// 학기 초에 한 장씩 나눠 주고 파일에 끼워 두는 용도라 활동 칸·체크박스가 없다.
+// size: "post"(게시용 — 큰 글씨, 멀리서 읽힘) / "hand"(배부용 — 보통 글씨, 장수 절약)
+
+const DOC_CSS = (big: boolean) => `<style>
+  .lawdoc { font-family: "Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif; color:#191f28; }
+  .lawdoc .cover { text-align:center; padding: ${big ? "18px 0 14px" : "10px 0 10px"};
+                   border-bottom: 3px double #191f28; margin-bottom: ${big ? "20px" : "14px"}; }
+  .lawdoc .cover .kicker { font-size:${big ? "13px" : "11.5px"}; font-weight:700; color:#6b7684;
+                           letter-spacing:.22em; }
+  .lawdoc .cover h1 { font-size:${big ? "38px" : "27px"}; margin:${big ? "8px 0 6px" : "5px 0 4px"};
+                      letter-spacing:-.02em; }
+  .lawdoc .cover .sub { font-size:${big ? "14px" : "12px"}; color:#6b7684; }
+  .lawdoc .preamble { font-size:${big ? "15px" : "12.5px"}; line-height:1.85; text-align:center;
+                      color:#333d4b; background:#f9fafb; border-radius:12px;
+                      padding:${big ? "14px 18px" : "10px 14px"}; margin-bottom:${big ? "22px" : "16px"}; }
+  .lawdoc h2 { font-size:${big ? "20px" : "15.5px"}; margin:${big ? "26px 0 12px" : "18px 0 8px"};
+               padding-bottom:6px; border-bottom:2px solid #191f28; }
+  .lawdoc h3 { font-size:${big ? "17px" : "13.5px"}; margin:${big ? "20px 0 8px" : "14px 0 6px"};
+               color:#2272eb; }
+  .lawdoc .art { display:flex; gap:${big ? "12px" : "9px"}; align-items:baseline;
+                 margin:${big ? "9px 0" : "6px 0"}; line-height:1.75;
+                 font-size:${big ? "16.5px" : "13px"}; page-break-inside:avoid; }
+  .lawdoc .art .no { flex:none; font-weight:800; color:#2272eb; min-width:${big ? "56px" : "44px"};
+                     font-size:${big ? "15px" : "12px"}; }
+  .lawdoc .deptbox { border:1px solid #e5e8eb; border-radius:14px;
+                     padding:${big ? "12px 16px 14px" : "9px 12px 10px"};
+                     margin-bottom:${big ? "12px" : "9px"}; page-break-inside:avoid; }
+  .lawdoc .deptbox h3 { margin:0 0 ${big ? "8px" : "5px"}; color:#191f28; }
+  .lawdoc .sign { margin-top:${big ? "30px" : "20px"}; padding-top:${big ? "14px" : "10px"};
+                  border-top:2px solid #191f28; text-align:center;
+                  font-size:${big ? "14px" : "11.5px"}; color:#4e5968; line-height:1.9; }
+  .lawdoc .sign b { color:#191f28; }
+  .lawdoc .empty { font-size:13px; color:#8b95a1; padding:10px 0; }
+</style>`;
+
+/** 헌법·법률 전문 — 게시·배부용 문서 */
+export function buildLawDocSheet(
+  c: Constitution,
+  opts?: { size?: "post" | "hand"; showConstitution?: boolean; showLaws?: boolean }
+): string {
+  const big = (opts?.size ?? "post") === "post";
+  const showC = opts?.showConstitution ?? true;
+  const showL = opts?.showLaws ?? true;
+  const articles = (c.articles ?? []).filter((a) => a.trim());
+  const laws = flatLaws(c);
+  const byDept = new Map<string, string[]>();
+  for (const l of laws) byDept.set(l.dept, [...(byDept.get(l.dept) ?? []), l.text]);
+  const depts = [...byDept.keys()].sort(
+    (a, b) =>
+      (DEPTS.indexOf(a) < 0 ? 99 : DEPTS.indexOf(a)) - (DEPTS.indexOf(b) < 0 ? 99 : DEPTS.indexOf(b))
+  );
+  const today = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "long", day: "numeric",
+  }).format(new Date());
+
+  let html = DOC_CSS(big) + `<div class="lawdoc">
+    <div class="cover">
+      <p class="kicker">2학기 학급 자치</p>
+      <h1>우리 반 헌법과 법률</h1>
+      <p class="sub">우리가 함께 정하고, 우리가 함께 지킵니다</p>
+    </div>
+    <p class="preamble">
+      우리 반은 서로를 존중하고 스스로 책임지는 교실을 만들기 위해<br />
+      다음과 같이 헌법을 정하고, 각 부서가 법률을 만들어 지키기로 약속합니다.
+    </p>`;
+
+  if (showC) {
+    html += `<h2>📜 우리 반 헌법</h2>`;
+    html += articles.length
+      ? articles
+          .map((a, i) => `<div class="art"><span class="no">제${i + 1}조</span><span>${esc(a)}</span></div>`)
+          .join("")
+      : `<p class="empty">아직 등록된 헌법 조항이 없어요.</p>`;
+  }
+
+  if (showL) {
+    html += `<h2>⚖️ 부서별 법률</h2>`;
+    html += depts.length
+      ? depts
+          .map((dept) => {
+            const items = (byDept.get(dept) ?? []).filter((t) => t.trim());
+            return `<div class="deptbox"><h3>${deptEmoji(dept)} ${esc(dept)}</h3>${items
+              .map((t, i) => `<div class="art"><span class="no">${i + 1}</span><span>${esc(t)}</span></div>`)
+              .join("")}</div>`;
+          })
+          .join("")
+      : `<p class="empty">아직 등록된 법률이 없어요.</p>`;
+  }
+
+  html += `<div class="sign">
+      위 헌법과 법률은 <b>우리 반 학급 회의</b>에서 함께 정한 것입니다.<br />
+      <b>${esc(today)}</b> · 5학년 우리 반 모두
+    </div></div>`;
+  return html;
+}

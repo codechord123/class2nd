@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useConstitution } from "@/lib/query/classMeta";
 import { openPrintWindow } from "@/lib/exportDoc";
-import { buildStudySheet, buildQuizSheet, buildLawFillSheet } from "@/lib/studyDoc";
+import { buildStudySheet, buildQuizSheet, buildLawFillSheet, buildLawDocSheet } from "@/lib/studyDoc";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function StudyPrintPanel() {
@@ -13,24 +13,36 @@ export default function StudyPrintPanel() {
   const [withAnswers, setWithAnswers] = useState(true);
   const [lawBank, setLawBank] = useState(true); // 법률 빈칸 시험의 <보기> 제공 여부
   const [perDept, setPerDept] = useState(10); // 부서별 문항 수
+  const [onlyDept, setOnlyDept] = useState(""); // "" = 전 부서 (부서마다 한 장씩)
+  const [docSize, setDocSize] = useState<"post" | "hand">("post"); // 전문 인쇄 글씨 크기
   const { toast } = useFeedback();
 
   const laws = c ? Object.values(c.lawsByDept ?? {}).flat().length + (c.laws?.length ?? 0) : 0;
   const arts = c?.articles?.filter((a) => a.trim()).length ?? 0;
   const empty = arts === 0 && laws === 0;
+  // 법률이 실제로 등록된 부서만 — 빈 부서를 고르면 빈 시험지가 나온다
+  const deptList = Object.entries(c?.lawsByDept ?? {})
+    .filter(([, v]) => (v ?? []).some((t) => t.trim()))
+    .map(([k]) => k);
 
-  function print(kind: "study" | "quiz" | "lawfill") {
+  function print(kind: "study" | "quiz" | "lawfill" | "lawdoc") {
     if (!c) return;
     if (empty) {
       toast("아직 헌법·법률이 없어요 — 헌법 탭에서 먼저 등록해주세요.", "warn");
       return;
     }
     try {
-      if (kind === "study") openPrintWindow("우리 반 헌법·법률 학습지", buildStudySheet(c));
+      if (kind === "lawdoc")
+        openPrintWindow("우리 반 헌법과 법률", buildLawDocSheet(c, { size: docSize }));
+      else if (kind === "study") openPrintWindow("우리 반 헌법·법률 학습지", buildStudySheet(c));
       else if (kind === "lawfill")
         openPrintWindow(
           `법률 빈칸 시험지 (세트 ${setNo})`,
-          buildLawFillSheet(c, setNo, withAnswers, { showBank: lawBank, perDept })
+          buildLawFillSheet(c, setNo, withAnswers, {
+            showBank: lawBank,
+            perDept,
+            onlyDept: onlyDept || undefined,
+          })
         );
       else openPrintWindow(`헌법·법률 시험지 (세트 ${setNo})`, buildQuizSheet(c, setNo, withAnswers));
     } catch (e) {
@@ -40,12 +52,19 @@ export default function StudyPrintPanel() {
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-      <h2 className="text-lg font-bold">📚 헌법·법률 학습지 인쇄</h2>
+      <h2 className="text-lg font-bold">📚 헌법·법률 인쇄</h2>
       <p className="mt-1 text-xs text-ink-600">
         지금 등록된 헌법 <b className="tnum">{arts}</b>조 · 법률 <b className="tnum">{laws}</b>개로
-        학습지와 시험지를 만들어요. 법률이 새로 채택되면 언제든 다시 뽑으면 최신판이에요.
+        전문(게시·배부용)·학습지·시험지를 만들어요. 법률이 새로 채택되면 다시 뽑기만 하면 최신판이에요.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => print("lawdoc")}
+          disabled={!c}
+          className="press col-span-2 rounded-btn bg-ink-900 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+        >
+          📜 헌법·법률 전문 인쇄 ({docSize === "post" ? "게시용" : "배부용"})
+        </button>
         <button
           onClick={() => print("study")}
           disabled={!c}
@@ -65,7 +84,7 @@ export default function StudyPrintPanel() {
           disabled={!c}
           className="press col-span-2 rounded-btn bg-brand-strong py-2.5 text-sm font-bold text-white disabled:opacity-50"
         >
-          ✍️ 법률 빈칸 시험 인쇄 (부서별 {perDept}문항)
+          ✍️ 법률 빈칸 시험 인쇄 — {onlyDept || "전 부서"} · 각 {perDept}문항
         </button>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs text-ink-600">
@@ -89,6 +108,30 @@ export default function StudyPrintPanel() {
             onChange={(e) => setWithAnswers(e.target.checked)}
           />
           마지막 장에 정답지 포함
+        </label>
+        <label className="flex items-center gap-1.5">
+          전문 인쇄
+          <select
+            value={docSize}
+            onChange={(e) => setDocSize(e.target.value as "post" | "hand")}
+            className="rounded-btn border border-ink-300 px-2 py-1"
+          >
+            <option value="post">게시용 (큰 글씨)</option>
+            <option value="hand">배부용 (보통 글씨)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1.5">
+          부서
+          <select
+            value={onlyDept}
+            onChange={(e) => setOnlyDept(e.target.value)}
+            className="rounded-btn border border-ink-300 px-2 py-1"
+          >
+            <option value="">전 부서 (한 장씩)</option>
+            {deptList.map((d) => (
+              <option key={d} value={d}>{d}만</option>
+            ))}
+          </select>
         </label>
         <label className="flex items-center gap-1.5">
           부서별 문항
