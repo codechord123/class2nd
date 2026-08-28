@@ -12,8 +12,11 @@ import { isWeekend, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   openPrintWindow,
+  preOpenPrintWindow,
   openStudentPrintDoc,
   esc,
   brandHeader,
@@ -346,9 +349,12 @@ export default function DailyReportPanel({
 
   // 세션 인쇄 — 화면의 하이라이트 구성을 그대로 담는다 (사용자 확정: 개별 칭찬·바라는 점
   // 같은 마음 기록은 제외, 2주 활동을 한눈에 + 모둠 반성 수록)
-  function sessionPrint() {
+  async function sessionPrint() {
     if (printing || !rep) return;
     setPrinting(true);
+    // 정산 문서를 await로 읽으므로 인쇄 창은 '클릭 시점'에 미리 연다 —
+    // iOS 사파리는 await 뒤의 window.open을 팝업으로 보고 차단한다 (프로젝트 규칙).
+    const printWin = preOpenPrintWindow();
     try {
       const readCounts: Record<string, number> = {};
       for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
@@ -436,6 +442,64 @@ export default function DailyReportPanel({
           )
         : "";
 
+      // ⑤ 🏅 세션 보상 — 정산 문서(biweeklyScores/session-N) 1회 읽기. 아직 정산 전이면 안내만.
+      //    실버로 나가는 보상과 '점수'로 나가는 독서 스트릭 보너스를 구분해 표시한다
+      //    (사용자 질문 2026-08-28: 세션 보상이 모두 실버인지 → 스트릭만 점수).
+      const awardSnap = await getDoc(doc(db(), "biweeklyScores", `session-${sessionNo}`));
+      const aw = awardSnap.exists() ? (awardSnap.data() as Record<string, unknown>) : null;
+      const gnames = (ids: number[]) => ids.map((g) => `${g}모둠`).join(", ");
+      let awardHtml = "";
+      if (!aw?.awardedAt) {
+        awardHtml = card(
+          "세션 보상",
+          `<p style="font-size:12.5px;color:#6b7684;margin:2px 0">아직 정산 전이에요 — 교사 탭 → 점수 관리 → <b>세션(2주) 보상 정산</b>에서 지급하면 이 자리에 내역이 실려요.</p>`
+        );
+      } else {
+        const a = aw as {
+          mvps?: number[]; bestGroups?: number[]; bestGroupMembers?: number[];
+          readingTop?: number[]; readingTopGroups?: number[]; readingTopGroupMembers?: number[];
+          missionTopGroups?: number[]; missionTopMembers?: number[]; growthTop?: number[];
+          streakPoints?: Record<string, number>; interest?: Record<string, number>;
+        };
+        // 학생별 실버 합계 (지급 규칙과 동일: 각 항목 1개씩, 주간 독서 모둠은 주마다 1개)
+        const silver: Record<number, number> = {};
+        const add = (ids: number[] = []) => ids.forEach((id) => (silver[id] = (silver[id] ?? 0) + 1));
+        add(a.mvps); add(a.bestGroupMembers); add(a.readingTop);
+        add(a.readingTopGroupMembers); add(a.missionTopMembers); add(a.growthTop);
+        for (const [sid, n] of Object.entries(a.interest ?? {}))
+          silver[Number(sid)] = (silver[Number(sid)] ?? 0) + n;
+        const totalSilver = Object.values(silver).reduce((x, y) => x + y, 0);
+        const row = (icon: string, label: string, who: string, amount: string) =>
+          who
+            ? `<div class="art" style="display:flex;gap:8px;font-size:12.5px;line-height:1.7;margin:3px 0"><span style="flex:none;min-width:132px;font-weight:700">${icon} ${label}</span><span style="flex:1">${who}</span><span style="flex:none;color:#2272eb;font-weight:700">${amount}</span></div>`
+            : "";
+        const interestNames = Object.entries(a.interest ?? {})
+          .map(([sid, n]) => `${esc(nm(Number(sid)))} ${n}개`)
+          .join(", ");
+        const streakNames = Object.entries(a.streakPoints ?? {})
+          .map(([sid, n]) => `${esc(nm(Number(sid)))} +${n}점`)
+          .join(", ");
+        awardHtml =
+          card(
+            `세션 보상 — 💰 실버 ${totalSilver}개 지급`,
+            (row("⭐", "세션 MVP", names(a.mvps ?? []), "각 1개") +
+              row("👑", "최고 모둠", gnames(a.bestGroups ?? []), "모둠원 각 1개") +
+              row("🐢", "최다 독서", names(a.readingTop ?? []), "각 1개") +
+              row("📚", "주간 최다 독서 모둠", gnames(a.readingTopGroups ?? []), "주마다 모둠원 각 1개") +
+              row("🎯", "최다 미션 모둠", gnames(a.missionTopGroups ?? []), "모둠원 각 1개") +
+              row("🌱", "성장상", names(a.growthTop ?? []), "각 1개") +
+              row("💰", "저축 이자", interestNames, "잔액 10%·최대 2개")) ||
+              `<p style="font-size:12.5px;color:#6b7684">이번 세션에 지급된 실버가 없어요.</p>`
+          ) +
+          (streakNames
+            ? card(
+                "독서 스트릭 보너스 — 🏅 점수 (실버 아님)",
+                `<p style="font-size:12.5px;line-height:1.8;margin:2px 0">${streakNames}</p>
+                 <p style="font-size:11px;color:#8b95a1;margin:4px 0 0">주간 목표 권수를 채운 주마다 연속 주수만큼 <b>누적 점수</b>로 가산돼요 (실버로 지급되지 않아요).</p>`
+              )
+            : "");
+      }
+
       openPrintWindow(
         `${sessionNo}기 세션 리포트`,
         brandHeader(
@@ -445,9 +509,12 @@ export default function DailyReportPanel({
           card(`세션 하이라이트 (${w1}·${w2}주)`, hiGrid) +
           card("활동 요약", actStats + readingLine + loveBanner) +
           `<div class="grid2">${card("모둠 평균 점수", groupHtml)}${card("세션 점수 TOP 5", top5Html)}</div>` +
-          reflHtml
+          awardHtml +
+          reflHtml,
+        printWin
       );
     } catch (e) {
+      printWin?.close(); // 실패하면 빈 창을 남기지 않는다
       toast(e instanceof Error ? e.message : "인쇄에 실패했어요.", "error");
     } finally {
       setPrinting(false);
