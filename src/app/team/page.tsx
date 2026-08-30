@@ -1173,7 +1173,9 @@ export default function TeamPage() {
 
       {/* 세션 모둠 반성 — 세션 마지막 주(짝수 주) 금~일에만 열림. 세션 리포트에 수록 */}
       {(() => {
-        const dow = new Date(date + "T00:00:00+09:00").getUTCDay();
+        // KST 자정을 UTC로 보면 요일이 하루 밀린다 — 반성 창이 목~토에 열려 있었다
+        // (금~일이 맞다). 날짜 문자열은 UTC 자정으로 읽어야 요일이 정확 (2026-08-31 수정)
+        const dow = new Date(date + "T00:00:00Z").getUTCDay();
         const reflectionOpen =
           (week % 2 === 0 && (dow >= 5 || dow === 0)) || date <= BETA_END; // 베타 중엔 연습 가능
         if (!reflectionOpen) return null;

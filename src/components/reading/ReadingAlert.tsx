@@ -39,7 +39,10 @@ export default function ReadingAlert() {
   const { current, best } = readingStreaks(stats, studentId, quota, week);
 
   // 주간 마감(일요일)까지 남은 날 — 월=7 … 일=1 (주 시작이 월요일)
-  const dow = new Date(today + "T00:00:00+09:00").getUTCDay(); // 일=0 … 토=6 (KST 자정 → UTC 요일 동일)
+  // ⚠️ KST 자정(+09:00)을 UTC로 보면 전날 15시라 요일이 하루 밀린다 —
+  // 월요일인데 일요일로 계산돼 'D-1(오늘 마감)'로 보였다 (2026-08-31 사용자 지적).
+  // 날짜 문자열을 UTC 자정으로 읽어야 요일이 정확하다 (date.ts의 isWeekend와 같은 방식).
+  const dow = new Date(today + "T00:00:00Z").getUTCDay(); // 일=0 … 토=6
   const daysLeft = dow === 0 ? 1 : 8 - dow;
 
   const streakChip =
