@@ -19,6 +19,7 @@ import {
 import { db } from "@/lib/firebase";
 import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { applySwaps, swapWeekOf, type SeatSwap } from "@/lib/query/seatChange";
 import { isWeekend, todayKST, weekOfDate } from "@/lib/date";
 import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
@@ -392,8 +393,23 @@ async function aggregateDateInner(
     | { groupsSnap?: WeekSchedule["groups"]; groupOf?: Record<string, number> }
     | undefined;
   let schedule = scheduleOfWeek(week);
-  if (Array.isArray(prevMetaRaw?.groupsSnap) && prevMetaRaw.groupsSnap.length)
+  if (Array.isArray(prevMetaRaw?.groupsSnap) && prevMetaRaw.groupsSnap.length) {
     schedule = { ...schedule, groups: prevMetaRaw.groupsSnap };
+  } else {
+    // 승인된 자리 교환(학생 신청·교사 조정)을 반영한다 — 예전엔 집계가 정적 자리표만 봐서
+    // 자리를 바꿔도 모둠 점수·칭찬 미션이 옛 모둠 기준으로 계산됐다 (2026-08-28 수정).
+    // 박제(groupsSnap)가 있는 날은 그날 확정된 배치가 우선 — 과거 점수는 흔들지 않는다.
+    // 적용 순서: [정적 자리표] → [기(2주) 스왑] → [그날 하루 스왑] — 그날 것이 마지막에 덮는다
+    const [swapSnap, daySnap] = await Promise.all([
+      getDoc(doc(d, "classData", `seatSwaps-${swapWeekOf(week)}`)),
+      getDoc(doc(d, "classData", `seatSwapsDay-${date}`)),
+    ]);
+    const swaps = [
+      ...(swapSnap.exists() ? ((swapSnap.data().swaps as SeatSwap[] | undefined) ?? []) : []),
+      ...(daySnap.exists() ? ((daySnap.data().swaps as SeatSwap[] | undefined) ?? []) : []),
+    ];
+    if (swaps.length) schedule = { ...schedule, groups: applySwaps(schedule, swaps).groups };
+  }
 
   const groupOfStudent: Record<number, number> = {};
   const roleOf: Record<number, RoleKey> = {};

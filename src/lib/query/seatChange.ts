@@ -99,11 +99,17 @@ export function useCreateSeatRequest(myId: number | null) {
 }
 
 // ── swap 합성: 정적 자리표 + DB overrides ───────────────────────
+/** 자리는 2주(기) 단위로 유지되므로 스왑도 '기의 첫 주' 문서 하나에 모은다.
+ *  (예전엔 보고 있는 주차 문서를 읽어, 3주차에 바꾼 자리가 4주차엔 원위치로 보였다 —
+ *   학생 신청은 이미 기 첫 주에 저장하고 있었다. 2026-08-28 수정) */
+export const swapWeekOf = (week: number) => Math.max(1, (Math.ceil(week / 2) - 1) * 2 + 1);
+
 export function useWeekSwaps(week: number) {
+  const key = swapWeekOf(week);
   return useQuery({
-    queryKey: ["seatSwaps", week],
+    queryKey: ["seatSwaps", key],
     queryFn: async (): Promise<SeatSwap[]> => {
-      const snap = await getDoc(doc(db(), "classData", `seatSwaps-${week}`));
+      const snap = await getDoc(doc(db(), "classData", `seatSwaps-${key}`));
       return snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
     },
     staleTime: 10 * 60 * 1000,
@@ -134,7 +140,7 @@ export async function findOccupant(
   group: number,
   role: RoleKey | "소통"
 ): Promise<number | null> {
-  const snap = await getDoc(doc(db(), "classData", `seatSwaps-${week}`));
+  const snap = await getDoc(doc(db(), "classData", `seatSwaps-${swapWeekOf(week)}`));
   const swaps = snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
   const sched = applySwaps(scheduleOfWeek(week), swaps);
   const g = sched.groups.find((x) => x.groupId === group);
@@ -204,17 +210,61 @@ export function useDecideSeatRequest() {
       }
       if (occupantId != null && occupantId !== req.studentId) {
         await setDoc(
-          doc(d, "classData", `seatSwaps-${req.week}`),
+          doc(d, "classData", `seatSwaps-${swapWeekOf(req.week)}`),
           { swaps: arrayUnion({ a: req.studentId, b: occupantId, at: Date.now() }) },
           { merge: true }
         );
       }
     }
     void qc.invalidateQueries({ queryKey: ["pendingSeatRequests"] });
-    void qc.invalidateQueries({ queryKey: ["seatSwaps", req.week] });
+    void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(req.week)] });
     void qc.invalidateQueries({ queryKey: ["seatRequests", req.week] });
     void qc.invalidateQueries({ queryKey: ["balances", "s2"] });
     // 이 호출이 실제로 승인 전환에 성공했는지 — UI가 이미 처리된 신청에 가짜 성공 토스트를 안 띄우게
     return didApprove;
+  };
+}
+
+// ── 📅 하루짜리 자리 교환 (교사 전용) ────────────────────────────
+// 사용자 요청 2026-08-28: "싸웠을 때" 같은 상황에 그날만 떼어놓을 수 있어야 한다.
+// 기(2주) 스왑과 별개 문서(classData/seatSwapsDay-{YYYY-MM-DD})에 쌓고,
+// 적용 순서는 [정적 자리표] → [기 스왑] → [그날 스왑] — 그날 것이 가장 마지막에 덮는다.
+export function useDaySwaps(date: string) {
+  return useQuery({
+    queryKey: ["seatSwapsDay", date],
+    queryFn: async (): Promise<SeatSwap[]> => {
+      const snap = await getDoc(doc(db(), "classData", `seatSwapsDay-${date}`));
+      return snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** 교사: 두 학생의 자리를 맞바꾼다. scope="session"이면 그 기 내내, "day"면 그날 하루만. */
+export function useTeacherSwapSeats() {
+  const qc = useQueryClient();
+  return async (opts: { a: number; b: number; scope: "session" | "day"; week: number; date: string }) => {
+    const { a, b, scope, week, date } = opts;
+    if (a === b) throw new Error("서로 다른 두 학생을 골라주세요.");
+    const key = scope === "day" ? `seatSwapsDay-${date}` : `seatSwaps-${swapWeekOf(week)}`;
+    await setDoc(
+      doc(db(), "classData", key),
+      { swaps: arrayUnion({ a, b, at: Date.now() }) },
+      { merge: true }
+    );
+    if (scope === "day") void qc.invalidateQueries({ queryKey: ["seatSwapsDay", date] });
+    else void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(week)] });
+  };
+}
+
+/** 교사: 그날/그 기의 자리 교환을 모두 되돌린다 (원래 자리표로 복귀) */
+export function useClearSwaps() {
+  const qc = useQueryClient();
+  return async (opts: { scope: "session" | "day"; week: number; date: string }) => {
+    const { scope, week, date } = opts;
+    const key = scope === "day" ? `seatSwapsDay-${date}` : `seatSwaps-${swapWeekOf(week)}`;
+    await setDoc(doc(db(), "classData", key), { swaps: [] }, { merge: true });
+    if (scope === "day") void qc.invalidateQueries({ queryKey: ["seatSwapsDay", date] });
+    else void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(week)] });
   };
 }

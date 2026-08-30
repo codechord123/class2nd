@@ -23,6 +23,7 @@ import PasswordResetPanel from "@/components/teacher/PasswordResetPanel";
 import ReadingAdjustPanel from "@/components/teacher/ReadingAdjustPanel";
 import { SilverAdjustPanel, GoldAdjustPanel } from "@/components/teacher/AdjustPanels";
 import TransferPanel from "@/components/teacher/TransferPanel";
+import SeatSwapPanel from "@/components/teacher/SeatSwapPanel";
 import CoinAuditPanel from "@/components/teacher/CoinAuditPanel";
 import TurtleEventPanel from "@/components/teacher/TurtleEventPanel";
 import ClassDashboard from "@/components/teacher/ClassDashboard";
@@ -546,6 +547,8 @@ export default function TeacherPage() {
           ))}
         </ul>
       </section>
+
+      <SeatSwapPanel />
 
       {/* ⚙️ 설정 — 접어둠 (자주 안 바꿈) */}
       <details className="rounded-card border border-ink-200 bg-white shadow-card">

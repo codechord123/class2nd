@@ -40,8 +40,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redoDates']);
     }
 
-    // 참고: 자리 변경 승인 기록(swap)은 classData/seatSwaps-{week} 문서에 저장
-    // (교사만 쓰기 — 위 classData 규칙으로 커버됨)
+    // 참고: 자리 교환 기록은 classData 문서에 저장 — 교사만 쓰기(위 classData 규칙으로 커버).
+    //   · seatSwaps-{기 첫 주}    : 그 기(2주) 내내 적용 (학생 신청 승인 + 교사 조정)
+    //   · seatSwapsDay-{YYYY-MM-DD}: 그날 하루만 적용 (교사가 다툼 등으로 급히 떼어놓을 때)
+    // 적용 순서는 [정적 자리표] → [기 스왑] → [그날 스왑]이며 집계도 동일하게 합성한다.
 
     // 모둠 내 평가: evaluations/{date}/entries/{evaluatorId}
     // 대리 작성 차단: 본인 studentAuth에 바인딩된 uid로만 자기 평가 문서를 쓸 수 있다.

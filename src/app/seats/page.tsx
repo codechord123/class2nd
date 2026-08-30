@@ -12,11 +12,13 @@ import {
 } from "@/lib/schedule";
 import SeatGrid from "@/components/seats/SeatGrid";
 import { chairsProvisional, studentById, ROLE_INFO } from "@/lib/roster";
+import { todayKST } from "@/lib/date";
 import { useSettings } from "@/lib/query/settings";
 import { useFeedback } from "@/components/ui/Feedback";
 import JuiceBurst from "@/components/ui/Juice";
 import {
   useWeekSwaps,
+  useDaySwaps,
   applySwaps,
   useWeekRequests,
   useCreateSeatRequest,
@@ -32,7 +34,14 @@ export default function SeatsPage() {
   const beforeSemester = new Date() < new Date(SEMESTER_START + "T00:00:00+09:00");
 
   const { data: swaps } = useWeekSwaps(week);
-  const schedule = applySwaps(scheduleOfWeek(week), swaps ?? []);
+  // 📅 오늘 하루짜리 교환(교사 조정)도 함께 반영 — 지금 주차를 보고 있을 때만 의미가 있다
+  const today = todayKST();
+  const { data: daySwaps } = useDaySwaps(today);
+  const showDay = week === nowWeek; // 지난/다음 주 자리표엔 오늘 임시 교환을 섞지 않는다
+  const schedule = applySwaps(scheduleOfWeek(week), [
+    ...(swaps ?? []),
+    ...(showDay ? (daySwaps ?? []) : []),
+  ]);
 
   const myGroup = studentId
     ? schedule.groups.find(
