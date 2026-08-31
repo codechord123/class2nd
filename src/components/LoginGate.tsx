@@ -286,7 +286,8 @@ function LoginScreen({
       {mode === "student" ? (
         <>
           <div className="grid grid-cols-5 gap-1.5">
-            {students.map((s) => (
+            {/* 전출 학생은 로그인 목록에서 숨긴다 — 번호를 승계한 전입생이 등록되면 다시 나온다 */}
+            {students.filter((s) => !s.inactive).map((s) => (
               <button
                 key={s.id}
                 onClick={() => {

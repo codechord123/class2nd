@@ -7,7 +7,7 @@
 import { useSession } from "@/stores/session";
 import { friendlyWriteError } from "@/lib/auth";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
-import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { useSchedule } from "@/lib/query/seatChange";
 import { students, studentById, ROLE_INFO } from "@/lib/roster";
 import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";

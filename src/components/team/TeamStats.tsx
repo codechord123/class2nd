@@ -65,8 +65,9 @@ export default function TeamStats({
   const cum = (cumScores ?? {}) as CumDoc;
 
   // 누적 점수 (숫자 필드만)
+  // 랭킹·통계는 현재 재학생만 — 전출 학생이 우리 반 순위에 남아 있으면 어색하다
   const totals: Record<string, number> = {};
-  for (const s of students) {
+  for (const s of students.filter((x) => !x.inactive)) {
     const v = cum[String(s.id)];
     if (typeof v === "number") totals[String(s.id)] = v;
   }

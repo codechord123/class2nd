@@ -10,7 +10,7 @@ import { useSettings } from "@/lib/query/settings";
 import { useClassBanner } from "@/lib/query/classMeta";
 import { isWeekend, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
-import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { useSchedule } from "@/lib/query/seatChange";
 import { doc, getDoc } from "firebase/firestore";
@@ -93,9 +93,12 @@ export default function DailyReportPanel({
 
   const weekRead = (sid: number) => weekBooks(stats, sid, week);
   const classTotal = s1TotalOf(stats) + Object.values(stats?.total ?? {}).reduce((a, b) => a + b, 0);
-  const weekBooksTotal = students.reduce((a, s) => a + weekRead(s.id), 0);
-  const notMet = students.filter((s) => weekRead(s.id) < quota);
-  const metCount = students.length - notMet.length;
+  // 전출(inactive) 학생은 '챙겨야 할 명단'에서 빼야 한다 — 리포트에 계속 이름이 떠
+  // 조회 때 부르게 되는 문제 (2026-08-31 발견: 세션 리포트 '관심이 필요한 친구'에 전출자 포함)
+  const activeStudents = students.filter((s) => !s.inactive);
+  const weekBooksTotal = activeStudents.reduce((a, s) => a + weekRead(s.id), 0);
+  const notMet = activeStudents.filter((s) => weekRead(s.id) < quota);
+  const metCount = activeStudents.length - notMet.length;
 
   const scoreRows = students
     .map((s) => ({ name: s.name, row: today?.[s.id] }))
@@ -139,7 +142,7 @@ export default function DailyReportPanel({
   const wishes = meta?.toTeacher ?? [];
   // 커버리지 백스톱: 오늘 칭찬을 하나도 못 받은 친구 — 아침 조회 때 한마디 보정용
   const praisedIds = new Set(compliments.map((c) => c.to));
-  const notPraised = students.filter((s) => !praisedIds.has(s.id));
+  const notPraised = students.filter((s) => !s.inactive && !praisedIds.has(s.id));
 
   function print() {
     if (printing) return;
@@ -359,7 +362,7 @@ export default function DailyReportPanel({
     const printWin = preOpenPrintWindow();
     try {
       const readCounts: Record<string, number> = {};
-      for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
+      for (const s of students) if (!s.inactive) readCounts[String(s.id)] = sessionReadOf(s.id);
       const [readTop, readMax] = topOf(readCounts);
       const [bestGs, bestMax] = topOf(rep.rank1ByGroup);
       const [mvpTop, mvpMax] = topOf(rep.mvpCount);
@@ -386,7 +389,7 @@ export default function DailyReportPanel({
 
       // ② 활동 스탯(4타일) + 독서 목표 달성률 + 칭찬 배너 — 화면 구성 그대로
       const metOf = (w: number) =>
-        students.filter((s) => weekBooks(stats, s.id, w) >= quota).length;
+        students.filter((s) => !s.inactive && weekBooks(stats, s.id, w) >= quota).length;
       const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
       const st = (label: string, value: string, color: string) =>
         `<div class="hitile" style="text-align:center"><div class="l">${label}</div><div class="v" style="font-size:19px;color:${color}">${value}</div></div>`;
@@ -399,7 +402,7 @@ export default function DailyReportPanel({
       const readingLine = `<p class="muted">📖 독서 목표 달성 — ${w1}주차 <b>${metOf(w1)}/${students.length}명</b>${
         w2 !== w1 ? ` · ${w2}주차 <b>${metOf(w2)}/${students.length}명</b>` : ""
       } · 세션 학급 <b>+${sessionBooks}권</b></p>`;
-      const noLove = students.filter((s) => !(rep.receivedCount[String(s.id)] > 0));
+      const noLove = students.filter((s) => !s.inactive && !(rep.receivedCount[String(s.id)] > 0));
       const loveBanner =
         rep.days > 0
           ? noLove.length === 0
@@ -905,7 +908,7 @@ export default function DailyReportPanel({
               // ── 세션 지표 알고리즘 ──
               // 독서 MVP: 세션 두 주(byWeek w1+w2) 권수 최다 (동점 모두)
               const readCounts: Record<string, number> = {};
-              for (const s of students) readCounts[String(s.id)] = sessionReadOf(s.id);
+              for (const s of students) if (!s.inactive) readCounts[String(s.id)] = sessionReadOf(s.id);
               const [readTop, readMax] = topOf(readCounts);
               // 오늘의 모둠 최다: 기간 중 1위 횟수 최다 모둠
               const [bestGroups, bestMax] = topOf(rep.rank1ByGroup);
@@ -966,7 +969,7 @@ export default function DailyReportPanel({
                   {/* 📖 독서 목표 달성률 — 주별 달성 인원 + 세션 학급 권수 */}
                   {(() => {
                     const metOf = (w: number) =>
-                      students.filter((s) => weekBooks(stats, s.id, w) >= quota).length;
+                      students.filter((s) => !s.inactive && weekBooks(stats, s.id, w) >= quota).length;
                     const sessionBooks = students.reduce((a, s) => a + sessionReadOf(s.id), 0);
                     return (
                       <div className="rounded-btn bg-ink-50 p-3">
@@ -988,7 +991,7 @@ export default function DailyReportPanel({
                   {/* 💗 관심이 필요한 친구 — 세션 동안 칭찬 0회 (MVP도 0이면 ★) */}
                   {rep.days > 0 &&
                     (() => {
-                      const noLove = students.filter((s) => !(rep.receivedCount[String(s.id)] > 0));
+                      const noLove = students.filter((s) => !s.inactive && !(rep.receivedCount[String(s.id)] > 0));
                       if (!noLove.length)
                         return (
                           <p className="rounded-btn bg-success-weak p-3 text-xs font-bold text-success">

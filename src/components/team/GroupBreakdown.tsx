@@ -2,7 +2,7 @@
 // 🔍 모둠 점수 분해 — 각 모둠이 '어떤 항목으로' 점수를 받았는지 (사용자 요청: 개인 분해처럼).
 // 오늘 집계가 있으면 오늘, 없으면 최근 집계일 — Team 탭이 이미 캐시하는 문서 2개 재사용 (추가 읽기 0).
 import { studentById } from "@/lib/roster";
-import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import { useSchedule } from "@/lib/query/seatChange";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
