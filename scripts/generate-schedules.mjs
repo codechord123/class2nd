@@ -27,7 +27,7 @@ const genderMap = {
   김원준: "M", 김주아: "F", 김찬우: "M", 김하영: "F", 문서우: "F",
   박찬: "M", 배한민: "M", 유선재: "F", 윤재익: "M", 이다인: "F",
   이서이: "F", 이서희: "F", 이채연: "F", 임유나: "F", 정지수: "M",
-  조수아: "F", 조이환: "M", 최지완: "M", 한민종: "M", 홍아영: "F",
+  조수아: "F", 조이환: "M", 최지완: "M", 이주원: "M", 홍아영: "F",
 };
 const names = Object.keys(genderMap);
 const idOf = (name) => names.indexOf(name) + 1;
