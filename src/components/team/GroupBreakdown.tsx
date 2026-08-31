@@ -3,6 +3,7 @@
 // 오늘 집계가 있으면 오늘, 없으면 최근 집계일 — Team 탭이 이미 캐시하는 문서 2개 재사용 (추가 읽기 0).
 import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { useSchedule } from "@/lib/query/seatChange";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated } from "@/lib/query/evaluation";
 import { groupDayScore, type GroupDayScore } from "@/lib/groupScore";
@@ -31,6 +32,9 @@ export default function GroupBreakdown({
 }) {
   const today = todayKST();
   const target = dateProp ?? today;
+  // ⚠️ 훅은 아래 조기 return보다 앞에서 호출해야 한다 (React 훅 규칙)
+  //    자리 교환을 반영한 배치 — 자리 탭·모둠 평가와 같은 모둠을 보여준다
+  const schedule = useSchedule(weekOfDate(target, SEMESTER_START, TOTAL_WEEKS), target);
   const { data: targetScores } = useDailyScores(target);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), !dateProp);
 
@@ -58,7 +62,7 @@ export default function GroupBreakdown({
   }
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
-  const schedule = scheduleOfWeek(week);
+  void week;
 
   // 팀 단위 보너스(🔥 미션 연속·📌 전원 완주)는 행이 아니라 _meta에 있다 — 저장된 모둠 점수와 일치시키는 오버레이
   const meta = ((targetHasRows ? targetScores?._meta : latestAgg?.rows?._meta) ?? {}) as {

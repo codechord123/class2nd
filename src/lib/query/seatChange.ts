@@ -231,6 +231,7 @@ export function useDecideSeatRequest() {
 // 적용 순서는 [정적 자리표] → [기 스왑] → [그날 스왑] — 그날 것이 가장 마지막에 덮는다.
 export function useDaySwaps(date: string) {
   return useQuery({
+    enabled: !!date, // 날짜가 없으면 조회하지 않는다 (useSchedule의 기 단위 모드)
     queryKey: ["seatSwapsDay", date],
     queryFn: async (): Promise<SeatSwap[]> => {
       const snap = await getDoc(doc(db(), "classData", `seatSwapsDay-${date}`));
@@ -267,4 +268,18 @@ export function useClearSwaps() {
     if (scope === "day") void qc.invalidateQueries({ queryKey: ["seatSwapsDay", date] });
     else void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(week)] });
   };
+}
+
+/** 🪑 그 주(그리고 그날)의 '실제' 자리표 — 정적 자리표에 승인된 교환을 합성해 돌려준다.
+ *  화면마다 scheduleOfWeek()를 직접 부르면 자리 탭만 교환을 반영하고 모둠 평가·통계·
+ *  교사 화면은 옛 모둠을 보여줘 서로 어긋난다 (2026-08-31 사용자 지적). 자리표를 읽는
+ *  화면은 모두 이 훅을 쓴다 — 스왑 문서는 쿼리 캐시를 공유해 화면당 추가 읽기는 사실상 0.
+ *  date를 주면 그날 하루 교환까지 반영(오늘 화면), 생략하면 기 단위 교환만 반영. */
+export function useSchedule(week: number, date?: string) {
+  const { data: weekSwaps } = useWeekSwaps(week);
+  const { data: daySwaps } = useDaySwaps(date ?? "");
+  return applySwaps(scheduleOfWeek(week), [
+    ...(weekSwaps ?? []),
+    ...(date ? (daySwaps ?? []) : []),
+  ]);
 }

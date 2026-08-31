@@ -3,6 +3,7 @@
 // 전부 이미 캐시되는 문서 재사용: 누적 점수(_cumulative) + 독서 통계 + 최근 집계일 메타.
 import { students, studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { useSchedule } from "@/lib/query/seatChange";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { useReadingStats } from "@/lib/query/reading";
@@ -62,7 +63,7 @@ export default function GroupGoals({ myStudentId }: { myStudentId?: number | nul
   // 방학(개학 전)엔 독서가 0주차 버킷에 쌓인다 — '이번 주 독서'도 그 버킷을 봐야
   // 0권으로 안 보인다 (사용자 보고). MyStatus와 동일 처리.
   const readWeek = today < SEMESTER_START ? 0 : week;
-  const schedule = scheduleOfWeek(week);
+  const schedule = useSchedule(week, today); // 자리 교환 반영 (자리 탭과 동일한 모둠)
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
   // 오늘 집계가 이미 있으면 오늘 것을 보여준다 — 선생님이 준 오늘의 모둠 점수가
   // 다음날까지 안 보이던 문제(사용자 보고) 수정. 둘 다 Team 탭 캐시 재사용 (추가 읽기 0).

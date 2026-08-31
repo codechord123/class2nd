@@ -12,6 +12,7 @@ import { isWeekend, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { SEMESTER_START, TOTAL_WEEKS, scheduleOfWeek } from "@/lib/schedule";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
+import { useSchedule } from "@/lib/query/seatChange";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -60,7 +61,8 @@ export default function DailyReportPanel({
   const [repScope, setRepScope] = useState<"session" | "semester">("session");
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
-  const schedule = scheduleOfWeek(week);
+  // 자리 교환을 반영한 배치 — 리포트의 모둠 구성이 자리 탭·모둠 평가와 일치하게
+  const schedule = useSchedule(week, date);
   const quota = settings?.weeklyReadingQuota ?? 3;
 
   // 세션(2주) 범위 — 선택한 날짜가 속한 기(1~11기)

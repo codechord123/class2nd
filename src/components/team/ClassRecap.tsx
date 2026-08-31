@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { studentById } from "@/lib/roster";
 import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { useSchedule } from "@/lib/query/seatChange";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { useDailyScores, useLatestAggregated, type DailyMeta } from "@/lib/query/evaluation";
 import { groupDayScore } from "@/lib/groupScore";
@@ -29,6 +30,8 @@ function Badge({ tone, children }: { tone: string; children: React.ReactNode }) 
 export default function ClassRecap({ myStudentId }: { myStudentId?: number | null }) {
   const [view, setView] = useState<"group" | "praise">("group");
   const today = todayKST();
+  // ⚠️ 훅은 조기 return보다 앞에서 (React 훅 규칙) — 자리 교환 반영 배치
+  const schedule = useSchedule(weekOfDate(today, SEMESTER_START, TOTAL_WEEKS), today);
   const { data: todayScores } = useDailyScores(today);
   const { data: latestAgg } = useLatestAggregated(shiftDate(today, -1), true);
 
@@ -49,7 +52,7 @@ export default function ClassRecap({ myStudentId }: { myStudentId?: number | nul
   }
 
   const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
-  const schedule = scheduleOfWeek(week);
+  void week;
   // 학사일이 아니면(주말·공휴일) 독서는 개인 점수만 — 모둠 합산 제외 (사용자 확정 2026-07-18).
   // 저장된 schoolDay 우선, 없으면(구버전 문서) 날짜로 판정.
   const schoolDay = meta.schoolDay ?? !isWeekend(date);

@@ -15,6 +15,7 @@ import {
   usePendingSeatRequests,
   useDecideSeatRequest,
   findOccupant,
+  useSchedule,
 } from "@/lib/query/seatChange";
 import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
 import LinksEditor from "@/components/teacher/LinksEditor";
@@ -57,7 +58,7 @@ import TodayBriefing from "@/components/teacher/TodayBriefing";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
-import { scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import type { ClassSettings } from "@/types";
 
 export default function TeacherPage() {
@@ -92,6 +93,8 @@ export default function TeacherPage() {
   const decideSeat = useDecideSeatRequest();
 
 
+  // 자리 교환을 반영한 오늘 배치 — 순위 저장 시 기록하는 의장이 실제 자리와 맞게
+  const todaySchedule = useSchedule(weekOfDate(date, SEMESTER_START, TOTAL_WEEKS), date);
   const { data: bestGroups } = useBestGroups();
   const setBestGroup = useSetBestGroup();
   const [bestRanking, setBestRanking] = useState<number[]>([]); // 누른 순서 = 1위→5위
@@ -389,10 +392,8 @@ export default function TeacherPage() {
                   if (!ok) return;
                 }
                 try {
-                  const week = weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
                   const chairId =
-                    scheduleOfWeek(week).groups.find((g) => g.groupId === bestRanking[0])?.chair ??
-                    0;
+                    todaySchedule.groups.find((g) => g.groupId === bestRanking[0])?.chair ?? 0;
                   await setBestGroup(date, bestRanking, chairId);
                   // 저장 후 곧바로 그날 집계까지 — "저장했는데 점수에 반영이 안 돼요"
                   // (저장→집계 2단계를 잊는 문제) 방지. 사용자 보고로 1단계로 통합.
