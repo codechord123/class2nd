@@ -9,6 +9,6 @@
     "5": "유선재"
   },
   "wildcardGroup": 5,
-  "excluded": ["한민종"],
-  "excludedNote": "전출 학생 — 자리 배치에서 제외 (앱 명단은 교사 탭 전입·전출 처리로 별도 반영)"
+  "excluded": [],
+  "excludedNote": "전출 시 이름을 넣는다. 전입생이 그 번호를 승계하면 비우고, 이미 만들어진 자리표는 `node scripts/fill-vacancy.mjs <번호>`로 빈자리만 채운다(전체 재배치 방지)."
 }
