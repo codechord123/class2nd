@@ -136,9 +136,12 @@ function ReportBody({
           );
         })()}
       {r.reason && <ReportSection label="이 책을 고른 이유" text={r.reason} />}
+      {/* 📝 책소개는 줄거리 앞 — 서평 순서(책소개→줄거리→인상적인 부분과 까닭→평가) */}
+      {r.bookIntro && <ReportSection label="책소개" text={r.bookIntro} />}
       {r.summary && <ReportSection label="줄거리" text={r.summary} />}
       {r.characters && <ReportSection label="등장인물 소개" text={r.characters} />}
       {r.scene && <ReportSection label="인상 깊은 장면" text={r.scene} />}
+      {r.impressive && <ReportSection label="인상적인 부분과 그 까닭" text={r.impressive} />}
       {r.quote && (
         <div className="mt-4">
           <p className="mb-1.5 text-[13px] font-bold text-emerald-700">마음에 남은 문장 (인용)</p>
@@ -150,14 +153,11 @@ function ReportBody({
         </div>
       )}
       {r.thoughts && <ReportSection label="읽고 난 생각" text={r.thoughts} />}
+      {r.critique && <ReportSection label="책에 대한 평가" text={r.critique} />}
       {r.authorIntent && <ReportSection label="작가는 왜 이 글을 썼을까?" text={r.authorIntent} />}
       {r.connect && <ReportSection label="이 책을 나와 연결하면?" text={r.connect} />}
       {r.recommend && <ReportSection label="누구에게 추천할까?" text={r.recommend} />}
       {r.freeText && <ReportSection label="자유롭게 쓰기" text={r.freeText} />}
-      {/* 📝 서평 작성 모드 항목 */}
-      {r.bookIntro && <ReportSection label="책소개" text={r.bookIntro} />}
-      {r.impressive && <ReportSection label="인상적인 부분과 그 까닭" text={r.impressive} />}
-      {r.critique && <ReportSection label="책에 대한 평가" text={r.critique} />}
       {(onEdit || onDelete) && (
         <div className="mt-5 flex gap-2">
           {onEdit && (

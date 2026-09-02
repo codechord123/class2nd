@@ -33,15 +33,15 @@ const SECTIONS: { key: BodyKey; label: string; placeholder: string; rows: number
   { key: "summary", label: "줄거리", placeholder: "", rows: 5, defaultOn: true },
   { key: "characters", label: "👥 등장인물 소개", placeholder: "누가 나오나요? 어떤 성격인가요? 마음에 드는 인물은?", rows: 4, defaultOn: false },
   { key: "scene", label: "인상 깊은 장면", placeholder: "", rows: 4, defaultOn: true },
+  { key: "impressive", label: "✨ 인상적인 부분과 그 까닭", placeholder: "가장 인상적이었던 장면·문장을 쓰고, 왜 그 부분이 인상적이었는지 까닭까지 써요", rows: 6, defaultOn: false },
   { key: "quote", label: "마음에 남은 문장 (인용)", placeholder: "", rows: 3, defaultOn: true },
   { key: "thoughts", label: "읽고 나서 든 생각과 느낌", placeholder: "", rows: 6, defaultOn: true },
+  { key: "critique", label: "⭐ 책에 대한 평가", placeholder: "이 책은 어떤 점이 좋았나요? 아쉬운 점은? 별점을 준다면 몇 점이고 그 까닭은 무엇인가요?", rows: 6, defaultOn: false },
   { key: "authorIntent", label: "✍️ 작가는 왜 이 글을 썼을까?", placeholder: "작가가 이 책으로 하고 싶었던 말은 뭘까요? 내 생각을 써요", rows: 3, defaultOn: true },
   { key: "connect", label: "🙋 이 책을 나와 연결하면?", placeholder: "내 경험·우리 반·우리 가족과 어떻게 연결될까요? 나라면 어떻게 했을까요?", rows: 4, defaultOn: true },
   { key: "recommend", label: "💌 누구에게 추천할까?", placeholder: "이 책이 어울리는 사람은 누구? 왜 그 사람에게 추천하나요?", rows: 3, defaultOn: false },
   { key: "freeText", label: "🖊️ 자유롭게 쓰기", placeholder: "정해진 틀 없이 내 마음대로 감상을 써요 — 편지, 일기, 상상 이어쓰기도 좋아요", rows: 10, defaultOn: false },
   // 📝 서평 작성 모드 전용 (책소개는 위 summary 앞에 있다 — 서평 순서: 책소개→줄거리→인상→평가)
-  { key: "impressive", label: "✨ 인상적인 부분과 그 까닭", placeholder: "가장 인상적이었던 장면·문장을 쓰고, 왜 그 부분이 인상적이었는지 까닭까지 써요", rows: 6, defaultOn: false },
-  { key: "critique", label: "⭐ 책에 대한 평가", placeholder: "이 책은 어떤 점이 좋았나요? 아쉬운 점은? 별점을 준다면 몇 점이고 그 까닭은 무엇인가요?", rows: 6, defaultOn: false },
 ];
 
 // 📝 서평 작성 프리셋 — 사용자가 정한 4개 구성 (책소개 → 줄거리 → 인상적인 부분과 까닭 → 평가)

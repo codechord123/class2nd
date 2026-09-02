@@ -126,18 +126,18 @@ export function openBooklet(
   <p class="chmeta">${meta}</p>
   <hr class="rule">
   ${sec("이 책을 고른 이유", r.reason)}
+  ${sec("책소개", r.bookIntro)}
   ${sec("줄거리", r.summary)}
   ${sec("등장인물 소개", r.characters)}
   ${sec("인상 깊은 장면", r.scene)}
+  ${sec("인상적인 부분과 그 까닭", r.impressive)}
   ${r.quote?.trim() ? `<blockquote>“${esc(r.quote)}”</blockquote>` : ""}
   ${sec("읽고 난 생각", r.thoughts)}
+  ${sec("책에 대한 평가", r.critique)}
   ${sec("작가는 왜 이 글을 썼을까?", r.authorIntent)}
   ${sec("이 책을 나와 연결하면?", r.connect)}
   ${sec("누구에게 추천할까?", r.recommend)}
   ${sec("자유롭게 쓰기", r.freeText)}
-  ${sec("책소개", r.bookIntro)}
-  ${sec("인상적인 부분과 그 까닭", r.impressive)}
-  ${sec("책에 대한 평가", r.critique)}
 </div>`;
     })
     .join("\n");
