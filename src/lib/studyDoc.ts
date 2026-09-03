@@ -38,13 +38,37 @@ function flatLaws(c: Constitution): { dept: string; text: string }[] {
   return out;
 }
 
+/** 🎯 빈칸으로 뚫을 '핵심 개념' 점수 — 사용자 확정 2026-08-31.
+ *  예전엔 '가장 긴 어절'을 뚫어 "함부로·골고루·시간마다" 같은 부사가 답이 됐다.
+ *  법·규칙에서 중요한 건 ① 무엇을 하라는지(서술어) ② 무엇을/어디서(대상·장소)다.
+ *  형태소 분석 없이 조사·어미 패턴만으로 그 둘을 앞세운다. -1이면 후보에서 제외. */
+function conceptScore(token: string, idx: number, total: number): number {
+  const bare = token.replace(/[.,!?]+$/, "");
+  const clean = bare.replace(/[^가-힣a-zA-Z0-9]/g, "");
+  if (clean.length < 2) return -1;
+  // '한다·있다·않는다'처럼 뜻이 옅은 서술어는 뚫어도 배우는 게 없다
+  const WEAK = /^(한다|합니다|해요|된다|됩니다|있다|없다|이다|입니다|않는다|아니다|같다)$/;
+  const isLast = idx === total - 1;
+  let score = 0;
+  if (isLast && /(다|자|요)$/.test(bare)) score += WEAK.test(clean) ? 18 : 100; // ① 행동
+  else if (/(을|를|이|가)$/.test(clean)) score += 60; // ② 대상(목적어·주어)
+  else if (/(에서는|에게는|에서|에게|으로|로는|로|에는|에)$/.test(clean)) score += 34; // ③ 장소·상대·수단
+  else if (/(은|는|도|만|까지|마다|부터)$/.test(clean)) score += 22; // ④ 보조사가 붙은 명사
+  else score += 14; // ⑤ 그 밖(관형어·부사)
+  return score + Math.min(clean.length, 6); // 같은 등급이면 내용어(긴 낱말)를 앞에
+}
+
 /** 조항에서 빈칸으로 뚫을 핵심 단어 선택 — 가장 긴 어절 (2자 미만·숫자 제외) */
 function pickBlank(text: string, r: () => number): { blanked: string; answer: string } | null {
-  const tokens = text.split(/\s+/).filter((t) => t.replace(/[^가-힣a-zA-Z]/g, "").length >= 2);
-  if (!tokens.length) return null;
-  const maxLen = Math.max(...tokens.map((t) => t.length));
-  const candidates = tokens.filter((t) => t.length === maxLen);
-  const answer = candidates[Math.floor(r() * candidates.length)];
+  const all = text.split(/\s+/).filter(Boolean);
+  const scored = all
+    .map((t, i) => ({ t, s: conceptScore(t, i, all.length) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || (r() < 0.5 ? -1 : 1));
+  if (!scored.length) return null;
+  // 최고점 동점끼리만 무작위 — 세트가 달라도 '핵심'은 유지된다
+  const top = scored.filter((x) => x.s === scored[0].s);
+  const answer = top[Math.floor(r() * top.length)].t;
   // 첫 등장 어절만 빈칸으로 (같은 단어 반복 시 전부 뚫리는 것 방지)
   const blanked = text.replace(answer, `<span class="blank">${"&nbsp;".repeat(Math.min(answer.length * 3, 14))}</span>`);
   return { blanked, answer };
@@ -360,9 +384,10 @@ interface FillQ {
 function fillQuestionsFor(laws: string[], want: number, r: () => number): FillQ[] {
   const perLaw = laws.map((text) => {
     const tokens = text.split(/\s+/).filter(Boolean);
+    // 핵심 개념(행동·대상) 우선 — 부사보다 '무엇을 하라'가 먼저 뚫린다
     const cand = tokens
-      .map((t, i) => ({ i, len: splitTrail(t).word.replace(/[^가-힣a-zA-Z0-9]/g, "").length }))
-      .filter((x) => x.len >= 2)
+      .map((t, i) => ({ i, len: conceptScore(t, i, tokens.length) }))
+      .filter((x) => x.len > 0)
       .sort((a, b) => b.len - a.len || (r() < 0.5 ? -1 : 1));
     return { tokens, cand };
   });
