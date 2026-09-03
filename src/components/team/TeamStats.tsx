@@ -25,7 +25,10 @@ function TopList({
   counts: Record<string, number>;
   unit: string;
 }) {
+  // 전출 학생은 모든 순위에서 제외 — 누적 점수 TOP 5만 걸러내면 MVP·페어플레이·
+  // 베스트플레이어 목록에만 떠난 친구가 남아 어긋난다.
   const ranked = students
+    .filter((s) => !s.inactive)
     .map((s) => ({ name: s.name, n: counts[String(s.id)] ?? 0 }))
     .filter((x) => x.n > 0)
     .sort((a, b) => b.n - a.n)

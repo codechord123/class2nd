@@ -99,6 +99,7 @@ export default function TransferPanel() {
           mvpWins: { [key]: 0 },
           mvpVotesTotal: { [key]: 0 },
           fairWins: { [key]: 0 },
+          bestGroupWins: { [key]: 0 },
           silverEarned: { [key]: 0 },
           scoreSilverPaid: { [key]: 0 },
           vacReadPaid: { [key]: 0 },

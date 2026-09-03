@@ -1326,41 +1326,102 @@ export async function addBonus(date: string, studentId: number, delta: number): 
   });
 }
 
-// ── 베스트플레이어(오늘의 모둠 포함 횟수) 재계산 (교사 도구) ────────────────
-// 저장된 모든 일일 집계 문서를 훑어 '그날 오늘의 모둠(모둠 총점 1위)' 모둠원을 세어
-// _cumulative.bestGroupWins를 통째로 다시 쓴다. 집계 로직 변경·초기화로 카운터가
-// 비거나 어긋났을 때 한 번에 복구하는 옵트인 도구 (교사 화면에서만 실행).
-export async function recomputeBestGroupWins(): Promise<Record<string, number>> {
+// ── 우리 반 통계 검증·복구 (교사 도구) ──────────────────────────────────────
+// 저장된 모든 일일 집계 문서를 한 번 훑어 MVP·페어플레이·베스트플레이어 횟수를 다시 세고,
+// 지금 _cumulative에 들어 있는 값과 대조한다(읽기: 컬렉션 1회 — 교사가 누를 때만).
+// 세 카운터 모두 집계가 '이전 명단 빼고 새 명단 더하기'로 누적해서 원칙적으로 멱등이지만,
+// 초기화·로직 변경·전입 처리가 끼면 어긋날 수 있어 눈으로 확인하고 한 번에 맞출 수 있게 한다.
+export interface ClassStatsAudit {
+  days: number; // 훑은 집계일 수
+  skippedAllTied: number; // 전 모둠 동점이라 '오늘의 모둠'을 뽑지 않은 날
+  bestGroupWins: Record<string, number>;
+  mvpWins: Record<string, number>;
+  fairWins: Record<string, number>;
+  diffs: { key: string; label: string; sid: string; now: number; should: number }[];
+}
+
+export async function auditClassStats(): Promise<ClassStatsAudit> {
   const d = db();
-  const snap = await getDocs(collection(d, "dailyScores"));
+  const [snap, cumSnap] = await Promise.all([
+    getDocs(collection(d, "dailyScores")),
+    getDoc(doc(d, "dailyScores", "_cumulative")),
+  ]);
   const wins: Record<string, number> = {};
+  const mvp: Record<string, number> = {};
+  const fair: Record<string, number> = {};
+  let days = 0;
+  let skippedAllTied = 0;
   for (const day of snap.docs) {
     if (day.id.startsWith("_")) continue; // _cumulative 등 메타 문서 제외
-    const data = day.data() as Record<string, unknown> & {
-      _meta?: { autoBestMembers?: number[] };
+    days++;
+    const data = day.data() as Record<string, unknown>;
+    const meta = (data._meta ?? {}) as {
+      autoBestMembers?: number[];
+      bestSkippedAllTied?: boolean;
+      mvpWinners?: number[];
+      fairWinners?: number[];
+      groupsSnap?: WeekSchedule["groups"];
+      schoolDay?: boolean;
     };
+    if (meta.bestSkippedAllTied) skippedAllTied++;
+    for (const w of meta.mvpWinners ?? []) mvp[String(w)] = (mvp[String(w)] ?? 0) + 1;
+    for (const w of meta.fairWinners ?? []) fair[String(w)] = (fair[String(w)] ?? 0) + 1;
     let members: number[] = [];
-    if (data._meta?.autoBestMembers?.length) {
-      members = data._meta.autoBestMembers; // 집계가 저장한 실제 명단 우선
+    if (Array.isArray(meta.autoBestMembers)) {
+      // 집계가 저장한 실제 명단이 단일 출처 — 빈 배열은 '그날 미선정'이라는 뜻이므로
+      // 재계산으로 덮어쓰지 않는다 (전 모둠 동점이라 건너뛴 날을 되살리면 집계와 어긋난다).
+      members = meta.autoBestMembers;
     } else {
-      // 구버전 문서(명단 없음)는 저장된 rows에서 그날 오늘의 모둠을 재계산
-      const schedule = scheduleOfWeek(weekOfDate(day.id, SEMESTER_START, TOTAL_WEEKS));
+      // 구버전 문서(명단 필드 자체가 없음)만 저장된 rows에서 그날 오늘의 모둠을 재계산
+      const week = weekOfDate(day.id, SEMESTER_START, TOTAL_WEEKS);
+      const groups = meta.groupsSnap?.length ? meta.groupsSnap : scheduleOfWeek(week).groups;
       const activeIdsOf = (g: { chair: number; members: { studentId: number }[] }) =>
         [g.chair, ...g.members.map((m) => m.studentId)].filter(
           (id) => !studentById.get(id)?.inactive
         );
       // 구버전 문서엔 schoolDay가 없으니 날짜로 판정 (주말이면 독서 모둠 합산 제외)
-      const sDay = (data._meta as { schoolDay?: boolean })?.schoolDay ?? !isWeekend(day.id);
+      const sDay = meta.schoolDay ?? !isWeekend(day.id);
       const groupSums: Record<number, number> = {};
-      for (const g of schedule.groups)
+      for (const g of groups)
         groupSums[g.groupId] = groupDayScore(data, activeIdsOf(g), { schoolDay: sDay }).total;
       const bestSum = Math.max(0, ...Object.values(groupSums));
-      if (bestSum > 0)
-        for (const g of schedule.groups)
-          if (groupSums[g.groupId] === bestSum) members.push(...activeIdsOf(g));
+      const tied = bestSum > 0 ? groups.filter((g) => groupSums[g.groupId] === bestSum) : [];
+      // 집계와 같은 규칙: 전 모둠 동점이면 1위가 없는 것과 같으므로 아무도 세지 않는다
+      if (tied.length > 0 && tied.length < groups.length)
+        for (const g of tied) members.push(...activeIdsOf(g));
     }
     for (const sid of members) wins[String(sid)] = (wins[String(sid)] ?? 0) + 1;
   }
-  await setDoc(doc(d, "dailyScores", "_cumulative"), { bestGroupWins: wins }, { merge: true });
-  return wins;
+
+  // 현재 누적값과 대조 — 전출 학생은 통계에 노출되지 않으므로 차이 목록에서도 제외
+  const cur = (cumSnap.exists() ? cumSnap.data() : {}) as Record<
+    string,
+    Record<string, number> | undefined
+  >;
+  const diffs: ClassStatsAudit["diffs"] = [];
+  const pairs: [string, string, Record<string, number>][] = [
+    ["bestGroupWins", "👑 베스트플레이어", wins],
+    ["mvpWins", "⭐ MVP", mvp],
+    ["fairWins", "🤝 페어플레이", fair],
+  ];
+  for (const [key, label, should] of pairs) {
+    const now = cur[key] ?? {};
+    for (const s of students) {
+      if (s.inactive) continue;
+      const sid = String(s.id);
+      const a = now[sid] ?? 0;
+      const b = should[sid] ?? 0;
+      if (a !== b) diffs.push({ key, label, sid, now: a, should: b });
+    }
+  }
+  return { days, skippedAllTied, bestGroupWins: wins, mvpWins: mvp, fairWins: fair, diffs };
+}
+
+// 검증 결과를 그대로 _cumulative에 반영 (교사가 확인하고 누를 때만)
+export async function applyClassStatsAudit(a: ClassStatsAudit): Promise<void> {
+  await setDoc(
+    doc(db(), "dailyScores", "_cumulative"),
+    { bestGroupWins: a.bestGroupWins, mvpWins: a.mvpWins, fairWins: a.fairWins },
+    { merge: true }
+  );
 }

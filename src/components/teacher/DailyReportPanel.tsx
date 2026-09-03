@@ -122,6 +122,7 @@ export default function DailyReportPanel({
     bossWinners?: number[]; // 오늘의 부서장 (투표 최다 — 칭호)
     fairWinners?: number[]; // 🤝 오늘의 페어플레이 (배려왕 투표 최다)
     autoBestGroups?: number[]; // 오늘의 모둠 — 총점 합계 1위 (자동 타이틀)
+    bestSkippedAllTied?: boolean; // 전 모둠 동점이라 오늘의 모둠을 뽑지 않은 날
     missionStreakBonus?: Record<string, number>; // 🔥 미션 연속 팀 보너스
     allDoneStudents?: number[]; // 📌 할 일 5개 완주 학생
     allDoneGroups?: number[]; // 📌 전원 완주 모둠 (+1)
@@ -793,6 +794,10 @@ export default function DailyReportPanel({
               <p className="mt-1 text-sm text-ink-700">
                 {(meta?.autoBestGroups ?? []).length ? (
                   (meta!.autoBestGroups ?? []).map((g) => `${g}모둠`).join(", ")
+                ) : meta?.bestSkippedAllTied ? (
+                  <span className="text-warn">
+                    전 모둠 동점 — 미선정 (순위를 넣고 재집계하면 선정돼요)
+                  </span>
                 ) : (
                   <span className="text-ink-400">집계 후 자동 선정</span>
                 )}
