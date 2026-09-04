@@ -8,7 +8,8 @@ import { useDailyScores, useLatestAggregated, useRangeReport } from "@/lib/query
 import { useSettings } from "@/lib/query/settings";
 import { s1BooksOf } from "@/lib/staticData";
 import { shiftDate, todayKST, weekOfDate } from "@/lib/date";
-import { groupOf, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { useSchedule } from "@/lib/query/seatChange";
 import { periodOfWeek, dateRangeOfPeriod } from "@/lib/aggregate";
 import { weekBooks, readingStreaks } from "@/lib/readingStreak";
 import type { DailyScoreRow } from "@/types";
@@ -22,6 +23,7 @@ export default function MyRecord({
 }) {
   const { data: stats } = useReadingStats();
   const { data: settings } = useSettings();
+  const curSchedule = useSchedule(weekOfDate(todayKST(), SEMESTER_START, TOTAL_WEEKS), todayKST());
   const today = todayKST();
   // Team 탭이 이미 캐시하는 두 문서 재사용 (추가 읽기 0):
   // 오늘 집계가 있으면 오늘 것을, 없으면(아침 등) 최근 집계일 것을 보여준다.
@@ -96,7 +98,12 @@ export default function MyRecord({
     : [];
   // 스트릭 현황 — 모둠 미션 연속(팀·전원 칭찬 받기) + 독서 연속(주간 목표 달성)
   const quota = settings?.weeklyReadingQuota ?? 3;
-  const myGroupId = groupOf(curWeek, studentId)?.groupId ?? 0;
+  // 자리 교환을 반영한 배치로 내 모둠을 찾는다 — 정적 자리표를 쓰면 교환된 학생의
+  // 모둠 미션 연속이 옛 모둠 것으로 보인다 (모둠 탭·집계와 기준 통일)
+  const myGroupId =
+    curSchedule.groups.find(
+      (g) => g.chair === studentId || g.members.some((m) => m.studentId === studentId)
+    )?.groupId ?? 0;
   const missionStreak = cum.missionStreak?.[String(myGroupId)] ?? 0;
   const vacation = today < SEMESTER_START;
   const readStreak = vacation ? 0 : readingStreaks(stats, studentId, quota, curWeek).current;

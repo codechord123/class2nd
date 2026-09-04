@@ -126,32 +126,47 @@ export function useSetAttendance() {
   };
 }
 
-// ── 오늘의 칭찬 커버리지: complimentCoverage/{date} = { 칭찬한사람: 대상 } ──
+// ── 오늘의 칭찬 커버리지: complimentCoverage/{date} = { 칭찬한사람: 대상[] } ──
 // 학생이 남의 평가를 읽지 않고도 '아직 칭찬 못 받은 친구'를 알 수 있게 하는 최소 문서.
 // (관계는 UI에 노출하지 않고 '받은 사람 집합'만 사용)
+// ⚠️ 한 사람이 여러 명을 칭찬할 수 있으므로 값은 '대상 목록'이다. 예전에는 대상 하나만
+//    담아서(숫자) 두 번째 칭찬이 첫 번째를 덮어썼고, 먼저 칭찬받은 친구가 🌱(미칭찬)으로
+//    되돌아갔다 (2026-09-04 사용자 지적). 읽기는 구버전 숫자 값도 그대로 받아준다.
+export type CoverageValue = number | number[];
+
+/** 커버리지 문서에서 '칭찬받은 사람' 집합 — 구버전(숫자)·신버전(배열) 모두 처리 */
+export function coverageReceived(cov: Record<string, CoverageValue> | undefined): Set<number> {
+  const out = new Set<number>();
+  for (const v of Object.values(cov ?? {}))
+    for (const n of Array.isArray(v) ? v : [v]) if (Number(n) > 0) out.add(Number(n));
+  return out;
+}
+
 export function useComplimentCoverage(date: string, enabled = true) {
   return useQuery({
     queryKey: ["complimentCoverage", date],
     enabled,
-    queryFn: async (): Promise<Record<string, number>> => {
+    queryFn: async (): Promise<Record<string, CoverageValue>> => {
       const snap = await getDoc(doc(db(), "complimentCoverage", date));
-      return snap.exists() ? (snap.data() as Record<string, number>) : {};
+      return snap.exists() ? (snap.data() as Record<string, CoverageValue>) : {};
     },
     staleTime: 2 * 60 * 1000,
   });
 }
 
+/** 내가 오늘 칭찬한 사람 '전체 목록'을 통째로 기록 — 보낸 칭찬(_compliments)이 단일 출처라
+ *  추가·삭제 어느 쪽이든 목록을 다시 계산해 넘기면 항상 정확하다. */
 export function useSetComplimentCoverage(date: string, myId: number | null) {
   const qc = useQueryClient();
-  return async (targetId: number | null) => {
+  return async (targetIds: number[]) => {
     if (myId == null) return;
+    const list = [...new Set(targetIds.filter((n) => n > 0))];
     // 낙관적 갱신 먼저 — 서버 쓰기가 실패해도(규칙 미게시 등) 내 화면 새싹은 즉시 갱신
-    qc.setQueryData(["complimentCoverage", date], (prev: Record<string, number> | undefined) => ({
-      ...prev,
-      [myId]: targetId ?? 0,
-    }));
-    // 내 키에 내 대상 기록 → 대상을 바꿔도 항상 정확. 대상 없으면 0(=미기록).
-    await setDoc(doc(db(), "complimentCoverage", date), { [myId]: targetId ?? 0 }, { merge: true });
+    qc.setQueryData(
+      ["complimentCoverage", date],
+      (prev: Record<string, CoverageValue> | undefined) => ({ ...prev, [myId]: list })
+    );
+    await setDoc(doc(db(), "complimentCoverage", date), { [myId]: list }, { merge: true });
   };
 }
 

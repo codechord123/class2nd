@@ -30,6 +30,7 @@ import JuiceBurst from "@/components/ui/Juice";
 import {
   useAttendance,
   useBestGroups,
+  coverageReceived,
   useComplimentCoverage,
   usePeerCriteria,
   useSetComplimentCoverage,
@@ -324,10 +325,16 @@ export default function TeamPage() {
 
   // 오늘 우리 모둠 칭찬 커버리지 — { 칭찬한사람: 대상 } → 대상 집합이 '받은 사람'.
   // 내가 보낸 칭찬(savedComp)은 서버 커버리지와 무관하게 즉시 반영(쓰기 실패 대비).
+  //   + 오늘 집계가 이미 돌았다면 그 원본(칭찬 전체)도 합친다 — 커버리지는 학생 화면이
+  //     최선을 다해 남기는 힌트라 쓰기가 실패했거나 구버전 형식이면 빠질 수 있는데,
+  //     집계 결과에는 실제로 오간 칭찬이 전부 들어 있어 자동으로 메워진다 (추가 읽기 0).
+  const aggComplimented = (
+    (todayScores as { _meta?: { compliments?: { to: number }[] } } | null | undefined)?._meta
+      ?.compliments ?? []
+  ).map((c) => c.to);
   const receivedSet = new Set([
-    ...Object.values(coverage ?? {})
-      .map((v) => Number(v))
-      .filter((v) => v > 0),
+    ...coverageReceived(coverage),
+    ...aggComplimented,
     ...Object.entries(savedComp)
       .filter(([, v]) => v?.trim())
       .map(([k]) => Number(k)),
@@ -374,7 +381,14 @@ export default function TeamPage() {
     try {
       await savePeer({ [compTo]: compText.trim() }, {});
       // 커버리지 갱신(best-effort) → 다른 친구 화면에서 '받음'으로. 실패해도 칭찬 저장엔 영향 없음
-      void setCoverage(compTo).catch(() => {});
+      // 방금 보낸 1명이 아니라 '오늘 내가 칭찬한 전원'을 기록한다 — 예전엔 뒤 칭찬이 앞 칭찬을
+      // 덮어써서 먼저 칭찬받은 친구가 🌱(미칭찬)으로 되돌아갔다.
+      void setCoverage([
+        ...Object.entries(savedComp)
+          .filter(([, v]) => v?.trim())
+          .map(([k]) => Number(k)),
+        compTo,
+      ]).catch(() => {});
       setCompTo(null);
       setCompText("");
       setCompBurst((k) => k + 1); // 💌 버스트
@@ -448,11 +462,11 @@ export default function TeamPage() {
     try {
       if (kind === "comp") {
         await savePeer({ [tid]: "" }, {});
-        // 커버리지 재계산 — 남은 칭찬 대상이 있으면 그 친구로, 없으면 해제(새싹 복귀)
+        // 커버리지 재계산 — 남은 칭찬 대상 전원 (하나만 남기면 나머지가 🌱으로 되돌아간다)
         const rest = Object.entries(savedComp)
           .filter(([k, v]) => k !== tid && v?.trim())
           .map(([k]) => Number(k));
-        void setCoverage(rest[0] ?? null).catch(() => {});
+        void setCoverage(rest).catch(() => {});
       } else {
         await savePeer({}, { [tid]: "" });
       }

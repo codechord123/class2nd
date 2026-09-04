@@ -17,7 +17,7 @@ import { classGoldLeft } from "@/lib/gold";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { weekBooks } from "@/lib/readingStreak";
 import { FIRST_SCHOOL_DAY, SEMESTER_START, TOTAL_WEEKS, currentWeekNum } from "@/lib/schedule";
-import { groupOf, roleOf } from "@/lib/schedule";
+import { useSchedule } from "@/lib/query/seatChange";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import { useUiText, uiTextOf } from "@/lib/uiText";
@@ -64,6 +64,10 @@ export default function MyStatus() {
   const { data: myAppeals } = useMyAppeals(role === "student" ? studentId : null);
   // 🗳 진행 중 투표 — 오늘 할 일 타일용 (투표 탭과 캐시 공유, 최근 1페이지만)
   const { data: polls } = usePolls(1);
+  // 🪑 자리 교환을 반영한 '실제' 배치 — 훅이라 조기 반환보다 앞에서 호출한다
+  //    주차도 모둠 탭과 같은 식(weekOfDate(오늘))으로 구한다 — currentWeekNum()은 기기
+  //    로컬 시각 기준이라 KST가 아닌 기기에서 주 경계에 한 주 어긋날 수 있다.
+  const schedule = useSchedule(weekOfDate(today, SEMESTER_START, TOTAL_WEEKS), today);
 
   const week = weekOfDate(today, SEMESTER_START, TOTAL_WEEKS);
   const quota = settings?.weeklyReadingQuota ?? 3;
@@ -152,9 +156,17 @@ export default function MyStatus() {
     (getS1WalletOf(studentId)?.silverRemaining ?? 0) -
     ((s1Used?.[String(studentId)] as number | undefined) ?? 0);
   const myScore = ((cum ?? {}) as Record<string, unknown>)[String(studentId)];
-  const nowWeek = currentWeekNum();
-  const myGroup = groupOf(nowWeek, studentId);
-  const myRole = roleOf(nowWeek, studentId);
+  // 🪑 자리 교환을 반영한 '실제' 배치 — 정적 자리표(groupOf)를 그대로 쓰면 교환된 학생의
+  //    '오늘 할 일'이 옛 모둠원을 기준으로 판정돼, 평가를 했는데도 미완료로 뜬다.
+  //    (모둠 탭·리포트는 이미 useSchedule을 쓴다 — 판정 기준을 한 곳으로 맞춘다)
+  const myGroup = schedule.groups.find(
+    (g) => g.chair === studentId || g.members.some((m) => m.studentId === studentId)
+  );
+  const myRole = myGroup
+    ? myGroup.chair === studentId
+      ? "소통"
+      : myGroup.members.find((m) => m.studentId === studentId)?.role
+    : undefined;
   const myTotalBooks = s1BooksOf(stats, studentId) + (stats?.total?.[String(studentId)] ?? 0);
 
   // 받은 마음 배너 — 오늘 집계가 있으면 오늘, 없으면 최근 집계일 기준 (ReceivedNotes와 동일 소스)
