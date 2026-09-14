@@ -55,6 +55,7 @@ import EventBoostPanel from "@/components/teacher/EventBoostPanel";
 import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
 import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
 import TodayBriefing from "@/components/teacher/TodayBriefing";
+import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -319,8 +320,12 @@ export default function TeacherPage() {
       {/* 🛠 점수 관리 — 이의제기·보너스·독서권수·이벤트배수·베플·실버·골드·정산 (모든 보정 한곳) */}
       {tTab === "manage" && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-          <AppealPanel />
-          <HiddenContributionPanel />
+          <div id="panel-appeal">
+            <AppealPanel />
+          </div>
+          <div id="panel-hidden">
+            <HiddenContributionPanel />
+          </div>
           <BonusPanel />
           <ReadingAdjustPanel />
           <DuplicateReportPanel />
@@ -334,7 +339,12 @@ export default function TeacherPage() {
 
       {tTab === "today" && (<>
       {/* 📋 오늘 할 일 — 흩어진 대기 항목 한 줄 요약 + 규칙 미게시·순위 미선정 경고 */}
-      <TodayBriefing onGo={setTTab} />
+      <TodayBriefing
+        onGo={(t, anchor) => {
+          setTTab(t);
+          if (anchor) revealPanel(anchor); // 탭 렌더를 기다렸다가 펼치고 스크롤
+        }}
+      />
 
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
@@ -481,7 +491,7 @@ export default function TeacherPage() {
       {/* ⚙️ 설정·기타 — 자리 승인(맨 위) + 설정·관리 도구(접기) */}
       {tTab === "settings" && (<>
       {/* 자리 변경 승인 — 대기 건이 있으면 눈에 띄게 맨 위 */}
-      <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+      <section id="panel-seat-approve" className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h2 className="text-lg font-bold">
           🎫 자리 변경 승인 대기{" "}
           <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
@@ -717,7 +727,9 @@ export default function TeacherPage() {
         </summary>
         <div className="space-y-4 border-t border-ink-100 p-4">
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-        <PasswordResetPanel />
+        <div id="panel-password">
+          <PasswordResetPanel />
+        </div>
         <div className="lg:col-span-2">
           <TransferPanel />
         </div>

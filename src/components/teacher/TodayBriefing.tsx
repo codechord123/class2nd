@@ -24,7 +24,7 @@ const isDenied = (e: unknown) => (e as { code?: string })?.code === "permission-
 export default function TodayBriefing({
   onGo,
 }: {
-  onGo: (tab: "manage" | "settings") => void;
+  onGo: (tab: "manage" | "settings", anchor?: string) => void;
 }) {
   const { data: seat } = usePendingSeatRequests(true);
   const { data: pendS2 } = usePendingRequests("s2", true);
@@ -61,12 +61,24 @@ export default function TodayBriefing({
   const rankRelevant = today <= BETA_END || lastSchool >= SEMESTER_START;
   const missedRank = rankRelevant && lastSchool && !bestGroups?.[lastSchool];
 
-  const chips: { key: string; label: string; go?: "manage" | "settings"; href?: string }[] = [];
-  if (nSeat) chips.push({ key: "seat", label: `🎫 자리 승인 ${nSeat}건`, go: "settings" });
+  // 칩마다 '탭 + 그 탭 안의 패널 id'를 들고 간다 — 탭만 바꾸면 대상이 접힌 <details>
+  // 안이나 화면 밖에 있어 아무 일도 안 일어난 것처럼 보인다 (사용자 지적 2026-09-14).
+  const chips: {
+    key: string;
+    label: string;
+    go?: "manage" | "settings";
+    anchor?: string;
+    href?: string;
+  }[] = [];
+  if (nSeat)
+    chips.push({ key: "seat", label: `🎫 자리 승인 ${nSeat}건`, go: "settings", anchor: "panel-seat-approve" });
   if (nShop) chips.push({ key: "shop", label: `🛒 상점 신청 ${nShop}건`, href: "/shop" });
-  if (nAppeal) chips.push({ key: "appeal", label: `🙋 이의제기 ${nAppeal}건`, go: "manage" });
-  if (nHidden) chips.push({ key: "hidden", label: `🕵️ 숨은 기여 ${nHidden}건`, go: "manage" });
-  if (nReset) chips.push({ key: "reset", label: `🔑 비밀번호 ${nReset}건`, go: "settings" });
+  if (nAppeal)
+    chips.push({ key: "appeal", label: `🙋 이의제기 ${nAppeal}건`, go: "manage", anchor: "panel-appeal" });
+  if (nHidden)
+    chips.push({ key: "hidden", label: `🕵️ 숨은 기여 ${nHidden}건`, go: "manage", anchor: "panel-hidden" });
+  if (nReset)
+    chips.push({ key: "reset", label: `🔑 비밀번호 ${nReset}건`, go: "settings", anchor: "panel-password" });
 
   // 규칙 미게시 감지 — 어느 컬렉션이 막혔는지 이름으로 알려준다.
   // 단, 이 기기의 인증이 익명(교사 이메일 아님)이면 규칙이 최신이어도 같은 오류가 난다 —
@@ -106,7 +118,11 @@ export default function TodayBriefing({
                 {c.label} →
               </Link>
             ) : (
-              <button key={c.key} onClick={() => c.go && onGo(c.go)} className={chipCls}>
+              <button
+                key={c.key}
+                onClick={() => c.go && onGo(c.go, c.anchor)}
+                className={chipCls}
+              >
                 {c.label} →
               </button>
             )
