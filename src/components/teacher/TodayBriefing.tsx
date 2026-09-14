@@ -18,6 +18,7 @@ import { useAllAppeals } from "@/lib/query/appeals";
 import { useHiddenNominations } from "@/lib/query/board";
 import { useBestGroups, useMenuRequests } from "@/lib/query/classMeta";
 import { useSettings } from "@/lib/query/settings";
+import { useMailMeta } from "@/lib/query/letters";
 
 const isDenied = (e: unknown) => (e as { code?: string })?.code === "permission-denied";
 
@@ -34,6 +35,8 @@ export default function TodayBriefing({
   const { data: noms } = useHiddenNominations(true);
   const { data: bestGroups } = useBestGroups();
   const { data: settings } = useSettings();
+  // 우체통 규칙 게시 여부 확인 겸용 — 1번 학생 부모 문서 1개만 읽는다(교사는 전원 읽기 가능)
+  const { error: letterErr } = useMailMeta(1);
   // 비밀번호 재설정 요청 — 소량 컬렉션 전체 (PasswordResetPanel과 동일 키로 캐시 공유)
   const { data: resets } = useQuery({
     queryKey: ["resetRequests"],
@@ -88,6 +91,7 @@ export default function TodayBriefing({
   const missingRules = [
     ...(isDenied(appealErr) ? ["이의제기(scoreAppeals)"] : []),
     ...(isDenied(menuErr) ? ["메뉴 제안(menuRequests)"] : []),
+    ...(isDenied(letterErr) ? ["비밀 우체통(letters)"] : []),
   ];
 
   if (!chips.length && !missedRank && !missingRules.length) return null; // 할 일 없으면 조용히

@@ -55,6 +55,7 @@ import EventBoostPanel from "@/components/teacher/EventBoostPanel";
 import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
 import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
 import TodayBriefing from "@/components/teacher/TodayBriefing";
+import LetterPanel from "@/components/teacher/LetterPanel";
 import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
@@ -87,6 +88,7 @@ export default function TeacherPage() {
   const [dHolidays, setDHolidays] = useState<string | null>(null); // 공휴일 목록 편집 (줄바꿈 구분)
   const [dLockNote, setDLockNote] = useState<string | null>(null); // 사용 잠금 안내 문구 편집
   const [lockBusy, setLockBusy] = useState(false);
+  const [lettersBusy, setLettersBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -266,6 +268,20 @@ export default function TeacherPage() {
     }
   }
 
+  async function toggleLetters() {
+    if (!settings || lettersBusy) return;
+    setLettersBusy(true);
+    const next: ClassSettings = { ...settings, lettersOpen: settings.lettersOpen === false };
+    try {
+      await saveSettings(next);
+      setMsg(next.lettersOpen ? "💌 우체통을 열었어요." : "🔒 우체통을 닫았어요.");
+    } catch (e) {
+      setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLettersBusy(false);
+    }
+  }
+
   async function saveAll() {
     const next: ClassSettings = {
       ...settings!,
@@ -348,6 +364,11 @@ export default function TeacherPage() {
 
       {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
       <TodaySubmissionsPanel date={date} />
+
+      {/* 💌 우체통 — 편지 보내기 + 열람(비밀 우체통의 안전망) */}
+      <div id="panel-letters" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+        <LetterPanel />
+      </div>
 
       {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 맨 위(2열)에 */}
       <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
@@ -637,6 +658,26 @@ export default function TeacherPage() {
             <p className="mt-1 text-xs text-ink-600">
               켜면 학생이 <b>실버·골드 사용(상점 신청)과 자리 신청</b>을 할 수 없어요. 날짜 설정과
               별개인 즉시 스위치예요 — 거북이 독서·투표·칭찬은 그대로 열려 있어요.
+            </p>
+            {/* 💌 우체통은 재화와 무관해서 상점 잠금과 분리한다 —
+                방학에 상점만 잠그고 편지는 열어둘 수 있어야 한다 */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 pt-3">
+              <span className="text-sm font-bold text-ink-800">💌 비밀 우체통 (학생끼리 편지)</span>
+              <button
+                onClick={() => void toggleLetters()}
+                disabled={lettersBusy}
+                className={`press rounded-btn px-4 py-2 text-sm font-bold text-white disabled:opacity-50 ${
+                  settings.lettersOpen === false ? "bg-rose-600" : "bg-ink-400"
+                }`}
+              >
+                {settings.lettersOpen === false
+                  ? "🔒 닫힘 — 눌러서 열기"
+                  : "🔓 열림 — 눌러서 닫기"}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-ink-600">
+              닫으면 <b>학생끼리 편지 보내기</b>가 막혀요 (이미 받은 편지는 그대로 볼 수 있고,
+              <b> 선생님 편지는 언제나</b> 보낼 수 있어요).
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input

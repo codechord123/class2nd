@@ -84,6 +84,11 @@ export interface ClassSettings {
   usageLocked?: boolean;
   /** 잠금 안내 문구 (학생에게 표시) — 비우면 기본 문구 */
   usageLockNote?: string;
+  /** 💌 비밀 우체통 열림 (기본 true) — 끄면 학생끼리 편지 발송이 막힌다.
+   *  상점 잠금(usageLocked)과 분리한 이유: 잠금은 '재화를 못 쓰게' 하는 스위치이고
+   *  편지는 재화와 무관해서, 방학에 상점만 잠그고 편지는 열어둘 수 있어야 한다.
+   *  (선생님 발송은 이 값과 무관하게 항상 가능) */
+  lettersOpen?: boolean;
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {
