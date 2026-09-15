@@ -102,6 +102,30 @@ export default function TeacherPage() {
   const setBestGroup = useSetBestGroup();
   const [bestRanking, setBestRanking] = useState<number[]>([]); // 누른 순서 = 1위→5위
 
+  // 개요 카드 등에서 /teacher#panel-... 로 들어오면 그 패널까지 데려다준다
+  // (탭만 맞춰도 접힌 <details> 안이거나 화면 밖이면 아무 일도 없어 보인다)
+  const HASH_TAB: Record<string, "today" | "manage" | "settings"> = {
+    "panel-letters": "today",
+    "panel-appeal": "manage",
+    "panel-hidden": "manage",
+    "panel-seat-approve": "settings",
+    "panel-password": "settings",
+  };
+  useEffect(() => {
+    if (role !== "teacher") return;
+    const id = window.location.hash.replace(/^#/, "");
+    const tab = HASH_TAB[id];
+    if (!tab) return;
+    // 렌더 중 동기 setState를 피해 다음 프레임에 — revealPanel도 그때 패널을 찾는다
+    const t = requestAnimationFrame(() => {
+      setTTab(tab);
+      revealPanel(id);
+    });
+    return () => cancelAnimationFrame(t);
+    // 마운트 시 한 번만 — 해시는 그대로 두어 새로고침해도 같은 자리로 온다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   // 자동 집계·정산: 교사 화면이 열리면 밀린 하루 집계(자정 기준)와 끝난 세션 정산을 자동 처리
   const autoRan = useRef(false);
   useEffect(() => {
