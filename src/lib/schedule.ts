@@ -22,6 +22,11 @@ export const TOTAL_WEEKS = schedules.meta.totalWeeks;
  *  SEMESTER_START(8/17 월)는 주차 계산용 '월요일 앵커'라 하루 다르다 — D-day 표시는 이 값으로. */
 export const FIRST_SCHOOL_DAY = "2026-08-18";
 
+/** 🐢 거북이 독서 목표 마감일 — 방학식(2학기 마지막 등교일).
+ *  마라톤 바의 🐰 페이스 토끼가 '오늘까지 몇 권이어야 하는지'를 이 날짜 기준으로 계산한다.
+ *  (21주차가 2027-01-04 시작이라 그 주 금요일. 학년이 바뀌면 이 값만 고치면 된다) */
+export const READING_DEADLINE = "2027-01-08";
+
 /** 오늘 날짜 기준 현재 주차 (1~21로 클램프). 개학 전이면 1. */
 export function currentWeekNum(now: Date = new Date()): number {
   const start = new Date(SEMESTER_START + "T00:00:00+09:00");
