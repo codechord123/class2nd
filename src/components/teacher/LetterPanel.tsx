@@ -1,9 +1,9 @@
 "use client";
-// ✉️ 편지 보내기 + 📬 우체통 열람 (교사).
-// 비밀 우체통의 안전망은 '선생님이 전부 볼 수 있다'는 사실 하나다 — 그래서 열람을
-// 기능이 아니라 기본으로 둔다. 다만 25명 전체를 한 번에 읽으면 읽기가 터지므로
-// 고른 학생 1명분만 읽는다 (부모 1 + 최근 50통).
-import { useState } from "react";
+// ✉️ 편지 보내기 + 📬 우체통 (교사).
+// 학생끼리는 편지를 주고받지 않으므로 우체통 하나가 곧 '그 학생과 나의 대화'다.
+// 답장을 기다리는 학생을 맨 위에 칩으로 세워 놓친 편지가 없게 한다.
+// 읽기: 대기 배지 = 부모 문서 25개(오늘 탭 열 때) · 대화 열람 = 고른 1명분만.
+import { useEffect, useState } from "react";
 import { students, studentById } from "@/lib/roster";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
@@ -12,8 +12,9 @@ import {
   LETTER_MAX,
   useDeleteLetter,
   useLetters,
-  useMailMeta,
+  useMarkTeacherSeen,
   useTeacherSendLetter,
+  useWaitingStudents,
   type Letter,
 } from "@/lib/query/letters";
 
@@ -21,24 +22,27 @@ const fmt = (ts: number) => {
   const d = new Date(ts + 9 * 3600000);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 };
-const nameOf = (from: Letter["from"]) =>
-  from === "teacher" ? "선생님" : (studentById.get(from)?.name ?? "?");
 
 export default function LetterPanel() {
   const { toast, confirm } = useFeedback();
   const active = students.filter((s) => !s.inactive);
 
-  // ── 보내기 ──
   const [picked, setPicked] = useState<number[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const teacherSend = useTeacherSendLetter();
 
-  // ── 열람 ──
   const [viewId, setViewId] = useState<number | null>(null);
-  const { data: meta } = useMailMeta(viewId);
   const { data: letters } = useLetters(viewId);
+  const { data: waiting } = useWaitingStudents(true);
+  const markTeacherSeen = useMarkTeacherSeen();
   const del = useDeleteLetter();
+
+  // 대화를 연 순간 '답장 기다리는 중' 배지를 내린다
+  useEffect(() => {
+    if (viewId != null && letters) void markTeacherSeen(viewId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewId, !!letters]);
 
   const toggle = (id: number) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -62,7 +66,7 @@ export default function LetterPanel() {
     if (viewId == null) return;
     const ok = await confirm({
       title: "이 편지를 삭제할까요?",
-      body: "되돌릴 수 없어요. 문제가 되는 편지만 지워주세요.",
+      body: "되돌릴 수 없어요.",
       confirmLabel: "삭제",
       danger: true,
     });
@@ -72,13 +76,13 @@ export default function LetterPanel() {
       .catch((e) => toast(e instanceof Error ? e.message : "삭제 실패", "error"));
   }
 
-  const reported = (letters ?? []).filter((l) => meta?.flags?.[l.id]?.reported);
+  const thread = [...(letters ?? [])].sort((a, b) => a.createdAt - b.createdAt);
 
   return (
     <>
       <Card
         title="✉️ 편지 보내기"
-        desc="고른 학생의 우체통으로 편지가 들어가요. 아이들 화면엔 '선생님'으로 표시돼요."
+        desc="고른 학생의 우체통으로 들어가요. 학생 화면엔 '선생님'으로 표시돼요."
       >
         <div className="mt-3 flex flex-wrap gap-1.5">
           {active.map((s) => (
@@ -134,9 +138,28 @@ export default function LetterPanel() {
       </Card>
 
       <Card
-        title="📬 우체통 열람"
-        desc="학생을 고르면 그 학생이 받은 편지를 볼 수 있어요 (고른 1명만 읽어요)."
+        title="📬 우체통"
+        desc="학생을 고르면 그 학생과 주고받은 편지가 보여요 (고른 1명만 읽어요)."
       >
+        {waiting && waiting.length > 0 && (
+          <div className="mt-3 rounded-btn bg-amber-50 p-3 ring-1 ring-amber-200">
+            <p className="text-xs font-bold text-amber-800">
+              💌 답장을 기다리는 학생 {waiting.length}명 — 눌러서 열어보세요
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {waiting.map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setViewId(id)}
+                  className="press rounded-full bg-white px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-300"
+                >
+                  {studentById.get(id)?.name ?? id} →
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <select
           value={viewId ?? ""}
           onChange={(e) => setViewId(e.target.value ? Number(e.target.value) : null)}
@@ -146,53 +169,65 @@ export default function LetterPanel() {
           {active.map((s) => (
             <option key={s.id} value={s.id}>
               {s.id}번 {s.name}
+              {waiting?.includes(s.id) ? " 💌" : ""}
             </option>
           ))}
         </select>
 
         {viewId == null ? (
           <EmptyState emoji="📬" title="학생을 고르면 편지가 보여요" />
-        ) : !letters?.length ? (
-          <EmptyState emoji="📭" title="받은 편지가 없어요" />
+        ) : !thread.length ? (
+          <EmptyState
+            emoji="📭"
+            title="아직 주고받은 편지가 없어요"
+            desc="위에서 첫 편지를 보내보세요."
+          />
         ) : (
           <>
-            {reported.length > 0 && (
-              <p className="mt-3 rounded-btn bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700">
-                🚨 이 학생이 신고한 편지 {reported.length}건이 있어요 — 아래에서 확인해 주세요.
-              </p>
-            )}
             <ul className="mt-3 space-y-2">
-              {letters.map((l) => {
-                const f = meta?.flags?.[l.id];
+              {thread.map((l) => {
+                const fromTeacher = l.from === "teacher";
                 return (
                   <li
                     key={l.id}
-                    className={`rounded-btn border p-3 ${
-                      f?.reported ? "border-rose-300 bg-rose-50" : "border-ink-200 bg-white"
-                    }`}
+                    className={`flex ${fromTeacher ? "justify-end" : "justify-start"}`}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[12px] font-bold text-ink-700">
-                        {nameOf(l.from)} →{" "}
-                        {studentById.get(viewId)?.name}
-                      </span>
-                      <span className="text-xs text-ink-400">{fmt(l.createdAt)}</span>
-                      {f?.reported && <span className="text-xs font-bold text-danger">🚨 신고됨</span>}
-                      {f?.hidden && <span className="text-xs text-ink-400">숨김</span>}
-                    </div>
-                    <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-ink-800">
-                      {l.text}
-                    </p>
-                    <button
-                      onClick={() => void doDelete(l)}
-                      className="press mt-2 rounded-btn bg-white px-2.5 py-1 text-xs font-bold text-danger ring-1 ring-ink-200"
+                    <div
+                      className={`max-w-[85%] rounded-card border p-3 ${
+                        fromTeacher
+                          ? "border-brand/30 bg-brand-weak/50"
+                          : "border-pink-200 bg-pink-50"
+                      }`}
                     >
-                      삭제
-                    </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-ink-100 px-1.5 py-0.5 text-[12px] font-bold text-ink-700">
+                          {fromTeacher ? "선생님" : (studentById.get(viewId)?.name ?? "학생")}
+                        </span>
+                        <span className="text-xs text-ink-400">{fmt(l.createdAt)}</span>
+                      </div>
+                      <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-ink-800">
+                        {l.text}
+                      </p>
+                      <button
+                        onClick={() => void doDelete(l)}
+                        className="press mt-2 rounded-btn bg-white px-2.5 py-1 text-xs font-bold text-danger ring-1 ring-ink-200"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </li>
                 );
               })}
             </ul>
+            <button
+              onClick={() => {
+                setPicked([viewId]);
+                document.getElementById("panel-letters")?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="press mt-3 w-full rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+            >
+              ✍️ {studentById.get(viewId)?.name}에게 답장 쓰기
+            </button>
           </>
         )}
       </Card>

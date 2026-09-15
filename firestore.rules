@@ -222,54 +222,51 @@ service cloud.firestore {
       allow delete: if isTeacher();
     }
 
-    // 💌 비밀 우체통
-    //   letters/{학생번호}            부모 — lastAt(도착 시각)·seenAt(읽음)·flags(숨김/신고)·sent(보낸 사본)
-    //   letters/{학생번호}/items/{id} 편지 본문 1통 = 문서 1개
+    // 💌 비밀 우체통 — 선생님과 학생 '둘 사이'만 (사용자 확정 2026-09-15)
+    //   letters/{학생번호}            부모 — 배지·읽음 시각만
+    //     lastAt(선생님→학생) · seenAt(학생이 연 시각)
+    //     studentLastAt(학생→선생님) · teacherSeenAt(선생님이 연 시각)
+    //   letters/{학생번호}/items/{id} 편지 1통 = 문서 1개, from = "teacher" | 그 학생 번호
     //
-    // 편지를 배열이 아니라 '문서 1통'으로 둔 이유가 곧 보안의 핵심이다:
-    //   ① create에서 from이 진짜 보낸 사람인지 대조할 수 있어 명의 사칭이 막힌다
-    //   ② update·delete를 교사 전용으로 두어 받은 편지를 학생이 고치거나 지울 수 없다
-    //      (배열이었다면 소유자가 통째로 덮어써 위조·증거 인멸이 가능했다)
-    // 🔒 읽기는 본인과 교사만 — 비밀 우체통이라 남의 편지함은 들여다볼 수 없다.
-    // ⛔ 학생끼리 발송은 교사 설정(lettersOpen)이 false면 차단 (선생님 발송은 항상 가능).
+    // 🔒 학생끼리 편지는 없다. 학생은 '자기 우체통에, 자기 이름으로'만 쓸 수 있어
+    //    (ownsStudent(studentId) && from == studentId) 남의 우체통에 넣는 길 자체가 없고,
+    //    from을 사칭할 수도 없다. 우체통 하나가 곧 그 학생과 선생님의 1:1 대화가 된다.
+    // 🗑 update·delete는 교사 전용 — 보낸 편지를 고치거나 지워 증거를 없앨 수 없다.
+    // ⛔ 학생 발송은 교사 설정(lettersOpen)이 false면 차단 (선생님 발송은 항상 가능).
     //    클라이언트 차단만으론 옛 페이지를 열어둔 기기가 뚫린다 — 서버에서 막는다.
     // ⚠️ 'lettersOpen' in ... 가드 필수 — 없는 키를 바로 읽으면 규칙이 오류로 끝나
-    //    (Property lettersOpen is undefined) 설정에 이 값을 아직 넣지 않은 학급에서
-    //    편지가 통째로 막힌다. 기존 inRequestWindow()와 같은 방식으로 방어한다.
+    //    (Property lettersOpen is undefined) 설정에 이 값이 없는 학급에서 편지가 통째로 막힌다.
     function lettersOpen() {
       let p = /databases/$(database)/documents/classData/settings;
       return !(exists(p) && 'lettersOpen' in get(p).data && get(p).data.lettersOpen == false);
     }
     match /letters/{studentId} {
       allow read: if isTeacher() || (isAuthed() && ownsStudent(studentId));
-      // 보내는 사람은 '도착 시각'만 남긴다 (받는 사람 홈 배지용)
+      // 학생은 자기 문서의 '읽음·보낸 시각'만 남긴다 (남의 문서엔 손대지 못한다)
       allow create: if isTeacher()
-        || (isAuthed() && lettersOpen() && request.resource.data.keys().hasOnly(['lastAt']))
         || (isAuthed() && ownsStudent(studentId)
-            && request.resource.data.keys().hasOnly(['lastAt', 'seenAt', 'flags', 'sent']));
+            && request.resource.data.keys().hasOnly(['seenAt', 'studentLastAt']));
       allow update: if isTeacher()
-        || (isAuthed() && lettersOpen()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastAt']))
-        // 본인만 — 읽음 표시·숨김/신고 표시·보낸 사본
         || (isAuthed() && ownsStudent(studentId)
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['lastAt', 'seenAt', 'flags', 'sent']));
+                 .hasOnly(['seenAt', 'studentLastAt']));
       allow delete: if isTeacher();
 
       match /items/{letterId} {
-        // 편지 본문 — 받는 사람과 교사만 읽는다
+        // 편지 본문 — 그 학생과 교사만 읽는다
         allow read: if isTeacher() || (isAuthed() && ownsStudent(studentId));
-        // 보내기: 본인 명의로만 (from 사칭 차단) + 길이 검증
+        // 학생 발송: 자기 우체통 + 자기 이름으로만 → 학생끼리 편지가 구조적으로 불가능
         allow create: if isTeacher()
           || (isAuthed() && lettersOpen()
+              && ownsStudent(studentId)
               && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt'])
               && request.resource.data.from is int
-              && ownsStudent(string(request.resource.data.from))
+              && string(request.resource.data.from) == studentId
               && request.resource.data.text is string
               && request.resource.data.text.size() >= 10
               && request.resource.data.text.size() <= 500
               && request.resource.data.createdAt is int);
-        // 받은 편지는 불변 — 고치거나 지우는 건 교사만 (숨김은 부모 flags에)
+        // 오간 편지는 불변 — 고치거나 지우는 건 교사만
         allow update, delete: if isTeacher();
       }
     }
