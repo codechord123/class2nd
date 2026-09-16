@@ -14,8 +14,9 @@ import { useSettings } from "@/lib/query/settings";
 import { useReadingStats } from "@/lib/query/reading";
 import { useFeedback } from "@/components/ui/Feedback";
 import { s1TotalOf } from "@/lib/staticData";
-import { READING_DEADLINE, SEMESTER_START } from "@/lib/schedule";
+import { READING_DEADLINE, READING_START } from "@/lib/schedule";
 import { todayKST } from "@/lib/date";
+import { students } from "@/lib/roster";
 
 // 🍪 학급 응원 클릭 — 10,000번 달성 시 학급 골드 +5 깜짝 이벤트 (1회성, 교사 접속 때 지급).
 // 학생에게는 몇 번 눌렀는지 보여주지 않는다 (사용자 확정 — 서프라이즈 유지, 읽기 0).
@@ -107,13 +108,13 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
   const total = s1Total + s2Total;
   const progress = goal > 0 ? Math.min((total / goal) * 100, 100) : 0;
 
-  // 🐰 페이스 — 개학부터 방학식까지를 균등하게 나눠 '오늘까지 있어야 할 권수'.
-  //    1학기 권수는 이미 쌓인 몫이라 출발선으로 두고, 남은 목표만 기간에 배분한다.
+  // 🐰 페이스 — 1학기 개학(READING_START)부터 방학식까지를 균등하게 나눈 '오늘까지 있어야 할 권수'.
+  //    목표 권수가 한 학년 전체 몫이라 출발선도 1학기 개학이어야 한다.
   const day = (d: string) => new Date(d + "T00:00:00Z").getTime();
-  const span = day(READING_DEADLINE) - day(SEMESTER_START);
-  const elapsed = span > 0 ? (day(todayKST()) - day(SEMESTER_START)) / span : 1;
+  const span = day(READING_DEADLINE) - day(READING_START);
+  const elapsed = span > 0 ? (day(todayKST()) - day(READING_START)) / span : 1;
   const ratio = Math.min(Math.max(elapsed, 0), 1);
-  const paceBooks = Math.round(s1Total + (goal - s1Total) * ratio);
+  const paceBooks = Math.round(goal * ratio);
   const pacePct = goal > 0 ? Math.min((paceBooks / goal) * 100, 100) : 0;
   const ahead = total >= paceBooks;
   const gap = Math.abs(total - paceBooks);
@@ -123,6 +124,10 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
     0,
     Math.ceil((day(READING_DEADLINE) - day(todayKST())) / 86400000)
   );
+  // 지금부터 필요한 하루 권수 — 뒤처졌을 때 '그래서 뭘 하면 되는지'를 주는 숫자.
+  // 학급 전체 기준이라 25명으로 나누면 1인당 감이 온다 (주간 3권 미션과 맞대볼 수 있게).
+  const perDay = daysLeft > 0 ? (goal - total) / daysLeft : 0;
+  const perWeekEach = perDay > 0 ? (perDay * 7) / Math.max(students.length, 1) : 0;
 
   // 10연타마다 특별 버스트·응원말 — 연속 클릭에 '쌓이는 감각'을 준다
   const comboHit = combo > 0 && combo % 10 === 0;
@@ -253,7 +258,8 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
         )}
       </button>
 
-      {/* 🐰 페이스 안내 — 토끼가 왜 거기 있는지 한 줄로 (숫자가 곧 다음 행동) */}
+      {/* 🐰 페이스 안내 — '얼마나 뒤처졌나'보다 '이제 뭘 하면 되나'가 앞에 와야 움직인다.
+          뒤처졌을 때 남은 기간으로 나눈 하루 권수(+1인당 주간 권수)를 같이 보여준다. */}
       <p
         className={`rounded-btn px-3 py-2 text-[12px] font-bold ${
           ahead ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
@@ -269,7 +275,8 @@ export default function TurtleMarathon({ bare = false }: { bare?: boolean }) {
         ) : (
           <>
             🐢 지금은 <b className="tnum">{gap.toLocaleString()}권 뒤</b> — 남은{" "}
-            <b className="tnum">{daysLeft}일</b> 동안 조금만 더 달리면 따라잡아요!
+            <b className="tnum">{daysLeft}일</b> 동안 <b className="tnum">하루 {perDay.toFixed(1)}권</b>
+            (한 사람이 일주일에 <b className="tnum">{perWeekEach.toFixed(1)}권</b>)이면 따라잡아요!
           </>
         )}
       </p>
