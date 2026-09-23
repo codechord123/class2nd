@@ -2,7 +2,7 @@
 // 건의 게시판 — 커뮤니티 게시판형 리빌드:
 //   목록(번호·제목·작성자·날짜·💬댓글수) → 클릭하면 상세 화면(본문+댓글 스레드).
 //   공지 상단 고정 · 검색 · 글쓰기 접기 · 더보기 페이지네이션.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/stores/session";
 import { friendlyWriteError } from "@/lib/auth";
@@ -15,6 +15,14 @@ import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
+import {
+  clearBoardDraft,
+  draftKeyOf,
+  draftTimeLabel,
+  hasDraftContent,
+  loadBoardDraft,
+  saveBoardDraft,
+} from "@/lib/boardDraft";
 import JuiceBurst from "@/components/ui/Juice";
 import {
   useSuggestions,
@@ -602,6 +610,86 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   const [lawTitle, setLawTitle] = useState(""); // 법률 제안: 조 제목
   const [lawClauses, setLawClauses] = useState<string[]>([""]); // 법률 제안: 항별 내용
   const [hiddenTarget, setHiddenTarget] = useState<number | null>(null); // 숨은 기여 추천 대상
+
+  // ✏️ 임시저장 — 쓰다 만 글을 이 기기에 자동으로 남긴다(읽기·쓰기 0).
+  //    아이들은 저장 버튼을 누르지 않는다 → 버튼 대신 '자동 저장 + 돌아오면 복원 제안'.
+  const draftKey = draftKeyOf(role, studentId);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  // 복원 제안은 '글쓰기를 열기 전'에 띄운다 — 열자마자 남의 글이 채워져 있으면 당황한다
+  const [pendingDraft, setPendingDraft] = useState<ReturnType<typeof loadBoardDraft>>(null);
+  const draftLoaded = useRef(false);
+  useEffect(() => {
+    if (draftLoaded.current || !draftKey) return;
+    draftLoaded.current = true;
+    const d = loadBoardDraft(draftKey);
+    if (!hasDraftContent(d)) return;
+    // 렌더 중 동기 setState를 피해 다음 프레임에 — 복원 제안은 한 박자 늦어도 무해하다
+    const t = requestAnimationFrame(() => setPendingDraft(d));
+    return () => cancelAnimationFrame(t);
+  }, [draftKey]);
+
+  const draftSnapshot = useMemo(
+    () => ({
+      kind: postKind,
+      title,
+      content,
+      teacherOnly,
+      announce,
+      dept: postDept,
+      lawTitle,
+      lawClauses,
+      hiddenTarget,
+    }),
+    [postKind, title, content, teacherOnly, announce, postDept, lawTitle, lawClauses, hiddenTarget]
+  );
+
+  // 타이핑마다 쓰면 과하니 0.6초 멈췄을 때만 저장 (localStorage라 비용은 없지만 렌더 부담 최소화)
+  useEffect(() => {
+    if (!writing || !draftKey) return;
+    const t = setTimeout(() => setSavedAt(saveBoardDraft(draftKey, draftSnapshot)), 600);
+    return () => clearTimeout(t);
+  }, [writing, draftKey, draftSnapshot]);
+
+  // 탭을 닫거나 화면을 떠날 때는 디바운스를 기다리지 않고 즉시 저장.
+  // ⚠️ 저장할 값은 반드시 ref에서 읽는다 — effect 정리(cleanup)는 '그 effect가 적용되던
+  //    시점의' 스냅샷을 붙들고 있어서, 등록 직후 정리가 돌면 방금 지운 초안을 옛 내용으로
+  //    되살려 버린다 (E2E에서 '등록했는데 쓰다 만 글이 또 뜸'으로 잡힌 버그).
+  const snapRef = useRef(draftSnapshot);
+  snapRef.current = draftSnapshot;
+  useEffect(() => {
+    if (!writing || !draftKey) return;
+    const flush = () => setSavedAt(saveBoardDraft(draftKey, snapRef.current));
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      flush();
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [writing, draftKey]);
+
+  function restoreDraft() {
+    const d = pendingDraft;
+    if (!d) return;
+    setPostKind(d.kind);
+    setTitle(d.title);
+    setContent(d.content);
+    setTeacherOnly(d.teacherOnly);
+    setAnnounce(d.announce);
+    setPostDept(d.dept);
+    setLawTitle(d.lawTitle);
+    setLawClauses(d.lawClauses.length ? d.lawClauses : [""]);
+    setHiddenTarget(d.hiddenTarget);
+    setSavedAt(d.at);
+    setPendingDraft(null);
+    setWriting(true);
+  }
+
+  function dropDraft() {
+    clearBoardDraft(draftKey);
+    setPendingDraft(null);
+    setSavedAt(null);
+  }
   const [search, setSearch] = useState("");
   // 📜 법률 탭 부서 필터 — ""=전 부서, "법무부" 등=그 부서만.
   // 부서별로 어떤 법이 올라와 통과(채택)됐는지/안 됐는지 한눈에 (사용자 요청)
@@ -618,32 +706,8 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const deleteMany = useDeleteSuggestions();
 
-  // ✍️ 쓰다 만 글 보존 — 디벗이 꺼지거나 새로고침돼도 제목·내용이 남는다.
-  // 공용 기기 대비 학생별 키. 등록 성공 시 제목·내용이 비워지며 자동 삭제된다.
-  const draftKey = `board-draft-${role === "teacher" ? "t" : (studentId ?? 0)}`;
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(draftKey);
-      if (raw) {
-        const d = JSON.parse(raw) as { title?: string; content?: string };
-        if (d.title) setTitle((v) => v || d.title!);
-        if (d.content) setContent((v) => v || d.content!);
-      }
-    } catch {
-      // 파싱 실패 등 — 초안 없이 진행
-    }
-    // 마운트 시 1회 복원 (키는 세션 로그인 후 고정)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey]);
-  useEffect(() => {
-    try {
-      if (title.trim() || content.trim())
-        localStorage.setItem(draftKey, JSON.stringify({ title, content }));
-      else localStorage.removeItem(draftKey);
-    } catch {
-      // 저장 공간 부족 등 — 보존은 best-effort
-    }
-  }, [title, content, draftKey]);
+  // (임시저장은 위쪽 boardDraft 블록이 담당 — 구버전은 제목·내용만 담고 화면 표시도
+  //  없어서 아이들이 기능의 존재를 몰랐다. 법률 제안·숨은 기여까지 포함해 대체했다)
 
   // 딥링크: /laws#write (구 /board#law) → 헌법 탭 CTA에서 온 학생에게 법률 제안 폼을 바로 열어준다
   // /hidden#write → 숨은 기여 추천 폼을 바로 열어준다
@@ -707,6 +771,7 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
         setHiddenTarget(null);
         setPostKind("general");
         setWriting(false);
+        dropDraft(); // 등록됐으니 초안은 지운다 (다음에 열 때 옛 글이 안 뜨게)
         setPostBurst((k) => k + 1);
         toast("🕵️ 추천했어요! 친구들의 👍 투표를 거쳐 선생님이 금요일에 지급해요.", "success");
       } catch (e) {
@@ -757,6 +822,7 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
       setPostKind("general");
       setPostDept(null);
       setWriting(false);
+      dropDraft(); // 등록됐으니 초안은 지운다
       setPostBurst((k) => k + 1);
       toast("✅ 등록되었어요!");
     } catch (e) {
@@ -1112,6 +1178,41 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
           </div>
         )}
 
+        {/* ✏️ 쓰다 만 글 — 글쓰기를 열기 전에 먼저 물어본다.
+            말없이 채워 넣으면 아이가 "내가 안 쓴 글이 왜 있지?" 하고 당황한다. */}
+        {!writing && pendingDraft && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-3">
+            <span className="text-lg">✏️</span>
+            <span className="min-w-0 flex-1 text-[13px] text-ink-800">
+              <b>쓰다 만 글이 있어요</b>
+              <span className="text-ink-500">
+                {" "}
+                — {draftTimeLabel(pendingDraft.at)} 저장
+                {pendingDraft.kind === "law"
+                  ? " · 📜 법률 제안"
+                  : pendingDraft.kind === "hidden"
+                    ? " · 🕵️ 숨은 기여"
+                    : ""}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-ink-500">
+                {(pendingDraft.title || pendingDraft.lawTitle || pendingDraft.content).slice(0, 60)}
+              </span>
+            </span>
+            <button
+              onClick={restoreDraft}
+              className="press shrink-0 rounded-btn bg-amber-500 px-3 py-1.5 text-xs font-bold text-white"
+            >
+              이어서 쓰기
+            </button>
+            <button
+              onClick={dropDraft}
+              className="press shrink-0 rounded-btn bg-white px-3 py-1.5 text-xs font-bold text-ink-500 ring-1 ring-ink-200"
+            >
+              지우기
+            </button>
+          </div>
+        )}
+
         {writing && (
           <div className="space-y-2 border-b border-ink-100 bg-ink-50/50 p-4">
             {/* 종류 안내 — 법률/숨은기여 탭은 각각 고정. 건의 탭은 일반 안건만이라 선택 UI 불필요
@@ -1275,6 +1376,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                     📌 공지로 고정
                   </label>
                 ))}
+              {/* 자동 저장 표시 — 버튼을 누르라고 하지 않고, 저장되고 있다는 안심만 준다 */}
+              {savedAt != null && (
+                <span className="text-[11px] font-bold text-emerald-600">
+                  ✓ {draftTimeLabel(savedAt)} 자동 저장됨
+                </span>
+              )}
               <button
                 onClick={() => void submit()}
                 disabled={busy}
@@ -1283,6 +1390,10 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                 등록
               </button>
             </div>
+            <p className="mt-1 text-[11px] text-ink-400">
+              ✏️ 쓰는 동안 이 기기에 자동으로 저장돼요 — 실수로 창을 닫아도 다시 열면 이어서 쓸 수
+              있어요.
+            </p>
           </div>
         )}
 
