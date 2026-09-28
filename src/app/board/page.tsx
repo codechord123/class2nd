@@ -15,6 +15,7 @@ import Pager from "@/components/ui/Pager";
 import EmptyState from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
+import AutoTextarea from "@/components/ui/AutoTextarea";
 import {
   clearBoardDraft,
   draftKeyOf,
@@ -275,10 +276,10 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             onChange={(e) => setEditTitle(e.target.value)}
             className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-bold focus:border-brand focus:outline-none"
           />
-          <textarea
+          <AutoTextarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            rows={4}
+            minRows={6}
             className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
           />
           <div className="flex gap-2">
@@ -1250,7 +1251,7 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                       </button>
                     ))}
                 </div>
-                <textarea
+                <AutoTextarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder={
@@ -1258,7 +1259,7 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                       ? `${studentById.get(hiddenTarget)?.name}이(가) 학급을 위해 드러나지 않게 무엇을 했나요? (예: 아무도 안 볼 때 우유갑을 정리했어요)`
                       : "먼저 위에서 추천할 친구를 골라주세요 (자기 자신은 추천할 수 없어요)"
                   }
-                  rows={3}
+                  minRows={5}
                   className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
                 />
                 {hiddenTarget != null && (
@@ -1308,13 +1309,13 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                         <span className="mt-2 shrink-0 text-base font-bold text-brand">
                           {CIRCLED_NUMS[hi] ?? "·"}
                         </span>
-                        <textarea
+                        <AutoTextarea
                           value={cl}
                           onChange={(e) =>
                             setLawClauses(lawClauses.map((x, j) => (j === hi ? e.target.value : x)))
                           }
                           placeholder="항 내용을 적어주세요"
-                          rows={2}
+                          minRows={3}
                           className="w-full rounded-btn border border-ink-300 px-3 py-2 text-sm focus:border-brand focus:outline-none"
                         />
                         {lawClauses.length > 1 && (
@@ -1345,11 +1346,11 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                   placeholder="안건 제목 (예: 사물함 정리 규칙을 정하자)"
                   className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] font-medium focus:border-brand focus:outline-none"
                 />
-                <textarea
+                <AutoTextarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="어떤 점을 바꾸면 좋을지, 왜 그런지 적어주세요. 친구들이 댓글로 토론하고 👍👎로 의견을 모아요."
-                  rows={4}
+                  minRows={7}
                   className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
                 />
               </>
