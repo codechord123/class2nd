@@ -51,6 +51,10 @@ export interface Suggestion {
   disagree?: Record<string, boolean>; // studentId → 반대
   comments?: BoardComment[];
   createdAt: number;
+  /** ✏️ 선생님이 학생 글을 다듬었다는 표시 — 자치 게시판이라 '누가 고쳤는지'를
+   *  숨기면 아이가 자기 글이 바뀐 걸 보고 혼란스러워한다. 본인 글 수정에는 붙지 않는다. */
+  editedByTeacher?: boolean;
+  editedAt?: number;
 }
 
 /** 찬성/반대 집계 */
@@ -256,18 +260,22 @@ export function useToggleAnnouncement() {
 }
 
 /** 본인 글 수정 (제목·내용) */
+/** 글 수정. byTeacher=true면 '선생님이 다듬음' 표시를 함께 남긴다
+ *  (교사가 '남의 글'을 고칠 때만 — 본인 글 수정에는 붙이지 않는다). */
 export function useUpdateSuggestion() {
   const qc = useQueryClient();
-  return async (id: string, title: string, content: string) => {
+  return async (id: string, title: string, content: string, byTeacher = false) => {
     if (!title.trim()) throw new Error("제목을 입력해주세요.");
     if (!content.trim()) throw new Error("내용을 입력해주세요.");
+    const mark = byTeacher ? { editedByTeacher: true, editedAt: Date.now() } : {};
     await updateDoc(doc(db(), "suggestions", id), {
       title: title.trim(),
       content: content.trim(),
+      ...mark,
     });
     const patch = (prev: Suggestion[] | undefined) =>
       prev?.map((s) =>
-        s.id === id ? { ...s, title: title.trim(), content: content.trim() } : s
+        s.id === id ? { ...s, title: title.trim(), content: content.trim(), ...mark } : s
       );
     qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
     qc.setQueriesData({ queryKey: ["announcements"] }, patch);

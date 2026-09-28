@@ -200,6 +200,18 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
               })}
             </span>
             <span>· 💬 {comments.length}</span>
+            {sug.editedByTeacher && (
+              <span
+                className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold text-ink-500"
+                title={
+                  sug.editedAt
+                    ? new Date(sug.editedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })
+                    : undefined
+                }
+              >
+                ✏️ 선생님이 다듬음
+              </span>
+            )}
           </span>
           {isMine && role === "student" && (
             <span className="flex gap-2">
@@ -228,18 +240,28 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
           )}
           {role === "teacher" && (
             <span className="flex gap-2">
-              {isMine && (
-                <button
-                  onClick={() => {
-                    setEditTitle(sug.title ?? "");
-                    setEditContent(sug.content);
-                    setEditing(true);
-                  }}
-                  className="text-brand hover:opacity-80"
-                >
-                  ✏️ 수정
-                </button>
-              )}
+              {/* 선생님은 학생 글도 다듬을 수 있다 (맞춤법·거친 표현 정리 등).
+                  다만 남의 글을 고치는 일이라 한 번 확인받고, 고친 뒤엔 표시를 남긴다 —
+                  말없이 바뀌면 아이가 "내가 쓴 게 아닌데?" 하고 신뢰를 잃는다. */}
+              <button
+                onClick={async () => {
+                  if (
+                    !isMine &&
+                    !(await confirm({
+                      title: `${authorName(sug.studentId)}의 글을 수정할까요?`,
+                      body: "고친 글에는 '선생님이 다듬음' 표시가 남아요. 아이의 생각이 바뀌지 않게 표현만 다듬어 주세요.",
+                      confirmLabel: "수정하기",
+                    }))
+                  )
+                    return;
+                  setEditTitle(sug.title ?? "");
+                  setEditContent(sug.content);
+                  setEditing(true);
+                }}
+                className="text-brand hover:opacity-80"
+              >
+                ✏️ 수정
+              </button>
               <button
                 onClick={async () => {
                   try {
@@ -286,7 +308,7 @@ function PostDetail({ sug, onBack }: { sug: Suggestion; onBack: () => void }) {
             <button
               onClick={async () => {
                 try {
-                  await updateSuggestion(sug.id, editTitle, editContent);
+                  await updateSuggestion(sug.id, editTitle, editContent, role === "teacher" && !isMine);
                   setEditing(false);
                   toast("✏️ 수정됐어요!", "success");
                 } catch (e) {
