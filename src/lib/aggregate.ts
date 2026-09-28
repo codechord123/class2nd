@@ -25,6 +25,7 @@ import { streakAtWeek, weekBooks } from "@/lib/readingStreak";
 import type { ReadingStats } from "@/lib/query/reading";
 import type { ClassSettings, DailyScoreRow, RoleKey, WeekSchedule } from "@/types";
 import { groupDayScore } from "@/lib/groupScore";
+import { classGoldLeft } from "@/lib/gold";
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
 import { eventMultipliers, type EventBoost } from "@/lib/eventBoost";
 
@@ -928,6 +929,7 @@ export interface SessionSettleResult {
   growthTop: number[]; // 성장상 — 지난 세션 대비 총점 상승폭 최다 (2기부터)
   streakPoints: Record<string, number>; // studentId → 스트릭 보너스(누적 점수 가산)
   interest: Record<string, number>; // 💰 저축 이자 — 세션 말 잔액의 10% 내림, 세션당 상한 2
+  goldInterest: number; // 🏦 학급 골드 저축 이자 — 잔량 10% 내림, 세션당 상한 1
   alreadySettled: boolean;
 }
 
@@ -935,6 +937,12 @@ export interface SessionSettleResult {
 // 상한이 공정 장치 — 이자는 본질이 부익부라, 상한 없이는 격차가 가속된다.
 const INTEREST_RATE = 0.1;
 const INTEREST_CAP = 2;
+// 🏦 학급 골드 저축 이자 — 골드는 개인 지갑이 아니라 '학급 공용 한 덩어리'라
+//   "반이 아껴 모으면 이자가 붙는다"는 학급 저축 장치가 된다.
+//   골드 1개 = 실버 25개라 실버와 같은 10%를 상한 없이 쓰면 인플레가 크다 →
+//   비율은 같게(10%) 두되 상한을 1개로 묶는다 (사용자 확정 2026-09-28).
+const GOLD_INTEREST_RATE = 0.1;
+const GOLD_INTEREST_CAP = 1;
 
 const STREAK_CAP = 3; // 스트릭 보상 상한 (주당 최대 보너스 점수)
 
@@ -963,6 +971,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       period,
       range: [start, end],
       mvps: data.mvps ?? [],
+      goldInterest: (data.goldInterest as number) ?? 0,
       bestGroups: data.bestGroups ?? [],
       bestGroupMembers: data.bestGroupMembers ?? [],
       readingTop: data.readingTop ?? [],
@@ -1126,8 +1135,19 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
   }
   const hasInterest = Object.keys(interest).length > 0;
 
+  // 🏦 학급 골드 저축 이자 — 잔량 10%(내림), 상한 1개.
+  //    실버 이자와 같은 시점(세션 정산)에 붙고, 이 함수 전체가 marker로 1회 선점되므로
+  //    이중 지급 걱정은 실버와 동일한 수준에서 막힌다.
+  const goldSnap = await getDoc(doc(d, "s1Spends", "0_balances"));
+  const goldState = (goldSnap.exists() ? goldSnap.data() : {}) as Record<string, number>;
+  const goldBefore = classGoldLeft(goldState);
+  const goldInterest = Math.min(
+    Math.floor(Math.max(goldBefore, 0) * GOLD_INTEREST_RATE),
+    GOLD_INTEREST_CAP
+  );
+
   // 지급 대상이 전혀 없으면 마커를 남기지 않아 재실행 가능하게 둔다
-  if (entries.length === 0 && !hasStreak && !hasInterest) {
+  if (entries.length === 0 && !hasStreak && !hasInterest && goldInterest <= 0) {
     return {
       period,
       range: [start, end],
@@ -1142,6 +1162,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       growthTop: [],
       streakPoints: {},
       interest: {},
+      goldInterest: 0,
       alreadySettled: false,
     };
   }
@@ -1168,6 +1189,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       growthTop,
       streakPoints,
       interest: {},
+      goldInterest: 0,
       alreadySettled: true,
     };
   }
@@ -1199,6 +1221,14 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     for (const sid of new Set([...Object.keys(grant).map(String), ...Object.keys(interest)]))
       balDelta[sid] = increment((grant[Number(sid)] ?? 0) + (interest[sid] ?? 0));
     await setDoc(doc(d, "coinTxns", "0_balances"), balDelta, { merge: true });
+  }
+  // 🏦 학급 골드 이자 적립 — 마일스톤 적립(classGoldEarned)과 섞지 않고 따로 센다
+  if (goldInterest > 0) {
+    await setDoc(
+      doc(d, "s1Spends", "0_balances"),
+      { classGoldInterest: increment(goldInterest) },
+      { merge: true }
+    );
   }
   // 스트릭 보너스 → 누적 점수에 가산 (일일 재집계는 델타 방식이라 이 가산은 보존됨)
   if (hasStreak) {
@@ -1233,6 +1263,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
       mvpCount,
       rank1Count,
       interest,
+      goldInterest,
       completedAt: Date.now(),
     },
     { merge: true }
@@ -1252,6 +1283,7 @@ async function settleSessionInner(period: number): Promise<SessionSettleResult> 
     growthTop,
     streakPoints,
     interest,
+    goldInterest,
     alreadySettled: false,
   };
 }

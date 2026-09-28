@@ -466,6 +466,7 @@ export default function DailyReportPanel({
           readingTop?: number[]; readingTopGroups?: number[]; readingTopGroupMembers?: number[];
           missionTopGroups?: number[]; missionTopMembers?: number[]; growthTop?: number[];
           streakPoints?: Record<string, number>; interest?: Record<string, number>;
+          goldInterest?: number; // 🏦 학급 골드 저축 이자 (개인 실버와 별개)
         };
         // 학생별 실버 합계 (지급 규칙과 동일: 각 항목 1개씩, 주간 독서 모둠은 주마다 1개)
         const silver: Record<number, number> = {};
@@ -494,7 +495,14 @@ export default function DailyReportPanel({
               row("📚", "주간 최다 독서 모둠", gnames(a.readingTopGroups ?? []), "주마다 모둠원 각 1개") +
               row("🎯", "최다 미션 모둠", gnames(a.missionTopGroups ?? []), "모둠원 각 1개") +
               row("🌱", "성장상", names(a.growthTop ?? []), "각 1개") +
-              row("💰", "저축 이자", interestNames, "잔액 10%·최대 2개")) ||
+              row("💰", "저축 이자", interestNames, "잔액 10%·최대 2개") +
+              // 골드는 학급 공용이라 학생별 실버 합계와 섞지 않고 따로 한 줄
+              row(
+                "🏦",
+                "학급 골드 이자",
+                a.goldInterest ? `학급 공용 골드 +${a.goldInterest}개` : "",
+                "잔량 10%·최대 1개"
+              )) ||
               `<p style="font-size:12.5px;color:#6b7684">이번 세션에 지급된 실버가 없어요.</p>`
           ) +
           (streakNames

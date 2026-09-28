@@ -56,6 +56,7 @@ import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
 import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
 import TodayBriefing from "@/components/teacher/TodayBriefing";
 import LetterPanel from "@/components/teacher/LetterPanel";
+import S1MergePanel from "@/components/teacher/S1MergePanel";
 import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
@@ -373,6 +374,7 @@ export default function TeacherPage() {
           <BestPlayerRecalcPanel />
           <SilverAdjustPanel />
           <GoldAdjustPanel />
+          <S1MergePanel />
           <BiweeklySettlePanel />
         </div>
       )}
