@@ -678,7 +678,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
   //    시점의' 스냅샷을 붙들고 있어서, 등록 직후 정리가 돌면 방금 지운 초안을 옛 내용으로
   //    되살려 버린다 (E2E에서 '등록했는데 쓰다 만 글이 또 뜸'으로 잡힌 버그).
   const snapRef = useRef(draftSnapshot);
-  snapRef.current = draftSnapshot;
+  // ref 갱신은 렌더가 아니라 effect에서 — 렌더 중 ref를 건드리면 동시성 렌더에서
+  // 두 번 실행되며 어긋날 수 있다. 이 effect가 매 변경마다 돌아 아래 cleanup이
+  // 읽을 때는 항상 최신 값이다.
+  useEffect(() => {
+    snapRef.current = draftSnapshot;
+  }, [draftSnapshot]);
   useEffect(() => {
     if (!writing || !draftKey) return;
     const flush = () => setSavedAt(saveBoardDraft(draftKey, snapRef.current));
@@ -1375,6 +1380,12 @@ export default function BoardPage({ view = "board" }: { view?: "board" | "laws" 
                   minRows={7}
                   className="w-full rounded-btn border border-ink-300 px-3 py-2.5 text-[15px] focus:border-brand focus:outline-none"
                 />
+                {/* 들여쓰기는 쓴 그대로 저장된다(자동 들여쓰기 아님 — 했는지 안 했는지가
+                    화면으로 확인돼야 수업 피드백이 산다). 다만 한 칸은 4px라 티가 안 나서
+                    '두 칸'으로 안내한다. */}
+                <p className="text-[11px] text-ink-400">
+                  💡 문단을 나눌 땐 <b>줄을 바꾸고 두 칸 띄어쓰기</b>로 시작해요 — 쓴 그대로 보여요.
+                </p>
               </>
             )}
             <div className="flex items-center gap-3">
