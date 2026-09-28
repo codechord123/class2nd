@@ -57,6 +57,15 @@ export interface Suggestion {
   editedAt?: number;
 }
 
+/** 본문 정리 — 앞뒤의 빈 줄은 없애되 '첫 문단 들여쓰기'(앞 공백)는 지킨다.
+ *  기존 .trim()은 첫 줄의 들여쓰기 공백까지 먹어서, 아이가 "　안녕하세요?"처럼
+ *  한 칸 띄워 써도 저장 순간 사라졌다 (2026-09-28 사용자 지적). 둘째 문단부터는
+ *  문자열 중간이라 살아남아 "첫 문단만 안 된다"로 보였다.
+ *  글쓰기 수업에서 들여쓰기를 가르치는 중이라 아이가 쓴 그대로 남아야 한다. */
+export function tidyBody(text: string): string {
+  return text.replace(/^[\r\n]+/, "").replace(/\s+$/, "");
+}
+
 /** 찬성/반대 집계 */
 export function reactionCounts(s: Suggestion): { up: number; down: number } {
   return {
@@ -167,7 +176,7 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
     await addDoc(collection(db(), "suggestions"), {
       studentId: myId,
       title: title.trim(),
-      content: content.trim(),
+      content: tidyBody(content),
       isAnonymous: false,
       teacherOnly,
       ...(isAnnouncement ? { isAnnouncement: true } : {}),
@@ -270,12 +279,12 @@ export function useUpdateSuggestion() {
     const mark = byTeacher ? { editedByTeacher: true, editedAt: Date.now() } : {};
     await updateDoc(doc(db(), "suggestions", id), {
       title: title.trim(),
-      content: content.trim(),
+      content: tidyBody(content),
       ...mark,
     });
     const patch = (prev: Suggestion[] | undefined) =>
       prev?.map((s) =>
-        s.id === id ? { ...s, title: title.trim(), content: content.trim(), ...mark } : s
+        s.id === id ? { ...s, title: title.trim(), content: tidyBody(content), ...mark } : s
       );
     qc.setQueriesData({ queryKey: ["suggestions"] }, patch);
     qc.setQueriesData({ queryKey: ["announcements"] }, patch);
