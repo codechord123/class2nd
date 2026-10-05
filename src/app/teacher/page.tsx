@@ -57,6 +57,7 @@ import HiddenContributionPanel from "@/components/teacher/HiddenContributionPane
 import TodayBriefing from "@/components/teacher/TodayBriefing";
 import LetterPanel from "@/components/teacher/LetterPanel";
 import S1MergePanel from "@/components/teacher/S1MergePanel";
+import TeacherLogPanel from "@/components/teacher/TeacherLogPanel";
 import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
@@ -72,7 +73,7 @@ export default function TeacherPage() {
 
   // 교사 탭 — 사용 빈도 기준 4탭 평탄화 (사용자 확정): 매일 쓰는 '오늘'을 기본 화면으로.
   //   오늘(제출·순위·집계) / 현황·리포트 / 점수 관리(보정 전부) / 설정·기타(자리승인·설정·관리)
-  const [tTab, setTTab] = useState<"today" | "status" | "manage" | "settings">("today");
+  const [tTab, setTTab] = useState<"today" | "status" | "manage" | "log" | "settings">("today");
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
@@ -105,8 +106,9 @@ export default function TeacherPage() {
 
   // 개요 카드 등에서 /teacher#panel-... 로 들어오면 그 패널까지 데려다준다
   // (탭만 맞춰도 접힌 <details> 안이거나 화면 밖이면 아무 일도 없어 보인다)
-  const HASH_TAB: Record<string, "today" | "manage" | "settings"> = {
+  const HASH_TAB: Record<string, "today" | "manage" | "log" | "settings"> = {
     "panel-letters": "today",
+    "panel-log": "log",
     "panel-appeal": "manage",
     "panel-hidden": "manage",
     "panel-seat-approve": "settings",
@@ -344,6 +346,7 @@ export default function TeacherPage() {
           { key: "today" as const, label: "📌 오늘" },
           { key: "status" as const, label: "📊 현황·리포트" },
           { key: "manage" as const, label: "🛠 점수 관리" },
+          { key: "log" as const, label: "📔 일지" },
           { key: "settings" as const, label: "⚙️ 설정·기타" },
         ]}
         active={tTab}
@@ -376,6 +379,13 @@ export default function TeacherPage() {
           <GoldAdjustPanel />
           <S1MergePanel />
           <BiweeklySettlePanel />
+        </div>
+      )}
+
+      {/* 📔 담임 일지 — 교사 전용 기록 (학생은 규칙으로 차단) */}
+      {tTab === "log" && (
+        <div id="panel-log" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+          <TeacherLogPanel />
         </div>
       )}
 

@@ -271,6 +271,13 @@ service cloud.firestore {
       }
     }
 
+    // 📔 담임 일지 — 교사 전용. 생활지도·가정사·상담 내용이 들어가는, 이 앱에서
+    // 가장 민감한 기록이다. 읽기까지 교사로 잠가 학생 계정은 존재조차 알 수 없게 한다.
+    // (다른 컬렉션 다수가 read: isAuthed인 것과 의도적으로 다르다 — 예외가 아니라 원칙)
+    match /teacherLogs/{logId} {
+      allow read, write: if isTeacher();
+    }
+
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
     match /complimentCoverage/{date} {
       allow read, create, update: if isAuthed();
