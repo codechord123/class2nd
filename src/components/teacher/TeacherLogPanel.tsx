@@ -2,12 +2,14 @@
 // 📔 담임 일지 — 쓰기 + 모아보기(태그·학생·기간·검색) + 상담용 인쇄.
 // 기록 도구는 마찰이 조금만 있어도 안 쓰게 된다 → 탭을 열면 바로 쓰기 칸이 보이고,
 // 태그·학생은 '선택'이라 본문만 적어도 저장된다.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { Textarea } from "@/components/ui/Field";
+import Pager from "@/components/ui/Pager";
 import { useFeedback } from "@/components/ui/Feedback";
 import { openPrintWindow, preOpenPrintWindow } from "@/lib/exportDoc";
 import {
@@ -28,6 +30,11 @@ const esc = (s: string) =>
 const fmt = (at: string) =>
   at ? `${Number(at.slice(5, 7))}월 ${Number(at.slice(8, 10))}일` : "";
 const nm = (id: number) => studentById.get(id)?.name ?? `${id}번`;
+/** 일지엔 제목 칸이 없다 — 게시판 titleOf와 같은 방식으로 본문 첫 줄을 제목처럼 쓴다 */
+const titleOf = (l: TeacherLog) => {
+  const first = l.text.split("\n").find((x) => x.trim()) ?? "";
+  return first.trim().slice(0, 32) + (first.trim().length > 32 ? "…" : "");
+};
 
 export default function TeacherLogPanel() {
   const { toast, confirm } = useFeedback();
@@ -55,6 +62,20 @@ export default function TeacherLogPanel() {
   const [kw, setKw] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  // 게시판 규격 — 10/20개 페이지네이션 + 목록 위 모달 상세
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // 상세 모달 Escape 닫기 — 게시판과 같은 조작감
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId]);
 
   const counts = useMemo(() => tagCounts(logs), [logs]);
   const shown = useMemo(
@@ -62,6 +83,15 @@ export default function TeacherLogPanel() {
     [logs, fTag, fWho, fFrom, fTo, kw]
   );
   const filtering = !!(fTag || fWho != null || fFrom || fTo || kw);
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  // 필터를 좁히면 보던 페이지가 범위를 벗어나 빈 화면이 된다 → effect로 되돌리지 않고
+  // 렌더에서 clamp (렌더 중 setState를 피하면서 같은 결과)
+  const safePage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => shown.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [shown, safePage, pageSize]
+  );
+  const selected = shown.find((l) => l.id === selectedId) ?? null;
   const active = students.filter((s) => !s.inactive);
 
   const toggle = <T,>(arr: T[], v: T) =>
@@ -317,133 +347,192 @@ export default function TeacherLogPanel() {
             }
           />
         ) : (
-          <ul className="mt-3 space-y-2">
-            {shown.map((l) => (
-              <LogRow
-                key={l.id}
-                log={l}
-                editing={editing === l.id}
-                editText={editText}
-                onEditText={setEditText}
-                onStartEdit={() => {
-                  setEditing(l.id);
-                  setEditText(l.text);
-                }}
-                onCancel={() => setEditing(null)}
-                onSave={async () => {
-                  try {
-                    await updateLog(l.id, { text: editText });
-                    setEditing(null);
-                    toast("수정했어요.", "success");
-                  } catch (e) {
-                    toast(e instanceof Error ? e.message : "수정 실패", "error");
-                  }
-                }}
-                onDelete={async () => {
-                  const ok = await confirm({
-                    title: "이 일지를 삭제할까요?",
-                    body: "되돌릴 수 없어요.",
-                    confirmLabel: "삭제",
-                    danger: true,
-                  });
-                  if (!ok) return;
-                  await delLog(l.id)
-                    .then(() => toast("삭제했어요."))
-                    .catch((e) => toast(e instanceof Error ? e.message : "삭제 실패", "error"));
-                }}
-              />
-            ))}
-          </ul>
+          <>
+            {/* 게시판 규격 — 한 줄 요약(날짜·제목·칩) 목록, 누르면 모달로 전문 */}
+            <ul className="mt-2 divide-y divide-ink-100 border-y border-ink-100">
+              {pageItems.map((l) => (
+                <li key={l.id}>
+                  <button
+                    onClick={() => setSelectedId(l.id)}
+                    className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-ink-50"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5">
+                        {l.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[10px] font-bold text-brand-strong"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                        <b className="truncate text-[15px] text-ink-900">{titleOf(l)}</b>
+                      </span>
+                      <span className="mt-1 flex items-center gap-1.5 text-xs text-ink-600">
+                        <span className="tnum shrink-0 rounded bg-ink-100 px-1.5 py-0.5 text-[11px] font-bold text-ink-700">
+                          {fmt(l.at)}
+                        </span>
+                        {l.studentIds.slice(0, 4).map((id) => (
+                          <span
+                            key={id}
+                            className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-bold text-violet-700"
+                          >
+                            {nm(id)}
+                          </span>
+                        ))}
+                        {l.studentIds.length > 4 && (
+                          <span className="shrink-0 text-[11px]">외 {l.studentIds.length - 4}명</span>
+                        )}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-sm text-ink-300">›</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-1">
+                {[10, 20].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setPageSize(n)}
+                    className={`press rounded-btn px-3 py-1 text-xs font-bold ${
+                      pageSize === n ? "bg-ink-700 text-white" : "bg-ink-100 text-ink-600"
+                    }`}
+                  >
+                    {n}개
+                  </button>
+                ))}
+              </div>
+              <Pager page={safePage} totalPages={totalPages} onChange={setPage} />
+            </div>
+            {logs && logs.length >= take && (
+              <button
+                onClick={() => setTake((t) => t + LOG_PAGE)}
+                className="press mt-3 w-full rounded-btn bg-ink-100 px-4 py-2 text-sm font-bold text-ink-600"
+              >
+                예전 기록 더 불러오기 (지금 {take}건까지 받았어요)
+              </button>
+            )}
+          </>
         )}
 
-        {logs && logs.length >= take && (
-          <button
-            onClick={() => setTake((t) => t + LOG_PAGE)}
-            className="press mt-3 w-full rounded-btn bg-ink-100 px-4 py-2 text-sm font-bold text-ink-600"
-          >
-            더 보기 (지금 {take}건까지)
-          </button>
-        )}
         <p className="mt-2 text-[11px] text-ink-400">
           🔒 일지는 <b>선생님만</b> 볼 수 있어요 — 학생 계정에는 이 기록이 보이지 않습니다.
         </p>
       </Card>
-    </>
-  );
-}
 
-function LogRow({
-  log,
-  editing,
-  editText,
-  onEditText,
-  onStartEdit,
-  onCancel,
-  onSave,
-  onDelete,
-}: {
-  log: TeacherLog;
-  editing: boolean;
-  editText: string;
-  onEditText: (v: string) => void;
-  onStartEdit: () => void;
-  onCancel: () => void;
-  onSave: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <li className="rounded-btn border border-ink-200 bg-white p-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded bg-ink-100 px-1.5 py-0.5 font-bold text-ink-700">
-          {fmt(log.at)}
-        </span>
-        {log.studentIds.map((id) => (
-          <span
-            key={id}
-            className="rounded bg-violet-100 px-1.5 py-0.5 font-bold text-violet-700"
+      {/* 상세 — 게시판처럼 목록 위 모달로 (목록 스크롤·페이지 상태 유지) */}
+      {selected &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-2 sm:p-6"
+            onClick={() => setSelectedId(null)}
           >
-            {nm(id)}
-          </span>
-        ))}
-        {log.tags.map((t) => (
-          <span key={t} className="rounded bg-brand-weak px-1.5 py-0.5 font-bold text-brand-strong">
-            #{t}
-          </span>
-        ))}
-        <span className="ml-auto flex gap-2">
-          {!editing && (
-            <button onClick={onStartEdit} className="text-brand hover:opacity-80">
-              수정
-            </button>
-          )}
-          <button onClick={onDelete} className="text-danger hover:opacity-80">
-            삭제
-          </button>
-        </span>
-      </div>
-      {editing ? (
-        <div className="mt-2 space-y-2">
-          <Textarea value={editText} onChange={(e) => onEditText(e.target.value)} rows={5} />
-          <div className="flex gap-2">
-            <button
-              onClick={onSave}
-              className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+            <div
+              className="rise flex max-h-[94vh] w-full max-w-3xl flex-col overflow-y-auto rounded-card bg-white p-4 shadow-card sm:max-h-[92vh]"
+              onClick={(e) => e.stopPropagation()}
             >
-              저장
-            </button>
-            <button
-              onClick={onCancel}
-              className="press rounded-btn border border-ink-200 px-4 py-2 text-sm text-ink-500"
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink-800">
-          {log.text}
-        </p>
-      )}
-    </li>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="tnum rounded bg-ink-100 px-1.5 py-0.5 text-xs font-bold text-ink-700">
+                    {fmt(selected.at)}
+                  </span>
+                  {selected.studentIds.map((id) => (
+                    <span
+                      key={id}
+                      className="rounded bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-700"
+                    >
+                      {nm(id)}
+                    </span>
+                  ))}
+                  {selected.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded bg-brand-weak px-1.5 py-0.5 text-xs font-bold text-brand-strong"
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="press shrink-0 rounded-btn bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-600"
+                >
+                  ✕ 닫기
+                </button>
+              </div>
+
+              {editing === selected.id ? (
+                <div className="mt-3 space-y-2">
+                  <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={8} />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await updateLog(selected.id, { text: editText });
+                          setEditing(null);
+                          toast("수정했어요.", "success");
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "수정 실패", "error");
+                        }
+                      }}
+                      className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
+                    >
+                      저장
+                    </button>
+                    <button
+                      onClick={() => setEditing(null)}
+                      className="press rounded-btn border border-ink-200 px-4 py-2 text-sm text-ink-500"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-3 whitespace-pre-wrap break-words text-base leading-8 text-ink-800">
+                    {selected.text}
+                  </p>
+                  <div className="mt-4 flex gap-2 border-t border-ink-100 pt-3 text-xs">
+                    <button
+                      onClick={() => {
+                        setEditing(selected.id);
+                        setEditText(selected.text);
+                      }}
+                      className="text-brand hover:opacity-80"
+                    >
+                      ✏️ 수정
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "이 일지를 삭제할까요?",
+                          body: "되돌릴 수 없어요.",
+                          confirmLabel: "삭제",
+                          danger: true,
+                        });
+                        if (!ok) return;
+                        await delLog(selected.id)
+                          .then(() => {
+                            setSelectedId(null);
+                            toast("삭제했어요.");
+                          })
+                          .catch((e) =>
+                            toast(e instanceof Error ? e.message : "삭제 실패", "error")
+                          );
+                      }}
+                      className="text-danger hover:opacity-80"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

@@ -384,7 +384,7 @@ export default function TeacherPage() {
 
       {/* 📔 담임 일지 — 교사 전용 기록 (학생은 규칙으로 차단) */}
       {tTab === "log" && (
-        <div id="panel-log" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+        <div id="panel-log" className="space-y-4">
           <TeacherLogPanel />
         </div>
       )}
