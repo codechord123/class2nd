@@ -58,6 +58,7 @@ import TodayBriefing from "@/components/teacher/TodayBriefing";
 import LetterPanel from "@/components/teacher/LetterPanel";
 import S1MergePanel from "@/components/teacher/S1MergePanel";
 import TeacherLogPanel from "@/components/teacher/TeacherLogPanel";
+import MoodPanel from "@/components/teacher/MoodPanel";
 import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
@@ -109,6 +110,7 @@ export default function TeacherPage() {
   const HASH_TAB: Record<string, "today" | "manage" | "log" | "settings"> = {
     "panel-letters": "today",
     "panel-log": "log",
+    "panel-mood": "log",
     "panel-appeal": "manage",
     "panel-hidden": "manage",
     "panel-seat-approve": "settings",
@@ -346,7 +348,7 @@ export default function TeacherPage() {
           { key: "today" as const, label: "📌 오늘" },
           { key: "status" as const, label: "📊 현황·리포트" },
           { key: "manage" as const, label: "🛠 점수 관리" },
-          { key: "log" as const, label: "📔 일지" },
+          { key: "log" as const, label: "📔 일지·감정" },
           { key: "settings" as const, label: "⚙️ 설정·기타" },
         ]}
         active={tTab}
@@ -384,8 +386,15 @@ export default function TeacherPage() {
 
       {/* 📔 담임 일지 — 교사 전용 기록 (학생은 규칙으로 차단) */}
       {tTab === "log" && (
-        <div id="panel-log" className="space-y-4">
-          <TeacherLogPanel />
+        <div className="space-y-4">
+          {/* 감정과 일지는 둘 다 '아이를 살피는' 도구라 한 탭에 모은다.
+              살펴볼 친구를 발견하면 바로 아래 일지에 기록하는 흐름. */}
+          <div id="panel-mood" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+            <MoodPanel />
+          </div>
+          <div id="panel-log" className="space-y-4">
+            <TeacherLogPanel />
+          </div>
         </div>
       )}
 

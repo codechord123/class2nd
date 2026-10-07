@@ -278,6 +278,14 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
+    // 🙂 감정 추이 — 교사 전용. 학생 자기보고(_mood)는 각자 평가 문서에 있고(본인+교사만
+    // 읽기), 그걸 모은 추이와 교사 관찰은 여기에 둔다. classData·dailyScores는 학생도
+    // 읽을 수 있어(read: isAuthed) 거기 모으면 서로의 기분이 노출된다 — "쟤 또 0이래"가
+    // 생기면 정서 기록이 아이에게 상처가 되므로, 모아두는 곳은 반드시 교사 전용이어야 한다.
+    match /moodHistory/{docId} {
+      allow read, write: if isTeacher();
+    }
+
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
     match /complimentCoverage/{date} {
       allow read, create, update: if isAuthed();

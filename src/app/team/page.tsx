@@ -45,6 +45,7 @@ import GroupGoals from "@/components/team/GroupGoals";
 import GroupBreakdown from "@/components/team/GroupBreakdown";
 import ClassRecap from "@/components/team/ClassRecap";
 import ReceivedNotes from "@/components/team/ReceivedNotes";
+import { MOOD_FACES, MOOD_LABELS, useSaveMood } from "@/lib/query/mood";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import { useFeedback } from "@/components/ui/Feedback";
@@ -125,6 +126,10 @@ export default function TeamPage() {
 
   const { data: settings } = useSettings();
   const { data: myEval } = useMyEvaluation(date, studentId);
+  // 🙂 기분 저장 — 훅은 반드시 조기 반환(교사 화면·로딩)보다 위에서 호출해야 한다.
+  //    아래쪽 평가 영역에 두었더니 조건부 호출이 되어 페이지가 통째로 죽었다(React #310).
+  const saveMood = useSaveMood(date, role === "student" ? studentId : null);
+  const [moodBusy, setMoodBusy] = useState(false);
   const savePeerChecks = useSavePeerChecks(date, studentId);
   const { data: peerCriteria } = usePeerCriteria();
   const saveMvp = useSaveMvp(date, studentId);
@@ -317,6 +322,7 @@ export default function TeamPage() {
   // 미션: 모둠원 전원이 1번씩 칭찬받으면 전원 +1점. 그래서 '아직 칭찬 못 받은 친구'를
   // 커버리지 문서로 파악해 앞에 세우고 표시(누가 칭찬했는지는 안 보여줌).
   const evalRec = (myEval ?? {}) as Record<string, unknown>;
+  const myMood = typeof evalRec._mood === "number" ? (evalRec._mood as number) : null;
   const savedComp = (evalRec._compliments as Record<string, string>) ?? {};
   const savedSug = (evalRec._peerSuggestions as Record<string, string>) ?? {};
   const sentComp = Object.entries(savedComp).filter(([, v]) => v?.trim());
@@ -770,6 +776,55 @@ export default function TeamPage() {
       )}
 
       {evalOpen && (<>
+      {/* 🙂 오늘 내 기분 — 평가보다 먼저 묻는다. 점수와 무관하고(할 일 완주에도 안 들어감)
+          서로의 기분은 보이지 않는다 — 비교·놀림이 생기면 솔직하게 못 고른다. */}
+      {role === "student" && (
+        <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
+          <h3 className="text-lg font-bold">🙂 오늘 내 기분은 어때요?</h3>
+          <p className="mt-1 text-[13px] text-ink-500">
+            솔직하게 골라도 괜찮아요 — <b>점수와 상관없고</b>, 친구들에게는 보이지 않아요.
+            선생님만 보고 도와줄 거예요.
+          </p>
+          <div className="mt-3 grid grid-cols-6 gap-1.5">
+            {MOOD_FACES.map((face, v) => (
+              <button
+                key={v}
+                onClick={async () => {
+                  if (moodBusy) return;
+                  setMoodBusy(true);
+                  try {
+                    await saveMood(v);
+                    toast(`${face} ${MOOD_LABELS[v]} — 기록했어요.`, "success");
+                  } catch (e) {
+                    toast(friendlyWriteError(e, "저장에 실패했어요."), "error");
+                  } finally {
+                    setMoodBusy(false);
+                  }
+                }}
+                className={`press flex flex-col items-center gap-0.5 rounded-btn border-2 py-2.5 transition ${
+                  myMood === v
+                    ? "border-brand bg-brand-weak"
+                    : "border-ink-200 bg-white hover:border-ink-300"
+                }`}
+              >
+                <span className="text-2xl leading-none">{face}</span>
+                <span className="text-[10px] font-bold text-ink-500">{v}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-center text-xs text-ink-400">
+            {myMood != null ? (
+              <>
+                오늘은 <b className="text-brand-strong">{MOOD_FACES[myMood]} {MOOD_LABELS[myMood]}</b>
+                {" "}— 언제든 다시 고를 수 있어요
+              </>
+            ) : (
+              "0(매우 나쁨) ~ 5(매우 좋음)"
+            )}
+          </p>
+        </section>
+      )}
+
       {/* 모둠 내 상호평가 — 부서장 평가: 내 부서 O/X 기준으로 다른 모둠원을 평가 */}
       <section id="peer-eval" className="scroll-mt-28 rounded-card border border-ink-200 bg-white p-4 shadow-card">
         <h3 className="text-lg font-bold">🤝 부서장 평가</h3>

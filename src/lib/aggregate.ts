@@ -308,6 +308,9 @@ async function aggregateDateInner(
   const peerSuggestions: { from: number; to: number; text: string }[] = [];
   const toTeacher: { from: number; text: string }[] = [];
   const reflections: { from: number; text: string }[] = []; // 세션 모둠 반성 (마지막 주말 작성)
+  // 🙂 감정 체크 — 점수에는 전혀 쓰지 않는다. 교사 추이 기록(moodHistory)에만 접어 넣는다.
+  //    (dailyScores._meta에 넣으면 학생도 읽을 수 있어 서로의 기분이 노출된다 — 넣지 말 것)
+  const moods: Record<string, number> = {};
   const bossReasons: { from: number; to: number; text: string }[] = []; // 부서장 투표 이유 (인기투표 억제·리포트 근거)
   // 부서장 평가 O/X 상세 — 실명 공개·이의제기용 (수신자별로 접어 저장)
   const peerChecksRaw: { from: number; to: number; checks: boolean[] }[] = [];
@@ -355,6 +358,8 @@ async function aggregateDateInner(
       toTeacher.push({ from, text: data._toTeacher });
     if (typeof data._reflection === "string" && data._reflection)
       reflections.push({ from, text: data._reflection });
+    if (typeof data._mood === "number" && data._mood >= 0 && data._mood <= 5)
+      moods[String(from)] = data._mood;
   });
 
   // 3) 순위 산정: 교사가 매긴 1~5위(ranking)에 rankPoints(기본 5·4·3·2·1) 배분.
@@ -879,6 +884,15 @@ async function aggregateDateInner(
       fairWins,
     }),
   ]);
+
+  // 🙂 감정 추이 — 교사 전용 문서에 그날 치만 갈아 끼운다(재집계해도 그날 것만 덮어씀).
+  //    학생 화면이 읽는 문서들과 분리된 곳이라 서로의 기분이 노출되지 않는다.
+  //    규칙이 아직 게시되지 않았으면 조용히 넘어간다 — 점수 집계를 막아서는 안 된다.
+  if (Object.keys(moods).length) {
+    await setDoc(doc(d, "moodHistory", "main"), { byDate: { [date]: moods } }, { merge: true }).catch(
+      () => {}
+    );
+  }
 
   // 마일스톤 보상 — 누적 점수 25점 단위 실버 자동 지급 (+실버 25개 단위 학급 골드)
   const ms = await grantMilestones(cum, {}, "🏅 점수 25점 달성 보상");

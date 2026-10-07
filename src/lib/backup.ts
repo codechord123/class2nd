@@ -27,6 +27,7 @@ export const BACKUP_COLLECTIONS = [
   // 원시 평가(evaluations 하위)와 같은 이유로 백업 대상에서 제외한다.
   "dailyScores", // 일일 점수 + 누적
   "biweeklyScores", // 세션 정산 기록
+  "moodHistory", // 🙂 감정 추이 (교사 전용)
   "teacherLogs", // 📔 담임 일지 — 민감하지만 가장 소중한 기록이라 백업에 포함
   "classData", // 설정·순위·결석·법률 등
   "complimentCoverage",
