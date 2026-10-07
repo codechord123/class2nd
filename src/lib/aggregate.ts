@@ -892,6 +892,11 @@ async function aggregateDateInner(
     await setDoc(doc(d, "moodHistory", "main"), { byDate: { [date]: moods } }, { merge: true }).catch(
       () => {}
     );
+    // 🌤️ 우리 반 마음 날씨(이름 없는 개수) — 학생 기기의 ±1 갱신이 끊기거나 엇갈려도
+    //    집계 때 실제 값으로 다시 맞춘다 (자가 치유). 개수만 담아 누가 몇인지는 남지 않는다.
+    const counts: Record<string, number> = { c0: 0, c1: 0, c2: 0, c3: 0, c4: 0, c5: 0 };
+    for (const v of Object.values(moods)) counts[`c${v}`] = (counts[`c${v}`] ?? 0) + 1;
+    await setDoc(doc(d, "moodShare", date), counts, { merge: true }).catch(() => {});
   }
 
   // 마일스톤 보상 — 누적 점수 25점 단위 실버 자동 지급 (+실버 25개 단위 학급 골드)

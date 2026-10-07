@@ -15,6 +15,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { bumpWeather, writeMoodSelf } from "@/lib/query/moodShare";
 
 /** 0=매우 나쁨 … 5=매우 좋음. 5학년에겐 숫자보다 얼굴이 직관적이다.
  *  (구형 Windows에서 깨지는 U+1FA70 이상 이모지는 쓰지 않는다 — 전부 안전 범위) */
@@ -63,6 +64,8 @@ export function useSaveMood(date: string, myId: number | null) {
   return async (mood: number) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (mood < MOOD_MIN || mood > MOOD_MAX) throw new Error("기분은 0~5 사이예요.");
+    const prevRec = qc.getQueryData(["evaluation", date, myId]) as Record<string, unknown> | undefined;
+    const prev = typeof prevRec?._mood === "number" ? (prevRec._mood as number) : null;
     await setDoc(
       doc(db(), "evaluations", date, "entries", String(myId)),
       { _mood: mood },
@@ -72,6 +75,9 @@ export function useSaveMood(date: string, myId: number | null) {
       ...(prev ?? {}),
       _mood: mood,
     }));
+    // 🌈 나와 우리: 반 날씨엔 '이름 없이 개수만', 내 달력엔 나만 보이게 — 둘 다 실패해도 기분 저장은 유효
+    void bumpWeather(date, prev, mood);
+    void writeMoodSelf(myId, date, { v: mood }, qc);
   };
 }
 

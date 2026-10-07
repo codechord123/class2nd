@@ -14,6 +14,8 @@ export const TABS = [
   { href: "/rules", label: "헌법", accent: "bg-slate-600" },
   { href: "/", label: "개요", accent: "bg-brand" },
   { href: "/team", label: "모둠", accent: "bg-orange-500" },
+  // 🌈 사회정서학습 — 모둠에서 기분을 고른 뒤 바로 옆에서 마음을 나누도록 모둠 다음 자리
+  { href: "/us", label: "나와 우리", accent: "bg-rose-500" },
   { href: "/reading", label: "독서", accent: "bg-brand" },
   { href: "/shop", label: "상점", accent: "bg-pink-500" },
   // 투표·건의를 한 탭으로 — 페이지 상단 스위처로 오간다. alt: 이 경로에서도 탭이 활성화됨.

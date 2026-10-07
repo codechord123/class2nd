@@ -3,6 +3,7 @@
 // 트래킹의 핵심은 '오늘 0을 누른 아이'가 아니라 '저조가 이어지는 아이'다 —
 // 아이들은 장난으로도 0을 누르므로 단일 값으로 판단하면 틀린다.
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
 import Card from "@/components/ui/Card";
@@ -10,6 +11,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import { Textarea } from "@/components/ui/Field";
 import { useFeedback } from "@/components/ui/Feedback";
 import { revealPanel } from "@/lib/revealPanel";
+import { brandHeader, esc, openPrintWindow } from "@/lib/exportDoc";
+import MoodStats from "@/components/teacher/MoodStats";
 import {
   LOW_STREAK_DAYS,
   MOOD_FACES,
@@ -70,6 +73,30 @@ export default function MoodPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // 🖨️ 학부모·상담용 — 최근 60회 자기보고 + 선생님 관찰을 한 장으로 (점수 없음)
+  function printStudent(id: number) {
+    const rows = recentMoods(hist, id, 60);
+    const obs = Object.entries(hist?.teacher ?? {})
+      .map(([date, m]) => ({ date, o: m?.[String(id)] }))
+      .filter((x) => x.o && (x.o.v != null || x.o.note));
+    const dates = [...new Set([...rows.map((r) => r.date), ...obs.map((o) => o.date)])].sort();
+    const avg = rows.length ? rows.reduce((a, b) => a + b.v, 0) / rows.length : null;
+    const body =
+      brandHeader(`${esc(nm(id))} 감정 기록`, `자기보고 ${rows.length}회 · 평균 ${avg == null ? "–" : avg.toFixed(1)} / 5`) +
+      `<table><thead><tr><th>날짜</th><th>스스로 고른 기분</th><th>선생님 관찰</th></tr></thead><tbody>` +
+      dates
+        .map((d) => {
+          const r = rows.find((x) => x.date === d);
+          const o = obs.find((x) => x.date === d)?.o;
+          return `<tr><td>${esc(fmtDay(d))}</td><td>${r ? `${MOOD_FACES[r.v]} ${esc(MOOD_LABELS[r.v])}` : ""}</td><td>${
+            o ? `${o.v != null ? `${MOOD_FACES[o.v]} ` : ""}${esc(o.note ?? "")}` : ""
+          }</td></tr>`;
+        })
+        .join("") +
+      `</tbody></table>`;
+    openPrintWindow(`${nm(id)} 감정 기록`, body);
   }
 
   const trend = sel != null ? recentMoods(hist, sel, 30) : [];
@@ -155,12 +182,24 @@ export default function MoodPanel() {
         )}
         <p className="mt-2 text-[11px] text-ink-400">
           🔒 아이들은 <b>서로의 기분을 볼 수 없어요</b> — 비교·놀림이 생기면 솔직하게 고르지
-          못하니까요. 기분은 점수·할 일 완주에 들어가지 않습니다.
+          못하니까요. 기분은 점수·할 일 완주에 들어가지 않습니다. 학생 화면엔 이름 없는
+          &lsquo;반 마음 날씨&rsquo;만 보여요 ·{" "}
+          <Link href="/us" className="font-bold text-brand-strong underline">🌈 마음 담벼락 보기</Link>
         </p>
       </Card>
 
+      <MoodStats
+        hist={hist}
+        today={today}
+        onPick={(id) => {
+          setSel(id);
+          document.getElementById("mood-student")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
+
       <Card
-        title="📈 학생별 돌아보기"
+        className="scroll-mt-28"
+        title={<span id="mood-student">📈 학생별 돌아보기</span>}
         desc="이름을 고르면 최근 30일 흐름과 선생님 관찰을 함께 볼 수 있어요."
       >
         <select
@@ -176,6 +215,14 @@ export default function MoodPanel() {
           ))}
         </select>
 
+        {sel != null && (
+          <button
+            onClick={() => printStudent(sel)}
+            className="press ml-2 rounded-btn bg-white px-3 py-2 text-sm font-bold text-ink-600 ring-1 ring-ink-200"
+          >
+            🖨️ 상담용 인쇄
+          </button>
+        )}
         {sel == null ? (
           <EmptyState emoji="📈" title="학생을 고르면 흐름이 보여요" />
         ) : (

@@ -89,6 +89,9 @@ export interface ClassSettings {
    *  편지는 재화와 무관해서, 방학에 상점만 잠그고 편지는 열어둘 수 있어야 한다.
    *  (선생님 발송은 이 값과 무관하게 항상 가능) */
   lettersOpen?: boolean;
+  /** 🌈 마음 담벼락 열림 (기본 true) — 끄면 학생의 카드 올리기·반응이 막히고 담벼락이 가려진다.
+   *  반에 갈등이 생겼을 때 즉시 멈추는 안전 스위치 (날씨·내 감정 달력은 그대로) */
+  moodWallOpen?: boolean;
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {

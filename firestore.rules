@@ -286,6 +286,83 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
+    // 🌈 나와 우리 (사회정서학습) — 공개 범위가 서로 다른 세 겹 (2026-10-07)
+    //   moodShare/{날짜}             🌤️ 마음 날씨: c0~c5 '개수'만 (이름 없음)
+    //   moodShare/{날짜}/cards/{번호} 💗 마음 담벼락: 원하는 아이만 감정 단어로 나눈다
+    //   moodSelf/{번호}              📅 나의 감정 달력: 본인+교사만
+    // 🔒 감정 체크 0~5(개인 값)는 여기에도 남지 않는다 — 날씨에는 개수만 더해진다.
+    // ⛔ 담벼락은 교사 설정(moodWallOpen)이 false면 학생 쓰기 차단 ('in' 가드 필수 — 우체통과 같은 이유)
+    function moodWallOpen() {
+      let p = /databases/$(database)/documents/classData/settings;
+      return !(exists(p) && 'moodWallOpen' in get(p).data && get(p).data.moodWallOpen == false);
+    }
+    function weatherSum(m) {
+      return m.get('c0', 0) + m.get('c1', 0) + m.get('c2', 0)
+        + m.get('c3', 0) + m.get('c4', 0) + m.get('c5', 0);
+    }
+    function weatherInts(m) {
+      return m.get('c0', 0) is int && m.get('c1', 0) is int && m.get('c2', 0) is int
+        && m.get('c3', 0) is int && m.get('c4', 0) is int && m.get('c5', 0) is int;
+    }
+    // 카드 형식 — 번호 사칭 금지(sid == 문서 id), 단어·메모 길이, 색 4종
+    function validCard(c, sid) {
+      return c.sid is int && string(c.sid) == sid
+        && c.word is string && c.word.size() > 0 && c.word.size() <= 12
+        && c.color in ['red', 'yellow', 'blue', 'green']
+        && c.note is string && c.note.size() <= 40
+        && c.at is int
+        && c.by == c.sid
+        && c.r is map && c.r.size() == 0;
+    }
+    match /moodShare/{date} {
+      allow read: if isAuthed();
+      // 학생은 한 번에 '한 명분'만 옮긴다 (총합 변화 0 또는 +1) — 숫자를 부풀리는 장난 완충
+      allow create: if isTeacher() || (isAuthed()
+        && request.resource.data.keys().hasOnly(['c0', 'c1', 'c2', 'c3', 'c4', 'c5'])
+        && weatherInts(request.resource.data)
+        && weatherSum(request.resource.data) <= 1);
+      allow update: if isTeacher() || (isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['c0', 'c1', 'c2', 'c3', 'c4', 'c5'])
+        && weatherInts(request.resource.data)
+        && weatherSum(request.resource.data) - weatherSum(resource.data) >= 0
+        && weatherSum(request.resource.data) - weatherSum(resource.data) <= 1);
+      allow delete: if isTeacher();
+
+      match /cards/{sid} {
+        allow read: if isAuthed();
+        // 올리기: 내 번호 문서에, 내 이름으로, 반응 없이
+        allow create: if isTeacher() || (isAuthed() && moodWallOpen()
+          && ownsStudent(sid)
+          && request.resource.data.keys().hasOnly(['sid', 'word', 'color', 'note', 'at', 'r', 'by'])
+          && validCard(request.resource.data, sid));
+        allow update: if isTeacher()
+          // 고치기(본인): 내용만, 반응은 비운다. hidden(교사 가림)은 손댈 수 없다
+          || (isAuthed() && moodWallOpen() && ownsStudent(sid)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['word', 'color', 'note', 'at', 'r', 'by'])
+              && validCard(request.resource.data, sid))
+          // 공감 반응(친구): r 안의 '내 번호' 한 칸만 넣거나 빼고, by = 나
+          || (isAuthed() && moodWallOpen()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['r', 'by'])
+              && request.resource.data.by is int
+              && string(request.resource.data.by) != sid
+              && ownsStudent(string(request.resource.data.by))
+              && request.resource.data.r.diff(resource.data.r).affectedKeys()
+                   .hasOnly([string(request.resource.data.by)])
+              && (!(string(request.resource.data.by) in request.resource.data.r)
+                  || request.resource.data.r[string(request.resource.data.by)]
+                       in ['same', 'cheer', 'joy', 'up'])
+              && resource.data.get('hidden', false) == false);
+        // 내리기: 본인(교사가 가린 카드는 기록으로 남긴다) · 교사
+        allow delete: if isTeacher()
+          || (isAuthed() && ownsStudent(sid) && resource.data.get('hidden', false) == false);
+      }
+    }
+    match /moodSelf/{sid} {
+      allow read, write: if isTeacher() || (isAuthed() && ownsStudent(sid));
+    }
+
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
     match /complimentCoverage/{date} {
       allow read, create, update: if isAuthed();

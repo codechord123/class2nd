@@ -4,6 +4,7 @@
 //  · 다른 모둠: 우수 모둠 벤치마킹 평가 → 집계 시 Dense Ranking → 모둠원 전원 순위점수
 //  · 점수는 학생(개인)에게 귀속 — 2주마다 모둠이 바뀌어도 누적 유지
 // 읽기 예산: 학생 1일 = 본인 평가 2문서 + 집계 2문서. 저장 후 재조회 없음.
+import Link from "next/link";
 import { useSession } from "@/stores/session";
 import { friendlyWriteError } from "@/lib/auth";
 import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
@@ -783,7 +784,7 @@ export default function TeamPage() {
           <h3 className="text-lg font-bold">🙂 오늘 내 기분은 어때요?</h3>
           <p className="mt-1 text-[13px] text-ink-500">
             솔직하게 골라도 괜찮아요 — <b>점수와 상관없고</b>, 친구들에게는 보이지 않아요.
-            선생님만 보고 도와줄 거예요.
+            선생님만 보고 도와줄 거예요. (우리 반 마음 날씨에는 이름 없이 개수로만 더해져요)
           </p>
           <div className="mt-3 grid grid-cols-6 gap-1.5">
             {MOOD_FACES.map((face, v) => (
@@ -817,6 +818,9 @@ export default function TeamPage() {
               <>
                 오늘은 <b className="text-brand-strong">{MOOD_FACES[myMood]} {MOOD_LABELS[myMood]}</b>
                 {" "}— 언제든 다시 고를 수 있어요
+                <Link href="/us" className="mt-1 block font-bold text-rose-600 underline">
+                  🌈 이 마음에 이름을 붙여 친구들과 나눠 볼까요? → 나와 우리
+                </Link>
               </>
             ) : (
               "0(매우 나쁨) ~ 5(매우 좋음)"
