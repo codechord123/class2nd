@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { students } from "@/lib/roster";
+import { isWeekend, shiftDate, todayKST } from "@/lib/date";
 
 // ── 감정 단어 (예일대 RULER '무드미터' — 에너지 × 기분 4칸) ─────────────────────
 // 5학년 눈높이의 말로. '좋다/나쁘다' 두 칸 대신 정확한 이름을 붙이는 힘이 SEL의 첫 단계다.
@@ -153,14 +154,56 @@ export async function bumpWeather(date: string, prev: number | null, next: numbe
 }
 
 // ── 📅 나의 감정 달력 ───────────────────────────────────────────────────────
+/** 감정 체크가 처음 생긴 날 — 이 전엔 원본 기록 자체가 없다 */
+export const MOOD_START = "2026-10-07";
+/** 한 번에 맞춰볼 최대 날짜 수 (오래 안 연 학생도 읽기가 폭주하지 않게) */
+const SYNC_MAX_DAYS = 40;
+
+/**
+ * 📅 나의 감정 달력. moodSelf는 '사본'이고 원본은 모둠 탭의 평가 문서(_mood)다.
+ * 사본 쓰기는 실패해도 조용히 넘어가므로(규칙 게시 전·네트워크 끊김) 사본에 빈 날이 생긴다
+ * (실사례 2026-10-08: 규칙 게시 전에 고른 기분이 달력에 안 보임).
+ * → 열 때 syncedThrough 이후 학사일 중 비어 있는 날만 원본에서 읽어 채우고 사본에 되써 둔다.
+ *   한 번 맞춘 날은 syncedThrough로 넘겨 다시 읽지 않는다(오늘은 아직 바뀔 수 있어 매번 확인).
+ */
 export function useMoodSelf(sid: number | null) {
   return useQuery({
     queryKey: ["moodSelf", sid],
     enabled: sid != null,
     queryFn: async (): Promise<MoodSelf> => {
-      const snap = await getDoc(doc(db(), "moodSelf", String(sid)));
-      const d = (snap.exists() ? snap.data() : {}) as Partial<MoodSelf>;
-      return { byDate: d.byDate && typeof d.byDate === "object" ? d.byDate : {} };
+      const d0 = db();
+      const ref = doc(d0, "moodSelf", String(sid));
+      const snap = await getDoc(ref);
+      const d = (snap.exists() ? snap.data() : {}) as Partial<MoodSelf> & { syncedThrough?: string };
+      const byDate: MoodSelf["byDate"] = d.byDate && typeof d.byDate === "object" ? { ...d.byDate } : {};
+
+      const today = todayKST();
+      const from = d.syncedThrough && d.syncedThrough >= MOOD_START ? shiftDate(d.syncedThrough, 1) : MOOD_START;
+      const missing: string[] = [];
+      for (let day = from; day <= today && missing.length < SYNC_MAX_DAYS; day = shiftDate(day, 1))
+        if (!isWeekend(day) && typeof byDate[day]?.v !== "number") missing.push(day);
+
+      const found: MoodSelf["byDate"] = {};
+      await Promise.all(
+        missing.map(async (day) => {
+          const e = await getDoc(doc(d0, "evaluations", day, "entries", String(sid))).catch(() => null);
+          const v = e?.exists() ? (e.data() as { _mood?: unknown })._mood : undefined;
+          if (typeof v === "number") found[day] = { ...(byDate[day] ?? {}), v };
+        })
+      );
+      for (const [day, e] of Object.entries(found)) byDate[day] = e;
+
+      // 어제까지는 확정 — 다음부턴 오늘만 확인한다
+      const yesterday = shiftDate(today, -1);
+      const last = missing[missing.length - 1];
+      const through = missing.length >= SYNC_MAX_DAYS && last < yesterday ? last : yesterday;
+      if (Object.keys(found).length || (through > (d.syncedThrough ?? "") && through >= MOOD_START))
+        await setDoc(
+          ref,
+          { byDate: found, ...(through >= MOOD_START ? { syncedThrough: through } : {}) },
+          { merge: true }
+        ).catch(() => {});
+      return { byDate };
     },
     staleTime: 5 * 60 * 1000,
   });
