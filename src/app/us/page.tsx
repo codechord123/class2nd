@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
-import { studentById } from "@/lib/roster";
+import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
 import { friendlyWriteError } from "@/lib/auth";
 import { useSendToTeacher } from "@/lib/query/letters";
@@ -56,7 +56,10 @@ export default function UsPage() {
 
   const { data: weather } = useWeather(today, !!role);
   const { data: cards, isLoading, error, isFetching } = useMoodCards(today, !!role && (wallOpen || isTeacher));
-  const { data: self } = useMoodSelf(myId);
+  // 달력 주인: 학생은 본인, 선생님은 고른 학생 (선생님 모드에서 달력이 통째로 사라지던 문제 — 2026-10-09)
+  const [calPick, setCalPick] = useState<number>(() => students.find((s) => !s.inactive)?.id ?? 1);
+  const calId = myId ?? (isTeacher ? calPick : null);
+  const { data: self } = useMoodSelf(calId);
   const post = usePostCard(today, myId);
   const react = useReact(today, myId);
   const del = useDeleteCard(today);
@@ -436,9 +439,25 @@ export default function UsPage() {
         )}
       </Card>
 
-      {/* 📅 나의 감정 달력 — 본인만 */}
-      {myId != null && (
-        <Collapsible title="📅 나의 감정 달력">
+      {/* 📅 감정 달력 — 학생은 본인 것, 선생님은 학생을 골라서. 접혀 있으면 '사라졌다'로 보여 기본 펼침 */}
+      {calId != null && (
+        <Collapsible title={isTeacher ? "📅 학생 감정 달력" : "📅 나의 감정 달력"} defaultOpen>
+          {isTeacher && (
+            <select
+              value={calPick}
+              onChange={(e) => setCalPick(Number(e.target.value))}
+              className="mb-3 min-h-11 w-full rounded-btn border border-ink-300 px-3 text-sm font-bold"
+              aria-label="달력을 볼 학생"
+            >
+              {students
+                .filter((s) => !s.inactive)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.id}번 {s.name}
+                  </option>
+                ))}
+            </select>
+          )}
           <MoodCalendar data={self} today={today} />
         </Collapsible>
       )}

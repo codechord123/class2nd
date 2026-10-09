@@ -41,7 +41,8 @@ export default function MoodCalendar({ data, today }: { data: MoodSelf | undefin
   const sel = pick ? data?.byDate?.[pick] : undefined;
 
   return (
-    <div>
+    // 넓은 화면에서 칸이 정사각형으로 커지면 달력이 화면을 다 차지한다 — 폰 폭으로 고정
+    <div className="mx-auto max-w-md">
       <div className="flex items-center justify-between">
         <button
           onClick={() => shift(-1)}
@@ -126,7 +127,7 @@ export default function MoodCalendar({ data, today }: { data: MoodSelf | undefin
           "이 달엔 아직 기록이 없어요. 모둠 탭에서 기분을 고르면 여기에 쌓여요."
         )}
       </p>
-      <p className="mt-1 text-[11px] text-ink-400">🔒 이 달력은 나와 선생님만 볼 수 있어요.</p>
+      <p className="mt-1 text-[11px] text-ink-400">🔒 이 달력은 본인과 선생님만 볼 수 있어요.</p>
     </div>
   );
 }
