@@ -13,6 +13,7 @@ import { useFeedback } from "@/components/ui/Feedback";
 import { revealPanel } from "@/lib/revealPanel";
 import { brandHeader, esc, openPrintWindow } from "@/lib/exportDoc";
 import MoodStats from "@/components/teacher/MoodStats";
+import { moodLetterText, setLetterIntent } from "@/lib/letterIntent";
 import {
   LOW_STREAK_DAYS,
   MOOD_FACES,
@@ -28,7 +29,7 @@ import {
 const nm = (id: number) => studentById.get(id)?.name ?? `${id}번`;
 const fmtDay = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 
-export default function MoodPanel() {
+export default function MoodPanel({ onGoLetters }: { onGoLetters?: () => void } = {}) {
   const { toast } = useFeedback();
   const today = todayKST();
   const { data: hist, isLoading, error } = useMoodHistory(true);
@@ -99,6 +100,12 @@ export default function MoodPanel() {
     openPrintWindow(`${nm(id)} 감정 기록`, body);
   }
 
+  // 💌 이모티콘을 누르면 그 기분이 담긴 첫 문장과 함께 편지 쓰기로 (2026-10-12 사용자 요청)
+  function writeLetter(id: number, v: number) {
+    setLetterIntent({ sid: id, text: moodLetterText(v) });
+    onGoLetters?.();
+  }
+
   const trend = sel != null ? recentMoods(hist, sel, 30) : [];
   const selObs = sel != null ? hist?.teacher?.[obsDate]?.[String(sel)] : undefined;
 
@@ -129,17 +136,27 @@ export default function MoodPanel() {
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {attention.map((a) => (
-                <button
+                <span
                   key={a.id}
-                  onClick={() => setSel(a.id)}
-                  className="press rounded-full bg-white px-3 py-1.5 text-xs font-bold text-rose-800 ring-1 ring-rose-300"
+                  className="inline-flex items-center overflow-hidden rounded-full bg-white text-xs font-bold text-rose-800 ring-1 ring-rose-300"
                 >
-                  {nm(a.id)}
-                  {a.today != null && ` ${MOOD_FACES[a.today]}`}
-                  {a.streak >= LOW_STREAK_DAYS && (
-                    <span className="tnum ml-1 opacity-70">연속 {a.streak}</span>
+                  <button onClick={() => setSel(a.id)} className="press py-1.5 pl-3 pr-1.5">
+                    {nm(a.id)}
+                    {a.streak >= LOW_STREAK_DAYS && (
+                      <span className="tnum ml-1 opacity-70">연속 {a.streak}</span>
+                    )}
+                  </button>
+                  {a.today != null && (
+                    <button
+                      onClick={() => writeLetter(a.id, a.today!)}
+                      title={`${nm(a.id)}에게 편지 쓰기`}
+                      aria-label={`${nm(a.id)}에게 편지 쓰기`}
+                      className="press border-l border-rose-200 px-2 py-1 text-sm leading-none hover:bg-rose-50"
+                    >
+                      {MOOD_FACES[a.today]}
+                    </button>
                   )}
-                </button>
+                </span>
               ))}
             </div>
           </div>
@@ -159,10 +176,9 @@ export default function MoodPanel() {
               const v = todayRow[String(s.id)];
               const streak = lowStreak(hist, s.id);
               return (
-                <button
+                <span
                   key={s.id}
-                  onClick={() => setSel(s.id)}
-                  className={`press flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-bold ring-1 ${
+                  className={`inline-flex items-center overflow-hidden rounded-full text-xs font-bold ring-1 ${
                     v == null
                       ? "bg-ink-50 text-ink-400 ring-ink-200"
                       : v <= 1
@@ -172,15 +188,31 @@ export default function MoodPanel() {
                           : "bg-white text-ink-700 ring-ink-200"
                   } ${sel === s.id ? "ring-2 ring-brand" : ""}`}
                 >
-                  <span>{s.name}</span>
-                  <span className="text-sm leading-none">{v == null ? "—" : MOOD_FACES[v]}</span>
-                  {streak >= LOW_STREAK_DAYS && <span className="tnum text-[10px]">·{streak}</span>}
-                </button>
+                  {/* 이름 = 추이 보기 · 이모티콘 = 그 기분으로 편지 쓰기 */}
+                  <button onClick={() => setSel(s.id)} className="press py-1.5 pl-2.5 pr-1">
+                    {s.name}
+                    {streak >= LOW_STREAK_DAYS && <span className="tnum text-[10px]">·{streak}</span>}
+                  </button>
+                  {v == null ? (
+                    <span className="py-1.5 pl-0.5 pr-2.5 text-sm leading-none">—</span>
+                  ) : (
+                    <button
+                      onClick={() => writeLetter(s.id, v)}
+                      title={`${s.name}에게 편지 쓰기`}
+                      aria-label={`${s.name}에게 편지 쓰기`}
+                      className="press py-1 pl-1 pr-2.5 text-sm leading-none hover:scale-110"
+                    >
+                      {MOOD_FACES[v]}
+                    </button>
+                  )}
+                </span>
               );
             })}
           </div>
         )}
         <p className="mt-2 text-[11px] text-ink-400">
+          💌 <b>이모티콘을 누르면</b> 그 기분이 담긴 편지 쓰기로, 이름을 누르면 아래 흐름 보기로 가요.
+          <br />
           🔒 아이들은 <b>서로의 기분을 볼 수 없어요</b> — 비교·놀림이 생기면 솔직하게 고르지
           못하니까요. 기분은 점수·할 일 완주에 들어가지 않습니다. 학생 화면엔 이름 없는
           &lsquo;반 마음 날씨&rsquo;만 보여요 ·{" "}

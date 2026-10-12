@@ -390,7 +390,12 @@ export default function TeacherPage() {
           {/* 감정과 일지는 둘 다 '아이를 살피는' 도구라 한 탭에 모은다.
               살펴볼 친구를 발견하면 바로 아래 일지에 기록하는 흐름. */}
           <div id="panel-mood" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-            <MoodPanel />
+            <MoodPanel
+              onGoLetters={() => {
+                setTTab("today");
+                revealPanel("panel-letters"); // 탭 렌더를 기다렸다가 스크롤
+              }}
+            />
           </div>
           <div id="panel-log" className="space-y-4">
             <TeacherLogPanel />

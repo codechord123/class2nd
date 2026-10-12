@@ -276,18 +276,20 @@ export function usePostCard(date: string, myId: number | null) {
   };
 }
 
-/** 공감 반응 — 같은 걸 다시 누르면 취소, 다른 걸 누르면 바꾼다 (한 사람당 하나) */
-export function useReact(date: string, myId: number | null) {
+/** 공감 반응 — 같은 걸 다시 누르면 취소, 다른 걸 누르면 바꾼다 (한 사람당 하나).
+ *  reactor: 학생 번호, 또는 "teacher" — 선생님의 공감은 아이에게 가장 큰 힘이라 선생님도 누른다
+ *  (2026-10-12 사용자 지적: 선생님만 안 눌러짐). 선생님은 규칙상 isTeacher라 by를 남기지 않는다. */
+export function useReact(date: string, reactor: number | "teacher" | null) {
   const qc = useQueryClient();
   return async (card: MoodCard, kind: ReactionKey) => {
-    if (myId == null) throw new Error("로그인이 필요해요.");
-    if (card.sid === myId) return;
-    const me = String(myId);
+    if (reactor == null) throw new Error("로그인이 필요해요.");
+    if (card.sid === reactor) return;
+    const me = String(reactor);
     const off = card.r[me] === kind;
     // updateDoc은 점 표기가 '경로'다 (setDoc과 반대) — r.3 하나만 건드린다
     await updateDoc(doc(db(), "moodShare", date, "cards", String(card.sid)), {
       [`r.${me}`]: off ? deleteField() : kind,
-      by: myId,
+      ...(typeof reactor === "number" ? { by: reactor } : {}),
     });
     qc.setQueryData(cardsKey(date), (prev: MoodCard[] | undefined) =>
       (prev ?? []).map((c) => {
@@ -295,7 +297,7 @@ export function useReact(date: string, myId: number | null) {
         const r = { ...c.r };
         if (off) delete r[me];
         else r[me] = kind;
-        return { ...c, r, by: myId };
+        return { ...c, r, ...(typeof reactor === "number" ? { by: reactor } : {}) };
       })
     );
   };

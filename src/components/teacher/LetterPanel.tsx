@@ -3,7 +3,8 @@
 // 학생끼리는 편지를 주고받지 않으므로 우체통 하나가 곧 '그 학생과 나의 대화'다.
 // 답장을 기다리는 학생을 맨 위에 칩으로 세워 놓친 편지가 없게 한다.
 // 읽기: 대기 배지 = 부모 문서 25개(오늘 탭 열 때) · 대화 열람 = 고른 1명분만.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { clearLetterIntent, peekLetterIntent } from "@/lib/letterIntent";
 import { students, studentById } from "@/lib/roster";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
@@ -27,8 +28,25 @@ export default function LetterPanel() {
   const { toast, confirm } = useFeedback();
   const active = students.filter((s) => !s.inactive);
 
-  const [picked, setPicked] = useState<number[]>([]);
-  const [text, setText] = useState("");
+  // 감정 패널·담벼락에서 "편지 쓰기"로 건너오면 그 학생과 첫 문장이 채워진 채 열린다
+  const [picked, setPicked] = useState<number[]>(() => {
+    const i = peekLetterIntent();
+    return i ? [i.sid] : [];
+  });
+  const [text, setText] = useState(() => peekLetterIntent()?.text ?? "");
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!peekLetterIntent()) return;
+    clearLetterIntent();
+    const el = textRef.current;
+    if (!el) return;
+    // 스크롤(revealPanel)이 끝난 뒤 커서를 글 끝에 — 바로 이어 쓰게
+    const t = window.setTimeout(() => {
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, []);
   const [sending, setSending] = useState(false);
   const teacherSend = useTeacherSendLetter();
 
@@ -114,6 +132,7 @@ export default function LetterPanel() {
           </button>
         </div>
         <textarea
+          ref={textRef}
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, LETTER_MAX))}
           rows={5}

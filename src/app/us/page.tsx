@@ -5,6 +5,8 @@
 // 설계 근거는 src/lib/query/moodShare.ts 머리말 참고.
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { setLetterIntent, wordLetterText } from "@/lib/letterIntent";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
@@ -49,6 +51,7 @@ export default function UsPage() {
   const myId = role === "student" ? studentId : null;
   const today = todayKST();
   const qc = useQueryClient();
+  const router = useRouter();
   const { toast } = useFeedback();
   const { data: settings } = useSettings();
   const saveSettings = useSaveSettings();
@@ -61,7 +64,8 @@ export default function UsPage() {
   const calId = myId ?? (isTeacher ? calPick : null);
   const { data: self } = useMoodSelf(calId);
   const post = usePostCard(today, myId);
-  const react = useReact(today, myId);
+  const reactor = isTeacher ? ("teacher" as const) : myId;
+  const react = useReact(today, reactor);
   const del = useDeleteCard(today);
   const hide = useHideCard(today);
   const sendToTeacher = useSendToTeacher(myId);
@@ -409,7 +413,12 @@ export default function UsPage() {
                   <WallCard
                     card={c}
                     myId={myId}
+                    reactor={reactor}
                     isTeacher={isTeacher}
+                    onLetter={() => {
+                      setLetterIntent({ sid: c.sid, text: wordLetterText(c.word) });
+                      router.push("/teacher#panel-letters");
+                    }}
                     onReact={async (k) => {
                       try {
                         await react(c, k);
@@ -481,29 +490,37 @@ export default function UsPage() {
   );
 }
 
+/** 반응한 사람 이름 — 학생 번호 또는 "teacher" */
+const whoName = (k: string) => (k === "teacher" ? "선생님" : nm(Number(k)));
+
 function WallCard({
   card,
   myId,
+  reactor = myId,
   isTeacher,
   onReact,
   onHide,
   onDelete,
+  onLetter,
 }: {
   card: MoodCard;
   myId: number | null;
+  reactor?: number | "teacher" | null;
   isTeacher: boolean;
   onReact?: (k: (typeof REACTIONS)[number]["key"]) => void;
   onHide?: () => void;
   onDelete?: () => void;
+  onLetter?: () => void;
 }) {
   const c = colorInfo(card.color);
   const mineCard = card.sid === myId;
-  const myReaction = myId != null ? card.r[String(myId)] : undefined;
+  const myReaction = reactor != null ? card.r[String(reactor)] : undefined;
+  const teacherReaction = REACTIONS.find((x) => x.key === card.r.teacher);
   const counts = REACTIONS.map((x) => ({
     ...x,
     who: Object.entries(card.r)
       .filter(([, k]) => k === x.key)
-      .map(([id]) => Number(id)),
+      .map(([id]) => id),
   }));
   const total = Object.keys(card.r).length;
 
@@ -520,6 +537,12 @@ function WallCard({
             </span>
             <span className="text-[11px] text-ink-400">{hhmm(card.at)}</span>
             {card.hidden && <span className="text-[11px] font-bold text-ink-500">가려짐</span>}
+            {/* 선생님의 공감은 따로 눈에 띄게 — 아이에게 '선생님이 봤다'는 신호 */}
+            {teacherReaction && (
+              <span className="ml-auto rounded-full bg-pink-50 px-2 py-0.5 text-[11px] font-bold text-pink-700 ring-1 ring-pink-200">
+                선생님 {teacherReaction.emoji}
+              </span>
+            )}
           </div>
           <p className={`mt-1.5 text-[17px] font-extrabold ${c.text}`}>{card.word}</p>
           {card.note && (
@@ -532,7 +555,7 @@ function WallCard({
               <p className="mt-2 text-xs text-ink-600">
                 {counts
                   .filter((x) => x.who.length)
-                  .map((x) => `${x.emoji} ${x.who.map(nm).join(", ")}`)
+                  .map((x) => `${x.emoji} ${x.who.map(whoName).join(", ")}`)
                   .join("  ")}
               </p>
             ) : (
@@ -544,8 +567,8 @@ function WallCard({
                 <button
                   key={x.key}
                   onClick={() => onReact?.(x.key)}
-                  disabled={myId == null || card.hidden}
-                  title={isTeacher ? x.who.map(nm).join(", ") : undefined}
+                  disabled={reactor == null || card.hidden}
+                  title={isTeacher ? x.who.map(whoName).join(", ") : undefined}
                   className={`press inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 text-xs font-bold ring-1 disabled:cursor-default ${
                     myReaction === x.key
                       ? "bg-brand-weak text-brand-strong ring-brand"
@@ -573,6 +596,12 @@ function WallCard({
                 className="press rounded-btn bg-white px-2.5 py-1 text-[11px] font-bold text-rose-600 ring-1 ring-rose-200"
               >
                 지우기
+              </button>
+              <button
+                onClick={onLetter}
+                className="press ml-auto rounded-btn bg-pink-50 px-2.5 py-1 text-[11px] font-bold text-pink-700 ring-1 ring-pink-200"
+              >
+                💌 편지 쓰기
               </button>
             </div>
           )}
