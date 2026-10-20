@@ -13,6 +13,29 @@ import {
 import { studentById } from "@/lib/roster";
 import { useFeedback } from "@/components/ui/Feedback";
 
+// 💡 이름·설명에 적힌 가격("3실버", "골드 2개")을 읽는다. 학생 제안은 이름 칸밖에 없어
+//    가격을 이름에 적는데, [메뉴판에 추가] 가격 칸이 기본 1로 열려 그대로 1실버가 되던 문제
+//    (2026-10-20 실사례: "하루노래 자유이용권(3실버)"가 1실버로 등록돼 신청도 1실버로 들어옴).
+type Wallet = "silver" | "gold";
+function priceHint(...texts: (string | undefined)[]): { price: number; wallet: Wallet } | null {
+  for (const t of texts) {
+    if (!t) continue;
+    const m = t.match(/(\d+)\s*(?:개\s*)?(실버|골드)/) ?? t.match(/(실버|골드)\s*(\d+)/);
+    if (!m) continue;
+    const [num, kind] = /\d/.test(m[1]) ? [m[1], m[2]] : [m[2], m[1]];
+    const price = Number(num);
+    if (price > 0) return { price, wallet: kind === "골드" ? "gold" : "silver" };
+  }
+  return null;
+}
+const unit = (w: Wallet) => (w === "gold" ? "골드" : "실버");
+/** 이름에 적힌 가격과 실제 가격이 다르면 경고 문구 */
+function mismatch(name: string, note: string | undefined, price: number, wallet: Wallet): string | null {
+  const h = priceHint(name, note);
+  if (!h || (h.price === price && h.wallet === wallet)) return null;
+  return `이름에는 ${h.price}${unit(h.wallet)}, 가격은 ${price}${unit(wallet)}이에요`;
+}
+
 export default function ShopMenuEditor() {
   const { data: menu } = useShopMenu();
   const save = useSaveShopMenu();
@@ -90,6 +113,16 @@ export default function ShopMenuEditor() {
     setMsg("");
     try {
       if (!name.trim()) throw new Error("메뉴 이름을 입력하세요.");
+      const w = mismatch(name, note, Math.max(1, Number(price) || 1), wallet);
+      if (
+        w &&
+        !(await confirm({
+          title: "가격을 확인해 주세요",
+          body: `${w}. 아이들은 가격 칸의 값으로 신청해요. 이대로 저장할까요?`,
+          confirmLabel: "이대로 저장",
+        }))
+      )
+        return;
       const item: ShopMenuItem = {
         id: editId ?? Date.now(),
         name: name.trim(),
@@ -184,6 +217,14 @@ export default function ShopMenuEditor() {
                   {m.wallet === "gold" ? "골드" : "실버"}
                   {m.note && ` · ${m.note}`}
                 </span>
+                {(() => {
+                  const w = mismatch(m.name, m.note, m.price, m.wallet);
+                  return w ? (
+                    <span className="ml-1 rounded bg-warn-weak px-1.5 py-0.5 text-[11px] font-bold text-warn">
+                      ⚠️ {w} — [수정]에서 고쳐 주세요
+                    </span>
+                  ) : null;
+                })()}
               </span>
               <span className="flex shrink-0 gap-2">
                 <button
@@ -230,9 +271,10 @@ export default function ShopMenuEditor() {
                     <span className="flex shrink-0 gap-1.5">
                       <button
                         onClick={() => {
+                          const h = priceHint(r.name, r.note);
                           setAddingReq(r.id);
-                          setReqPrice("1");
-                          setReqWallet("silver");
+                          setReqPrice(String(h?.price ?? 1));
+                          setReqWallet(h?.wallet ?? "silver");
                         }}
                         className="press rounded-btn bg-success px-3 py-1.5 text-xs font-bold text-white"
                       >
@@ -272,6 +314,10 @@ export default function ShopMenuEditor() {
                     >
                       확정
                     </button>
+                    {(() => {
+                      const w = mismatch(r.name, r.note, Math.max(1, Number(reqPrice) || 1), reqWallet);
+                      return w ? <span className="basis-full text-xs font-bold text-warn">⚠️ {w}</span> : null;
+                    })()}
                     <button
                       onClick={() => setAddingReq(null)}
                       className="press rounded-btn px-2 py-1.5 text-xs font-bold text-ink-400"
