@@ -247,10 +247,19 @@ export default function ShopAdmin() {
       {tab === "approve" && (
         <>
           <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-            <h2 className="text-lg font-bold">
-              🛒 승인 대기{" "}
-              <span className="text-sm font-normal text-ink-400">({pending.length}건)</span>
-            </h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg font-bold">
+                🛒 승인 대기{" "}
+                <span className="text-sm font-normal text-ink-400">({pending.length}건)</span>
+              </h2>
+              {/* 1분마다 자동으로도 새로 읽지만, 아이가 '방금 했어요' 할 때 바로 확인용 */}
+              <button
+                onClick={() => void qc.invalidateQueries({ queryKey: ["pendingRequests"] })}
+                className="press rounded-btn bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-600"
+              >
+                새로고침
+              </button>
+            </div>
             {!pending.length && (
               <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>
             )}

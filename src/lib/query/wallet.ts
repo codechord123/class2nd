@@ -115,6 +115,11 @@ export function usePendingRequests(kind: WalletKind, enabled: boolean) {
         .sort((a, b) => a.createdAt - b.createdAt); // 선착순
     },
     staleTime: 60 * 1000,
+    // ⚠️ 앱 기본값은 창 전환 재조회 OFF라, 교사 화면을 열어둔 동안 들어온 신청이 새로고침
+    //    전까지 안 보였다 (2026-10-20 실사례: 조수아 신청이 저장됐는데 승인 대기에 안 뜸).
+    //    대기 목록만 예외 — 대기 문서만 걸러 읽어 1회 몇 건 수준이라 1분 폴링도 하루 수백 읽기.
+    refetchOnWindowFocus: true,
+    refetchInterval: 60 * 1000, // 탭이 백그라운드면 멈춘다(기본값)
   });
 }
 
