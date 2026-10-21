@@ -2,26 +2,13 @@
 // 오늘 제출 현황 — 아이들이 저장한 평가·MVP·칭찬이 '실제로 들어왔는지' 집계 전에 바로 확인.
 // (집계해야만 보이던 문제 해소 — 데이터가 쌓이는 걸 실시간으로 눈으로 확인)
 // 읽기 예산: 교사가 이 패널을 볼 때만 evaluations/{date}/entries 최대 25문서. 새로고침 수동.
-import { useQuery } from "@tanstack/react-query";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useDaySubmissions } from "@/lib/query/evaluation";
 import { students, studentById } from "@/lib/roster";
 import Card from "@/components/ui/Card";
 
-interface Entry {
-  id: number;
-  data: Record<string, unknown>;
-}
 
 export default function TodaySubmissionsPanel({ date }: { date: string }) {
-  const { data, isFetching, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ["submissions", date],
-    queryFn: async (): Promise<Entry[]> => {
-      const snap = await getDocs(collection(db(), "evaluations", date, "entries"));
-      return snap.docs.map((d) => ({ id: Number(d.id), data: d.data() }));
-    },
-    staleTime: 60 * 1000,
-  });
+  const { data, isFetching, refetch, dataUpdatedAt } = useDaySubmissions(date);
 
   const entries = data ?? [];
   const submitted = new Set(entries.map((e) => e.id));

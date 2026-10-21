@@ -346,3 +346,22 @@ export function useCumulativeScores() {
     staleTime: 10 * 60 * 1000,
   });
 }
+
+// ── 그날 원시 제출 (교사) ─────────────────────────────────────────────────
+// '오늘 제출 현황'과 '오늘의 감정'이 같은 캐시를 쓴다 — 한 화면에서 두 패널을 봐도 읽기는 한 번.
+// 집계 전 데이터라 낮 동안에도 바로 보인다 (집계된 moodHistory는 하루 집계 후에야 채워짐).
+export interface DayEntry {
+  id: number;
+  data: Record<string, unknown>;
+}
+export function useDaySubmissions(date: string, enabled = true) {
+  return useQuery({
+    queryKey: ["submissions", date],
+    enabled,
+    queryFn: async (): Promise<DayEntry[]> => {
+      const snap = await getDocs(collection(db(), "evaluations", date, "entries"));
+      return snap.docs.map((d) => ({ id: Number(d.id), data: d.data() }));
+    },
+    staleTime: 60 * 1000,
+  });
+}

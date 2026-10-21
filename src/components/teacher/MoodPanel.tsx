@@ -13,6 +13,8 @@ import { useFeedback } from "@/components/ui/Feedback";
 import { revealPanel } from "@/lib/revealPanel";
 import { brandHeader, esc, openPrintWindow } from "@/lib/exportDoc";
 import MoodStats from "@/components/teacher/MoodStats";
+import MoodMap from "@/components/teacher/MoodMap";
+import { useDaySubmissions } from "@/lib/query/evaluation";
 import { moodLetterText, setLetterIntent } from "@/lib/letterIntent";
 import {
   LOW_STREAK_DAYS,
@@ -32,7 +34,21 @@ const fmtDay = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))
 export default function MoodPanel({ onGoLetters }: { onGoLetters?: () => void } = {}) {
   const { toast } = useFeedback();
   const today = todayKST();
-  const { data: hist, isLoading, error } = useMoodHistory(true);
+  const { data: histRaw, isLoading, error } = useMoodHistory(true);
+  // ⚠️ moodHistory는 하루 집계 때 채워져서, 낮 동안엔 오늘 고른 기분이 안 보였다
+  //    (2026-10-21 사용자 지적: "오늘 기록된 기분이 아직 없어요"). 오늘 치는 원본 제출에서
+  //    바로 읽어 겹쳐 쓴다 — '오늘 제출 현황'과 같은 캐시라 추가 읽기 없음.
+  const { data: subs, refetch: refetchToday, isFetching: todayFetching } = useDaySubmissions(today);
+  const hist = useMemo(() => {
+    const live: Record<string, number> = {};
+    for (const e of subs ?? []) {
+      const v = e.data._mood;
+      if (typeof v === "number" && v >= 0 && v <= 5) live[String(e.id)] = v;
+    }
+    if (!histRaw && !Object.keys(live).length) return histRaw;
+    const base = histRaw ?? { byDate: {}, teacher: {} };
+    return { ...base, byDate: { ...base.byDate, [today]: { ...(base.byDate[today] ?? {}), ...live } } };
+  }, [histRaw, subs, today]);
   const saveTeacherMood = useSaveTeacherMood();
 
   const active = useMemo(() => students.filter((s) => !s.inactive), []);
@@ -114,6 +130,15 @@ export default function MoodPanel({ onGoLetters }: { onGoLetters?: () => void } 
       <Card
         title="🙂 오늘의 감정"
         desc="아이들이 모둠 활동을 시작하며 고른 기분이에요. 점수와는 무관해요."
+        action={
+          <button
+            onClick={() => void refetchToday()}
+            disabled={todayFetching}
+            className="press rounded-btn bg-ink-100 px-3 py-1.5 text-xs font-bold text-ink-600 disabled:opacity-50"
+          >
+            {todayFetching ? "…" : "새로고침"}
+          </button>
+        }
       >
         {error ? (
           <p className="mt-3 rounded-btn bg-rose-50 px-3 py-2.5 text-[13px] font-bold text-rose-700">
@@ -219,6 +244,15 @@ export default function MoodPanel({ onGoLetters }: { onGoLetters?: () => void } 
           <Link href="/us" className="font-bold text-brand-strong underline">🌈 마음 담벼락 보기</Link>
         </p>
       </Card>
+
+      <MoodMap
+        hist={hist}
+        today={today}
+        onPick={(id) => {
+          setSel(id);
+          document.getElementById("mood-student")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
 
       <MoodStats
         hist={hist}
