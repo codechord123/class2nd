@@ -364,7 +364,8 @@ service cloud.firestore {
     }
 
     // 📚 학급문고 대출 — 사서 학생(교사가 지정한 classData/settings.librarians)만 기록한다
-    //   libraryLoans/{id}: { title, author, sid, out, due, ext, returned, lost, by, createdAt }
+    //   libraryLoans/{id}: { title, author, sid, out, due, ext, returned, lost, by, createdAt,
+    //                        condOut, noteOut(빌려줄 때 상태), condIn, noteIn, damageNew(돌려받을 때) }
     //   by = 기록한 사서의 학생 번호 → 명단에 있고 그 기기 주인일 때만 통과 (사칭 차단)
     //   연체는 점수 감점으로 이어지므로, 학생이 남의 기록을 고치거나 지우는 길은 없다.
     function isLibrarian(by) {
@@ -377,7 +378,9 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow create: if isTeacher() || (isAuthed()
         && isLibrarian(request.resource.data.by)
-        && request.resource.data.keys().hasOnly(['title', 'author', 'sid', 'out', 'due', 'ext', 'returned', 'lost', 'by', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['title', 'author', 'sid', 'out', 'due', 'ext', 'returned', 'lost', 'by', 'createdAt', 'condOut', 'noteOut'])
+        && request.resource.data.get('condOut', []) is list && request.resource.data.get('condOut', []).size() <= 8
+        && request.resource.data.get('noteOut', '') is string && request.resource.data.get('noteOut', '').size() <= 80
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 60
         && request.resource.data.author is string && request.resource.data.author.size() <= 40
@@ -388,12 +391,16 @@ service cloud.firestore {
         && request.resource.data.returned == null
         && request.resource.data.lost == false
         && request.resource.data.createdAt is int);
-      // 사서: 반납·연장(1회)·분실만. 누가·무엇을·언제 빌렸는지(sid·title·out)는 못 바꾼다
+      // 사서: 반납(+돌려받을 때 상태)·연장(1회)·분실만. 누가·무엇을·언제 빌렸는지,
+      //       빌려줄 때 상태(condOut)는 못 바꾼다 — 훼손 책임이 흐려지지 않게.
+      //       새 훼손 표시(damageNew)는 켤 수만 있고 끄는 건(확인 처리) 선생님만.
       allow update: if isTeacher() || (isAuthed()
         && isLibrarian(request.resource.data.by)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['due', 'ext', 'returned', 'lost', 'by'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['due', 'ext', 'returned', 'lost', 'by', 'condIn', 'noteIn', 'damageNew'])
         && request.resource.data.ext is int && request.resource.data.ext <= 1
-        && request.resource.data.due >= resource.data.due);
+        && request.resource.data.due >= resource.data.due
+        && request.resource.data.get('noteIn', '') is string && request.resource.data.get('noteIn', '').size() <= 80
+        && !(resource.data.get('damageNew', false) == true && request.resource.data.get('damageNew', false) != true));
       allow delete: if isTeacher();
     }
 

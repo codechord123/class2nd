@@ -12,13 +12,18 @@ import { todayKST } from "@/lib/date";
 import { friendlyWriteError } from "@/lib/auth";
 import {
   AUTHOR_MAX,
+  COND_NOTE_MAX,
+  CONDITIONS,
   LOAN_EXT_MAX,
   TITLE_MAX,
   daysLeft,
   dueFrom,
   lateDays,
   libraryRules,
+  condLabel,
+  newDamage,
   useActiveLoans,
+  useDamageAlerts,
   useDeleteLoan,
   useLend,
   useLoanHistory,
@@ -33,6 +38,49 @@ import { useFeedback } from "@/components/ui/Feedback";
 
 const nm = (id: number) => studentById.get(id)?.name ?? `${id}번`;
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+
+/** 🔧 책 상태 고르기 — 아무것도 안 고르면 '깨끗해요'. 훼손은 여러 개 고를 수 있다 */
+function CondPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const chip = (on: boolean, bad: boolean) =>
+    `press min-h-9 rounded-full px-3 text-xs font-bold ring-1 ${
+      on
+        ? bad
+          ? "bg-warn text-white ring-warn"
+          : "bg-success text-white ring-success"
+        : "bg-white text-ink-600 ring-ink-200"
+    }`;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        onClick={() => onChange([])}
+        className={chip(value.length === 0, false)}
+      >
+        ✨ 깨끗해요
+      </button>
+      {CONDITIONS.map((c) => (
+        <button
+          type="button"
+          key={c}
+          onClick={() =>
+            onChange(
+              value.includes(c) ? value.filter((x) => x !== c) : [...value, c],
+            )
+          }
+          className={chip(value.includes(c), true)}
+        >
+          {c}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** 기한 배지 — D-3 / 오늘까지 / 연체 n일 */
 function DueBadge({
@@ -131,6 +179,26 @@ export default function LibraryPanel({
   );
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
+  // 🔧 빌려줄 때 상태
+  const [condOut, setCondOut] = useState<string[]>([]);
+  const [noteOut, setNoteOut] = useState("");
+  // 🔧 반납 확인 — 누른 책 한 권만 펼쳐서 돌려받을 때 상태를 고른다
+  const [retId, setRetId] = useState<string | null>(null);
+  const [retCond, setRetCond] = useState<string[]>([]);
+  const [retNote, setRetNote] = useState("");
+  const { data: damaged } = useDamageAlerts(canDesk);
+  // 📋 대출 상세 팝업 — 지난 기록·대출 중·내 책 어디서든 눌러서 연다 (사용자 요청 2026-10-22)
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = useMemo(
+    () =>
+      [
+        ...(active ?? []),
+        ...(history ?? []),
+        ...(mine ?? []),
+        ...(damaged ?? []),
+      ].find((l) => l.id === detailId) ?? null,
+    [detailId, active, history, mine, damaged],
+  );
 
   const activeByStudent = useMemo(() => {
     const m: Record<number, number> = {};
@@ -154,7 +222,15 @@ export default function LibraryPanel({
       );
     setBusy(true);
     try {
-      await lend({ title, author, sid: who, out: today, due });
+      await lend({
+        title,
+        author,
+        sid: who,
+        out: today,
+        due,
+        condOut,
+        noteOut,
+      });
       toast(
         `📕 ${nm(who)} · 《${title.trim()}》 대출 — ${md(due)}까지`,
         "success",
@@ -162,6 +238,8 @@ export default function LibraryPanel({
       setTitle("");
       setAuthor("");
       setWho(null);
+      setCondOut([]);
+      setNoteOut("");
       setDue(dueFrom(today, rules.days, rules.holidays)); // 설정이 늦게 읽혀도 다음 대출은 규칙대로
     } catch (e) {
       toast(
@@ -176,14 +254,38 @@ export default function LibraryPanel({
     }
   }
 
+  async function doReturn(l: Loan) {
+    const fresh = newDamage(l.condOut, retCond);
+    try {
+      await update(l, {
+        returned: today,
+        condIn: retCond,
+        noteIn: retNote.trim().slice(0, COND_NOTE_MAX),
+        damageNew: fresh.length > 0,
+      });
+      setRetId(null);
+      toast(
+        fresh.length
+          ? `📗 반납 — 🔧 새 훼손(${fresh.join(", ")})을 선생님께 알렸어요.`
+          : `📗 《${l.title}》 반납 완료`,
+        fresh.length ? "warn" : "success",
+      );
+    } catch (e) {
+      toast(friendlyWriteError(e, "처리하지 못했어요."), "error");
+    }
+  }
+
   async function act(
     l: Loan,
-    kind: "return" | "extend" | "lost" | "undo" | "delete",
+    kind: "return" | "extend" | "lost" | "undo" | "delete" | "checked",
   ) {
     try {
       if (kind === "return") {
-        await update(l, { returned: today });
-        toast(`📗 《${l.title}》 반납 완료`, "success");
+        // 바로 반납하지 않고 상태 확인을 연다 — 빌릴 때 상태를 미리 골라 둔다
+        setRetId(l.id);
+        setRetCond(l.condOut);
+        setRetNote("");
+        return;
       } else if (kind === "extend") {
         if (l.ext >= LOAN_EXT_MAX)
           return toast("연장은 한 번만 할 수 있어요.", "warn");
@@ -201,6 +303,9 @@ export default function LibraryPanel({
         )
           return;
         await update(l, { lost: true });
+      } else if (kind === "checked") {
+        await update(l, { damageNew: false });
+        toast("🔧 훼손 확인 처리했어요.");
       } else if (kind === "undo") {
         await update(l, { returned: null });
         toast("반납을 취소했어요.");
@@ -258,6 +363,10 @@ export default function LibraryPanel({
                         mode={rules.mode}
                       />
                     </div>
+                    <p className="mt-1 text-[11px] text-ink-500">
+                      빌릴 때 상태: <b>{condLabel(l.condOut)}</b> — 돌려줄 때
+                      다시 확인해요. 소중히 읽어 주세요!
+                    </p>
                     {late > 0 && (
                       <p className="mt-1 text-xs font-bold text-danger">
                         반납 기한이 지났어요! 돌려줄 때까지{" "}
@@ -283,7 +392,13 @@ export default function LibraryPanel({
                     key={l.id}
                     className="flex items-center justify-between gap-2 text-sm"
                   >
-                    <span className="min-w-0 truncate text-ink-700">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setDetailId(l.id)}
+                      onKeyDown={(e) => e.key === "Enter" && setDetailId(l.id)}
+                      className="min-w-0 cursor-pointer truncate text-ink-700 hover:text-brand-strong"
+                    >
                       《{l.title}》{" "}
                       <span className="text-xs text-ink-400">
                         {md(l.returned!)} 반납
@@ -313,6 +428,39 @@ export default function LibraryPanel({
               : "사서님, 빌려줄 때 제목과 빌리는 친구를 적어 주세요."
           }
         >
+          {(damaged?.length ?? 0) > 0 && (
+            <div className="mt-3 rounded-card bg-warn-weak p-3 ring-1 ring-warn/30">
+              <p className="text-[13px] font-bold text-warn">
+                🔧 새 훼손으로 돌아온 책 {damaged!.length}권
+                <span className="ml-1 font-normal text-ink-500">
+                  —{" "}
+                  {isTeacher
+                    ? "눌러서 확인하고 처리해 주세요"
+                    : "선생님이 확인할 거예요"}
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {damaged!.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      onClick={() => setDetailId(l.id)}
+                      className="press flex w-full flex-wrap items-center gap-2 rounded-btn bg-white px-2.5 py-1.5 text-left text-[13px]"
+                    >
+                      <b className="text-ink-700">{nm(l.sid)}</b>
+                      <span className="min-w-0 flex-1 truncate">
+                        《{l.title}》
+                      </span>
+                      <span className="text-[11px] font-bold text-warn">
+                        {newDamage(l.condOut, l.condIn).join(" · ")}
+                      </span>
+                      <span className="text-ink-300">›</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="mt-3 rounded-card bg-ink-50 p-3">
             <p className="text-[13px] font-bold text-ink-700">📕 빌려주기</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -360,6 +508,25 @@ export default function LibraryPanel({
                   );
                 })}
             </div>
+            <p className="mt-3 text-xs font-bold text-ink-500">
+              책 상태{" "}
+              <span className="font-normal text-ink-400">
+                — 빌려주기 전에 한 번 넘겨 보고 골라요
+              </span>
+            </p>
+            <div className="mt-1.5">
+              <CondPicker value={condOut} onChange={setCondOut} />
+            </div>
+            {condOut.length > 0 && (
+              <input
+                value={noteOut}
+                onChange={(e) =>
+                  setNoteOut(e.target.value.slice(0, COND_NOTE_MAX))
+                }
+                placeholder="어디가 어떤지 (예: 12쪽 낙서)"
+                className="mt-2 min-h-11 w-full rounded-btn border border-ink-300 px-3 text-sm"
+              />
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold text-ink-500">반납 기한</span>
               <input
@@ -424,7 +591,13 @@ export default function LibraryPanel({
                     <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
                       {nm(l.sid)}
                     </span>
-                    <b className="min-w-0 flex-1 break-words text-[15px] text-ink-900">
+                    <b
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setDetailId(l.id)}
+                      onKeyDown={(e) => e.key === "Enter" && setDetailId(l.id)}
+                      className="min-w-0 flex-1 cursor-pointer break-words text-[15px] text-ink-900 hover:text-brand-strong"
+                    >
                       《{l.title}》
                       {l.author && (
                         <span className="ml-1 text-xs font-normal text-ink-400">
@@ -438,6 +611,11 @@ export default function LibraryPanel({
                     <span className="text-[11px] text-ink-400">
                       {md(l.out)} 대출{l.ext ? " · 연장" : ""}
                     </span>
+                    {l.condOut.length > 0 && (
+                      <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
+                        빌릴 때 {condLabel(l.condOut)}
+                      </span>
+                    )}
                     <DueBadge
                       l={l}
                       today={today}
@@ -480,6 +658,50 @@ export default function LibraryPanel({
                       )}
                     </span>
                   </div>
+                  {retId === l.id && (
+                    <div className="mt-2 rounded-btn bg-success-weak/60 p-3 ring-1 ring-success/30">
+                      <p className="text-[13px] font-bold text-ink-800">
+                        🔧 돌려받는 책 상태 확인{" "}
+                        <span className="font-normal text-ink-500">
+                          — 빌릴 때: {condLabel(l.condOut)}
+                        </span>
+                      </p>
+                      <div className="mt-2">
+                        <CondPicker value={retCond} onChange={setRetCond} />
+                      </div>
+                      {retCond.length > 0 && (
+                        <input
+                          value={retNote}
+                          onChange={(e) =>
+                            setRetNote(e.target.value.slice(0, COND_NOTE_MAX))
+                          }
+                          placeholder="어디가 어떤지 (예: 표지가 찢어짐)"
+                          className="mt-2 min-h-11 w-full rounded-btn border border-ink-300 px-3 text-sm"
+                        />
+                      )}
+                      {newDamage(l.condOut, retCond).length > 0 && (
+                        <p className="mt-2 text-xs font-bold text-warn">
+                          ⚠️ 빌릴 때 없던 훼손:{" "}
+                          {newDamage(l.condOut, retCond).join(", ")} — 반납하면
+                          선생님께 알려져요
+                        </p>
+                      )}
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => void doReturn(l)}
+                          className="press min-h-11 flex-1 rounded-btn bg-success px-3 text-sm font-bold text-white"
+                        >
+                          반납 완료
+                        </button>
+                        <button
+                          onClick={() => setRetId(null)}
+                          className="press min-h-11 rounded-btn bg-white px-3 text-sm font-bold text-ink-500 ring-1 ring-ink-200"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -495,41 +717,53 @@ export default function LibraryPanel({
             {showHistory && (
               <ul className="mt-2 space-y-1 text-[13px]">
                 {(history ?? []).map((l) => (
-                  <li
-                    key={l.id}
-                    className="flex flex-wrap items-center gap-2 rounded-btn bg-ink-50 px-2.5 py-1.5"
-                  >
-                    <span className="tnum text-[11px] text-ink-400">
-                      {md(l.out)}
-                    </span>
-                    <b className="text-ink-700">{nm(l.sid)}</b>
-                    <span className="min-w-0 flex-1 truncate">
-                      《{l.title}》
-                    </span>
-                    <DueBadge
-                      l={l}
-                      today={today}
-                      holidays={rules.holidays}
-                      penalty={rules.penalty}
-                      mode={rules.mode}
-                    />
-                    <span className="text-[11px] text-ink-400">
-                      기록 {l.by === "teacher" ? "선생님" : nm(l.by)}
-                    </span>
-                    {l.returned && (
-                      <button
-                        onClick={() => void act(l, "undo")}
-                        className="press text-[11px] font-bold text-ink-400 underline"
-                      >
-                        반납 취소
-                      </button>
-                    )}
+                  <li key={l.id}>
+                    <button
+                      onClick={() => setDetailId(l.id)}
+                      className="press flex w-full flex-wrap items-center gap-2 rounded-btn bg-ink-50 px-2.5 py-1.5 text-left hover:bg-ink-100"
+                    >
+                      <span className="tnum text-[11px] text-ink-400">
+                        {md(l.out)}
+                      </span>
+                      <b className="text-ink-700">{nm(l.sid)}</b>
+                      <span className="min-w-0 flex-1 truncate">
+                        《{l.title}》
+                      </span>
+                      {newDamage(l.condOut, l.condIn).length > 0 && (
+                        <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
+                          🔧 훼손
+                        </span>
+                      )}
+                      <DueBadge
+                        l={l}
+                        today={today}
+                        holidays={rules.holidays}
+                        penalty={rules.penalty}
+                        mode={rules.mode}
+                      />
+                      <span className="text-ink-300">›</span>
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
           </div>
         </Card>
+      )}
+
+      {detail && (
+        <LoanDetail
+          l={detail}
+          today={today}
+          rules={rules}
+          canDesk={canDesk}
+          isTeacher={isTeacher}
+          onClose={() => setDetailId(null)}
+          onAct={async (kind) => {
+            await act(detail, kind);
+            if (kind === "delete") setDetailId(null);
+          }}
+        />
       )}
 
       {/* ── 선생님: 사서·규칙 ── */}
@@ -543,6 +777,162 @@ export default function LibraryPanel({
           />
         </Card>
       )}
+    </div>
+  );
+}
+
+/** 팝업 안 한 줄: 이름표 + 내용 */
+function Row({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 border-b border-ink-100 py-2 text-sm last:border-0">
+      <span className="w-24 shrink-0 text-ink-500">{k}</span>
+      <span className="min-w-0 flex-1 break-words text-ink-800">{children}</span>
+    </div>
+  );
+}
+
+/** 📋 대출 1건 상세 — 누가·언제·기한·반납, 빌릴 때/돌려받을 때 상태, 새 훼손, 기록한 사람 */
+function LoanDetail({
+  l,
+  today,
+  rules,
+  canDesk,
+  isTeacher,
+  onClose,
+  onAct,
+}: {
+  l: Loan;
+  today: string;
+  rules: ReturnType<typeof libraryRules>;
+  canDesk: boolean;
+  isTeacher: boolean;
+  onClose: () => void;
+  onAct: (kind: "undo" | "delete" | "checked") => Promise<void>;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const fresh = newDamage(l.condOut, l.condIn);
+  const late = lateDays(l, l.returned ?? today, rules.holidays);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-3"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`《${l.title}》 대출 기록`}
+    >
+      <div
+        className="rise max-h-[90vh] w-full max-w-md overflow-y-auto rounded-card bg-white p-5 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-lg font-extrabold text-ink-900">《{l.title}》</p>
+            {l.author && <p className="text-sm text-ink-500">{l.author}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="닫기"
+            className="press min-h-11 min-w-11 rounded-btn text-xl text-ink-400"
+          >
+            ×
+          </button>
+        </div>
+        <div className="mt-3">
+          <DueBadge
+            l={l}
+            today={today}
+            holidays={rules.holidays}
+            penalty={rules.penalty}
+            mode={rules.mode}
+          />
+        </div>
+        <div className="mt-3">
+          <Row k="빌린 학생">
+            <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+              {nm(l.sid)}
+            </span>
+          </Row>
+          <Row k="빌린 날">{md(l.out)}</Row>
+          <Row k="반납 기한">
+            {md(l.due)}
+            {l.ext ? " (연장 1회)" : ""}
+          </Row>
+          <Row k="반납한 날">
+            {l.returned
+              ? md(l.returned)
+              : l.lost
+                ? "분실"
+                : "아직 빌려 가는 중"}
+          </Row>
+          {late > 0 && (
+            <Row k="연체">
+              <b className="text-danger">학교 오는 날 기준 {late}일</b>
+            </Row>
+          )}
+          <Row k="빌릴 때 상태">
+            <b>{condLabel(l.condOut)}</b>
+            {l.noteOut && (
+              <span className="block text-xs text-ink-500">{l.noteOut}</span>
+            )}
+          </Row>
+          <Row k="돌려받을 때">
+            {l.condIn ? (
+              <>
+                <b>{condLabel(l.condIn)}</b>
+                {l.noteIn && (
+                  <span className="block text-xs text-ink-500">{l.noteIn}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-ink-400">—</span>
+            )}
+          </Row>
+          {fresh.length > 0 && (
+            <Row k="새 훼손">
+              <b className="text-warn">🔧 {fresh.join(" · ")}</b>
+              <span className="block text-xs text-ink-500">
+                빌릴 때는 없었어요
+                {l.damageNew ? " · 선생님 확인 전" : " · 선생님 확인 완료"}
+              </span>
+            </Row>
+          )}
+          <Row k="기록한 사람">
+            {l.by === "teacher" ? "선생님" : `사서 ${nm(l.by)}`}
+          </Row>
+        </div>
+        {canDesk && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {isTeacher && l.damageNew && (
+              <button
+                onClick={() => void onAct("checked")}
+                className="press min-h-11 flex-1 rounded-btn bg-warn px-3 text-sm font-bold text-white"
+              >
+                🔧 훼손 확인했어요
+              </button>
+            )}
+            {l.returned && (
+              <button
+                onClick={() => void onAct("undo")}
+                className="press min-h-11 rounded-btn bg-ink-100 px-3 text-sm font-bold text-ink-600"
+              >
+                반납 취소
+              </button>
+            )}
+            {isTeacher && (
+              <button
+                onClick={() => void onAct("delete")}
+                className="press min-h-11 rounded-btn px-3 text-sm font-bold text-danger"
+              >
+                기록 지우기
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

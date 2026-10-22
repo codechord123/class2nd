@@ -37,7 +37,21 @@ export interface Loan {
   lost: boolean;
   by: number | "teacher";
   createdAt: number;
+  /** 🔧 책 상태 — 빌려줄 때(condOut)·돌려받을 때(condIn). 빈 배열 = 깨끗 (사용자 요청 2026-10-22) */
+  condOut: string[];
+  noteOut: string;
+  condIn: string[] | null; // 반납 전엔 null
+  noteIn: string;
+  /** 돌려받을 때 '빌릴 때 없던' 훼손이 생겼다 → 선생님 확인 전까지 true (개요 알림) */
+  damageNew: boolean;
 }
+
+/** 훼손 종류 — 사서가 눌러 고른다 (아무것도 안 고르면 '깨끗해요') */
+export const CONDITIONS = ["낙서", "찢어짐", "젖음", "접힘·구김", "표지 손상", "낱장 빠짐"] as const;
+export const COND_NOTE_MAX = 80;
+export const condLabel = (c: string[] | null | undefined) => (!c || !c.length ? "깨끗해요" : c.join(" · "));
+/** 빌릴 때 없던 훼손만 — 이게 있으면 '그 대출 기간에 생긴' 훼손 */
+export const newDamage = (out: string[], inn: string[] | null) => (inn ?? []).filter((x) => !out.includes(x));
 
 // ── 규칙 기본값 (교사 설정이 비어 있으면) ─────────────────────────────────────
 export const DEFAULT_LIBRARIANS = [15, 18]; // 이다인 · 이채연 (사용자 지정 2026-10-22)
@@ -135,6 +149,11 @@ function toLoan(d: { id: string; data: () => Record<string, unknown> }): Loan {
     lost: x.lost === true,
     by: x.by === "teacher" ? "teacher" : Number(x.by),
     createdAt: Number(x.createdAt ?? 0),
+    condOut: Array.isArray(x.condOut) ? (x.condOut as string[]) : [],
+    noteOut: String(x.noteOut ?? ""),
+    condIn: Array.isArray(x.condIn) ? (x.condIn as string[]) : null,
+    noteIn: String(x.noteIn ?? ""),
+    damageNew: x.damageNew === true,
   };
 }
 
@@ -169,6 +188,19 @@ export function useMyLoans(sid: number | null) {
   });
 }
 
+/** 🔧 새 훼손으로 돌아온 책 (선생님 확인 전) — 교사 개요·데스크 알림 */
+export function useDamageAlerts(enabled: boolean) {
+  return useQuery({
+    queryKey: ["library", "damage"],
+    enabled,
+    queryFn: async () => {
+      const snap = await getDocs(query(collection(db(), "libraryLoans"), where("damageNew", "==", true)));
+      return snap.docs.map(toLoan).sort((a, b) => (b.returned ?? "").localeCompare(a.returned ?? ""));
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 /** 최근 기록 — 사서·교사가 펼칠 때만 */
 export function useLoanHistory(enabled: boolean, n = 40) {
   return useQuery({
@@ -193,7 +225,15 @@ function useRefresh() {
 /** by: 사서 학생 번호 또는 "teacher" — 규칙이 사서 명단과 기기 소유를 대조한다 */
 export function useLend(by: number | "teacher" | null) {
   const refresh = useRefresh();
-  return async (p: { title: string; author: string; sid: number; out: string; due: string }) => {
+  return async (p: {
+    title: string;
+    author: string;
+    sid: number;
+    out: string;
+    due: string;
+    condOut: string[];
+    noteOut: string;
+  }) => {
     if (by == null) throw new Error("사서만 기록할 수 있어요.");
     const title = p.title.trim();
     if (!title) throw new Error("책 제목을 적어 주세요.");
@@ -209,6 +249,8 @@ export function useLend(by: number | "teacher" | null) {
       lost: false,
       by,
       createdAt: Date.now(),
+      condOut: p.condOut,
+      noteOut: p.noteOut.trim().slice(0, COND_NOTE_MAX),
     });
     refresh();
   };
@@ -216,7 +258,10 @@ export function useLend(by: number | "teacher" | null) {
 
 export function useUpdateLoan(by: number | "teacher" | null) {
   const refresh = useRefresh();
-  return async (l: Loan, patch: Partial<Pick<Loan, "due" | "ext" | "returned" | "lost">>) => {
+  return async (
+    l: Loan,
+    patch: Partial<Pick<Loan, "due" | "ext" | "returned" | "lost" | "condIn" | "noteIn" | "damageNew">>
+  ) => {
     if (by == null) throw new Error("사서만 기록할 수 있어요.");
     await updateDoc(doc(db(), "libraryLoans", l.id), { ...patch, by });
     refresh();

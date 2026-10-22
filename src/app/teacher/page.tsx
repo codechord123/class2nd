@@ -181,7 +181,7 @@ export default function TeacherPage() {
         }
         if (r.healedDates?.length)
           toast(
-            `🩺 독서 점수 자가 점검: ${r.healedDates.map((dt) => dt.slice(5)).join(", ")}에서 감상문 수와 점수가 안 맞아 자동으로 바로잡았어요`,
+            `🔍 독서 점수 자가 점검: ${r.healedDates.map((dt) => dt.slice(5)).join(", ")}에서 감상문 수와 점수가 안 맞아 자동으로 바로잡았어요`,
             "success"
           );
         if (r.cumDrift?.length)
