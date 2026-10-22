@@ -378,7 +378,8 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow create: if isTeacher() || (isAuthed()
         && isLibrarian(request.resource.data.by)
-        && request.resource.data.keys().hasOnly(['title', 'author', 'sid', 'out', 'due', 'ext', 'returned', 'lost', 'by', 'createdAt', 'condOut', 'noteOut'])
+        && request.resource.data.keys().hasOnly(['title', 'author', 'sid', 'out', 'due', 'ext', 'returned', 'lost', 'by', 'createdAt', 'condOut', 'noteOut', 'bookId'])
+        && request.resource.data.get('bookId', '') is string
         && request.resource.data.get('condOut', []) is list && request.resource.data.get('condOut', []).size() <= 8
         && request.resource.data.get('noteOut', '') is string && request.resource.data.get('noteOut', '').size() <= 80
         && request.resource.data.title is string
@@ -401,6 +402,23 @@ service cloud.firestore {
         && request.resource.data.due >= resource.data.due
         && request.resource.data.get('noteIn', '') is string && request.resource.data.get('noteIn', '').size() <= 80
         && !(resource.data.get('damageNew', false) == true && request.resource.data.get('damageNew', false) != true));
+      allow delete: if isTeacher();
+    }
+
+    // 📚 학급문고 목록 — library/catalog 문서 하나 { books: { [책id]: {t,a,k,copy,c,n,on,lost,at} }, by, at }
+    //   빌려줄 때 사서가 새 책을 등록하고 대출·반납 상태를 갱신한다(대출 기록과 한 트랜잭션).
+    //   빌린 학생 이름은 여기 없다 — 학생 화면엔 '대출 중 · 반납 예정일'까지만.
+    //   이관 표시(migratedAt)·삭제는 선생님만.
+    match /library/{docId} {
+      allow read: if isAuthed();
+      allow create: if isTeacher() || (isAuthed() && docId == 'catalog'
+        && isLibrarian(request.resource.data.by)
+        && request.resource.data.keys().hasOnly(['books', 'by', 'at'])
+        && request.resource.data.books is map);
+      allow update: if isTeacher() || (isAuthed() && docId == 'catalog'
+        && isLibrarian(request.resource.data.by)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['books', 'by', 'at'])
+        && request.resource.data.books is map);
       allow delete: if isTeacher();
     }
 

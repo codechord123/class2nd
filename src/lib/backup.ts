@@ -29,6 +29,7 @@ export const BACKUP_COLLECTIONS = [
   "biweeklyScores", // 세션 정산 기록
   "moodHistory", // 🙂 감정 추이 (교사 전용)
   "libraryLoans", // 📚 학급문고 대출 기록 (연체 감점의 근거)
+  "library", // 📚 학급문고 목록 (책별 상태·대출 횟수)
   "moodSelf", // 📅 학생별 감정 달력 (본인+교사) — 담벼락(moodShare)은 그날만 쓰는 휘발성이라 제외
   "teacherLogs", // 📔 담임 일지 — 민감하지만 가장 소중한 기록이라 백업에 포함
   "classData", // 설정·순위·결석·법률 등

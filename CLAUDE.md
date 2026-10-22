@@ -111,6 +111,10 @@ Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 �
   (`lateMode: "daily"`, 교사가 `"once"`=책마다 1회로 전환 가능), 그날 반납하면 그날은 감점 없음,
   분실 표시는 감점 정지. 행 필드 `late`(음수)는 **개인 점수 전용** — 모둠 점수·MVP 판정 제외.
   집계(`aggregateDate`)가 `libraryLoans`에서 `latePenaltyOn`으로 계산한다.
+  **학급문고 목록은 빌려줄 때 자동으로 쌓인다**(`library/catalog` 문서 하나, 대출과 한 트랜잭션):
+  제목 자동 완성(띄어쓰기 무시)·같은 책 2권은 copy ②·지난 반납 상태가 다음 '빌릴 때 상태'로 이어짐.
+  책별 이력은 `libraryLoans.bookId`로 잇는다. 학생 화면엔 '대출 중·반납 예정일'까지만(이름은 사서·교사만).
+  빌릴 때/반납 때 훼손 기록(`condOut`/`condIn`), 새 훼손 확인(`damageNew` 끄기)은 교사만.
 - 1학기 감상문은 감상문 게시판에 통합 표시하되 **보관용**(수정·삭제·댓글 없음).
 - 날짜는 전부 KST (`src/lib/date.ts`의 `todayKST/weekOfDate`), 학기 상수는 `src/lib/schedule.ts`.
 

@@ -5,6 +5,7 @@
 //   · 선생님    : + ⚙️ 사서 지정 · 대출 규칙 · 연체 감점 방식
 // 사서 활동 자체는 점수와 무관하다(사용자 확정). 연체만 집계가 개인 점수에서 뺀다.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { students, studentById } from "@/lib/roster";
@@ -22,13 +23,22 @@ import {
   libraryRules,
   condLabel,
   newDamage,
+  bookKey,
+  bookLabel,
+  migrateCatalog,
   useActiveLoans,
+  useBookLoans,
+  useCatalog,
   useDamageAlerts,
+  useDeleteBook,
+  useEditBook,
+  useMergeBooks,
   useDeleteLoan,
   useLend,
   useLoanHistory,
   useMyLoans,
   useUpdateLoan,
+  type Book,
   type Loan,
 } from "@/lib/query/library";
 import Card from "@/components/ui/Card";
@@ -153,6 +163,23 @@ export default function LibraryPanel({
     error: activeErr,
   } = useActiveLoans(canDesk);
   const { data: mine } = useMyLoans(myId);
+  const qc = useQueryClient();
+  const { data: catalog } = useCatalog(!!role);
+  const books = useMemo(() => Object.values(catalog?.books ?? {}), [catalog]);
+  // 🗂 목록이 생기기 전 기록을 한 번만 제목별로 묶어 올린다 (선생님 화면에서 자동)
+  const migrateOnce = useRef(false);
+  useEffect(() => {
+    if (!isTeacher || !catalog || catalog.migratedAt || migrateOnce.current)
+      return;
+    migrateOnce.current = true;
+    void migrateCatalog()
+      .then(() => qc.invalidateQueries({ queryKey: ["library"] }))
+      .catch(() => {});
+  }, [isTeacher, catalog, qc]);
+  // 📖 책 이력 팝업
+  const [bookId, setBookId] = useState<string | null>(null);
+  const openBook = catalog?.books[bookId ?? ""] ?? null;
+  const { data: bookLoans } = useBookLoans(canDesk ? bookId : null);
   const [showHistory, setShowHistory] = useState(false);
   const { data: history } = useLoanHistory(canDesk && showHistory);
   const lend = useLend(by);
@@ -173,6 +200,9 @@ export default function LibraryPanel({
   // ── 대출 폼 ──
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
+  const [selBook, setSelBook] = useState<string | null>(null); // 목록에서 고른 책
+  const [newCopy, setNewCopy] = useState(false); // 같은 제목이 다 대출 중일 때 한 권 더 등록
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [who, setWho] = useState<number | null>(null);
   const [due, setDue] = useState(() =>
     dueFrom(today, rules.days, rules.holidays),
@@ -196,8 +226,9 @@ export default function LibraryPanel({
         ...(history ?? []),
         ...(mine ?? []),
         ...(damaged ?? []),
+        ...(bookLoans ?? []),
       ].find((l) => l.id === detailId) ?? null,
-    [detailId, active, history, mine, damaged],
+    [detailId, active, history, mine, damaged, bookLoans],
   );
 
   const activeByStudent = useMemo(() => {
@@ -230,6 +261,8 @@ export default function LibraryPanel({
         due,
         condOut,
         noteOut,
+        bookId: selBook,
+        newCopy,
       });
       toast(
         `📕 ${nm(who)} · 《${title.trim()}》 대출 — ${md(due)}까지`,
@@ -237,6 +270,8 @@ export default function LibraryPanel({
       );
       setTitle("");
       setAuthor("");
+      setSelBook(null);
+      setNewCopy(false);
       setWho(null);
       setCondOut([]);
       setNoteOut("");
@@ -319,7 +354,7 @@ export default function LibraryPanel({
           }))
         )
           return;
-        await del(l);
+        await del(l, catalog);
       }
     } catch (e) {
       toast(friendlyWriteError(e, "처리하지 못했어요."), "error");
@@ -464,12 +499,37 @@ export default function LibraryPanel({
           <div className="mt-3 rounded-card bg-ink-50 p-3">
             <p className="text-[13px] font-bold text-ink-700">📕 빌려주기</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX))}
-                placeholder="책 제목"
-                className="min-h-11 min-w-40 flex-[2] rounded-btn border border-ink-300 px-3 text-[15px]"
-              />
+              <div className="relative min-w-40 flex-[2]">
+                <input
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value.slice(0, TITLE_MAX));
+                    setSelBook(null);
+                    setNewCopy(false);
+                    setSuggestOpen(true);
+                  }}
+                  onFocus={() => setSuggestOpen(true)}
+                  onBlur={() =>
+                    window.setTimeout(() => setSuggestOpen(false), 150)
+                  }
+                  placeholder="책 제목 (학급문고에서 찾기)"
+                  className="min-h-11 w-full rounded-btn border border-ink-300 px-3 text-[15px]"
+                />
+                {suggestOpen && !selBook && title.trim() && (
+                  <BookSuggest
+                    books={books}
+                    query={title}
+                    onPick={(b) => {
+                      setSelBook(b.id);
+                      setTitle(b.t);
+                      setAuthor(b.a);
+                      setCondOut(b.c); // 지난번 반납 상태가 이번 '빌릴 때 상태'로
+                      setNewCopy(false);
+                      setSuggestOpen(false);
+                    }}
+                  />
+                )}
+              </div>
               <input
                 value={author}
                 onChange={(e) => setAuthor(e.target.value.slice(0, AUTHOR_MAX))}
@@ -477,6 +537,14 @@ export default function LibraryPanel({
                 className="min-h-11 min-w-28 flex-1 rounded-btn border border-ink-300 px-3 text-[15px]"
               />
             </div>
+            <TitleHint
+              books={books}
+              title={title}
+              selBook={selBook}
+              newCopy={newCopy}
+              onNewCopy={() => setNewCopy(true)}
+              onOpenBook={setBookId}
+            />
             <p className="mt-3 text-xs font-bold text-ink-500">빌리는 친구</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {students
@@ -751,6 +819,23 @@ export default function LibraryPanel({
         </Card>
       )}
 
+      {/* 📚 학급문고 목록 — 모두 볼 수 있다 (빌린 학생 이름은 사서·선생님만) */}
+      {role && <CatalogCard books={books} today={today} onOpen={setBookId} />}
+
+      {openBook && (
+        <BookDetail
+          b={openBook}
+          all={books}
+          loans={bookLoans}
+          canDesk={canDesk}
+          isTeacher={isTeacher}
+          today={today}
+          rules={rules}
+          onClose={() => setBookId(null)}
+          onOpenLoan={(id) => setDetailId(id)}
+        />
+      )}
+
       {detail && (
         <LoanDetail
           l={detail}
@@ -781,12 +866,514 @@ export default function LibraryPanel({
   );
 }
 
+/** 책 상태 칩 — 학생에게도 보이므로 빌린 사람 이름은 넣지 않는다 */
+function BookStatus({ b, today }: { b: Book; today: string }) {
+  if (b.lost)
+    return (
+      <span className="rounded-full bg-ink-800 px-2 py-0.5 text-[11px] font-bold text-white">
+        분실
+      </span>
+    );
+  if (b.on)
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+          b.on.due < today
+            ? "bg-danger-weak text-danger"
+            : "bg-warn-weak text-warn"
+        }`}
+      >
+        대출 중 · {md(b.on.due)} 반납 예정
+      </span>
+    );
+  return (
+    <span className="rounded-full bg-success-weak px-2 py-0.5 text-[11px] font-bold text-success">
+      대출 가능
+    </span>
+  );
+}
+
+/** 제목 자동 완성 — 띄어쓰기 무시. 빌릴 수 있는 책이 위로 */
+function BookSuggest({
+  books,
+  query,
+  onPick,
+}: {
+  books: Book[];
+  query: string;
+  onPick: (b: Book) => void;
+}) {
+  const k = bookKey(query);
+  const hits = books
+    .filter((b) => k && (b.k.includes(k) || bookKey(b.a).includes(k)))
+    .sort(
+      (a, b) =>
+        Number(!!a.on || a.lost) - Number(!!b.on || b.lost) || b.n - a.n,
+    )
+    .slice(0, 6);
+  if (!hits.length) return null;
+  return (
+    <ul className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-btn border border-ink-200 bg-white shadow-card">
+      {hits.map((b) => {
+        const busy = !!b.on || b.lost;
+        return (
+          <li key={b.id}>
+            <button
+              type="button"
+              disabled={busy}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onPick(b)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-ink-50 disabled:opacity-50"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                <b className="text-ink-900">{bookLabel(b)}</b>
+                {b.a && (
+                  <span className="ml-1 text-xs text-ink-400">{b.a}</span>
+                )}
+              </span>
+              <span className="text-[11px] text-ink-400">{b.n}회</span>
+              <span
+                className={`text-[11px] font-bold ${busy ? "text-warn" : "text-success"}`}
+              >
+                {b.lost
+                  ? "분실"
+                  : b.on
+                    ? `대출 중 ~${md(b.on.due)}`
+                    : "빌릴 수 있어요"}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** 제목 아래 한 줄 — 목록의 책인지, 새 책인지, 다 대출 중인지 알려 준다 */
+function TitleHint({
+  books,
+  title,
+  selBook,
+  newCopy,
+  onNewCopy,
+  onOpenBook,
+}: {
+  books: Book[];
+  title: string;
+  selBook: string | null;
+  newCopy: boolean;
+  onNewCopy: () => void;
+  onOpenBook: (id: string) => void;
+}) {
+  const t = title.trim();
+  if (!t) return null;
+  const sel = books.find((b) => b.id === selBook);
+  if (sel)
+    return (
+      <p className="mt-1.5 text-xs text-ink-600">
+        📗 학급문고 책 · 지금까지 {sel.n}번 빌려 갔어요 · 지금 상태{" "}
+        <b>{condLabel(sel.c)}</b>{" "}
+        <button
+          type="button"
+          onClick={() => onOpenBook(sel.id)}
+          className="font-bold text-brand-strong underline"
+        >
+          이력 보기
+        </button>
+      </p>
+    );
+  const same = books.filter((b) => b.k === bookKey(t));
+  const free = same.find((b) => !b.on && !b.lost);
+  if (newCopy)
+    return (
+      <p className="mt-1.5 text-xs font-bold text-brand-strong">
+        ✨ 같은 책 한 권 더 — 새 권으로 학급문고에 등록돼요
+      </p>
+    );
+  if (free)
+    return (
+      <p className="mt-1.5 text-xs text-ink-600">
+        📗 학급문고의 《{bookLabel(free)}》로 빌려줘요 (지금 상태{" "}
+        {condLabel(free.c)})
+      </p>
+    );
+  if (same.length)
+    return (
+      <p className="mt-1.5 text-xs text-warn">
+        ⚠️ 이 책은 지금 다 빌려 갔어요.{" "}
+        <button
+          type="button"
+          onClick={onNewCopy}
+          className="font-bold underline"
+        >
+          같은 책이 한 권 더 있어요 (새 권 등록)
+        </button>
+      </p>
+    );
+  return (
+    <p className="mt-1.5 text-xs text-ink-500">
+      ✨ 새 책 — 빌려주면 학급문고 목록에 자동으로 올라가요
+    </p>
+  );
+}
+
+/** 📚 학급문고 목록 — 찾기 · 대출 가능만 · 많이 빌린 순 */
+function CatalogCard({
+  books,
+  today,
+  onOpen,
+}: {
+  books: Book[];
+  today: string;
+  onOpen: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [only, setOnly] = useState<"all" | "free" | "out">("all");
+  const [sort, setSort] = useState<"title" | "pop">("title");
+  const k = bookKey(q);
+  const list = books
+    .filter((b) => !k || b.k.includes(k) || bookKey(b.a).includes(k))
+    .filter((b) =>
+      only === "free" ? !b.on && !b.lost : only === "out" ? !!b.on : true,
+    )
+    .sort(
+      (a, b) =>
+        (sort === "pop" ? b.n - a.n : a.t.localeCompare(b.t, "ko")) ||
+        a.copy - b.copy,
+    );
+  const top = [...books]
+    .filter((b) => b.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+  const free = books.filter((b) => !b.on && !b.lost).length;
+  return (
+    <Card
+      title="📚 학급문고 목록"
+      desc={`${books.length}권 · 지금 빌릴 수 있는 책 ${free}권 — 빌려줄 때마다 자동으로 늘어나요`}
+    >
+      {top.length > 0 && (
+        <p className="mt-2 text-xs text-ink-600">
+          🏆 인기:{" "}
+          {top.map((b, i) => (
+            <button
+              key={b.id}
+              onClick={() => onOpen(b.id)}
+              className="mr-2 font-bold text-ink-800 hover:text-brand-strong"
+            >
+              {i + 1}. {bookLabel(b)}{" "}
+              <span className="font-normal text-ink-400">{b.n}회</span>
+            </button>
+          ))}
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="제목·지은이 찾기"
+          className="min-h-11 min-w-40 flex-1 rounded-btn border border-ink-300 px-3 text-sm"
+        />
+        {(
+          [
+            ["all", "전체"],
+            ["free", "빌릴 수 있는 책"],
+            ["out", "대출 중"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setOnly(key)}
+            className={`press min-h-9 rounded-full px-3 text-xs font-bold ring-1 ${
+              only === key
+                ? "bg-ink-800 text-white ring-ink-800"
+                : "bg-white text-ink-600 ring-ink-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          onClick={() => setSort((v) => (v === "title" ? "pop" : "title"))}
+          className="press min-h-9 rounded-full px-3 text-xs font-bold text-ink-500"
+        >
+          {sort === "title" ? "가나다순 ▾" : "많이 빌린 순 ▾"}
+        </button>
+      </div>
+      {!books.length ? (
+        <EmptyState
+          emoji="📚"
+          title="아직 등록된 책이 없어요"
+          desc="사서가 책을 빌려주면 여기에 하나씩 쌓여요."
+        />
+      ) : !list.length ? (
+        <EmptyState emoji="🔍" title="찾는 책이 없어요" />
+      ) : (
+        <ul className="mt-2 divide-y divide-ink-100">
+          {list.map((b) => (
+            <li key={b.id}>
+              <button
+                onClick={() => onOpen(b.id)}
+                className="press flex w-full flex-wrap items-center gap-2 py-2.5 text-left"
+              >
+                <span className="min-w-0 flex-1">
+                  <b className="break-words text-[15px] text-ink-900">
+                    《{bookLabel(b)}》
+                  </b>
+                  {b.a && (
+                    <span className="ml-1 text-xs text-ink-400">{b.a}</span>
+                  )}
+                </span>
+                <span className="tnum text-[11px] text-ink-400">{b.n}회</span>
+                <BookStatus b={b} today={today} />
+                <span className="text-ink-300">›</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/** 📖 책 한 권의 이력 — 누가 언제 빌렸고 상태가 어떻게 변했는지 (이름은 사서·선생님만) */
+function BookDetail({
+  b,
+  all,
+  loans,
+  canDesk,
+  isTeacher,
+  today,
+  rules,
+  onClose,
+  onOpenLoan,
+}: {
+  b: Book;
+  all: Book[];
+  loans: Loan[] | undefined;
+  canDesk: boolean;
+  isTeacher: boolean;
+  today: string;
+  rules: ReturnType<typeof libraryRules>;
+  onClose: () => void;
+  onOpenLoan: (loanId: string) => void;
+}) {
+  const { toast, confirm } = useFeedback();
+  const edit = useEditBook();
+  const merge = useMergeBooks();
+  const remove = useDeleteBook();
+  const [t, setT] = useState(b.t);
+  const [a, setA] = useState(b.a);
+  const [into, setInto] = useState("");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function run(fn: () => Promise<void>, ok: string) {
+    try {
+      await fn();
+      toast(ok, "success");
+    } catch (e) {
+      toast(friendlyWriteError(e, "처리하지 못했어요."), "error");
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/40 p-3"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`《${bookLabel(b)}》 이력`}
+    >
+      <div
+        className="rise max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-card bg-white p-5 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-lg font-extrabold text-ink-900">
+              《{bookLabel(b)}》
+            </p>
+            {b.a && <p className="text-sm text-ink-500">{b.a}</p>}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="닫기"
+            className="press min-h-11 min-w-11 rounded-btn text-xl text-ink-400"
+          >
+            ×
+          </button>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <BookStatus b={b} today={today} />
+          <span className="text-xs text-ink-500">
+            지금까지 <b>{b.n}</b>번 빌려 갔어요 · 지금 상태{" "}
+            <b>{condLabel(b.c)}</b>
+          </span>
+        </div>
+
+        {canDesk ? (
+          <>
+            <p className="mt-4 text-[13px] font-bold text-ink-700">
+              📜 대출 이력
+            </p>
+            {!loans ? (
+              <p className="mt-2 text-sm text-ink-400">불러오는 중…</p>
+            ) : !loans.length ? (
+              <p className="mt-2 text-sm text-ink-400">아직 기록이 없어요.</p>
+            ) : (
+              <ol className="mt-2 space-y-1.5">
+                {loans.map((l) => {
+                  const fresh = newDamage(l.condOut, l.condIn);
+                  return (
+                    <li key={l.id}>
+                      <button
+                        onClick={() => onOpenLoan(l.id)}
+                        className="press flex w-full flex-wrap items-center gap-2 rounded-btn bg-ink-50 px-3 py-2 text-left text-[13px] hover:bg-ink-100"
+                      >
+                        <span className="tnum text-[11px] text-ink-400">
+                          {md(l.out)} →{" "}
+                          {l.returned
+                            ? md(l.returned)
+                            : l.lost
+                              ? "분실"
+                              : "대출 중"}
+                        </span>
+                        <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                          {nm(l.sid)}
+                        </span>
+                        <span className="min-w-0 flex-1 text-[11px] text-ink-500">
+                          {condLabel(l.condOut)}
+                          {l.condIn && ` → ${condLabel(l.condIn)}`}
+                        </span>
+                        {fresh.length > 0 && (
+                          <span className="rounded-full bg-warn-weak px-2 py-0.5 text-[11px] font-bold text-warn">
+                            🔧 {fresh.join("·")}
+                          </span>
+                        )}
+                        {lateDays(l, l.returned ?? today, rules.holidays) >
+                          0 && (
+                          <span className="rounded-full bg-danger-weak px-2 py-0.5 text-[11px] font-bold text-danger">
+                            연체
+                          </span>
+                        )}
+                        <span className="text-ink-300">›</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </>
+        ) : (
+          <p className="mt-4 rounded-btn bg-ink-50 px-3 py-2.5 text-xs text-ink-500">
+            빌리고 싶으면 사서({rules.librarians.map(nm).join(", ")})에게 말해
+            주세요.
+          </p>
+        )}
+
+        {isTeacher && (
+          <div className="mt-5 space-y-3 border-t border-ink-100 pt-4">
+            <p className="text-[13px] font-bold text-ink-700">
+              ✏️ 책 정보 고치기 (선생님)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={t}
+                onChange={(e) => setT(e.target.value)}
+                className="min-h-11 min-w-40 flex-[2] rounded-btn border border-ink-300 px-3 text-sm"
+              />
+              <input
+                value={a}
+                onChange={(e) => setA(e.target.value)}
+                placeholder="지은이"
+                className="min-h-11 min-w-28 flex-1 rounded-btn border border-ink-300 px-3 text-sm"
+              />
+              <button
+                onClick={() =>
+                  void run(() => edit(b, t, a), "책 정보를 고쳤어요.")
+                }
+                className="press min-h-11 rounded-btn bg-brand px-4 text-sm font-bold text-white"
+              >
+                저장
+              </button>
+            </div>
+            <p className="text-[13px] font-bold text-ink-700">
+              🔗 같은 책인데 따로 등록됐다면 합치기
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={into}
+                onChange={(e) => setInto(e.target.value)}
+                className="min-h-11 min-w-40 flex-1 rounded-btn border border-ink-300 px-2 text-sm"
+              >
+                <option value="">이 책을 합칠 대상…</option>
+                {all
+                  .filter((x) => x.id !== b.id)
+                  .sort((x, y) => x.t.localeCompare(y.t, "ko"))
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {bookLabel(x)}
+                    </option>
+                  ))}
+              </select>
+              <button
+                disabled={!into}
+                onClick={async () => {
+                  const dst = all.find((x) => x.id === into);
+                  if (!dst) return;
+                  if (
+                    !(await confirm({
+                      title: `《${bookLabel(b)}》을 《${bookLabel(dst)}》에 합칠까요?`,
+                      body: "이 책의 대출 이력이 모두 옮겨지고, 이 책은 목록에서 사라져요.",
+                      confirmLabel: "합치기",
+                    }))
+                  )
+                    return;
+                  await run(() => merge(b, dst), "합쳤어요.");
+                  onClose();
+                }}
+                className="press min-h-11 rounded-btn bg-ink-800 px-4 text-sm font-bold text-white disabled:opacity-40"
+              >
+                합치기
+              </button>
+            </div>
+            <button
+              disabled={!!b.on}
+              onClick={async () => {
+                if (
+                  !(await confirm({
+                    title: `《${bookLabel(b)}》을 목록에서 지울까요?`,
+                    body: "지난 대출 기록은 남아요. (학급문고에서 빠진 책일 때)",
+                    confirmLabel: "지우기",
+                    danger: true,
+                  }))
+                )
+                  return;
+                await run(() => remove(b), "목록에서 지웠어요.");
+                onClose();
+              }}
+              className="press text-xs font-bold text-danger disabled:opacity-40"
+            >
+              목록에서 지우기{b.on ? " (대출 중이라 지금은 안 돼요)" : ""}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** 팝업 안 한 줄: 이름표 + 내용 */
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 border-b border-ink-100 py-2 text-sm last:border-0">
       <span className="w-24 shrink-0 text-ink-500">{k}</span>
-      <span className="min-w-0 flex-1 break-words text-ink-800">{children}</span>
+      <span className="min-w-0 flex-1 break-words text-ink-800">
+        {children}
+      </span>
     </div>
   );
 }
