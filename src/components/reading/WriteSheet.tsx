@@ -18,12 +18,13 @@ import JuiceBurst from "@/components/ui/Juice";
 import Button from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 
-const EMPTY: ReportForm = {
+export const EMPTY_REPORT_FORM: ReportForm = {
   title: "", author: "", publisher: "", summary: "", scene: "", quote: "", thoughts: "",
   authorIntent: "", connect: "", reason: "", characters: "", recommend: "", freeText: "",
   bookIntro: "", impressive: "", critique: "",
   tags: [], isPrivate: false,
 };
+const EMPTY = EMPTY_REPORT_FORM;
 
 // 감상 본문 항목 레지스트리 — 체크리스트로 켜고 끄면 그 항목 칸이 나타난다 (레이아웃 = 체크 선택).
 //   defaultOn: '가이드 작성' 기본 구성. 자유 작성 프리셋은 freeText 하나만 켠다.

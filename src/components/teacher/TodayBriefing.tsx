@@ -14,6 +14,7 @@ import { SEMESTER_START } from "@/lib/schedule";
 import { BETA_END } from "@/components/BetaBanner";
 import { usePendingSeatRequests } from "@/lib/query/seatChange";
 import { usePendingRequests } from "@/lib/query/wallet";
+import { lateDays, useActiveLoans } from "@/lib/query/library";
 import { useAllAppeals } from "@/lib/query/appeals";
 import { useHiddenNominations } from "@/lib/query/board";
 import { useBestGroups, useMenuRequests } from "@/lib/query/classMeta";
@@ -37,6 +38,8 @@ export default function TodayBriefing({
   const { data: settings } = useSettings();
   // 우체통 규칙 게시 여부 확인 겸용 — 1번 학생 부모 문서 1개만 읽는다(교사는 전원 읽기 가능)
   const { error: letterErr } = useMailMeta(1);
+  // 📚 학급문고 연체 — 대출 중인 책만 읽는다 (사서 데스크와 같은 캐시)
+  const { data: loans, error: loanErr } = useActiveLoans(true);
   // 비밀번호 재설정 요청 — 소량 컬렉션 전체 (PasswordResetPanel과 동일 키로 캐시 공유)
   const { data: resets } = useQuery({
     queryKey: ["resetRequests"],
@@ -82,6 +85,8 @@ export default function TodayBriefing({
     chips.push({ key: "hidden", label: `🕵️ 숨은 기여 ${nHidden}건`, go: "manage", anchor: "panel-hidden" });
   if (nReset)
     chips.push({ key: "reset", label: `🔑 비밀번호 ${nReset}건`, go: "settings", anchor: "panel-password" });
+  const nLate = (loans ?? []).filter((l) => lateDays(l, today, settings?.holidays ?? []) > 0).length;
+  if (nLate) chips.push({ key: "late", label: `📚 도서 연체 ${nLate}권`, href: "/reading#library" });
 
   // 규칙 미게시 감지 — 어느 컬렉션이 막혔는지 이름으로 알려준다.
   // 단, 이 기기의 인증이 익명(교사 이메일 아님)이면 규칙이 최신이어도 같은 오류가 난다 —
@@ -92,6 +97,7 @@ export default function TodayBriefing({
     ...(isDenied(appealErr) ? ["이의제기(scoreAppeals)"] : []),
     ...(isDenied(menuErr) ? ["메뉴 제안(menuRequests)"] : []),
     ...(isDenied(letterErr) ? ["비밀 우체통(letters)"] : []),
+    ...(isDenied(loanErr) ? ["학급문고(libraryLoans)"] : []),
   ];
 
   if (!chips.length && !missedRank && !missingRules.length) return null; // 할 일 없으면 조용히

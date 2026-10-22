@@ -363,6 +363,40 @@ service cloud.firestore {
       allow read, write: if isTeacher() || (isAuthed() && ownsStudent(sid));
     }
 
+    // 📚 학급문고 대출 — 사서 학생(교사가 지정한 classData/settings.librarians)만 기록한다
+    //   libraryLoans/{id}: { title, author, sid, out, due, ext, returned, lost, by, createdAt }
+    //   by = 기록한 사서의 학생 번호 → 명단에 있고 그 기기 주인일 때만 통과 (사칭 차단)
+    //   연체는 점수 감점으로 이어지므로, 학생이 남의 기록을 고치거나 지우는 길은 없다.
+    function isLibrarian(by) {
+      let p = /databases/$(database)/documents/classData/settings;
+      return by is int && exists(p) && 'librarians' in get(p).data
+        && get(p).data.librarians is list && by in get(p).data.librarians
+        && ownsStudent(string(by));
+    }
+    match /libraryLoans/{loanId} {
+      allow read: if isAuthed();
+      allow create: if isTeacher() || (isAuthed()
+        && isLibrarian(request.resource.data.by)
+        && request.resource.data.keys().hasOnly(['title', 'author', 'sid', 'out', 'due', 'ext', 'returned', 'lost', 'by', 'createdAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 60
+        && request.resource.data.author is string && request.resource.data.author.size() <= 40
+        && request.resource.data.sid is int
+        && request.resource.data.out is string && request.resource.data.due is string
+        && request.resource.data.due >= request.resource.data.out
+        && request.resource.data.ext == 0
+        && request.resource.data.returned == null
+        && request.resource.data.lost == false
+        && request.resource.data.createdAt is int);
+      // 사서: 반납·연장(1회)·분실만. 누가·무엇을·언제 빌렸는지(sid·title·out)는 못 바꾼다
+      allow update: if isTeacher() || (isAuthed()
+        && isLibrarian(request.resource.data.by)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['due', 'ext', 'returned', 'lost', 'by'])
+        && request.resource.data.ext is int && request.resource.data.ext <= 1
+        && request.resource.data.due >= resource.data.due);
+      allow delete: if isTeacher();
+    }
+
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }
     match /complimentCoverage/{date} {
       allow read, create, update: if isAuthed();

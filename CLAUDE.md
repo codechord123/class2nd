@@ -76,7 +76,7 @@ Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 �
   베타 초기화는 7/5 이전 연습 감상문만 지우고 통계를 재구축한다(`betaReset.ts` READING_KEEP_FROM).
 - **부서장 평가 = O/X 미션당 +0.5점 (0/0.5/1, 마이너스 없음)** — `peerScoreFromChecks`.
   MVP: 모둠 1위 +1, 학급 1위 +1 가산(합 +2). 오늘의 모둠: 모둠원 전원 +1 (최종 합산 후).
-- 데일리 점수 행 구조: `{peer, groupRank, bonus, mission, comp, boss, fair, allDone, mvp, read, best, total}`.
+- 데일리 점수 행 구조: `{peer, groupRank, bonus, mission, comp, boss, fair, allDone, mvp, read, best, late?, total}`.
   📌 할 일 완주(allDone) = 5개(평가 제출·부서장 투표·페어플레이 투표·칭찬 보내기·그날 감상문
   1편↑, 상점 제외) 전부 하면 +1 (학사일만, 결석 제외). 모둠 전원(결석·전출 제외) 완주 시
   모둠 점수 +1 (`_meta.allDoneGroups` — 팀 보너스는 행이 아니라 meta, 표시 컴포넌트가 오버레이).
@@ -105,6 +105,12 @@ Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 �
   아이만 감정 단어(무드미터 4색)로, 반응은 공감 4종만(댓글 없음)·그날만 표시·교사 가리기/닫기
   (`moodWallOpen`), `moodSelf/{번호}` 감정 달력은 본인+교사. 위험 신호 문구는 공개 대신 💌 선생님께,
   친구 이름은 차단. 감정 관련 어떤 것도 점수·할 일 완주에 넣지 않는다.
+- **📚 학급문고 대출** (2026-10-22 사용자 확정): 책 목록 미리 등록 없이 **빌릴 때마다 제목 입력**,
+  사서 학생(`settings.librarians`, 기본 이다인·이채연)만 기록 — 규칙이 `by`(사서 번호)를 명단·기기 소유와
+  대조. 7일·2권·연장 1회. **사서 활동은 점수와 무관, 연체만 감점**: 기본 **연체한 학사일마다 −5**
+  (`lateMode: "daily"`, 교사가 `"once"`=책마다 1회로 전환 가능), 그날 반납하면 그날은 감점 없음,
+  분실 표시는 감점 정지. 행 필드 `late`(음수)는 **개인 점수 전용** — 모둠 점수·MVP 판정 제외.
+  집계(`aggregateDate`)가 `libraryLoans`에서 `latePenaltyOn`으로 계산한다.
 - 1학기 감상문은 감상문 게시판에 통합 표시하되 **보관용**(수정·삭제·댓글 없음).
 - 날짜는 전부 KST (`src/lib/date.ts`의 `todayKST/weekOfDate`), 학기 상수는 `src/lib/schedule.ts`.
 

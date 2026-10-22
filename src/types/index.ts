@@ -48,6 +48,7 @@ export interface DailyScoreRow {
   allDone?: number; // 📌 오늘 할 일 5개(평가·부서장·페어플레이·칭찬·독서) 완주 +1
   read?: number; // 그날 감상문 편수 (하루 2권까지만 점수 — 권수 기록은 캡 없음)
   best?: number; // 오늘의 모둠(모둠 점수 1위)에 뽑히면 +1 (판정 후 맨 마지막 가산 — 순환 없음)
+  late?: number; // 📚 도서 연체 감점 (음수, 개인 전용 — 모둠 점수 미포함)
   total: number;
 }
 export type DailyScores = Record<number, DailyScoreRow>; // studentId → row
@@ -92,6 +93,14 @@ export interface ClassSettings {
   /** 🌈 마음 담벼락 열림 (기본 true) — 끄면 학생의 카드 올리기·반응이 막히고 담벼락이 가려진다.
    *  반에 갈등이 생겼을 때 즉시 멈추는 안전 스위치 (날씨·내 감정 달력은 그대로) */
   moodWallOpen?: boolean;
+  /** 📚 학급문고 사서 학생 번호 — 대출·반납 기록 권한 (규칙이 대조). 비우면 기본 [이다인, 이채연] */
+  librarians?: number[];
+  /** 대출 기간(일, 기본 7) · 한 사람 최대 권수(기본 2) */
+  loanDays?: number;
+  loanMax?: number;
+  /** 연체 감점(기본 5) · 방식: daily=연체한 학사일마다 / once=책마다 1회 (사용자 확정 2026-10-22) */
+  latePenalty?: number;
+  lateMode?: "daily" | "once";
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {

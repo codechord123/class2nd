@@ -2,7 +2,7 @@
 // 거북이 독서 — 하위탭 구조 리빌드:
 //   상단 히어로(배너+경고+마라톤)는 항상, 나머지는 [쓰기|감상문|순위|1학기] 탭으로 분리.
 //   감상문에는 친구 댓글(레드팀 만장일치 차용). 목표는 1학기와 이어서 진행.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/lib/query/settings";
 import { aggregateDate } from "@/lib/aggregate";
@@ -28,7 +28,8 @@ import {
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import RankCarousel from "@/components/reading/RankCarousel";
 import TurtleMarathon from "@/components/reading/TurtleMarathon";
-import WriteSheet, { type WriteInitial } from "@/components/reading/WriteSheet";
+import WriteSheet, { EMPTY_REPORT_FORM, type WriteInitial } from "@/components/reading/WriteSheet";
+import LibraryPanel from "@/components/reading/LibraryPanel";
 import ClassBanner from "@/components/ClassBanner";
 import SubTabs from "@/components/ui/SubTabs";
 import Pager from "@/components/ui/Pager";
@@ -37,7 +38,7 @@ import { SkeletonList } from "@/components/ui/Skeleton";
 import Linkify from "@/components/ui/Linkify";
 import { useFeedback } from "@/components/ui/Feedback";
 
-type Tab = "write" | "list";
+type Tab = "write" | "list" | "library";
 
 // 게시판 통합용 — 1학기 정적 감상문을 2학기 형태에 얹은 것 (s1=true면 수정·삭제·댓글 없음)
 type ListReport = ReadingReport2 & { s1?: boolean; s1Date?: string };
@@ -322,6 +323,12 @@ export default function ReadingPage() {
   }
 
   const [tab, setTab] = useState<Tab>(role === "teacher" ? "list" : "write");
+  // /reading#library — 교사 개요의 연체 알림 등에서 학급문고로 바로 (렌더 중 setState 피해 다음 프레임)
+  useEffect(() => {
+    if (window.location.hash !== "#library") return;
+    const t = requestAnimationFrame(() => setTab("library"));
+    return () => cancelAnimationFrame(t);
+  }, []);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [onlyS2, setOnlyS2] = useState(false); // 2학기 글만 보기 (1학기 112건 스킵)
@@ -597,10 +604,21 @@ export default function ReadingPage() {
         tabs={[
           { key: "write", label: "✍️ 쓰기" },
           { key: "list", label: `📖 감상문 (1·2학기)` },
+          { key: "library", label: "📚 학급문고" },
         ]}
         active={tab}
         onChange={setTab}
       />
+
+      {/* 📚 학급문고 — 대출 기록(사서) · 내가 빌린 책. 돌려준 책은 제목이 채워진 감상문 쓰기로 */}
+      {tab === "library" && (
+        <LibraryPanel
+          onWrite={(title, author) => {
+            setTab("write");
+            openSheet({ form: { ...EMPTY_REPORT_FORM, title, author } });
+          }}
+        />
+      )}
 
       {/* ✍️ 쓰기 — 런처(버튼) + 내 임시저장. 실제 작성은 전체화면 시트 (교사도 작성 가능) */}
       {tab === "write" && authorId != null && (

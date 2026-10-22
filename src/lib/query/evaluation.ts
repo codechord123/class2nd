@@ -233,7 +233,7 @@ export function useRangeReport(start: string, end: string, enabled: boolean) {
       const receivedCount: Record<string, number> = {};
       const reflections: RangeReport["reflections"] = [];
       const sumByCat: Record<string, Record<string, number>> = {};
-      const CATS = ["peer", "groupRank", "bonus", "mission", "comp", "boss", "fair", "allDone", "mvp", "best", "read"] as const;
+      const CATS = ["peer", "groupRank", "bonus", "mission", "comp", "boss", "fair", "allDone", "mvp", "best", "read", "late"] as const;
       let compliments = 0,
         suggestions = 0,
         missionAchievements = 0,

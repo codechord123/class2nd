@@ -72,6 +72,7 @@ export default function MyRecord({
     { key: "best", icon: "👑", label: "오늘의 모둠" },
     { key: "read", icon: "🐢", label: "독서" },
     { key: "bonus", icon: "🎁", label: "선생님 보너스" },
+    { key: "late", icon: "📚", label: "도서 연체" },
   ] as const;
 
   // ── 점수 출처 분해 — "내 점수가 어디서 왔는지" (사용자 요청) ──
@@ -94,6 +95,7 @@ export default function MyRecord({
         { icon: "👑", label: "오늘의 모둠", v: myRow.best ?? 0 },
         { icon: "🐢", label: "독서", v: myRow.read ?? 0 },
         { icon: "🎁", label: "선생님 보너스", v: myRow.bonus ?? 0 },
+        { icon: "📚", label: "도서 연체", v: myRow.late ?? 0 },
       ]
     : [];
   // 스트릭 현황 — 모둠 미션 연속(팀·전원 칭찬 받기) + 독서 연속(주간 목표 달성)

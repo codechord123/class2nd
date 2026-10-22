@@ -28,6 +28,7 @@ import { groupDayScore } from "@/lib/groupScore";
 import { classGoldLeft } from "@/lib/gold";
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
 import { eventMultipliers, type EventBoost } from "@/lib/eventBoost";
+import { latePenaltyOn, libraryRules, loansForDate } from "@/lib/query/library";
 
 export interface AggregateResult {
   date: string;
@@ -638,10 +639,23 @@ async function aggregateDateInner(
     for (const id of classTop) mvpPts[id] = (mvpPts[id] ?? 0) + 1;
   }
 
+  // 📚 도서 연체 감점 (사용자 확정 2026-10-22) — 학사일에만, 개인 점수 전용(모둠 점수·MVP 판정 제외).
+  //    규칙 미게시·조회 실패여도 점수 집계는 계속한다(감점만 빠짐 — 다음 재집계 때 반영).
+  const lateMinus: Record<number, number> = {};
+  if (isSchoolDay) {
+    try {
+      const loans = await loansForDate(date);
+      Object.assign(lateMinus, latePenaltyOn(loans, date, libraryRules(settings)));
+    } catch {
+      // 조용히 넘어감
+    }
+  }
+
   const rows: Record<number, DailyScoreRow> = {};
   for (const s of students) {
     const b = baseParts[s.id];
     const mvp = (mvpPts[s.id] ?? 0) * ev.mvp; // 이벤트 배수 (MVP 점수)
+    const late = s.inactive ? 0 : -(lateMinus[s.id] ?? 0);
     rows[s.id] = {
       peer: b.peer,
       groupRank: b.groupRank,
@@ -654,7 +668,8 @@ async function aggregateDateInner(
       mvp,
       read: b.read,
       best: 0, // 오늘의 모둠 보너스는 아래에서 선정 후 가산
-      total: b.sum + mvp,
+      ...(late ? { late } : {}),
+      total: b.sum + mvp + late,
     };
   }
 
@@ -1339,9 +1354,12 @@ export async function addBonus(date: string, studentId: number, delta: number): 
           (prevRow.mission ?? 0) +
           (prevRow.comp ?? 0) +
           (prevRow.boss ?? 0) +
+          (prevRow.fair ?? 0) + // ⚠️ fair·allDone이 빠져 있어 보너스를 주면 그날 페어플레이·
+          (prevRow.allDone ?? 0) + //    할 일 완주 점수가 합계에서 사라지던 버그 (2026-10-22 발견)
           (prevRow.mvp ?? 0) +
           (prevRow.read ?? 0) +
-          (prevRow.best ?? 0),
+          (prevRow.best ?? 0) +
+          (prevRow.late ?? 0),
       };
       const cum = cumSnap.exists() ? cumSnap.data() : {};
       const prevCum =
