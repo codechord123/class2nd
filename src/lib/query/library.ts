@@ -481,6 +481,129 @@ export function useUpdateLoan(by: number | "teacher" | null) {
   };
 }
 
+/** ✏️ 잘못 누른 대출 바로잡기 — 사서는 기록 후 30분 안·반납 전만, 선생님은 언제든 (규칙도 같은 기준) */
+export const FIX_WINDOW_MS = 30 * 60 * 1000;
+export const canFixLoan = (l: Loan, isTeacher: boolean, now = Date.now()) =>
+  isTeacher || (!l.returned && !l.lost && now - l.createdAt < FIX_WINDOW_MS);
+
+/** 학생·책·기한·빌릴 때 상태 고치기. 책이 바뀌면 목록의 '대출 중'·빌린 횟수도 새 책으로 옮긴다 */
+export function useFixLoan(by: number | "teacher" | null) {
+  const refresh = useRefresh();
+  return async (
+    l: Loan,
+    p: {
+      title: string;
+      author: string;
+      sid: number;
+      due: string;
+      condOut: string[];
+      noteOut: string;
+      bookId?: string | null;
+    },
+  ) => {
+    if (by == null) throw new Error("사서만 고칠 수 있어요.");
+    const title = p.title.trim();
+    if (!title) throw new Error("책 제목을 적어 주세요.");
+    if (title.length > TITLE_MAX)
+      throw new Error(`제목은 ${TITLE_MAX}자까지예요.`);
+    if (p.due < l.out)
+      throw new Error("반납 기한은 빌린 날보다 앞일 수 없어요.");
+    const author = p.author.trim().slice(0, AUTHOR_MAX);
+    const live = !l.returned && !l.lost; // 아직 빌려 간 책일 때만 목록의 '대출 중'을 건드린다
+    const d = db();
+    await runTransaction(d, async (tx) => {
+      const snap = await tx.get(catalogRef());
+      const cat = snap.exists()
+        ? parseCatalog(snap.data())
+        : { books: {} as Record<string, Book> };
+      const cur = l.bookId ? cat.books[l.bookId] : undefined;
+      const key = bookKey(title);
+      let target: Book | undefined;
+      if (p.bookId && p.bookId !== cur?.id) {
+        target = cat.books[p.bookId];
+        if (!target) throw new Error("고른 책을 목록에서 찾지 못했어요.");
+        if (live && (target.on || target.lost))
+          throw new Error(
+            `《${bookLabel(target)}》은(는) 지금 다른 친구가 빌려 갔어요.`,
+          );
+      } else if (cur && cur.k === key) {
+        target = cur; // 같은 책 — 학생·기한·상태만 바뀜
+      } else {
+        const same = Object.values(cat.books).filter(
+          (b) => b.k === key && b.id !== cur?.id,
+        );
+        target = live ? same.find((b) => !b.on && !b.lost) : same[0];
+        if (!target && live && same.length)
+          throw new Error(
+            `《${title}》은(는) 지금 다 빌려 갔어요. 같은 책 한 권 더라면 새로 빌려주기에서 '한 권 더 등록'을 써 주세요.`,
+          );
+        if (!target) {
+          const copies = Object.values(cat.books).filter((b) => b.k === key);
+          target = {
+            id: `b${Date.now().toString(36)}`,
+            t: title,
+            a: author,
+            k: key,
+            copy: copies.length
+              ? Math.max(...copies.map((x) => x.copy)) + 1
+              : 1,
+            c: [],
+            n: 0,
+            on: null,
+            lost: false,
+            at: Date.now(),
+          };
+        }
+      }
+      const patch: Record<string, unknown> = { by, at: Date.now() };
+      if (target.id === cur?.id) {
+        if (live) {
+          patch[`books.${cur.id}.on`] = { loan: l.id, due: p.due };
+          patch[`books.${cur.id}.c`] = p.condOut;
+        }
+      } else {
+        if (cur) {
+          patch[`books.${cur.id}.n`] = increment(-1);
+          if (cur.on?.loan === l.id) patch[`books.${cur.id}.on`] = null;
+        }
+        const { id: _omit, ...stored } = {
+          ...target,
+          a: target.a || author,
+          n: target.n + 1,
+          ...(live ? { on: { loan: l.id, due: p.due }, c: p.condOut } : {}),
+        };
+        void _omit;
+        patch[`books.${target.id}`] = stored;
+      }
+      if (!snap.exists()) {
+        // 목록 문서가 아직 없다면(이관 전) 새 책 하나로 시작
+        const { id: _i, ...stored } = {
+          ...target,
+          n: 1,
+          ...(live ? { on: { loan: l.id, due: p.due }, c: p.condOut } : {}),
+        };
+        void _i;
+        tx.set(catalogRef(), {
+          books: { [target.id]: stored },
+          by,
+          at: Date.now(),
+        });
+      } else tx.update(catalogRef(), patch);
+      tx.update(doc(d, "libraryLoans", l.id), {
+        title: target.t,
+        author: author || target.a,
+        sid: p.sid,
+        due: p.due,
+        condOut: p.condOut,
+        noteOut: p.noteOut.trim().slice(0, COND_NOTE_MAX),
+        bookId: target.id,
+        by,
+      });
+    });
+    refresh();
+  };
+}
+
 export function useDeleteLoan() {
   const refresh = useRefresh();
   return async (l: Loan, cat?: Catalog) => {

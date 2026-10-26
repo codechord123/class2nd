@@ -25,6 +25,9 @@ import {
   newDamage,
   bookKey,
   bookLabel,
+  canFixLoan,
+  FIX_WINDOW_MS,
+  useFixLoan,
   migrateCatalog,
   useActiveLoans,
   useBookLoans,
@@ -185,6 +188,14 @@ export default function LibraryPanel({
   const lend = useLend(by);
   const update = useUpdateLoan(by);
   const del = useDeleteLoan();
+  const fix = useFixLoan(by);
+  // ✏️ 정정 가능 시간(30분) 판단용 '지금' — 렌더마다 Date.now()를 부르지 않도록 1분마다 갱신
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  const [editOnOpen, setEditOnOpen] = useState(false);
 
   // 선생님이 처음 열면 사서 명단을 설정에 저장 — 규칙이 명단을 읽어 권한을 판단하므로 꼭 있어야 한다
   const initOnce = useRef(false);
@@ -312,7 +323,14 @@ export default function LibraryPanel({
 
   async function act(
     l: Loan,
-    kind: "return" | "extend" | "lost" | "undo" | "delete" | "checked",
+    kind:
+      | "return"
+      | "extend"
+      | "lost"
+      | "undo"
+      | "delete"
+      | "checked"
+      | "cancel",
   ) {
     try {
       if (kind === "return") {
@@ -338,6 +356,19 @@ export default function LibraryPanel({
         )
           return;
         await update(l, { lost: true });
+      } else if (kind === "cancel") {
+        if (
+          !(await confirm({
+            title: `《${l.title}》 대출을 취소할까요?`,
+            body: `${nm(l.sid)}에게 잘못 기록한 대출이면 취소하고 다시 빌려주세요. 목록의 빌린 횟수도 함께 돌아가요.`,
+            confirmLabel: "대출 취소",
+            danger: true,
+          }))
+        )
+          return;
+        await del(l, catalog);
+        toast("대출 기록을 취소했어요.");
+        return;
       } else if (kind === "checked") {
         await update(l, { damageNew: false });
         toast("🔧 훼손 확인 처리했어요.");
@@ -708,6 +739,17 @@ export default function LibraryPanel({
                           연장
                         </button>
                       )}
+                      {canFixLoan(l, isTeacher, now) && (
+                        <button
+                          onClick={() => {
+                            setEditOnOpen(true);
+                            setDetailId(l.id);
+                          }}
+                          className="press min-h-9 rounded-btn bg-brand-weak px-2.5 text-xs font-bold text-brand-strong"
+                        >
+                          고치기
+                        </button>
+                      )}
                       {!l.lost && (
                         <button
                           onClick={() => void act(l, "lost")}
@@ -843,10 +885,21 @@ export default function LibraryPanel({
           rules={rules}
           canDesk={canDesk}
           isTeacher={isTeacher}
-          onClose={() => setDetailId(null)}
+          books={books}
+          myId={myId}
+          canFix={canDesk && canFixLoan(detail, isTeacher, now)}
+          startEditing={editOnOpen}
+          onClose={() => {
+            setDetailId(null);
+            setEditOnOpen(false);
+          }}
           onAct={async (kind) => {
             await act(detail, kind);
-            if (kind === "delete") setDetailId(null);
+            if (kind === "delete" || kind === "cancel") setDetailId(null);
+          }}
+          onFix={async (p) => {
+            await fix(detail, p);
+            toast("✏️ 대출 기록을 고쳤어요.", "success");
           }}
         />
       )}
@@ -1385,17 +1438,28 @@ function LoanDetail({
   rules,
   canDesk,
   isTeacher,
+  books,
+  myId,
+  canFix,
+  startEditing,
   onClose,
   onAct,
+  onFix,
 }: {
   l: Loan;
   today: string;
   rules: ReturnType<typeof libraryRules>;
   canDesk: boolean;
   isTeacher: boolean;
+  books: Book[];
+  myId: number | null;
+  canFix: boolean;
+  startEditing: boolean;
   onClose: () => void;
-  onAct: (kind: "undo" | "delete" | "checked") => Promise<void>;
+  onAct: (kind: "undo" | "delete" | "checked" | "cancel") => Promise<void>;
+  onFix: (p: Parameters<ReturnType<typeof useFixLoan>>[1]) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(startEditing && canFix);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -1415,110 +1479,297 @@ function LoanDetail({
         className="rise max-h-[90vh] w-full max-w-md overflow-y-auto rounded-card bg-white p-5 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-lg font-extrabold text-ink-900">《{l.title}》</p>
-            {l.author && <p className="text-sm text-ink-500">{l.author}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="닫기"
-            className="press min-h-11 min-w-11 rounded-btn text-xl text-ink-400"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-3">
-          <DueBadge
+        {editing ? (
+          <LoanEditForm
             l={l}
-            today={today}
-            holidays={rules.holidays}
-            penalty={rules.penalty}
-            mode={rules.mode}
+            books={books}
+            onCancel={() => setEditing(false)}
+            onSave={async (p) => {
+              await onFix(p);
+              setEditing(false);
+            }}
           />
-        </div>
-        <div className="mt-3">
-          <Row k="빌린 학생">
-            <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
-              {nm(l.sid)}
-            </span>
-          </Row>
-          <Row k="빌린 날">{md(l.out)}</Row>
-          <Row k="반납 기한">
-            {md(l.due)}
-            {l.ext ? " (연장 1회)" : ""}
-          </Row>
-          <Row k="반납한 날">
-            {l.returned
-              ? md(l.returned)
-              : l.lost
-                ? "분실"
-                : "아직 빌려 가는 중"}
-          </Row>
-          {late > 0 && (
-            <Row k="연체">
-              <b className="text-danger">학교 오는 날 기준 {late}일</b>
-            </Row>
-          )}
-          <Row k="빌릴 때 상태">
-            <b>{condLabel(l.condOut)}</b>
-            {l.noteOut && (
-              <span className="block text-xs text-ink-500">{l.noteOut}</span>
-            )}
-          </Row>
-          <Row k="돌려받을 때">
-            {l.condIn ? (
-              <>
-                <b>{condLabel(l.condIn)}</b>
-                {l.noteIn && (
-                  <span className="block text-xs text-ink-500">{l.noteIn}</span>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-lg font-extrabold text-ink-900">
+                  《{l.title}》
+                </p>
+                {l.author && <p className="text-sm text-ink-500">{l.author}</p>}
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="닫기"
+                className="press min-h-11 min-w-11 rounded-btn text-xl text-ink-400"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mt-3">
+              <DueBadge
+                l={l}
+                today={today}
+                holidays={rules.holidays}
+                penalty={rules.penalty}
+                mode={rules.mode}
+              />
+            </div>
+            <div className="mt-3">
+              <Row k="빌린 학생">
+                <span className="rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                  {nm(l.sid)}
+                </span>
+              </Row>
+              <Row k="빌린 날">{md(l.out)}</Row>
+              <Row k="반납 기한">
+                {md(l.due)}
+                {l.ext ? " (연장 1회)" : ""}
+              </Row>
+              <Row k="반납한 날">
+                {l.returned
+                  ? md(l.returned)
+                  : l.lost
+                    ? "분실"
+                    : "아직 빌려 가는 중"}
+              </Row>
+              {late > 0 && (
+                <Row k="연체">
+                  <b className="text-danger">학교 오는 날 기준 {late}일</b>
+                </Row>
+              )}
+              <Row k="빌릴 때 상태">
+                <b>{condLabel(l.condOut)}</b>
+                {l.noteOut && (
+                  <span className="block text-xs text-ink-500">
+                    {l.noteOut}
+                  </span>
                 )}
-              </>
-            ) : (
-              <span className="text-ink-400">—</span>
+              </Row>
+              <Row k="돌려받을 때">
+                {l.condIn ? (
+                  <>
+                    <b>{condLabel(l.condIn)}</b>
+                    {l.noteIn && (
+                      <span className="block text-xs text-ink-500">
+                        {l.noteIn}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-ink-400">—</span>
+                )}
+              </Row>
+              {fresh.length > 0 && (
+                <Row k="새 훼손">
+                  <b className="text-warn">🔧 {fresh.join(" · ")}</b>
+                  <span className="block text-xs text-ink-500">
+                    빌릴 때는 없었어요
+                    {l.damageNew ? " · 선생님 확인 전" : " · 선생님 확인 완료"}
+                  </span>
+                </Row>
+              )}
+              <Row k="기록한 사람">
+                {l.by === "teacher" ? "선생님" : `사서 ${nm(l.by)}`}
+              </Row>
+            </div>
+            {canDesk && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {canFix && (
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="press min-h-11 rounded-btn bg-brand px-3 text-sm font-bold text-white"
+                  >
+                    ✏️ 고치기
+                  </button>
+                )}
+                {/* 사서의 대출 취소: 직접 기록한 것·30분 안·반납 전 (선생님은 아래 '기록 지우기') */}
+                {canFix && !isTeacher && !l.returned && l.by === myId && (
+                  <button
+                    onClick={() => void onAct("cancel")}
+                    className="press min-h-11 rounded-btn bg-white px-3 text-sm font-bold text-danger ring-1 ring-danger/30"
+                  >
+                    대출 취소
+                  </button>
+                )}
+                {isTeacher && l.damageNew && (
+                  <button
+                    onClick={() => void onAct("checked")}
+                    className="press min-h-11 flex-1 rounded-btn bg-warn px-3 text-sm font-bold text-white"
+                  >
+                    🔧 훼손 확인했어요
+                  </button>
+                )}
+                {l.returned && (
+                  <button
+                    onClick={() => void onAct("undo")}
+                    className="press min-h-11 rounded-btn bg-ink-100 px-3 text-sm font-bold text-ink-600"
+                  >
+                    반납 취소
+                  </button>
+                )}
+                {isTeacher && (
+                  <button
+                    onClick={() => void onAct("delete")}
+                    className="press min-h-11 rounded-btn px-3 text-sm font-bold text-danger"
+                  >
+                    기록 지우기
+                  </button>
+                )}
+              </div>
             )}
-          </Row>
-          {fresh.length > 0 && (
-            <Row k="새 훼손">
-              <b className="text-warn">🔧 {fresh.join(" · ")}</b>
-              <span className="block text-xs text-ink-500">
-                빌릴 때는 없었어요
-                {l.damageNew ? " · 선생님 확인 전" : " · 선생님 확인 완료"}
-              </span>
-            </Row>
-          )}
-          <Row k="기록한 사람">
-            {l.by === "teacher" ? "선생님" : `사서 ${nm(l.by)}`}
-          </Row>
-        </div>
-        {canDesk && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {isTeacher && l.damageNew && (
-              <button
-                onClick={() => void onAct("checked")}
-                className="press min-h-11 flex-1 rounded-btn bg-warn px-3 text-sm font-bold text-white"
-              >
-                🔧 훼손 확인했어요
-              </button>
+            {canDesk && !canFix && !isTeacher && !l.returned && (
+              <p className="mt-2 text-[11px] text-ink-400">
+                기록한 지 {Math.round(FIX_WINDOW_MS / 60000)}분이 지나 사서는
+                고칠 수 없어요 — 잘못됐다면 선생님께 말해 주세요.
+              </p>
             )}
-            {l.returned && (
-              <button
-                onClick={() => void onAct("undo")}
-                className="press min-h-11 rounded-btn bg-ink-100 px-3 text-sm font-bold text-ink-600"
-              >
-                반납 취소
-              </button>
-            )}
-            {isTeacher && (
-              <button
-                onClick={() => void onAct("delete")}
-                className="press min-h-11 rounded-btn px-3 text-sm font-bold text-danger"
-              >
-                기록 지우기
-              </button>
-            )}
-          </div>
+          </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** ✏️ 대출 고치기 폼 — 잘못 누른 학생·책·기한·빌릴 때 상태를 바로잡는다 */
+function LoanEditForm({
+  l,
+  books,
+  onCancel,
+  onSave,
+}: {
+  l: Loan;
+  books: Book[];
+  onCancel: () => void;
+  onSave: (p: Parameters<ReturnType<typeof useFixLoan>>[1]) => Promise<void>;
+}) {
+  const { toast } = useFeedback();
+  const [title, setTitle] = useState(l.title);
+  const [author, setAuthor] = useState(l.author);
+  const [bookId, setBookId] = useState<string | null>(null);
+  const [sid, setSid] = useState(l.sid);
+  const [due, setDue] = useState(l.due);
+  const [cond, setCond] = useState<string[]>(l.condOut);
+  const [note, setNote] = useState(l.noteOut);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div>
+      <p className="text-lg font-extrabold text-ink-900">✏️ 대출 고치기</p>
+      <p className="mt-1 text-xs text-ink-500">
+        잘못 누른 부분만 바꾸고 저장하세요. 빌린 날({md(l.out)})은 그대로예요.
+      </p>
+
+      <p className="mt-4 text-xs font-bold text-ink-500">책</p>
+      <div className="relative mt-1">
+        <input
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value.slice(0, TITLE_MAX));
+            setBookId(null);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+          className="min-h-11 w-full rounded-btn border border-ink-300 px-3 text-[15px]"
+        />
+        {open &&
+          !bookId &&
+          title.trim() &&
+          bookKey(title) !== bookKey(l.title) && (
+            <BookSuggest
+              books={books.filter((b) => b.id !== l.bookId)}
+              query={title}
+              onPick={(b) => {
+                setBookId(b.id);
+                setTitle(b.t);
+                setAuthor(b.a);
+                setOpen(false);
+              }}
+            />
+          )}
+      </div>
+      <input
+        value={author}
+        onChange={(e) => setAuthor(e.target.value.slice(0, AUTHOR_MAX))}
+        placeholder="지은이 (선택)"
+        className="mt-2 min-h-11 w-full rounded-btn border border-ink-300 px-3 text-sm"
+      />
+
+      <p className="mt-3 text-xs font-bold text-ink-500">빌린 친구</p>
+      <select
+        value={sid}
+        onChange={(e) => setSid(Number(e.target.value))}
+        className="mt-1 min-h-11 w-full rounded-btn border border-ink-300 px-2 text-sm font-bold"
+      >
+        {students
+          .filter((s) => !s.inactive)
+          .map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.id}번 {s.name}
+            </option>
+          ))}
+      </select>
+
+      <p className="mt-3 text-xs font-bold text-ink-500">반납 기한</p>
+      <input
+        type="date"
+        value={due}
+        min={l.out}
+        onChange={(e) => e.target.value && setDue(e.target.value)}
+        className="mt-1 min-h-11 rounded-btn border border-ink-300 px-2 text-sm"
+      />
+
+      <p className="mt-3 text-xs font-bold text-ink-500">빌릴 때 책 상태</p>
+      <div className="mt-1">
+        <CondPicker value={cond} onChange={setCond} />
+      </div>
+      {cond.length > 0 && (
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, COND_NOTE_MAX))}
+          placeholder="어디가 어떤지"
+          className="mt-2 min-h-11 w-full rounded-btn border border-ink-300 px-3 text-sm"
+        />
+      )}
+
+      <div className="mt-5 flex gap-2">
+        <button
+          disabled={busy || !title.trim()}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await onSave({
+                title,
+                author,
+                sid,
+                due,
+                condOut: cond,
+                noteOut: note,
+                bookId,
+              });
+            } catch (e) {
+              toast(
+                friendlyWriteError(
+                  e,
+                  "고치지 못했어요 — 기록한 지 30분이 지났다면 선생님께 말해 주세요.",
+                ),
+                "error",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+          className="press min-h-11 flex-1 rounded-btn bg-brand px-3 text-sm font-bold text-white disabled:opacity-40"
+        >
+          {busy ? "저장 중…" : "고친 내용 저장"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="press min-h-11 rounded-btn bg-ink-100 px-4 text-sm font-bold text-ink-600"
+        >
+          취소
+        </button>
       </div>
     </div>
   );

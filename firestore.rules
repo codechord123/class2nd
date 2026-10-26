@@ -391,7 +391,10 @@ service cloud.firestore {
         && request.resource.data.ext == 0
         && request.resource.data.returned == null
         && request.resource.data.lost == false
-        && request.resource.data.createdAt is int);
+        && request.resource.data.createdAt is int
+        // 기록 시각은 서버 시각 ±5분 — 미래 시각을 넣어 '고치기 가능 30분'을 늘리는 우회 차단
+        && request.resource.data.createdAt > request.time.toMillis() - 300000
+        && request.resource.data.createdAt < request.time.toMillis() + 300000);
       // 사서: 반납(+돌려받을 때 상태)·연장(1회)·분실만. 누가·무엇을·언제 빌렸는지,
       //       빌려줄 때 상태(condOut)는 못 바꾼다 — 훼손 책임이 흐려지지 않게.
       //       새 훼손 표시(damageNew)는 켤 수만 있고 끄는 건(확인 처리) 선생님만.
@@ -401,8 +404,26 @@ service cloud.firestore {
         && request.resource.data.ext is int && request.resource.data.ext <= 1
         && request.resource.data.due >= resource.data.due
         && request.resource.data.get('noteIn', '') is string && request.resource.data.get('noteIn', '').size() <= 80
-        && !(resource.data.get('damageNew', false) == true && request.resource.data.get('damageNew', false) != true));
-      allow delete: if isTeacher();
+        && !(resource.data.get('damageNew', false) == true && request.resource.data.get('damageNew', false) != true))
+        // ✏️ 잘못 누른 대출 바로잡기: 기록 후 30분 안·반납 전만 — 학생·책·기한·빌릴 때 상태
+        || (isAuthed()
+        && isLibrarian(request.resource.data.by)
+        && resource.data.returned == null && resource.data.lost == false
+        && request.time.toMillis() - resource.data.createdAt < 1800000
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sid', 'title', 'author', 'due', 'condOut', 'noteOut', 'bookId', 'by'])
+        && request.resource.data.sid is int
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 60
+        && request.resource.data.author is string && request.resource.data.author.size() <= 40
+        && request.resource.data.due >= request.resource.data.out
+        && request.resource.data.get('condOut', []) is list && request.resource.data.get('condOut', []).size() <= 8
+        && request.resource.data.get('noteOut', '') is string && request.resource.data.get('noteOut', '').size() <= 80
+        && request.resource.data.get('bookId', '') is string);
+      // 대출 취소: 선생님, 또는 그 기록을 적은 사서 본인이 30분 안·반납 전에
+      allow delete: if isTeacher() || (isAuthed()
+        && isLibrarian(resource.data.by)
+        && resource.data.returned == null
+        && request.time.toMillis() - resource.data.createdAt < 1800000);
     }
 
     // 📚 학급문고 목록 — library/catalog 문서 하나 { books: { [책id]: {t,a,k,copy,c,n,on,lost,at} }, by, at }
