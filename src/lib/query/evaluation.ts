@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { collection, doc, documentId, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { guardText } from "@/lib/textGuard";
 import { shiftDate } from "@/lib/date";
 import { students } from "@/lib/roster";
 import { peerScoreFromChecks } from "@/lib/peerCriteria";
@@ -124,6 +125,9 @@ export function useSavePeerNotes(date: string, myId: number | null) {
     suggestions: Record<string, string>
   ) => {
     if (myId == null) return;
+    // 🛡️ 친구가 받는 글 — 외국 글자·비속어 차단 (빈 문자열은 '지우기'라 검사 안 함)
+    for (const t of Object.values(compliments)) if (t?.trim()) guardText(t, "칭찬");
+    for (const t of Object.values(suggestions)) if (t?.trim()) guardText(t, "건의");
     await setDoc(
       doc(db(), "evaluations", date, "entries", String(myId)),
       { _compliments: compliments, _peerSuggestions: suggestions },

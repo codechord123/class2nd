@@ -23,6 +23,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { textFlag } from "@/lib/textGuard";
 import { students } from "@/lib/roster";
 import { isWeekend, shiftDate, todayKST } from "@/lib/date";
 
@@ -340,7 +341,7 @@ export function checkNote(note: string, myId: number | null): NoteCheck {
   const t = note.replace(/\s+/g, "");
   if (!t) return { ok: true };
   if (RISK.some((w) => t.includes(w))) return { ok: false, kind: "risk" };
-  if (BAD.some((w) => t.includes(w))) return { ok: false, kind: "bad" };
+  if (BAD.some((w) => t.includes(w)) || textFlag(note)) return { ok: false, kind: "bad" };
   // 친구 이름(성 포함 또는 이름 두 글자) — "○○ 때문에 짜증" 같은 공개 저격을 막는다
   for (const s of students) {
     if (s.id === myId || s.inactive) continue;

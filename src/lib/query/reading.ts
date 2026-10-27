@@ -19,6 +19,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { guardText } from "@/lib/textGuard";
 import { kstDateOf, todayKST, weekOfDate } from "@/lib/date";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 
@@ -216,6 +217,7 @@ export function useAddReportComment(author: number | "teacher" | null) {
   return async (reportId: string, text: string) => {
     if (author == null) throw new Error("로그인이 필요해요.");
     if (!text.trim()) throw new Error("내용을 입력해주세요.");
+    if (author !== "teacher") guardText(text, "댓글");
     const comment: ReportComment = {
       // 같은 밀리초 동시 작성 시 id 충돌 방지 (board와 동일)
       id: Date.now() * 1000 + Math.floor(Math.random() * 1000),

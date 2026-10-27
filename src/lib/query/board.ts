@@ -19,6 +19,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { guardText } from "@/lib/textGuard";
 
 // ── 건의 게시판 ─────────────────────────────────────────────────
 export interface BoardComment {
@@ -173,6 +174,10 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (!title.trim()) throw new Error("제목을 입력해주세요.");
     if (!content.trim()) throw new Error("내용을 입력해주세요.");
+    if (myId !== "teacher") {
+      guardText(title, "제목");
+      guardText(content, "글");
+    }
     await addDoc(collection(db(), "suggestions"), {
       studentId: myId,
       title: title.trim(),
@@ -215,6 +220,7 @@ export function useAddComment(author: number | "teacher" | null) {
   return async (sugId: string, text: string, replyTo?: number) => {
     if (author == null) throw new Error("로그인이 필요해요.");
     if (!text.trim()) throw new Error("내용을 입력해주세요.");
+    if (author !== "teacher") guardText(text, "댓글");
     const comment: BoardComment = {
       // 같은 밀리초에 두 명이 달면 id가 겹쳐 삭제·답글이 꼬인다 — 무작위 하위 자릿수로 유일화
       id: Date.now() * 1000 + Math.floor(Math.random() * 1000),
@@ -276,6 +282,11 @@ export function useUpdateSuggestion() {
   return async (id: string, title: string, content: string, byTeacher = false) => {
     if (!title.trim()) throw new Error("제목을 입력해주세요.");
     if (!content.trim()) throw new Error("내용을 입력해주세요.");
+    // 🛡️ 학생 본인 글 고치기도 같은 검사 (새 글만 막으면 '고치기'로 우회된다)
+    if (!byTeacher) {
+      guardText(title, "제목");
+      guardText(content, "글");
+    }
     const mark = byTeacher ? { editedByTeacher: true, editedAt: Date.now() } : {};
     await updateDoc(doc(db(), "suggestions", id), {
       title: title.trim(),

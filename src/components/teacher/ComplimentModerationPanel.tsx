@@ -11,6 +11,7 @@ import { useSettings } from "@/lib/query/settings";
 import { useDailyScores, type DailyMeta } from "@/lib/query/evaluation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFeedback } from "@/components/ui/Feedback";
+import { FLAG_LABEL, textFlag } from "@/lib/textGuard";
 
 const norm = (s: string) => s.trim().replace(/\s+/g, "").toLowerCase();
 
@@ -110,21 +111,22 @@ export default function ComplimentModerationPanel({ initialDate }: { initialDate
           {compliments.map((c) => {
             const dup = dupKeys.has(`${c.from}|${norm(c.text)}`);
             const short = c.text.trim().length < 10;
+            const bad = textFlag(c.text); // 🛡️ 외국 글자·비속어 — 입력 차단 전 글이나 우회한 글도 잡는다
             const key = `${c.from}-${c.to}`;
             return (
               <li
                 key={key}
                 className={`flex items-start gap-2 rounded-btn px-3 py-2 text-sm ${
-                  dup || short ? "bg-danger-weak/50" : "bg-ink-50"
+                  bad || dup || short ? "bg-danger-weak/50" : "bg-ink-50"
                 }`}
               >
                 <span className="shrink-0 text-xs font-bold text-ink-500">
                   {name(c.from)} → {name(c.to)}
                 </span>
                 <span className="min-w-0 flex-1 text-ink-700 [overflow-wrap:anywhere]">
-                  {(dup || short) && (
+                  {(bad || dup || short) && (
                     <span className="mr-1 font-bold text-danger">
-                      {dup ? "🚩복붙" : "🚩짧음"}
+                      {bad ? FLAG_LABEL[bad] : dup ? "🚩복붙" : "🚩짧음"}
                     </span>
                   )}
                   {c.text}
