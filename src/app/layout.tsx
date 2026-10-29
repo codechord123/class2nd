@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Jua } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import TabNav from "@/components/TabNav";
@@ -8,6 +9,9 @@ import BetaBanner from "@/components/BetaBanner";
 import CoastDecor from "@/components/CoastDecor";
 import ThemeApplier from "@/components/ThemeApplier";
 import RivieraFx from "@/components/RivieraFx";
+
+// 🌊 바닷마을 테마 제목 글꼴 — 테마가 켜졌을 때만 CSS가 쓰므로, 꺼진 기기는 글꼴 파일을 받지 않는다
+const jua = Jua({ weight: "400", preload: false, display: "swap", variable: "--font-coast" });
 
 export const metadata: Metadata = {
   title: "2학기 학급 자치 시스템",
@@ -27,7 +31,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     // data-theme은 아래 인라인 스크립트가 첫 화면 전에 붙인다 → 서버 HTML과 다를 수 있어 경고 억제
-    <html lang="ko" className="h-full antialiased" suppressHydrationWarning>
+    <html lang="ko" className={`h-full antialiased ${jua.variable}`} suppressHydrationWarning>
       <head>
         {/* 🎨 이 기기가 기억하는 학급 테마를 첫 페인트 전에 적용 (설정 읽기를 기다리면 깜빡인다) */}
         <script
@@ -64,7 +68,7 @@ export default function RootLayout({
             </div>
             <CoastDecor />
           </header>
-          <div className="sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-md">
+          <div className="tabbar sticky top-0 z-20 border-b border-ink-200 bg-white/85 backdrop-blur-md">
             <div className="mx-auto max-w-3xl px-4 pt-2 lg:max-w-5xl">
               <TabNav />
             </div>
