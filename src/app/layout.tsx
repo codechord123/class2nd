@@ -7,6 +7,7 @@ import UserChip from "@/components/UserChip";
 import BetaBanner from "@/components/BetaBanner";
 import CoastDecor from "@/components/CoastDecor";
 import ThemeApplier from "@/components/ThemeApplier";
+import RivieraFx from "@/components/RivieraFx";
 
 export const metadata: Metadata = {
   title: "2학기 학급 자치 시스템",
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-ink-100 text-ink-800">
         <Providers>
           <ThemeApplier />
+          <RivieraFx />
           {/* 브랜드 행은 스크롤과 함께 지나가고 탭만 상단 고정 — 작은 화면에서
               상시 점유 높이를 132px → 60px대로 (레이아웃 감사 반영) */}
           <header className="bg-white">
