@@ -222,3 +222,42 @@ h1, h2, h3 {
 @media (prefers-reduced-motion: reduce) {
   .reveal-flash { animation: none; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.45); }
 }
+
+/* ── 🎨 학급 테마: riviera (지중해 바닷마을) ─────────────────────────────
+   교사 설정으로 켜고 끈다(<html data-theme="riviera">). 토큰만 바꿔 끼워서 모든 화면이 따라온다.
+   바다 청록 · 모래빛 배경 · 레몬/테라코타 포인트. 흰 글씨가 올라가는 색은 대비 4.5:1 이상. */
+.coast-decor {
+  display: none;
+}
+html[data-theme="riviera"] {
+  --color-brand: #0f7a8a; /* 바다 청록 */
+  --color-brand-strong: #0b6170;
+  --color-brand-weak: #e2f3f3;
+  --color-ink-300: #d6c9b5; /* 입력칸 테두리 — 모래빛 */
+  --color-ink-200: #e8ddcc;
+  --color-ink-100: #f4ede2; /* 페이지 배경 — 모래사장 */
+  --color-ink-50: #faf6ef;
+  --color-success: #3f8f5a; /* 올리브 */
+  --color-success-weak: #e8f3ea;
+  --color-warn: #e39b2d; /* 레몬·오렌지 */
+  --color-warn-weak: #fdf3dd;
+  --color-danger: #d2553f; /* 테라코타 */
+  --color-danger-weak: #fbe9e4;
+  --shadow-card: 0 1px 2px rgba(120, 80, 40, 0.06), 0 3px 10px rgba(120, 80, 40, 0.06);
+}
+html[data-theme="riviera"] .coast-decor {
+  display: block;
+}
+html[data-theme="riviera"] header.bg-white {
+  background-color: #fffcf6;
+}
+/* 탭 색 — 해안 마을 집·덧문 색 (흰 글씨 대비 확보한 진한 톤) */
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/rules"] { background-color: #4a5a80; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/"] { background-color: #0f7a8a; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/team"] { background-color: #b8512c; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/us"] { background-color: #b9405f; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/reading"] { background-color: #1e6585; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/shop"] { background-color: #94600a; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/vote"] { background-color: #4f7a34; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/seats"] { background-color: #8a5230; }
+html[data-theme="riviera"] nav a[aria-current="page"][data-tab="/guide"] { background-color: #2b7470; }

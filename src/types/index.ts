@@ -101,6 +101,8 @@ export interface ClassSettings {
   /** 연체 감점(기본 5) · 방식: daily=연체한 학사일마다 / once=책마다 1회 (사용자 확정 2026-10-22) */
   latePenalty?: number;
   lateMode?: "daily" | "once";
+  /** 🎨 학급 화면 테마 — 기본(토스 블루) / riviera(지중해 바닷마을). 교사가 행사에 맞춰 켜고 끈다 */
+  theme?: "default" | "riviera";
 }
 
 export const DEFAULT_SETTINGS: ClassSettings = {

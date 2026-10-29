@@ -92,6 +92,7 @@ export default function TeacherPage() {
   const [dLockNote, setDLockNote] = useState<string | null>(null); // 사용 잠금 안내 문구 편집
   const [lockBusy, setLockBusy] = useState(false);
   const [lettersBusy, setLettersBusy] = useState(false);
+  const [themeBusy, setThemeBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const isTeacher = role === "teacher";
@@ -294,6 +295,20 @@ export default function TeacherPage() {
       setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLockBusy(false);
+    }
+  }
+
+  // 🎨 학급 화면 테마 — 행사에 맞춰 켜고 끈다 (학생 화면은 다음에 열 때 바뀜)
+  async function setClassTheme(theme: "default" | "riviera") {
+    if (!settings || themeBusy || (settings.theme ?? "default") === theme) return;
+    setThemeBusy(true);
+    try {
+      await saveSettings({ ...settings, theme });
+      setMsg(theme === "riviera" ? "🌊 바닷마을 테마를 켰어요." : "기본 테마로 돌렸어요.");
+    } catch (e) {
+      setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setThemeBusy(false);
     }
   }
 
@@ -728,6 +743,34 @@ export default function TeacherPage() {
             <p className="mt-1 text-xs text-ink-600">
               닫으면 <b>학생끼리 편지 보내기</b>가 막혀요 (이미 받은 편지는 그대로 볼 수 있고,
               <b> 선생님 편지는 언제나</b> 보낼 수 있어요).
+            </p>
+            {/* 🎨 화면 테마 — 반 전체 분위기 바꾸기 (점수·기능은 그대로) */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink-200/70 pt-3">
+              <span className="text-sm font-bold text-ink-800">🎨 화면 테마</span>
+              <div className="flex gap-1.5">
+                {(
+                  [
+                    ["default", "기본"],
+                    ["riviera", "🌊 바닷마을"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => void setClassTheme(key)}
+                    disabled={themeBusy}
+                    className={`press rounded-btn px-4 py-2 text-sm font-bold disabled:opacity-50 ${
+                      (settings.theme ?? "default") === key
+                        ? "bg-brand text-white"
+                        : "bg-white text-ink-600 ring-1 ring-ink-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-ink-600">
+              반 전체 화면의 색과 머리 장식이 바뀌어요 (기능·점수는 그대로). 학생 화면은 앱을 다시 열면 적용돼요.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <input

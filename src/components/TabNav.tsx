@@ -122,6 +122,7 @@ export default function TabNav() {
                   ref={active ? activeRef : undefined}
                   href={t.href}
                   aria-current={active ? "page" : undefined}
+                  data-tab={t.href}
                   className={`press inline-flex min-h-11 items-center rounded-full px-3.5 py-2.5 font-bold transition-colors ${
                     active
                       ? `badge-pop ${t.accent} text-white shadow-card`
