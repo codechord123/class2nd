@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/stores/session";
 import { nameInitial, students, studentById } from "@/lib/roster";
 import { logout as fbLogout } from "@/lib/auth";
+import TeacherBell from "@/components/TeacherBell";
 import PasswordSheet from "@/components/PasswordSheet";
 
 export default function UserChip() {
@@ -27,6 +28,7 @@ export default function UserChip() {
         {label}
         {preview && <span className="ml-1 text-[10px] font-bold text-warn">미리보기</span>}
       </span>
+      {role === "teacher" && !preview && <TeacherBell />}
       {role === "teacher" && (
         <button
           onClick={() => {

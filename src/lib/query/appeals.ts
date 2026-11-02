@@ -14,6 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 
 export interface ScoreAppeal {
   id: string;
@@ -43,6 +44,7 @@ export function useCreateAppeal(myId: number | null) {
         status: "pending",
         createdAt: Date.now(),
       });
+      pingInbox(myId, "appeal"); // 📬 교사 종
     } catch (e) {
       if ((e as { code?: string })?.code === "permission-denied")
         throw new Error("아직 준비 중인 기능이에요 — 선생님께 알려주세요! 🙂");

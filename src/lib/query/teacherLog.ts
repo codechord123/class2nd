@@ -133,6 +133,50 @@ export function useUpdateTeacherLog() {
   };
 }
 
+/**
+ * 💾 자동 저장 — id가 없으면 만들고(새 id 반환), 있으면 고친다. 지워졌으면 다시 만든다.
+ * 몇 초마다 불리므로 목록을 재조회하지 않고 캐시만 고친다 (200건 재읽기 폭주 방지).
+ */
+export function useAutosaveLog() {
+  const qc = useQueryClient();
+  const patchCache = (log: TeacherLog) =>
+    qc.setQueriesData<TeacherLog[]>({ queryKey: ["teacherLogs"] }, (old) => {
+      if (!old) return old;
+      const next = old.some((x) => x.id === log.id)
+        ? old.map((x) => (x.id === log.id ? log : x))
+        : [log, ...old];
+      return next.sort((a, b) => b.at.localeCompare(a.at) || b.createdAt - a.createdAt);
+    });
+  return async (
+    id: string | null,
+    log: Omit<TeacherLog, "id" | "createdAt" | "updatedAt">
+  ): Promise<string> => {
+    const body = { at: log.at, text: log.text.trim(), tags: log.tags, studentIds: log.studentIds };
+    const now = Date.now();
+    if (id) {
+      try {
+        await updateDoc(doc(db(), "teacherLogs", id), { ...body, updatedAt: now });
+        const prev = qc
+          .getQueriesData<TeacherLog[]>({ queryKey: ["teacherLogs"] })
+          .flatMap(([, v]) => v ?? [])
+          .find((x) => x.id === id);
+        patchCache({ id, ...body, createdAt: prev?.createdAt ?? now, updatedAt: now });
+        return id;
+      } catch (e) {
+        if ((e as { code?: string })?.code !== "not-found") throw friendly(e, "자동 저장 실패");
+        // 다른 화면에서 지운 문서 — 새로 만든다
+      }
+    }
+    try {
+      const ref = await addDoc(collection(db(), "teacherLogs"), { ...body, createdAt: now });
+      patchCache({ id: ref.id, ...body, createdAt: now });
+      return ref.id;
+    } catch (e) {
+      throw friendly(e, "자동 저장 실패");
+    }
+  };
+}
+
 export function useDeleteTeacherLog() {
   const qc = useQueryClient();
   return async (id: string) => {

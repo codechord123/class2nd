@@ -3,7 +3,7 @@
 // 집계는 교사만 원시 평가(하루 최대 50문서)를 읽고, 학생들은 결과 문서만 읽는다.
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
-import { useSettings, useSaveSettings } from "@/lib/query/settings";
+import { useSettings, usePatchSettings, fetchFreshSettings } from "@/lib/query/settings";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, payVacationReading, type AggregateResult } from "@/lib/aggregate";
 import { teacherPermissionHint } from "@/lib/auth";
@@ -69,7 +69,7 @@ import type { ClassSettings } from "@/types";
 export default function TeacherPage() {
   const { role } = useSession();
   const { data: settings } = useSettings();
-  const saveSettings = useSaveSettings();
+  const patchSettings = usePatchSettings();
   const qc = useQueryClient();
 
   // 교사 탭 — 사용 빈도 기준 4탭 평탄화 (사용자 확정): 매일 쓰는 '오늘'을 기본 화면으로.
@@ -283,14 +283,14 @@ export default function TeacherPage() {
   async function toggleUsageLock() {
     if (lockBusy || !settings) return;
     setLockBusy(true);
-    const next: ClassSettings = {
-      ...settings,
-      usageLocked: !settings.usageLocked,
-      usageLockNote: (dLockNote ?? settings.usageLockNote ?? "").trim() || undefined,
-    };
     try {
-      await saveSettings(next);
-      setMsg(next.usageLocked ? "🔒 학생 사용을 잠갔어요." : "🔓 학생 사용을 다시 열었어요.");
+      // 서버의 지금 값 기준으로 뒤집는다 — 다른 기기에서 바꿨는데 이 화면이 낡았으면
+      // 화면 표시와 반대로 저장되는 일이 있었다(실사례). 바꾼 키만 저장(전체 덮어쓰기 금지).
+      const fresh = await fetchFreshSettings(qc);
+      const usageLocked = !fresh.usageLocked;
+      const note = (dLockNote ?? fresh.usageLockNote ?? "").trim();
+      await patchSettings(note ? { usageLocked, usageLockNote: note } : { usageLocked });
+      setMsg(usageLocked ? "🔒 학생 사용을 잠갔어요." : "🔓 학생 사용을 다시 열었어요.");
     } catch (e) {
       setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -303,7 +303,7 @@ export default function TeacherPage() {
     if (!settings || themeBusy || (settings.theme ?? "default") === theme) return;
     setThemeBusy(true);
     try {
-      await saveSettings({ ...settings, theme });
+      await patchSettings({ theme });
       setMsg(theme === "riviera" ? "🌊 바닷마을 테마를 켰어요." : "기본 테마로 돌렸어요.");
     } catch (e) {
       setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
@@ -315,10 +315,11 @@ export default function TeacherPage() {
   async function toggleLetters() {
     if (!settings || lettersBusy) return;
     setLettersBusy(true);
-    const next: ClassSettings = { ...settings, lettersOpen: settings.lettersOpen === false };
     try {
-      await saveSettings(next);
-      setMsg(next.lettersOpen ? "💌 우체통을 열었어요." : "🔒 우체통을 닫았어요.");
+      const fresh = await fetchFreshSettings(qc);
+      const lettersOpen = fresh.lettersOpen === false;
+      await patchSettings({ lettersOpen });
+      setMsg(lettersOpen ? "💌 우체통을 열었어요." : "🔒 우체통을 닫았어요.");
     } catch (e) {
       setMsg(`⚠️ 저장 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -327,10 +328,9 @@ export default function TeacherPage() {
   }
 
   async function saveAll() {
-    const next: ClassSettings = {
-      ...settings!,
-      peerScale: settings!.peerScale, // (부서장 평가는 O/X 기준으로 전환 — 척도는 미사용)
-      groupScale: settings!.groupScale,
+    // 이 폼이 다루는 키만 저장 — 전체를 다시 쓰면 다른 기기에서 바꾼 잠금·우체통·테마 등이
+    // 이 화면의 낡은 값으로 되돌아간다 (2026-11 실사례: '잠금/우체통 스위치가 잘 안 돼')
+    const next: Partial<ClassSettings> = {
       rankPoints: dRank ?? settings!.rankPoints,
       weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
       seatChangeCost: dSeat ?? settings!.seatChangeCost,
@@ -347,7 +347,7 @@ export default function TeacherPage() {
           : (settings!.holidays ?? []),
     };
     try {
-      await saveSettings(next);
+      await patchSettings(next);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1600);
       setMsg("✅ 설정이 저장되었습니다.");

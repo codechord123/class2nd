@@ -21,7 +21,7 @@ export async function sha256(text: string): Promise<string> {
     .join("");
 }
 
-const codeOf = (e: unknown): string => (e as { code?: string })?.code ?? "";
+export const codeOf = (e: unknown): string => (e as { code?: string })?.code ?? "";
 
 /**
  * 교사 작업이 permission-denied로 실패했을 때 원인을 스스로 짚어주는 안내.
@@ -66,6 +66,27 @@ export async function teacherLogin(email: string, password: string): Promise<voi
   await signInWithEmailAndPassword(firebaseAuth(), email, password);
 }
 
+// 📱 기기 여러 대 허용 (2026-11): 예전엔 '마지막으로 로그인한 기기 하나'만 쓰기 권한을 가져서,
+//   집 태블릿에서 로그인하면 학교 디벗은 로그인된 것처럼 보이는데 저장(상점 신청·편지·평가)이
+//   permission-denied로 실패했다 — "상점 신청이 잘 안 돼요"의 주원인.
+//   이제 로그인할 때 이 브라우저의 고정 키 → 익명 uid를 studentAuth.devices에 함께 적고,
+//   규칙(ownsStudent)이 devices에 있는 uid도 본인으로 인정한다. 키가 브라우저당 하나라
+//   map은 '써 본 기기 수'만큼만 자란다. 로그아웃은 익명 uid를 버리므로 공용 PC의 옛 uid는 죽은 값이 된다.
+//   비밀번호 변경 시엔 devices를 이 기기 하나로 덮어써 다른 기기 권한을 회수한다.
+const DEVICE_KEY = "class2nd-device";
+function deviceKey(): string {
+  try {
+    let k = localStorage.getItem(DEVICE_KEY);
+    if (!k || !/^d[a-z0-9]{8,16}$/.test(k)) {
+      k = "d" + Math.random().toString(36).slice(2, 12).padEnd(10, "0");
+      localStorage.setItem(DEVICE_KEY, k);
+    }
+    return k;
+  } catch {
+    return "dnostorage00";
+  }
+}
+
 /** 학생 로그인. 반환값 firstTime=true면 방금 입력한 비밀번호로 신규 등록됨. */
 export async function studentLogin(
   studentId: number,
@@ -84,6 +105,7 @@ export async function studentLogin(
 
   const ref = doc(db(), "studentAuth", String(studentId));
   const verify = await sha256(password);
+  const dk = deviceKey();
 
   // 구버전 규칙 호환: 읽을 수 있으면 클라이언트에서 먼저 대조 (신규 규칙이면 읽기 거부 → 규칙 검증)
   let verifiedLocally = false;
@@ -91,7 +113,7 @@ export async function studentLogin(
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       // 계정 최초 등록: 이 익명 uid에 바인딩 → 규칙이 타인의 덮어쓰기를 차단
-      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid, devices: { [dk]: uid } });
       return { firstTime: true };
     }
     if (snap.data().hash !== verify) throw new Error("비밀번호가 올바르지 않습니다.");
@@ -104,10 +126,10 @@ export async function studentLogin(
 
   // 로그인 확정 + 이 기기 uid로 바인딩 (verify가 틀리면 규칙이 거부)
   try {
-    await updateDoc(ref, { verify, uid, updatedAt: Date.now() });
+    await updateDoc(ref, { verify, uid, [`devices.${dk}`]: uid, updatedAt: Date.now() });
   } catch (e) {
     if (codeOf(e) === "not-found") {
-      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+      await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid, devices: { [dk]: uid } });
       return { firstTime: true };
     }
     if (codeOf(e) === "permission-denied") {
@@ -119,7 +141,7 @@ export async function studentLogin(
       //   문서 없음 → uid 바인딩 create 허용(최초 등록 성공)
       //   문서 있음 → create가 update로 취급되어 거부 → 비밀번호 오류가 맞다
       try {
-        await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid });
+        await setDoc(ref, { hash: verify, updatedAt: Date.now(), uid, devices: { [dk]: uid } });
         return { firstTime: true };
       } catch {
         throw new Error("비밀번호가 올바르지 않습니다.");
@@ -146,7 +168,7 @@ export async function changeStudentPassword(
   const newHash = await sha256(newPassword);
 
   try {
-    await updateDoc(ref, { verify, hash: newHash, updatedAt: Date.now(), uid });
+    await updateDoc(ref, { verify, hash: newHash, updatedAt: Date.now(), uid, devices: { [deviceKey()]: uid } });
   } catch (e) {
     if (codeOf(e) === "not-found") {
       await setDoc(ref, { hash: newHash, updatedAt: Date.now(), uid });

@@ -2,7 +2,7 @@
 // 📔 담임 일지 — 쓰기 + 모아보기(태그·학생·기간·검색) + 상담용 인쇄.
 // 기록 도구는 마찰이 조금만 있어도 안 쓰게 된다 → 탭을 열면 바로 쓰기 칸이 보이고,
 // 태그·학생은 '선택'이라 본문만 적어도 저장된다.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
@@ -16,7 +16,7 @@ import {
   LOG_PAGE,
   filterLogs,
   tagCounts,
-  useAddTeacherLog,
+  useAutosaveLog,
   useDeleteTeacherLog,
   useLogTags,
   useSaveLogTags,
@@ -24,6 +24,20 @@ import {
   useUpdateTeacherLog,
   type TeacherLog,
 } from "@/lib/query/teacherLog";
+import { saveLabel, useAutosave } from "@/lib/useAutosave";
+
+// 💾 쓰던 일지는 이 기기에도 바로 보관 — 새로고침·화면 이동·인터넷 끊김에도 안 사라진다
+const DRAFT_KEY = "class2nd-teacherLogDraft";
+type Draft = { at: string; text: string; tags: string[]; studentIds: number[] };
+function loadDraft(): (Draft & { id: string | null }) | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
+    return raw && typeof raw.text === "string" ? raw : null;
+  } catch {
+    return null;
+  }
+}
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -42,17 +56,44 @@ export default function TeacherLogPanel() {
   const { data: logs, isLoading, error } = useTeacherLogs(true, take);
   const { data: tags } = useLogTags(true);
   const saveTags = useSaveLogTags();
-  const addLog = useAddTeacherLog();
+  const autosaveLog = useAutosaveLog();
   const updateLog = useUpdateTeacherLog();
   const delLog = useDeleteTeacherLog();
 
-  // ── 쓰기 ──
-  const [at, setAt] = useState(todayKST());
-  const [text, setText] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [who, setWho] = useState<number[]>([]);
+  // ── 쓰기 (자동 저장) ──
+  // 쓰기 시작하면 1.5초 쉬는 사이 서버에 문서가 생기고 이후엔 그 문서를 고쳐 나간다.
+  // '다 썼어요'는 저장이 아니라 '다음 일지로 넘어가기' — 버튼을 안 눌러도 이미 저장돼 있다.
+  const [restored] = useState(loadDraft);
+  const [at, setAt] = useState(restored?.at || todayKST());
+  const [text, setText] = useState(restored?.text ?? "");
+  const [picked, setPicked] = useState<string[]>(restored?.tags ?? []);
+  const [who, setWho] = useState<number[]>(restored?.studentIds ?? []);
+  const [draftId, setDraftId] = useState<string | null>(restored?.id ?? null);
+  const draftIdRef = useRef(draftId);
   const [newTag, setNewTag] = useState("");
   const [busy, setBusy] = useState(false);
+  const draft: Draft = { at, text, tags: picked, studentIds: who };
+  const auto = useAutosave(draft, {
+    enabled: !!text.trim(),
+    initiallyDirty: !!restored?.text.trim(),
+    save: async (v) => {
+      const id = await autosaveLog(draftIdRef.current, v);
+      if (id !== draftIdRef.current) {
+        draftIdRef.current = id;
+        setDraftId(id);
+      }
+    },
+  });
+  // 이 기기 임시본 — 키 하나에 덮어쓰기 (서버 저장 전에 창이 닫혀도 남는다)
+  useEffect(() => {
+    try {
+      if (text.trim())
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, id: draftId }));
+      else if (!draftId) localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at, text, picked, who, draftId]);
+
 
   // ── 보기 ──
   const [fTag, setFTag] = useState("");
@@ -62,6 +103,26 @@ export default function TeacherLogPanel() {
   const [kw, setKw] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  // 상세 모달 수정도 자동 저장 — 되돌리기용 원문을 들고 있는다
+  const [editOrig, setEditOrig] = useState("");
+  const editAuto = useAutosave(
+    { id: editing, text: editText },
+    {
+      enabled: editing != null && !!editText.trim() && editText !== editOrig,
+      save: async (v) => {
+        const l = logs?.find((x) => x.id === v.id);
+        if (!l || !v.id) return;
+        await autosaveLog(v.id, { at: l.at, text: v.text, tags: l.tags, studentIds: l.studentIds });
+      },
+    }
+  );
+  /** 수정 대상을 바꾸기 전엔 남은 변경부터 저장 (flush는 지금 값을 바로 잡아 둔다) */
+  const startEdit = (l: TeacherLog) => {
+    void editAuto.flush();
+    setEditing(l.id);
+    setEditText(l.text);
+    setEditOrig(l.text);
+  };
   // 게시판 규격 — 10/20개 페이지네이션 + 목록 위 모달 상세
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -97,15 +158,22 @@ export default function TeacherLogPanel() {
   const toggle = <T,>(arr: T[], v: T) =>
     arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 
-  async function save() {
+  /** 다 썼어요 — 남은 변경을 마저 저장하고 빈 쓰기 칸으로 */
+  async function finish() {
     if (busy) return;
     setBusy(true);
     try {
-      await addLog({ at, text, tags: picked, studentIds: who });
+      await auto.flush();
+      if (auto.state === "error" && !draftIdRef.current) throw new Error("저장하지 못했어요 — 인터넷을 확인해 주세요.");
+      draftIdRef.current = null;
+      setDraftId(null);
       setText("");
       setPicked([]);
       setWho([]);
       setAt(todayKST());
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {}
       toast("📔 일지를 저장했어요.", "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "저장 실패", "error");
@@ -235,13 +303,21 @@ export default function TeacherLogPanel() {
           ))}
         </div>
 
-        <button
-          onClick={() => void save()}
-          disabled={busy || !text.trim()}
-          className="press mt-3 rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-        >
-          {busy ? "저장 중…" : "📔 일지 저장"}
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => void finish()}
+            disabled={busy || !text.trim()}
+            className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+          >
+            {busy ? "저장 중…" : "✅ 다 썼어요 · 새 일지"}
+          </button>
+          <span
+            className={`text-xs font-bold ${auto.state === "error" ? "text-danger" : "text-ink-500"}`}
+            aria-live="polite"
+          >
+            {text.trim() ? saveLabel(auto.state, auto.savedAt) : "☁️ 쓰는 대로 자동 저장돼요"}
+          </span>
+        </div>
       </Card>
 
       <Card
@@ -466,27 +542,41 @@ export default function TeacherLogPanel() {
               {editing === selected.id ? (
                 <div className="mt-3 space-y-2">
                   <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={8} />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={async () => {
-                        try {
-                          await updateLog(selected.id, { text: editText });
-                          setEditing(null);
-                          toast("수정했어요.", "success");
-                        } catch (e) {
-                          toast(e instanceof Error ? e.message : "수정 실패", "error");
+                        if (!editText.trim()) {
+                          toast("일지 내용을 적어주세요.", "warn");
+                          return;
                         }
+                        await editAuto.flush();
+                        setEditing(null);
+                        toast("수정했어요.", "success");
                       }}
                       className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white"
                     >
-                      저장
+                      ✅ 완료
                     </button>
                     <button
-                      onClick={() => setEditing(null)}
+                      onClick={async () => {
+                        // 되돌리기 — 자동 저장된 수정분을 원문으로 다시 저장
+                        try {
+                          if (editText !== editOrig) await updateLog(selected.id, { text: editOrig });
+                          setEditText(editOrig);
+                          setEditing(null);
+                        } catch (e) {
+                          toast(e instanceof Error ? e.message : "되돌리기 실패", "error");
+                        }
+                      }}
                       className="press rounded-btn border border-ink-200 px-4 py-2 text-sm text-ink-500"
                     >
-                      취소
+                      ↩️ 되돌리기
                     </button>
+                    <span
+                      className={`text-xs font-bold ${editAuto.state === "error" ? "text-danger" : "text-ink-500"}`}
+                    >
+                      {editText !== editOrig ? saveLabel(editAuto.state, editAuto.savedAt) : ""}
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -496,10 +586,7 @@ export default function TeacherLogPanel() {
                   </p>
                   <div className="mt-4 flex gap-2 border-t border-ink-100 pt-3 text-xs">
                     <button
-                      onClick={() => {
-                        setEditing(selected.id);
-                        setEditText(selected.text);
-                      }}
+                      onClick={() => startEdit(selected)}
                       className="text-brand hover:opacity-80"
                     >
                       ✏️ 수정

@@ -19,6 +19,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 import { guardText } from "@/lib/textGuard";
 
 // ── 건의 게시판 ─────────────────────────────────────────────────
@@ -120,6 +121,7 @@ export function useNominateHidden(myId: number | null) {
       comments: [],
       createdAt: Date.now(),
     });
+    pingInbox(myId, "hidden"); // 📬 교사 종
     void qc.invalidateQueries({ queryKey: ["hiddenNominations"] });
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
   };
@@ -189,6 +191,7 @@ export function usePostSuggestion(myId: number | "teacher" | null) {
       comments: [],
       createdAt: Date.now(),
     });
+    if (myId !== "teacher") pingInbox(myId, "board"); // 📬 교사 종
     void qc.invalidateQueries({ queryKey: ["suggestions"] });
     if (isAnnouncement) void qc.invalidateQueries({ queryKey: ["announcements"] });
     if (law) void qc.invalidateQueries({ queryKey: ["lawPosts"] });

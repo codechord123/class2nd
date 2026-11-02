@@ -1,12 +1,13 @@
 "use client";
 // 선생님 메모장 + 격주 MVP 정산 + 교사 보너스 (교사 탭 위젯 모음).
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTeacherMemo, useSaveTeacherMemo } from "@/lib/query/classMeta";
 import { settleSession, addBonus, periodOfWeek, type SessionSettleResult } from "@/lib/aggregate";
 import { currentWeekNum } from "@/lib/schedule";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
 import { useQueryClient } from "@tanstack/react-query";
+import { saveLabel, useAutosave } from "@/lib/useAutosave";
 
 export function TeacherMemoWidget() {
   const { data: memo } = useTeacherMemo(true);
@@ -15,12 +16,16 @@ export function TeacherMemoWidget() {
   const [fontSize, setFontSize] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
 
-  // 최초 로드 시 서버 값 반영
-  useEffect(() => {
-    if (memo && text === null) setText(memo.text);
-  }, [memo, text]);
-
+  // 손대기 전엔 text === null → 화면은 서버 값(memo.text)을 그대로 보여 준다
   const fs = fontSize ?? memo?.fontSize ?? 14;
+  // 💾 자동 저장 — 손댄 뒤에만(서버 값을 그대로 다시 쓰지 않게), 입력이 멈추면 저장
+  const auto = useAutosave(
+    { text: text ?? memo?.text ?? "", fontSize: fs },
+    {
+      enabled: !!memo && (text !== null && text !== memo.text || (fontSize !== null && fontSize !== memo.fontSize)),
+      save: (v) => save(v),
+    }
+  );
 
   return (
     <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -53,7 +58,9 @@ export function TeacherMemoWidget() {
         >
           메모 저장
         </button>
-        {msg && <span className="text-sm">{msg}</span>}
+        <span className={`text-xs font-bold ${auto.state === "error" ? "text-danger" : "text-ink-500"}`}>
+          {msg && auto.state === "idle" ? msg : saveLabel(auto.state, auto.savedAt)}
+        </span>
       </div>
     </section>
   );

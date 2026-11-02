@@ -14,6 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 import type { RoleKey } from "@/types";
 import { DEFAULT_PEER_CRITERIA } from "@/lib/peerCriteria";
 import { DEFAULT_EVENT_BOOST, type EventBoost } from "@/lib/eventBoost";
@@ -284,6 +285,7 @@ export function useCreateMenuRequest(myId: number | null) {
         ...(note.trim() ? { note: note.trim() } : {}),
         createdAt: Date.now(),
       });
+      pingInbox(myId, "menu"); // 📬 교사 종
     } catch (e) {
       // menuRequests 규칙이 아직 콘솔에 게시되지 않으면 permission-denied가 난다
       if ((e as { code?: string })?.code === "permission-denied")

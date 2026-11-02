@@ -17,6 +17,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 import { studentById } from "@/lib/roster";
 import { getS1WalletOf } from "@/lib/staticData";
 import { classGoldLeft } from "@/lib/gold";
@@ -93,6 +94,7 @@ export function useCreateSpendRequest(kind: WalletKind, myId: number | null) {
       reserved: opts?.reserved ?? false,
     };
     const ref = await addDoc(collection(db(), COLL[kind]), docBody);
+    pingInbox(myId, "shop"); // 📬 교사 종
     // 낙관적 캐시 반영 — 재조회가 끝나기 전에 연달아 신청해도 잔액 홀드에 즉시 잡힌다
     // (invalidate만으로는 refetch 공백 동안 이중 신청이 통과하는 버그가 있었음)
     qc.setQueryData<SpendRequest[]>(["spendRequests", kind, myId], (old) =>

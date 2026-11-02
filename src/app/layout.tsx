@@ -9,6 +9,7 @@ import BetaBanner from "@/components/BetaBanner";
 import CoastDecor from "@/components/CoastDecor";
 import ThemeApplier from "@/components/ThemeApplier";
 import RivieraFx from "@/components/RivieraFx";
+import ReauthDialog from "@/components/ReauthDialog";
 
 // 🌊 바닷마을 테마 제목 글꼴 — 테마가 켜졌을 때만 CSS가 쓰므로, 꺼진 기기는 글꼴 파일을 받지 않는다
 const jua = Jua({ weight: "400", preload: false, display: "swap", variable: "--font-coast" });
@@ -46,6 +47,7 @@ export default function RootLayout({
         <Providers>
           <ThemeApplier />
           <RivieraFx />
+          <ReauthDialog />
           {/* 브랜드 행은 스크롤과 함께 지나가고 탭만 상단 고정 — 작은 화면에서
               상시 점유 높이를 132px → 60px대로 (레이아웃 감사 반영) */}
           <header className="bg-white">

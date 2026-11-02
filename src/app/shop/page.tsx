@@ -23,7 +23,9 @@ import {
   useMyMenuRequests,
   useCreateMenuRequest,
 } from "@/lib/query/classMeta";
-import { useSettings } from "@/lib/query/settings";
+import { useSettings, fetchFreshSettings } from "@/lib/query/settings";
+import { withReauth } from "@/components/ReauthDialog";
+import { codeOf } from "@/lib/auth";
 import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -73,6 +75,11 @@ export default function ShopPage() {
     const t = setInterval(() => setClockTick((k) => k + 1), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  // 상점을 열 때마다 설정을 서버에서 새로 — 잠금·신청 시간 표시(버튼 활성)가 교사 화면과 어긋나지 않게
+  useEffect(() => {
+    if (role === "student") void fetchFreshSettings(qc).catch(() => {});
+  }, [role, qc]);
 
   // 홈 '신청 결과' 배너 읽음 처리 — 상점을 연 순간 결과를 본 것으로 (배너 자동 소멸)
   useEffect(() => {
@@ -169,15 +176,20 @@ export default function ShopPage() {
   // 메뉴판 카드 신청 — 검증 → 확인 다이얼로그 → 신청 (busy 가드로 중복 신청 차단)
   async function requestMenuItem(m: NonNullable<typeof menu>[number]) {
     if (busy) return;
+    // 판정은 서버의 '지금' 설정으로 — 교사가 방금 잠금을 풀었는데 화면 캐시가 '잠김'이면
+    // 아이는 영영 신청을 못 했다(2026-11 실사례). 클릭마다 설정 문서 1개를 다시 읽는다.
+    const live = role === "teacher" ? settings : await fetchFreshSettings(qc).catch(() => settings);
+    const liveOpen = live?.requestOpenHour ?? openHour;
+    const liveClose = live?.requestCloseHour ?? closeHour;
     // 🔒 교사 사용 잠금 — 시간창보다 먼저 판정 (방학 등 수동 잠금)
-    if (role !== "teacher" && usageLocked) {
-      toast(`🔒 ${lockNote}`, "warn");
+    if (role !== "teacher" && live?.usageLocked) {
+      toast(`🔒 ${live.usageLockNote?.trim() || lockNote}`, "warn");
       return;
     }
     // 🕓 신청 시간 하드 차단 (사용자 확정 2026-07-14): 시간 밖엔 예약도 안 됨.
     // 클릭 '지금'을 기준으로 다시 판정 (페이지를 열어둔 채 시간이 지나도 정확).
-    if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
-      toast(`지금은 신청 시간이 아니에요 — 정식 신청은 ${windowLabel}예요! 🕓`, "warn");
+    if (role !== "teacher" && !isRequestOpen(liveOpen, liveClose)) {
+      toast(`지금은 신청 시간이 아니에요 — 정식 신청은 ${requestWindowLabel(liveOpen, liveClose)}예요! 🕓`, "warn");
       return;
     }
     if (beta && m.wallet === "gold") {
@@ -226,14 +238,20 @@ export default function ShopPage() {
       confirmLabel: "신청",
     });
     if (!ok) return;
-    // 최종 재검증 — 확인 다이얼로그가 떠 있는 동안 잠겼거나 시간이 지났을 수 있다
-    if (role !== "teacher" && usageLocked) {
-      toast(`🔒 ${lockNote}`, "warn");
-      return;
-    }
-    if (role !== "teacher" && !isRequestOpen(openHour, closeHour)) {
-      toast(`신청 시간이 지났어요 — 정식 신청은 ${windowLabel}예요! 🕓`, "warn");
-      return;
+    // 최종 재검증 — 화면의 설정은 몇 분 묵었을 수 있다(교사가 방금 잠갔거나 풀었을 수 있음).
+    // 서버의 지금 설정으로 다시 판정해야 '열렸다는데 안 돼요'가 안 생긴다 (문서 1개 읽기).
+    if (role !== "teacher") {
+      const fresh = await fetchFreshSettings(qc).catch(() => settings);
+      if (fresh?.usageLocked) {
+        toast(`🔒 ${fresh.usageLockNote?.trim() || lockNote}`, "warn");
+        return;
+      }
+      const o = fresh?.requestOpenHour ?? openHour;
+      const c = fresh?.requestCloseHour ?? closeHour;
+      if (!isRequestOpen(o, c)) {
+        toast(`신청 시간이 지났어요 — 정식 신청은 ${requestWindowLabel(o, c)}예요! 🕓`, "warn");
+        return;
+      }
     }
     if (m.wallet === "gold" ? m.price > freshGoldLeft() : m.price > freshAvailOf(wallet)) {
       toast("승인 기다리는 신청까지 계산하면 잔액이 모자라요.", "warn");
@@ -241,12 +259,21 @@ export default function ShopPage() {
     }
     setBusy(true);
     try {
-      if (m.wallet === "gold") await createGoldRequest(m.price, m.name, "gold");
-      else await createRequest(m.price, m.name, "spend");
+      // 이 기기 연결이 풀렸으면 비밀번호만 다시 받고 자동으로 한 번 더 (ReauthDialog)
+      await withReauth(() =>
+        m.wallet === "gold"
+          ? createGoldRequest(m.price, m.name, "gold")
+          : createRequest(m.price, m.name, "spend")
+      );
       setBuyBurst((k) => k + 1);
       toast(`"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`, "success");
     } catch (e) {
-      toast(friendlyWriteError(e, "신청에 실패했어요."), "error");
+      toast(
+        codeOf(e) === "permission-denied"
+          ? "신청이 막혔어요 — 방금 상점이 잠겼거나 신청 시간이 지났을 수 있어요. 기기 시계가 맞는지도 확인해 주세요. 🕓"
+          : friendlyWriteError(e, "신청에 실패했어요."),
+        "error"
+      );
     } finally {
       setBusy(false);
     }

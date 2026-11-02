@@ -3,6 +3,7 @@
 // 학생끼리는 편지를 주고받지 않으므로 우체통 하나가 곧 '그 학생과 나의 대화'다.
 // 답장을 기다리는 학생을 맨 위에 칩으로 세워 놓친 편지가 없게 한다.
 // 읽기: 대기 배지 = 부모 문서 25개(오늘 탭 열 때) · 대화 열람 = 고른 1명분만.
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { clearLetterIntent, peekLetterIntent } from "@/lib/letterIntent";
 import { students, studentById } from "@/lib/roster";
@@ -159,6 +160,14 @@ export default function LetterPanel() {
       <Card
         title="📬 우체통"
         desc="학생을 고르면 그 학생과 주고받은 편지가 보여요 (고른 1명만 읽어요)."
+        action={
+          <Link
+            href="/inbox#letters"
+            className="press rounded-btn bg-brand-weak px-3 py-1.5 text-xs font-bold text-brand-strong"
+          >
+            💌 편지함에서 한 번에 →
+          </Link>
+        }
       >
         {waiting && waiting.length > 0 && (
           <div className="mt-3 rounded-btn bg-amber-50 p-3 ring-1 ring-amber-200">

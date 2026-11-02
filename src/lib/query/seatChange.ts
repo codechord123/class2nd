@@ -19,6 +19,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 import { scheduleOfWeek } from "@/lib/schedule";
 import type { RoleKey, WeekSchedule, GroupAssignment } from "@/types";
 
@@ -90,6 +91,7 @@ export function useCreateSeatRequest(myId: number | null) {
       createdAt: Date.now(),
     };
     const ref = await addDoc(collection(db(), "seatChangeRequests"), docBody);
+    pingInbox(myId, "seat"); // 📬 교사 종
     // 낙관적 캐시 반영 — 재조회 공백 동안의 연속 신청도 홀드·중복 검사에 바로 잡히게
     qc.setQueryData<SeatChangeRequest[]>(["seatRequests", req.week], (old) =>
       old ? [...old, { id: ref.id, ...docBody }] : old

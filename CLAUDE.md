@@ -54,6 +54,11 @@ Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 �
   (무차별 대입 차단), 로그인 = `verify`(입력 해시)를 실은 update를 규칙이 저장된 hash와 대조 →
   성공 시 기기 uid 자동 재바인딩. 문서가 없으면 update가 **not-found가 아니라 permission-denied**로
   떨어지므로 create 재시도 폴백이 반드시 필요하다 (이미 구현됨 — 제거 금지).
+- **기기 여러 대 허용** (2026-11): 로그인 시 브라우저 고정 키 → 익명 uid를 `studentAuth.devices`에
+  함께 적고 `ownsStudent`가 `uid` 또는 `devices` 값을 본인으로 인정한다 (집↔학교 기기 왕복 시
+  한쪽 저장이 permission-denied로 막히던 '상점 신청이 안 돼요'의 원인). 비밀번호 변경은 devices를
+  이 기기 하나로 덮어써 회수, 교사 초기화는 문서 삭제로 전부 회수. 그래도 막히면 학생 쓰기를
+  `withReauth`(ReauthDialog)로 감싸 비밀번호 한 번 → 자동 재시도.
 - `firestore.rules` 변경은 **사용자가 Firebase 콘솔에서 수동 게시**해야 반영된다. 규칙 게시 전
   구버전 호환 경로(클라이언트 대조 fallback)가 auth.ts에 공존한다.
 
@@ -115,6 +120,18 @@ Firestore 무료 한도 안에서 25명이 매일 쓰는 게 목표. **모든 �
   제목 자동 완성(띄어쓰기 무시)·같은 책 2권은 copy ②·지난 반납 상태가 다음 '빌릴 때 상태'로 이어짐.
   책별 이력은 `libraryLoans.bookId`로 잇는다. 학생 화면엔 '대출 중·반납 예정일'까지만(이름은 사서·교사만).
   빌릴 때/반납 때 훼손 기록(`condOut`/`condIn`), 새 훼손 확인(`damageNew` 끄기)은 교사만.
+- **교사 설정(`classData/settings`)은 바꾼 키만 저장** (2026-11 실사례: 잠금·우체통 스위치가 '잘 안 됨'):
+  `useSaveSettings`는 캐시와 다른 키만 merge, 토글은 `fetchFreshSettings`로 서버 값을 읽고
+  `usePatchSettings`로 그 키만 — 전체 객체 덮어쓰기는 다른 기기의 변경을 되돌린다. 학생 쪽은 캐시 3분 +
+  창 복귀 재조회, **신청·발송 직전엔 `fetchFreshSettings`로 잠금·시간을 다시 판정**한다.
+- **📬 교사 알림함** (2026-11 사용자): 학생이 보내면 `pingInbox(번호, 종류)`가 `inbox/main`의
+  `s_{번호}.{종류}`에 시각만 찍고(+`by`), 머리의 🔔(TeacherBell)이 이 문서 하나만 1분마다 읽는다
+  (토스트·컴퓨터 알림·탭 제목). 내용은 `/inbox`를 열 때만 각 기능 데이터에서 읽는다. 새 '학생이 보내는'
+  기능을 만들면 성공 직후 `pingInbox`를 부르고 `InboxKind`에 종류를 더한다.
+  💌 편지함(`/inbox#letters`)은 컬렉션 그룹 `items`로 모든 편지를 게시판처럼 — 읽음(`readAt`)·
+  태그(`tags`, 목록은 `classData/letterTags`)는 교사만 쓴다.
+- **교사 일지·메모는 자동 저장** (`useAutosave` — 입력이 멈추면·화면을 숨기면 저장, 이 기기에도 임시본).
+  저장 버튼을 눌러야만 남는 입력 칸을 새로 만들지 않는다.
 - 1학기 감상문은 감상문 게시판에 통합 표시하되 **보관용**(수정·삭제·댓글 없음).
 - 날짜는 전부 KST (`src/lib/date.ts`의 `todayKST/weekOfDate`), 학기 상수는 `src/lib/schedule.ts`.
 

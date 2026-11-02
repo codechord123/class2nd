@@ -10,8 +10,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     // 이 sid의 studentAuth에 바인딩된 기기(uid)인가 — 소유자 검증 공용 함수
+    // 본인 판정 — 마지막 로그인 기기(uid) 또는 로그인해 둔 다른 기기(devices 값)
+    // (2026-11: 기기 하나만 인정하던 때, 집↔학교 기기를 오가면 한쪽 저장이 막혔다)
     function ownsStudent(sid) {
-      return get(/databases/$(database)/documents/studentAuth/$(sid)).data.uid == request.auth.uid;
+      let a = get(/databases/$(database)/documents/studentAuth/$(sid)).data;
+      return a.uid == request.auth.uid
+        || ('devices' in a && request.auth.uid in a.devices.values());
     }
 
     // 교사 설정 (평가 척도 등) — 모두 읽기, 교사만 쓰기
@@ -269,6 +273,31 @@ service cloud.firestore {
         // 오간 편지는 불변 — 고치거나 지우는 건 교사만
         allow update, delete: if isTeacher();
       }
+    }
+
+    // 💌 교사 편지함 — 모든 학생 우체통의 편지를 한 번에(컬렉션 그룹 'items') 읽는다. 교사만.
+    //    (그룹 쿼리는 경로 와일드카드 규칙이 있어야 허용된다 — 학생 개별 읽기는 위 letters 규칙 그대로)
+    match /{path=**}/items/{letterId} {
+      allow read: if isTeacher();
+    }
+
+    // 📬 교사 알림 신호 — inbox/main 문서 하나. 학생은 '자기 칸(s_번호)' 하나만 쓰고 읽지 못한다.
+    //    칸 값은 { 종류: 시각 } 작은 map — 교사 종(🔔)이 이 문서 하나만 1분마다 읽는다.
+    //    (by = 보낸 학생 번호 — 규칙이 '그 번호 칸 + by'만 바뀌었는지, 그 번호가 본인인지 대조)
+    function inboxPingOk(keys) {
+      let sid = request.resource.data.by;
+      return sid is int
+        && keys.hasOnly(['s_' + string(sid), 'by'])
+        && ownsStudent(string(sid))
+        && request.resource.data['s_' + string(sid)] is map
+        && request.resource.data['s_' + string(sid)].size() <= 12;
+    }
+    match /inbox/{docId} {
+      allow read, write: if isTeacher();
+      allow create: if isAuthed() && docId == 'main'
+        && inboxPingOk(request.resource.data.keys());
+      allow update: if isAuthed() && docId == 'main'
+        && inboxPingOk(request.resource.data.diff(resource.data).affectedKeys());
     }
 
     // 📔 담임 일지 — 교사 전용. 생활지도·가정사·상담 내용이 들어가는, 이 앱에서

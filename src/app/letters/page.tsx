@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "@/stores/session";
-import { useSettings } from "@/lib/query/settings";
+import { useSettings, fetchFreshSettings } from "@/lib/query/settings";
+import { useQueryClient } from "@tanstack/react-query";
+import { withReauth } from "@/components/ReauthDialog";
 import { studentById } from "@/lib/roster";
 import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
@@ -29,6 +31,11 @@ export default function LettersPage() {
   const { role, studentId } = useSession();
   const { data: settings } = useSettings();
   const { toast } = useFeedback();
+  const qc = useQueryClient();
+  // 우체통을 열 때마다 열림/닫힘을 서버에서 새로 (교사 스위치와 어긋나지 않게)
+  useEffect(() => {
+    void fetchFreshSettings(qc).catch(() => {});
+  }, [qc]);
 
   // 부모 문서는 읽음 표시(seenAt) 쓰기 전에 캐시를 채워두기 위해 구독한다 —
   // 값 자체는 이 화면에서 안 쓰고, 홈 배지가 같은 캐시를 재사용한다 (추가 읽기 0)
@@ -75,11 +82,23 @@ export default function LettersPage() {
       return toast(`편지는 하루에 ${DAILY_SEND_LIMIT}통까지 보낼 수 있어요.`, "warn");
     setSending(true);
     try {
-      await send(text);
+      const live = await fetchFreshSettings(qc).catch(() => settings);
+      if (live?.lettersOpen === false) {
+        toast("🔒 지금은 선생님이 우체통을 닫아 두었어요.", "warn");
+        return;
+      }
+      await withReauth(() => send(text));
       setText("");
       toast("💌 선생님께 편지를 보냈어요!", "success");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "보내지 못했어요.", "error");
+      toast(
+        (e as { code?: string })?.code === "permission-denied"
+          ? "편지가 막혔어요 — 방금 우체통이 닫혔을 수 있어요. 잠시 뒤 다시 해 보거나 선생님께 말씀드려요."
+          : e instanceof Error
+            ? e.message
+            : "보내지 못했어요.",
+        "error"
+      );
     } finally {
       setSending(false);
     }

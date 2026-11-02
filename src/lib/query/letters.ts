@@ -19,6 +19,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -27,8 +28,11 @@ import {
   orderBy,
   query,
   setDoc,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { pingInbox } from "@/lib/query/inbox";
 import { students } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
 
@@ -40,6 +44,13 @@ export interface Letter {
   from: LetterFrom;
   text: string;
   createdAt: number;
+  readAt?: number; // 교사가 편지함에서 읽은 시각 (학생 편지만)
+  tags?: string[]; // 교사가 붙인 태그 (모아보기용)
+}
+
+/** 편지함(전체 모아보기)의 한 줄 — 어느 학생 우체통의 편지인지 함께 */
+export interface BoardLetter extends Letter {
+  owner: number;
 }
 
 export interface MailMeta {
@@ -67,9 +78,10 @@ function normalizeMeta(raw: unknown): MailMeta {
   };
 }
 
-function friendly(e: unknown, fallback: string): Error {
-  if ((e as { code?: string })?.code === "permission-denied")
-    return new Error("아직 우체통이 열리지 않았어요 — 선생님께 알려주세요! 🙂");
+// permission-denied는 그대로 던진다 — 호출부의 withReauth가 '기기 연결 풀림'을 비밀번호 한 번으로
+// 고치고 다시 시도한다. (예전엔 여기서 "우체통이 안 열렸어요"로 바꿔 던져, 진짜 원인이 가려졌다)
+function friendly(e: unknown, fallback: string): unknown {
+  if ((e as { code?: string })?.code === "permission-denied") return e;
   return e instanceof Error ? e : new Error(fallback);
 }
 
@@ -145,6 +157,7 @@ export function useSendToTeacher(myId: number | null) {
       });
       // 선생님 쪽 '답장 기다리는 중' 배지
       await setDoc(doc(d, "letters", String(myId)), { studentLastAt: at }, { merge: true });
+      pingInbox(myId, "letter"); // 📬 교사 종
     } catch (e) {
       throw friendly(e, "편지를 보내지 못했어요.");
     }
@@ -193,7 +206,11 @@ export function useTeacherSendLetter() {
         await setDoc(doc(d, "letters", String(to)), { lastAt: at }, { merge: true });
       })
     );
-    void qc.invalidateQueries({ queryKey: ["letters"] });
+    // 받은 아이들의 대화·배지만 — ["letters"] 통째로 무효화하면 편지함(최대 500통)까지 다시 읽는다
+    for (const to of toIds) {
+      void qc.invalidateQueries({ queryKey: ["letters", "items", to] });
+      void qc.invalidateQueries({ queryKey: ["letters", "meta", to] });
+    }
   };
 }
 
@@ -238,4 +255,124 @@ export function useDeleteLetter() {
     await deleteDoc(doc(db(), "letters", String(ownerId), "items", letterId));
     void qc.invalidateQueries({ queryKey: ["letters", "items", ownerId] });
   };
+}
+
+// ── 📬 교사 편지함: 모든 학생 편지를 게시판처럼 한 번에 ─────────────────────
+// 학생을 하나씩 눌러야만 보이던 문제(2026-11 사용자) → 컬렉션 그룹(items) 하나로 모은다.
+//   기본: 최근 N일을 최신순으로 (컬렉션 그룹 단일 필드 색인 필요 — 콘솔 링크로 1회 생성)
+//   색인이 아직 없으면 failed-precondition → 전체를 한 번 읽어 화면에서 거른다(편지 수가 적어 감당 가능)
+//   규칙: match /{path=**}/items/{id} 교사 읽기 (게시 전엔 permission-denied)
+export const DEFAULT_LETTER_TAGS = ["고민", "친구관계", "가정", "학습", "건의", "감사", "상담 필요", "확인 완료"];
+
+export function useAllLetters(enabled: boolean, days: number) {
+  return useQuery({
+    queryKey: ["letters", "board", days],
+    enabled,
+    queryFn: async (): Promise<{ letters: BoardLetter[]; indexUrl: string | null }> => {
+      const since = days > 0 ? Date.now() - days * 86400000 : 0;
+      const toRow = (d: { id: string; ref: { parent: { parent: { id: string } | null } }; data: () => unknown }) => {
+        const raw = d.data() as Omit<Letter, "id">;
+        return { id: d.id, owner: Number(d.ref.parent.parent?.id), ...raw } as BoardLetter;
+      };
+      let indexUrl: string | null = null;
+      let rows: BoardLetter[];
+      try {
+        const snap = await getDocs(
+          query(
+            collectionGroup(db(), "items"),
+            where("createdAt", ">=", since),
+            orderBy("createdAt", "desc"),
+            limit(500)
+          )
+        );
+        rows = snap.docs.map(toRow);
+      } catch (e) {
+        if ((e as { code?: string })?.code !== "failed-precondition") throw e;
+        indexUrl = /https:\/\/console\.firebase\.google\.com\S+/.exec(String((e as Error).message))?.[0] ?? null;
+        const snap = await getDocs(collectionGroup(db(), "items"));
+        rows = snap.docs.map(toRow).filter((l) => l.createdAt >= since);
+      }
+      return {
+        letters: rows.filter((l) => Number.isFinite(l.owner)).sort((a, b) => b.createdAt - a.createdAt),
+        indexUrl,
+      };
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+function patchBoard(qc: ReturnType<typeof useQueryClient>, owner: number, id: string, patch: Partial<Letter>) {
+  qc.setQueriesData<{ letters: BoardLetter[]; indexUrl: string | null }>(
+    { queryKey: ["letters", "board"] },
+    (o) => o && { ...o, letters: o.letters.map((l) => (l.owner === owner && l.id === id ? { ...l, ...patch } : l)) }
+  );
+}
+
+/** 교사가 편지를 열었다 — 그 편지 읽음 + 그 학생 '답장 기다림' 배지도 내린다 */
+export function useMarkLetterRead() {
+  const qc = useQueryClient();
+  return async (l: BoardLetter) => {
+    if (l.readAt || l.from === "teacher") return;
+    const at = Date.now();
+    patchBoard(qc, l.owner, l.id, { readAt: at });
+    await updateDoc(doc(db(), "letters", String(l.owner), "items", l.id), { readAt: at }).catch(() => {});
+    await setDoc(doc(db(), "letters", String(l.owner)), { teacherSeenAt: at }, { merge: true }).catch(() => {});
+    void qc.invalidateQueries({ queryKey: ["letters", "waiting"] });
+  };
+}
+
+export function useSetLetterTags() {
+  const qc = useQueryClient();
+  return async (l: BoardLetter, tags: string[]) => {
+    patchBoard(qc, l.owner, l.id, { tags });
+    await updateDoc(doc(db(), "letters", String(l.owner), "items", l.id), { tags });
+  };
+}
+
+/** 편지 태그 목록 — 교사가 관리 (없으면 기본값) */
+export function useLetterTags(enabled: boolean) {
+  return useQuery({
+    queryKey: ["letterTags"],
+    enabled,
+    queryFn: async (): Promise<string[]> => {
+      const snap = await getDoc(doc(db(), "classData", "letterTags"));
+      const list = snap.exists() ? (snap.data().tags as unknown) : null;
+      return Array.isArray(list) && list.length ? (list as string[]) : DEFAULT_LETTER_TAGS;
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useSaveLetterTags() {
+  const qc = useQueryClient();
+  return async (tags: string[]) => {
+    const clean = [...new Set(tags.map((t) => t.trim()).filter(Boolean))];
+    await setDoc(doc(db(), "classData", "letterTags"), { tags: clean }, { merge: true });
+    qc.setQueryData(["letterTags"], clean);
+  };
+}
+
+/** 학생별 부모 문서(읽음 시각) — 편지함을 열 때 1회 25개. 예전 편지의 '읽음' 판정 재료 */
+export function useAllMailMeta(enabled: boolean) {
+  return useQuery({
+    queryKey: ["letters", "allMeta"],
+    enabled,
+    queryFn: async (): Promise<Record<number, MailMeta>> => {
+      const d = db();
+      const active = students.filter((s) => !s.inactive);
+      const snaps = await Promise.all(active.map((s) => getDoc(doc(d, "letters", String(s.id)))));
+      const out: Record<number, MailMeta> = {};
+      active.forEach((s, i) => {
+        out[s.id] = snaps[i].exists() ? normalizeMeta(snaps[i].data()) : EMPTY_META;
+      });
+      return out;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/** 안 읽은 학생 편지 — readAt이 없고, 그 학생 대화를 마지막으로 연 시각보다 나중에 온 것 */
+export function isUnreadLetter(l: BoardLetter, metas: Record<number, MailMeta> | undefined): boolean {
+  if (l.from === "teacher" || l.readAt) return false;
+  return l.createdAt > (metas?.[l.owner]?.teacherSeenAt ?? 0);
 }
