@@ -119,6 +119,7 @@ export function useCatalog(enabled = true) {
       return snap.exists() ? parseCatalog(snap.data()) : { books: {} };
     },
     staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true, // 다른 사서 기기에서 반납한 책이 '대출 중'으로 남아 보이지 않게
   });
 }
 
@@ -383,13 +384,29 @@ export function useLend(by: number | "teacher" | null) {
         : { books: {} as Record<string, Book> };
       const key = bookKey(title);
       const same = Object.values(cat.books).filter((b) => b.k === key);
+      // 🔧 '대출 중' 표시가 이미 반납된 대출을 가리키면 낡은 표시다 (2026-11 실사례: 반납했는데
+      //    다시 빌려주려니 '대출 중'). 옛 화면(목록 기능 전 코드)으로 반납하면 목록이 안 바뀌었다.
+      //    그 대출 문서를 직접 확인해서 반납·분실·삭제됐으면 빌릴 수 있는 책으로 본다.
+      const cands = [...same];
+      if (p.bookId && cat.books[p.bookId] && !cands.some((b) => b.id === p.bookId))
+        cands.push(cat.books[p.bookId]);
+      const stale = new Set<string>();
+      for (const b of cands)
+        if (b.on) {
+          const ls = await tx.get(doc(d, "libraryLoans", b.on.loan));
+          const x = ls.data();
+          if (!ls.exists() || typeof x?.returned === "string" || x?.lost === true)
+            stale.add(b.id);
+        }
+      for (const id of stale) cat.books[id] = { ...cat.books[id], on: null };
+      const sameNow = same.map((b) => cat.books[b.id]);
       let book: Book | undefined = p.bookId ? cat.books[p.bookId] : undefined;
       if (book && (book.on || book.lost))
         throw new Error(
           `《${bookLabel(book)}》은(는) 지금 빌려줄 수 없어요 (대출 중이거나 분실).`,
         );
       if (!book && !p.newCopy) {
-        book = same.find((b) => !b.on && !b.lost);
+        book = sameNow.find((b) => !b.on && !b.lost);
         if (!book && same.length)
           throw new Error(
             `《${title}》은(는) 이미 빌려 갔어요. 같은 책이 한 권 더 있으면 '한 권 더 등록'을 눌러 주세요.`,
@@ -421,6 +438,10 @@ export function useLend(by: number | "teacher" | null) {
         tx.set(catalogRef(), { books: { [b.id]: stored }, by, at: Date.now() });
       else
         tx.update(catalogRef(), {
+          // 같은 제목의 다른 권에 남은 낡은 '대출 중'도 함께 지운다
+          ...Object.fromEntries(
+            [...stale].filter((id) => id !== b.id).map((id) => [`books.${id}.on`, null]),
+          ),
           [`books.${b.id}`]: stored,
           by,
           at: Date.now(),
@@ -807,4 +828,45 @@ export function useCancelHold() {
     await deleteDoc(doc(db(), "libraryHolds", holdId(k, sid)));
     refresh();
   };
+}
+
+/**
+ * 🔧 목록 맞추기 — 데스크(사서·선생님)가 열 때 '지금 빌려 간 책'과 목록의 대출 표시를 대조해 고친다.
+ *  · 목록은 '대출 중'인데 그 대출이 반납·분실·삭제됨 → 대출 가능으로
+ *  · 빌려 간 책인데 목록엔 '대출 가능' → 대출 중으로
+ *  고치기 전에 대출 문서를 직접 읽어 확인한다(다른 기기에서 방금 빌려준 책을 잘못 지우지 않게).
+ *  어긋난 게 없으면 읽기·쓰기 0. 고친 개수를 돌려준다.
+ */
+export async function reconcileCatalog(
+  by: number | "teacher" | null,
+  books: Record<string, Book>,
+  active: Loan[],
+): Promise<number> {
+  if (by == null) return 0;
+  const activeIds = new Set(active.map((l) => l.id));
+  const suspects = Object.values(books).filter((b) => b.on && !activeIds.has(b.on.loan));
+  const unmarked = active.filter(
+    (l) => l.bookId && books[l.bookId] && !books[l.bookId].lost && books[l.bookId].on?.loan !== l.id,
+  );
+  if (!suspects.length && !unmarked.length) return 0;
+  const d = db();
+  const patch: Record<string, unknown> = {};
+  for (const b of suspects) {
+    const ls = await getDoc(doc(d, "libraryLoans", b.on!.loan));
+    const x = ls.data();
+    if (!ls.exists() || typeof x?.returned === "string" || x?.lost === true)
+      patch[`books.${b.id}.on`] = null;
+  }
+  for (const l of unmarked) {
+    const cur = books[l.bookId!].on;
+    if (cur && activeIds.has(cur.loan)) continue; // 같은 권을 다른 대출이 쓰고 있다 — 사람이 볼 일
+    const ls = await getDoc(doc(d, "libraryLoans", l.id));
+    const x = ls.data();
+    if (ls.exists() && x?.returned == null && x?.lost !== true)
+      patch[`books.${l.bookId}.on`] = { loan: l.id, due: String(x?.due ?? l.due) };
+  }
+  const n = Object.keys(patch).length;
+  if (!n) return 0;
+  await updateDoc(catalogRef(), { ...patch, by, at: Date.now() });
+  return n;
 }

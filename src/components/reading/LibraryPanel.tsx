@@ -46,6 +46,7 @@ import {
   useMergeBooks,
   useDeleteLoan,
   useLend,
+  reconcileCatalog,
   useHolds,
   useReserve,
   useCancelHold,
@@ -194,6 +195,22 @@ export default function LibraryPanel({
       .then(() => qc.invalidateQueries({ queryKey: ["library"] }))
       .catch(() => {});
   }, [isTeacher, catalog, qc]);
+  // 🔧 목록 맞추기 — 데스크가 열릴 때 '빌려 간 책'과 목록의 대출 표시가 어긋나 있으면 고친다
+  //    (반납했는데 목록은 '대출 중'으로 남아 다시 못 빌려주던 문제의 자가 치유)
+  const reconciled = useRef("");
+  useEffect(() => {
+    if (!canDesk || !catalog || !active || by == null) return;
+    const sig = `${active.map((l) => l.id).join(",")}|${Object.values(catalog.books)
+      .map((b) => b.on?.loan ?? "")
+      .join(",")}`;
+    if (reconciled.current === sig) return;
+    reconciled.current = sig;
+    void reconcileCatalog(by, catalog.books, active)
+      .then((n) => {
+        if (n) void qc.invalidateQueries({ queryKey: ["library", "catalog"] });
+      })
+      .catch(() => {});
+  }, [canDesk, catalog, active, by, qc]);
   // 📖 책 이력 팝업
   const [bookId, setBookId] = useState<string | null>(null);
   const openBook = catalog?.books[bookId ?? ""] ?? null;
