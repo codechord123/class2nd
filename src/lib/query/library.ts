@@ -10,7 +10,9 @@
 //   둘 다 단일 등호 조건이라 색인 추가 불필요. 연체 감점은 집계(aggregateDate)가 같은 방식으로 계산.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  arrayUnion,
   collection,
+  deleteDoc,
   deleteField,
   doc,
   getDoc,
@@ -20,12 +22,13 @@ import {
   orderBy,
   query,
   runTransaction,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { isWeekend, shiftDate } from "@/lib/date";
+import { isWeekend, shiftDate, todayKST } from "@/lib/date";
 import type { ClassSettings } from "@/types";
 
 export interface Loan {
@@ -477,6 +480,13 @@ export function useUpdateLoan(by: number | "teacher" | null) {
         batch.update(catalogRef(), { ...cat, by, at: Date.now() });
     }
     await batch.commit();
+    // 연체된 책을 반납·분실 처리했으면 오늘 점수의 연체 감점을 다시 계산하도록 재집계 요청
+    // (오늘이 이미 집계됐다면 −감점이 남아 있다. 다음 교사 접속 때 autoRun이 그 날만 다시 집계)
+    const settled = patch.returned ?? (patch.lost ? todayKST() : null);
+    if (settled && l.due < settled)
+      await setDoc(doc(d, "classData", "autoRun"), { redoDates: arrayUnion(settled) }, { merge: true }).catch(
+        () => {},
+      );
     refresh();
   };
 }
@@ -732,4 +742,69 @@ export async function migrateCatalog(): Promise<number> {
   });
   await batch.commit();
   return moved;
+}
+
+// ── 🔖 예약 (2026-11 사용자: 인기 있는 책은 기다리는 줄이 필요하다) ─────────────────
+// libraryHolds/{책키}_{번호} = { k, title, sid, at } — 책 '제목'(찾기 키)에 거는 예약이라
+//   같은 책이 2권이면 어느 권이 돌아와도 1번 예약자 차례. 줄 순서 = at(먼저 건 순).
+//   · 학생: 모든 권이 대출 중일 때만 걸 수 있고 한 사람 HOLD_MAX개까지. 자기 것만 걸고 취소.
+//   · 사서·선생님: 예약자에게 빌려주면 그 예약이 자동으로 지워지고, 안 오는 예약은 지울 수 있다.
+// 읽기: 컬렉션 전체 1회 — 학생 25명 × 최대 2개라 50건을 넘지 않는 작은 컬렉션 (목록 화면에서만)
+export const HOLD_MAX = 2;
+export interface Hold {
+  id: string;
+  k: string;
+  title: string;
+  sid: number;
+  at: number;
+}
+const holdId = (k: string, sid: number) => `${k}_${sid}`;
+
+export function useHolds(enabled = true) {
+  return useQuery({
+    queryKey: ["library", "holds"],
+    enabled,
+    queryFn: async (): Promise<Hold[]> => {
+      const snap = await getDocs(collection(db(), "libraryHolds"));
+      return snap.docs
+        .map((x) => ({ id: x.id, ...(x.data() as Omit<Hold, "id">) }))
+        .filter((h) => typeof h.k === "string" && typeof h.sid === "number")
+        .sort((a, b) => a.at - b.at);
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/** 책키별 기다리는 줄 (먼저 건 순) */
+export function holdQueues(holds: Hold[] | undefined): Record<string, Hold[]> {
+  const out: Record<string, Hold[]> = {};
+  for (const h of holds ?? []) (out[h.k] ??= []).push(h);
+  return out;
+}
+
+/** 그 제목의 빌릴 수 있는 권 수 — 예약은 0권일 때만 걸 수 있다 */
+export const freeCopies = (books: Book[], k: string) =>
+  books.filter((b) => b.k === k && !b.on && !b.lost).length;
+
+export function useReserve(myId: number | null) {
+  const refresh = useRefresh();
+  return async (b: Book, books: Book[], holds: Hold[] | undefined) => {
+    if (myId == null) throw new Error("학생으로 로그인해야 예약할 수 있어요.");
+    const mine = (holds ?? []).filter((h) => h.sid === myId);
+    if (mine.some((h) => h.k === b.k)) throw new Error("이미 예약한 책이에요.");
+    if (mine.length >= HOLD_MAX) throw new Error(`예약은 한 사람 ${HOLD_MAX}권까지예요.`);
+    if (freeCopies(books, b.k) > 0) throw new Error("지금 빌릴 수 있는 책이에요 — 사서에게 바로 빌려 달라고 해요!");
+    const t = b.t.slice(0, TITLE_MAX);
+    await setDoc(doc(db(), "libraryHolds", holdId(b.k, myId)), { k: b.k, title: t, sid: myId, at: Date.now() });
+    refresh();
+  };
+}
+
+/** 예약 취소 — 본인, 또는 사서·선생님(빌려줬거나 오지 않는 예약) */
+export function useCancelHold() {
+  const refresh = useRefresh();
+  return async (k: string, sid: number) => {
+    await deleteDoc(doc(db(), "libraryHolds", holdId(k, sid)));
+    refresh();
+  };
 }

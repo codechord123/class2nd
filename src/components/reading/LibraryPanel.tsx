@@ -10,7 +10,15 @@ import { useSession } from "@/stores/session";
 import { useSettings, useSaveSettings } from "@/lib/query/settings";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
-import { friendlyWriteError } from "@/lib/auth";
+import { codeOf, friendlyWriteError } from "@/lib/auth";
+import { withReauth } from "@/components/ReauthDialog";
+
+/** 사서 기록 실패 안내 — permission-denied를 '다시 로그인' 대신 실제 원인으로 (재로그인은 withReauth가 이미 시도) */
+function libraryWriteError(e: unknown, fallback: string): string {
+  if (codeOf(e) === "permission-denied")
+    return "기록이 막혔어요 — 선생님께 '학급문고 설정'의 사서 명단에 내 이름이 있는지 확인해 달라고 해 주세요.";
+  return friendlyWriteError(e, fallback);
+}
 import {
   AUTHOR_MAX,
   COND_NOTE_MAX,
@@ -38,6 +46,13 @@ import {
   useMergeBooks,
   useDeleteLoan,
   useLend,
+  useHolds,
+  useReserve,
+  useCancelHold,
+  holdQueues,
+  freeCopies,
+  HOLD_MAX,
+  type Hold,
   useLoanHistory,
   useMyLoans,
   useUpdateLoan,
@@ -187,6 +202,11 @@ export default function LibraryPanel({
   const { data: history } = useLoanHistory(canDesk && showHistory);
   const lend = useLend(by);
   const update = useUpdateLoan(by);
+  // 🔖 예약 — 작은 컬렉션 1회 읽기, 제목(찾기 키)별 기다리는 줄
+  const { data: holds } = useHolds(!!role);
+  const queues = useMemo(() => holdQueues(holds), [holds]);
+  const reserve = useReserve(myId);
+  const cancelHold = useCancelHold();
   const del = useDeleteLoan();
   const fix = useFixLoan(by);
   // ✏️ 정정 가능 시간(30분) 판단용 '지금' — 렌더마다 Date.now()를 부르지 않도록 1분마다 갱신
@@ -225,6 +245,7 @@ export default function LibraryPanel({
   const [noteOut, setNoteOut] = useState("");
   // 🔧 반납 확인 — 누른 책 한 권만 펼쳐서 돌려받을 때 상태를 고른다
   const [retId, setRetId] = useState<string | null>(null);
+  const [retBusy, setRetBusy] = useState(false);
   const [retCond, setRetCond] = useState<string[]>([]);
   const [retNote, setRetNote] = useState("");
   const { data: damaged } = useDamageAlerts(canDesk);
@@ -255,6 +276,11 @@ export default function LibraryPanel({
     return !k || l.title.includes(k) || nm(l.sid).includes(k);
   });
 
+  // 지금 적은 제목의 예약 줄 — 빌리는 친구 칩에 🔖순번 표시
+  const lendQueuePos: Record<number, number> = Object.fromEntries(
+    (title.trim() ? (queues[bookKey(title)] ?? []) : []).map((h, i) => [h.sid, i + 1]),
+  );
+
   async function doLend() {
     if (busy || who == null) return;
     if ((activeByStudent[who] ?? 0) >= rules.max)
@@ -262,9 +288,24 @@ export default function LibraryPanel({
         `${nm(who)}은(는) 이미 ${rules.max}권을 빌렸어요. 먼저 반납해야 해요.`,
         "warn",
       );
+    // 🔖 예약 줄 — 빌릴 수 있는 권 수만큼 앞사람이 먼저. 순서를 건너뛰면 한 번 묻는다
+    const lk = bookKey(title);
+    const queue = queues[lk] ?? [];
+    const free = freeCopies(books, lk);
+    const ahead = queue.slice(0, Math.max(1, free));
+    // 남는 권이 예약 인원보다 많으면 누구에게 빌려줘도 예약자 몫이 남는다
+    if (queue.length && free <= queue.length && !ahead.some((h) => h.sid === who)) {
+      const ok = await confirm({
+        title: `🔖 예약한 친구가 먼저예요`,
+        body: `《${title.trim()}》은(는) ${queue.map((h, i) => `${i + 1}. ${nm(h.sid)}`).join(", ")} 순서로 예약돼 있어요. 그래도 ${nm(who)}에게 빌려줄까요?`,
+        confirmLabel: "그래도 빌려주기",
+      });
+      if (!ok) return;
+    }
+    const myHold = queue.find((h) => h.sid === who);
     setBusy(true);
     try {
-      await lend({
+      await withReauth(() => lend({
         title,
         author,
         sid: who,
@@ -274,9 +315,11 @@ export default function LibraryPanel({
         noteOut,
         bookId: selBook,
         newCopy,
-      });
+      }));
+      // 예약자에게 빌려줬으면 그 예약은 끝 (실패해도 대출은 이미 기록됨 — 데스크에서 지울 수 있다)
+      if (myHold) void cancelHold(myHold.k, myHold.sid).catch(() => {});
       toast(
-        `📕 ${nm(who)} · 《${title.trim()}》 대출 — ${md(due)}까지`,
+        `📕 ${nm(who)} · 《${title.trim()}》 대출 — ${md(due)}까지${myHold ? " (🔖 예약 완료)" : ""}`,
         "success",
       );
       setTitle("");
@@ -288,36 +331,39 @@ export default function LibraryPanel({
       setNoteOut("");
       setDue(dueFrom(today, rules.days, rules.holidays)); // 설정이 늦게 읽혀도 다음 대출은 규칙대로
     } catch (e) {
-      toast(
-        friendlyWriteError(
-          e,
-          "기록하지 못했어요 — 사서로 지정됐는지 선생님께 확인해 주세요.",
-        ),
-        "error",
-      );
+      toast(libraryWriteError(e, "기록하지 못했어요."), "error");
     } finally {
       setBusy(false);
     }
   }
 
   async function doReturn(l: Loan) {
+    if (retBusy) return;
     const fresh = newDamage(l.condOut, retCond);
+    setRetBusy(true);
     try {
-      await update(l, {
-        returned: today,
-        condIn: retCond,
-        noteIn: retNote.trim().slice(0, COND_NOTE_MAX),
-        damageNew: fresh.length > 0,
-      });
+      // 이 기기 연결이 풀렸으면 비밀번호 한 번 → 자동 재시도 (ReauthDialog)
+      await withReauth(() =>
+        update(l, {
+          returned: today,
+          condIn: retCond,
+          noteIn: retNote.trim().slice(0, COND_NOTE_MAX),
+          damageNew: fresh.length > 0,
+        }),
+      );
       setRetId(null);
+      const next = queues[bookKey(l.title)]?.[0];
       toast(
-        fresh.length
+        (fresh.length
           ? `📗 반납 — 🔧 새 훼손(${fresh.join(", ")})을 선생님께 알렸어요.`
-          : `📗 《${l.title}》 반납 완료`,
+          : `📗 《${l.title}》 반납 완료`) +
+          (next ? ` · 🔖 예약한 ${nm(next.sid)}에게 먼저 빌려주세요` : ""),
         fresh.length ? "warn" : "success",
       );
     } catch (e) {
-      toast(friendlyWriteError(e, "처리하지 못했어요."), "error");
+      toast(libraryWriteError(e, "반납하지 못했어요."), "error");
+    } finally {
+      setRetBusy(false);
     }
   }
 
@@ -388,12 +434,19 @@ export default function LibraryPanel({
         await del(l, catalog);
       }
     } catch (e) {
-      toast(friendlyWriteError(e, "처리하지 못했어요."), "error");
+      toast(libraryWriteError(e, "처리하지 못했어요."), "error");
     }
   }
 
   const myActive = (mine ?? []).filter((l) => !l.returned && !l.lost);
   const myReturned = (mine ?? []).filter((l) => l.returned).slice(0, 5);
+  // 🔖 내 예약 — 줄에서 몇 번째인지, 돌아온 권이 내 차례까지 닿았는지
+  const myHolds = (holds ?? [])
+    .filter((h) => h.sid === myId)
+    .map((h) => {
+      const pos = (queues[h.k] ?? []).findIndex((x) => x.id === h.id) + 1;
+      return { h, pos, ready: pos > 0 && pos <= freeCopies(books, h.k) };
+    });
   const libNames = rules.librarians.map(nm).join(", ");
 
   return (
@@ -446,6 +499,45 @@ export default function LibraryPanel({
                 );
               })}
             </ul>
+          )}
+          {myHolds.length > 0 && (
+            <div className="mt-4 border-t border-ink-100 pt-3">
+              <p className="text-xs font-bold text-ink-500">
+                🔖 내 예약 ({myHolds.length}/{HOLD_MAX})
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {myHolds.map(({ h, pos, ready }) => (
+                  <li
+                    key={h.id}
+                    className={`flex flex-wrap items-center gap-2 rounded-btn px-3 py-2 text-sm ${
+                      ready ? "bg-success-weak ring-1 ring-success/30" : "bg-ink-50"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1 font-bold text-ink-800">
+                      《{h.title}》
+                    </span>
+                    <span className={`text-xs font-bold ${ready ? "text-success" : "text-ink-500"}`}>
+                      {ready
+                        ? "📗 돌아왔어요! 사서에게 빌려 달라고 해요"
+                        : pos === 1
+                          ? "다음 차례예요 — 돌아오면 내가 먼저"
+                          : `기다리는 중 · ${pos}번째`}
+                    </span>
+                    <button
+                      onClick={() =>
+                        void cancelHold(h.k, h.sid).then(
+                          () => toast("예약을 취소했어요."),
+                          (e) => toast(libraryWriteError(e, "취소하지 못했어요."), "error"),
+                        )
+                      }
+                      className="press rounded-btn px-2 py-1 text-xs font-bold text-ink-400"
+                    >
+                      취소
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {myReturned.length > 0 && (
             <div className="mt-4 border-t border-ink-100 pt-3">
@@ -603,6 +695,11 @@ export default function LibraryPanel({
                     >
                       {s.name}
                       {n > 0 && <span className="ml-1 opacity-70">·{n}</span>}
+                      {lendQueuePos[s.id] && (
+                        <span className="ml-1" title={`이 책 예약 ${lendQueuePos[s.id]}번째`}>
+                          🔖{lendQueuePos[s.id]}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -799,9 +896,10 @@ export default function LibraryPanel({
                       <div className="mt-2 flex gap-2">
                         <button
                           onClick={() => void doReturn(l)}
-                          className="press min-h-11 flex-1 rounded-btn bg-success px-3 text-sm font-bold text-white"
+                          disabled={retBusy}
+                          className="press min-h-11 flex-1 rounded-btn bg-success px-3 text-sm font-bold text-white disabled:opacity-50"
                         >
-                          반납 완료
+                          {retBusy ? "반납 기록 중…" : "반납 완료"}
                         </button>
                         <button
                           onClick={() => setRetId(null)}
@@ -862,7 +960,9 @@ export default function LibraryPanel({
       )}
 
       {/* 📚 학급문고 목록 — 모두 볼 수 있다 (빌린 학생 이름은 사서·선생님만) */}
-      {role && <CatalogCard books={books} today={today} onOpen={setBookId} />}
+      {role && (
+        <CatalogCard books={books} today={today} queues={queues} onOpen={setBookId} />
+      )}
 
       {openBook && (
         <BookDetail
@@ -873,6 +973,25 @@ export default function LibraryPanel({
           isTeacher={isTeacher}
           today={today}
           rules={rules}
+          queue={queues[openBook.k] ?? []}
+          myId={myId}
+          myHoldCount={(holds ?? []).filter((h) => h.sid === myId).length}
+          onReserve={async () => {
+            try {
+              await withReauth(() => reserve(openBook, books, holds));
+              toast(`🔖 《${openBook.t}》 예약했어요 — 돌아오면 '내가 빌린 책'에 알려 줄게요.`, "success");
+            } catch (e) {
+              toast(libraryWriteError(e, "예약하지 못했어요."), "error");
+            }
+          }}
+          onCancelHold={async (h) => {
+            try {
+              await cancelHold(h.k, h.sid);
+              toast(myId === h.sid ? "예약을 취소했어요." : `${nm(h.sid)}의 예약을 지웠어요.`);
+            } catch (e) {
+              toast(libraryWriteError(e, "지우지 못했어요."), "error");
+            }
+          }}
           onClose={() => setBookId(null)}
           onOpenLoan={(id) => setDetailId(id)}
         />
@@ -1074,10 +1193,12 @@ function TitleHint({
 function CatalogCard({
   books,
   today,
+  queues,
   onOpen,
 }: {
   books: Book[];
   today: string;
+  queues: Record<string, Hold[]>;
   onOpen: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
@@ -1177,6 +1298,11 @@ function CatalogCard({
                   )}
                 </span>
                 <span className="tnum text-[11px] text-ink-400">{b.n}회</span>
+                {(queues[b.k]?.length ?? 0) > 0 && (
+                  <span className="rounded-full bg-brand-weak px-2 py-0.5 text-[11px] font-bold text-brand-strong">
+                    🔖 {queues[b.k].length}명 예약
+                  </span>
+                )}
                 <BookStatus b={b} today={today} />
                 <span className="text-ink-300">›</span>
               </button>
@@ -1185,6 +1311,98 @@ function CatalogCard({
         </ul>
       )}
     </Card>
+  );
+}
+
+/** 🔖 예약 — 학생: 걸기·취소·내 순서 / 사서·선생님: 기다리는 줄(이름) + 지우기 */
+function HoldBlock({
+  b,
+  all,
+  queue,
+  myId,
+  myHoldCount,
+  canDesk,
+  onReserve,
+  onCancelHold,
+}: {
+  b: Book;
+  all: Book[];
+  queue: Hold[];
+  myId: number | null;
+  myHoldCount: number;
+  canDesk: boolean;
+  onReserve: () => Promise<void>;
+  onCancelHold: (h: Hold) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const free = freeCopies(all, b.k);
+  const myPos = myId != null ? queue.findIndex((h) => h.sid === myId) + 1 : 0;
+  const run = async (fn: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (myId == null && !canDesk) return null;
+  if (!queue.length && free > 0 && !canDesk) return null; // 빌릴 수 있는 책 — 예약할 일이 없다
+  return (
+    <div className="mt-3 rounded-btn bg-brand-weak/50 p-3">
+      <p className="text-[13px] font-bold text-ink-800">
+        🔖 예약{" "}
+        <span className="font-normal text-ink-500">
+          {queue.length ? `${queue.length}명 기다리는 중` : "아직 없어요"}
+          {free > 0 && queue.length > 0 && ` · 돌아온 책 ${free}권 — 앞 순서부터 빌려 가요`}
+        </span>
+      </p>
+      {myId != null &&
+        (myPos > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold text-brand-strong">
+              {myPos <= free ? "📗 내 차례예요! 사서에게 빌려 달라고 해요" : `내 순서: ${myPos}번째`}
+            </span>
+            <button
+              onClick={() => void run(() => onCancelHold(queue[myPos - 1]))}
+              disabled={busy}
+              className="press min-h-9 rounded-btn bg-white px-3 text-xs font-bold text-ink-500 ring-1 ring-ink-200 disabled:opacity-50"
+            >
+              예약 취소
+            </button>
+          </div>
+        ) : free > 0 ? (
+          <p className="mt-1 text-xs text-ink-600">지금 빌릴 수 있어요 — 사서에게 바로 말해요!</p>
+        ) : myHoldCount >= HOLD_MAX ? (
+          <p className="mt-1 text-xs text-ink-600">예약은 한 사람 {HOLD_MAX}권까지예요.</p>
+        ) : (
+          <button
+            onClick={() => void run(onReserve)}
+            disabled={busy}
+            className="press mt-2 min-h-11 rounded-btn bg-brand px-4 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {busy ? "예약하는 중…" : `🔖 예약하기 (${queue.length + 1}번째)`}
+          </button>
+        ))}
+      {canDesk && queue.length > 0 && (
+        <ol className="mt-2 space-y-1">
+          {queue.map((h, i) => (
+            <li key={h.id} className="flex items-center gap-2 text-[13px]">
+              <span className="tnum w-5 text-ink-400">{i + 1}.</span>
+              <b className="text-ink-800">{nm(h.sid)}</b>
+              <span className="text-[11px] text-ink-400">{md(new Date(h.at + 9 * 3600000).toISOString().slice(0, 10))} 예약</span>
+              <button
+                onClick={() => void run(() => onCancelHold(h))}
+                disabled={busy}
+                className="press ml-auto rounded-btn px-2 py-1 text-xs font-bold text-ink-400 disabled:opacity-50"
+              >
+                지우기
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -1197,6 +1415,11 @@ function BookDetail({
   isTeacher,
   today,
   rules,
+  queue,
+  myId,
+  myHoldCount,
+  onReserve,
+  onCancelHold,
   onClose,
   onOpenLoan,
 }: {
@@ -1207,6 +1430,11 @@ function BookDetail({
   isTeacher: boolean;
   today: string;
   rules: ReturnType<typeof libraryRules>;
+  queue: Hold[];
+  myId: number | null;
+  myHoldCount: number;
+  onReserve: () => Promise<void>;
+  onCancelHold: (h: Hold) => Promise<void>;
   onClose: () => void;
   onOpenLoan: (loanId: string) => void;
 }) {
@@ -1266,6 +1494,17 @@ function BookDetail({
             <b>{condLabel(b.c)}</b>
           </span>
         </div>
+
+        <HoldBlock
+          b={b}
+          all={all}
+          queue={queue}
+          myId={myId}
+          myHoldCount={myHoldCount}
+          canDesk={canDesk}
+          onReserve={onReserve}
+          onCancelHold={onCancelHold}
+        />
 
         {canDesk ? (
           <>

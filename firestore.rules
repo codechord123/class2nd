@@ -397,11 +397,15 @@ service cloud.firestore {
     //                        condOut, noteOut(빌려줄 때 상태), condIn, noteIn, damageNew(돌려받을 때) }
     //   by = 기록한 사서의 학생 번호 → 명단에 있고 그 기기 주인일 때만 통과 (사칭 차단)
     //   연체는 점수 감점으로 이어지므로, 학생이 남의 기록을 고치거나 지우는 길은 없다.
-    function isLibrarian(by) {
+    // ⚠️ 설정에 librarians가 아직 저장되지 않았으면 앱과 같은 기본 명단(15 이다인·18 이채연)으로 본다
+    //    — 없을 때 거부하던 시절, 화면엔 사서로 보이는데 빌려주기·반납이 전부 막혔다 (2026-11 실사례)
+    function librarianList() {
       let p = /databases/$(database)/documents/classData/settings;
-      return by is int && exists(p) && 'librarians' in get(p).data
-        && get(p).data.librarians is list && by in get(p).data.librarians
-        && ownsStudent(string(by));
+      return exists(p) && 'librarians' in get(p).data && get(p).data.librarians is list
+        ? get(p).data.librarians : [15, 18];
+    }
+    function isLibrarian(by) {
+      return by is int && by in librarianList() && ownsStudent(string(by));
     }
     match /libraryLoans/{loanId} {
       allow read: if isAuthed();
@@ -470,6 +474,31 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['books', 'by', 'at'])
         && request.resource.data.books is map);
       allow delete: if isTeacher();
+    }
+
+    // 🔖 학급문고 예약 — libraryHolds/{책키}_{번호} = { k, title, sid, at }
+    //   학생은 '자기 번호'로만 걸고(문서 id도 키_번호로 고정 → 같은 책 중복 예약 불가) 자기 것만 취소.
+    //   사서·선생님은 지울 수 있다(예약자에게 빌려줬거나 오지 않을 때). 점수와 무관.
+    function isAnyLibrarian() {
+      let l = librarianList();
+      return (l.size() > 0 && ownsStudent(string(l[0])))
+        || (l.size() > 1 && ownsStudent(string(l[1])))
+        || (l.size() > 2 && ownsStudent(string(l[2])));
+    }
+    match /libraryHolds/{holdId} {
+      allow read: if isAuthed();
+      allow create: if isTeacher() || (isAuthed()
+        && request.resource.data.keys().hasOnly(['k', 'title', 'sid', 'at'])
+        && request.resource.data.sid is int
+        && ownsStudent(string(request.resource.data.sid))
+        && request.resource.data.k is string
+        && request.resource.data.k.size() > 0 && request.resource.data.k.size() <= 60
+        && holdId == request.resource.data.k + '_' + string(request.resource.data.sid)
+        && request.resource.data.title is string && request.resource.data.title.size() <= 60
+        && request.resource.data.at is int);
+      allow delete: if isTeacher()
+        || (isAuthed() && ownsStudent(string(resource.data.sid)))
+        || (isAuthed() && isAnyLibrarian());
     }
 
     // 오늘의 칭찬 커버리지(누가 칭찬받았는지만 표시) — { [칭찬한사람]: 대상 }

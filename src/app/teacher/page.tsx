@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/stores/session";
 import { useSettings, usePatchSettings, fetchFreshSettings } from "@/lib/query/settings";
+import { DEFAULT_LIBRARIANS } from "@/lib/query/library";
 import { useQueryClient } from "@tanstack/react-query";
 import { aggregateDate, payVacationReading, type AggregateResult } from "@/lib/aggregate";
 import { teacherPermissionHint } from "@/lib/auth";
@@ -131,6 +132,15 @@ export default function TeacherPage() {
     // 마운트 시 한 번만 — 해시는 그대로 두어 새로고침해도 같은 자리로 온다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
+
+  // 📚 사서 명단 자가 치유 — 화면은 기본값(이다인·이채연)을 보여 주지만 설정 문서에 librarians가
+  // 없으면 규칙(isLibrarian)이 사서의 빌려주기·반납을 전부 거부했다 (2026-11 '반납이 안 돼요' 원인).
+  // 교사 화면이 열릴 때 비어 있으면 기본값을 한 번 저장한다 (규칙 쪽에도 같은 기본값 폴백 있음).
+  useEffect(() => {
+    if (role !== "teacher" || !settings || settings.librarians !== undefined) return;
+    void patchSettings({ librarians: DEFAULT_LIBRARIANS }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, settings]);
 
   // 자동 집계·정산: 교사 화면이 열리면 밀린 하루 집계(자정 기준)와 끝난 세션 정산을 자동 처리
   const autoRan = useRef(false);
