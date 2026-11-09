@@ -4,44 +4,246 @@
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "tailwindcss";
 
-/* ── 디자인 토큰 (Toss 기반 · 친근+성취감 톤) ─────────────────────
-   매직넘버 대신 토큰으로 관리. Tailwind v4 @theme → 유틸 자동 생성
-   (예: bg-brand, text-ink-500, rounded-card, shadow-pop). */
+/* ── 디자인 토큰 (모던 웜 미니멀 — 2026-11 개편, 사용자 레퍼런스: 에디토리얼 인테리어 스튜디오 사이트) ─────
+   원칙: 흰 바탕 + 아주 옅은 회색 면, 검정 한 색이 주 행동, 1px 회색 선이 경계(그림자 없음),
+   모서리는 덜 둥글게(12/8px). 색은 상태(성공·주의·위험)에만 남기고 나머지는 회색 위계로.
+   매직넘버 대신 토큰으로 관리. Tailwind v4 @theme → 유틸 자동 생성 (bg-brand, text-ink-500 …). */
 @theme {
-  /* 뉴트럴 스케일 (토스 그레이) */
-  --color-ink-900: #191f28; /* 강조 텍스트·큰 숫자 */
-  --color-ink-800: #333d4b;
-  --color-ink-700: #4e5968; /* 본문 */
-  --color-ink-600: #6b7684;
-  --color-ink-500: #8b95a1; /* 메타·흐림 (AA 대비 확보) */
-  --color-ink-400: #b0b8c1;
-  --color-ink-300: #d1d6db;
-  --color-ink-200: #e5e8eb; /* 보더 */
-  --color-ink-100: #f2f4f6; /* 필드 배경 */
-  --color-ink-50: #f9fafb; /* 페이지 배경 */
+  /* 뉴트럴 스케일 — 웜 베이지 (사용자: "black, white보다는 조금 더 베이지한 느낌")
+     회색 대신 모래·리넨 톤, 검정 대신 따뜻한 차콜. 대비(AA)는 그대로 유지. */
+  --color-ink-900: #26211b; /* 제목·큰 숫자·주 버튼 — 웜 차콜 */
+  --color-ink-800: #352f28;
+  --color-ink-700: #4a433a; /* 본문 */
+  --color-ink-600: #685f54;
+  --color-ink-500: #7d7366; /* 보조글 (AA 대비 확보) */
+  --color-ink-400: #aaa092;
+  --color-ink-300: #d6cec1;
+  --color-ink-200: #e7e0d4; /* 구분선·테두리 */
+  --color-ink-100: #f3eee6; /* 페이지 바탕 — 리넨 베이지 */
+  --color-ink-50: #f9f6f0;
+  --color-white: #fffdf9; /* 카드 면 — 순백 대신 아이보리 */
 
-  /* 주 액션 (절제해서 결정적 순간에만) */
-  --color-brand: #3182f6;
-  --color-brand-strong: #2272eb;
-  --color-brand-weak: #e8f2fe;
+  /* 주 액션 — 웜 차콜 (레퍼런스의 '구매하기' 검정 버튼을 베이지 톤에 맞춰) */
+  --color-brand: #26211b;
+  --color-brand-strong: #15110c;
+  --color-brand-weak: #ece5d9;
 
-  /* 성취·상태 액센트 */
-  --color-success: #12b886;
-  --color-success-weak: #e6f7f1;
-  --color-warn: #ff9f1c;
-  --color-warn-weak: #fff4e0;
-  --color-danger: #f04452;
-  --color-danger-weak: #fdecee;
+  /* 상태 — 채도를 낮춰 모노크롬 화면에서 튀지 않게 (흰 글씨 대비는 유지) */
+  --color-success: #3f7a4f;
+  --color-success-weak: #edf1e6;
+  --color-warn: #a8560f;
+  --color-warn-weak: #f8eedf;
+  --color-danger: #b8432f;
+  --color-danger-weak: #f8e9e3;
 
-  /* 반경·그림자 (아주 옅게) */
-  --radius-card: 20px;
-  --radius-btn: 14px;
-  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.05), 0 3px 10px rgba(17, 24, 39, 0.05);
-  --shadow-pop: 0 6px 24px rgba(17, 24, 39, 0.1);
+  /* 반경·그림자 — 그림자 대신 1px 선, 모서리는 단정하게 */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --shadow-card: 0 0 0 0 transparent;
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.12);
+
+  /* 굵기 한 단계씩 낮춤 — 굵은 글씨는 제목에만 */
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 700;
+  --font-weight-black: 800;
 
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+
+/* 🍎 모노크롬 — Tailwind 기본 팔레트의 '채도'만 낮춘다 (명도 그대로 → 글자·바탕 대비 유지).
+   화면 곳곳의 앰버·핑크·에메랄드 같은 직접 색이 형광처럼 튀어 산만하던 것을 한꺼번에 차분하게.
+   옅은 바탕(50~200)은 크게, 글자·버튼 색(500~)은 조금만 낮춘다. 값은 tailwindcss/theme.css에서 생성. */
+@theme {
+  --color-red-50: oklch(97.1% 0.005 17.38);
+  --color-red-100: oklch(93.6% 0.011 17.717);
+  --color-red-200: oklch(88.5% 0.022 18.334);
+  --color-red-300: oklch(80.8% 0.057 19.571);
+  --color-red-400: oklch(70.4% 0.095 22.216);
+  --color-red-500: oklch(63.7% 0.154 25.331);
+  --color-red-600: oklch(57.7% 0.159 27.325);
+  --color-red-700: oklch(50.5% 0.138 27.518);
+  --color-red-800: oklch(44.4% 0.115 26.899);
+  --color-red-900: oklch(39.6% 0.092 25.723);
+  --color-red-950: oklch(25.8% 0.060 26.042);
+  --color-orange-50: oklch(98% 0.005 73.684);
+  --color-orange-100: oklch(95.4% 0.013 75.164);
+  --color-orange-200: oklch(90.1% 0.026 70.697);
+  --color-orange-300: oklch(83.7% 0.064 66.29);
+  --color-orange-400: oklch(75% 0.092 55.934);
+  --color-orange-500: oklch(70.5% 0.138 47.604);
+  --color-orange-600: oklch(64.6% 0.145 41.116);
+  --color-orange-700: oklch(55.3% 0.127 38.402);
+  --color-orange-800: oklch(47% 0.102 37.304);
+  --color-orange-900: oklch(40.8% 0.080 38.172);
+  --color-orange-950: oklch(26.6% 0.051 36.259);
+  --color-amber-50: oklch(98.7% 0.008 95.277);
+  --color-amber-100: oklch(96.2% 0.021 95.617);
+  --color-amber-200: oklch(92.4% 0.042 95.746);
+  --color-amber-300: oklch(87.9% 0.085 91.605);
+  --color-amber-400: oklch(82.8% 0.095 84.429);
+  --color-amber-500: oklch(76.9% 0.122 70.08);
+  --color-amber-600: oklch(66.6% 0.116 58.318);
+  --color-amber-700: oklch(55.5% 0.106 48.998);
+  --color-amber-800: oklch(47.3% 0.089 46.201);
+  --color-amber-900: oklch(41.4% 0.073 45.904);
+  --color-amber-950: oklch(27.9% 0.050 45.635);
+  --color-yellow-50: oklch(98.7% 0.009 102.212);
+  --color-yellow-100: oklch(97.3% 0.025 103.193);
+  --color-yellow-200: oklch(94.5% 0.045 101.54);
+  --color-yellow-300: oklch(90.5% 0.091 98.111);
+  --color-yellow-400: oklch(85.2% 0.099 91.936);
+  --color-yellow-500: oklch(79.5% 0.119 86.047);
+  --color-yellow-600: oklch(68.1% 0.106 75.834);
+  --color-yellow-700: oklch(55.4% 0.088 66.442);
+  --color-yellow-800: oklch(47.6% 0.074 61.907);
+  --color-yellow-900: oklch(42.1% 0.062 57.708);
+  --color-yellow-950: oklch(28.6% 0.043 53.813);
+  --color-lime-50: oklch(98.6% 0.011 120.757);
+  --color-lime-100: oklch(96.7% 0.023 122.328);
+  --color-lime-200: oklch(93.8% 0.044 124.321);
+  --color-lime-300: oklch(89.7% 0.098 126.665);
+  --color-lime-400: oklch(84.1% 0.119 128.85);
+  --color-lime-500: oklch(76.8% 0.151 130.85);
+  --color-lime-600: oklch(64.8% 0.130 131.684);
+  --color-lime-700: oklch(53.2% 0.102 131.589);
+  --color-lime-800: oklch(45.3% 0.080 130.933);
+  --color-lime-900: oklch(40.5% 0.066 131.063);
+  --color-lime-950: oklch(27.4% 0.047 132.109);
+  --color-green-50: oklch(98.2% 0.006 155.826);
+  --color-green-100: oklch(96.2% 0.016 156.743);
+  --color-green-200: oklch(92.5% 0.030 155.995);
+  --color-green-300: oklch(87.1% 0.075 154.449);
+  --color-green-400: oklch(79.2% 0.105 151.711);
+  --color-green-500: oklch(72.3% 0.142 149.579);
+  --color-green-600: oklch(62.7% 0.126 149.214);
+  --color-green-700: oklch(52.7% 0.100 150.069);
+  --color-green-800: oklch(44.8% 0.077 151.328);
+  --color-green-900: oklch(39.3% 0.062 152.535);
+  --color-green-950: oklch(26.6% 0.042 152.934);
+  --color-emerald-50: oklch(97.9% 0.007 166.113);
+  --color-emerald-100: oklch(95% 0.018 163.051);
+  --color-emerald-200: oklch(90.5% 0.033 164.15);
+  --color-emerald-300: oklch(84.5% 0.072 164.978);
+  --color-emerald-400: oklch(76.5% 0.088 163.223);
+  --color-emerald-500: oklch(69.6% 0.111 162.48);
+  --color-emerald-600: oklch(59.6% 0.094 163.225);
+  --color-emerald-700: oklch(50.8% 0.076 165.612);
+  --color-emerald-800: oklch(43.2% 0.062 166.913);
+  --color-emerald-900: oklch(37.8% 0.050 168.94);
+  --color-emerald-950: oklch(26.2% 0.033 172.552);
+  --color-teal-50: oklch(98.4% 0.005 180.72);
+  --color-teal-100: oklch(95.3% 0.018 180.801);
+  --color-teal-200: oklch(91% 0.033 180.426);
+  --color-teal-300: oklch(85.5% 0.069 181.071);
+  --color-teal-400: oklch(77.7% 0.076 181.912);
+  --color-teal-500: oklch(70.4% 0.091 182.503);
+  --color-teal-600: oklch(60% 0.076 184.704);
+  --color-teal-700: oklch(51.1% 0.063 186.391);
+  --color-teal-800: oklch(43.7% 0.050 188.216);
+  --color-teal-900: oklch(38.6% 0.041 188.416);
+  --color-teal-950: oklch(27.7% 0.030 192.524);
+  --color-cyan-50: oklch(98.4% 0.007 200.873);
+  --color-cyan-100: oklch(95.6% 0.016 203.388);
+  --color-cyan-200: oklch(91.7% 0.028 205.041);
+  --color-cyan-300: oklch(86.5% 0.064 207.078);
+  --color-cyan-400: oklch(78.9% 0.077 211.53);
+  --color-cyan-500: oklch(71.5% 0.093 215.221);
+  --color-cyan-600: oklch(60.9% 0.082 221.723);
+  --color-cyan-700: oklch(52% 0.068 223.128);
+  --color-cyan-800: oklch(45% 0.055 224.283);
+  --color-cyan-900: oklch(39.8% 0.045 227.392);
+  --color-cyan-950: oklch(30.2% 0.037 229.695);
+  --color-sky-50: oklch(97.7% 0.005 236.62);
+  --color-sky-100: oklch(95.1% 0.009 236.824);
+  --color-sky-200: oklch(90.1% 0.020 230.902);
+  --color-sky-300: oklch(82.8% 0.055 230.318);
+  --color-sky-400: oklch(74.6% 0.080 232.661);
+  --color-sky-500: oklch(68.5% 0.110 237.323);
+  --color-sky-600: oklch(58.8% 0.102 241.966);
+  --color-sky-700: oklch(50% 0.087 242.749);
+  --color-sky-800: oklch(44.3% 0.071 240.79);
+  --color-sky-900: oklch(39.1% 0.058 240.876);
+  --color-sky-950: oklch(29.3% 0.043 243.157);
+  --color-blue-50: oklch(97% 0.005 254.604);
+  --color-blue-100: oklch(93.2% 0.011 255.585);
+  --color-blue-200: oklch(88.2% 0.021 254.128);
+  --color-blue-300: oklch(80.9% 0.052 251.813);
+  --color-blue-400: oklch(70.7% 0.082 254.624);
+  --color-blue-500: oklch(62.3% 0.139 259.815);
+  --color-blue-600: oklch(54.6% 0.159 262.881);
+  --color-blue-700: oklch(48.8% 0.158 264.376);
+  --color-blue-800: oklch(42.4% 0.129 265.638);
+  --color-blue-900: oklch(37.9% 0.095 265.522);
+  --color-blue-950: oklch(28.2% 0.059 267.935);
+  --color-indigo-50: oklch(96.2% 0.006 272.314);
+  --color-indigo-100: oklch(93% 0.012 272.788);
+  --color-indigo-200: oklch(87% 0.023 274.039);
+  --color-indigo-300: oklch(78.5% 0.058 274.713);
+  --color-indigo-400: oklch(67.3% 0.091 276.935);
+  --color-indigo-500: oklch(58.5% 0.151 277.117);
+  --color-indigo-600: oklch(51.1% 0.171 276.966);
+  --color-indigo-700: oklch(45.7% 0.156 277.023);
+  --color-indigo-800: oklch(39.8% 0.127 277.366);
+  --color-indigo-900: oklch(35.9% 0.093 278.697);
+  --color-indigo-950: oklch(25.7% 0.058 281.288);
+  --color-violet-50: oklch(96.9% 0.005 293.756);
+  --color-violet-100: oklch(94.3% 0.010 294.588);
+  --color-violet-200: oklch(89.4% 0.020 293.283);
+  --color-violet-300: oklch(81.1% 0.055 293.571);
+  --color-violet-400: oklch(70.2% 0.092 293.541);
+  --color-violet-500: oklch(60.6% 0.163 292.717);
+  --color-violet-600: oklch(54.1% 0.183 293.009);
+  --color-violet-700: oklch(49.1% 0.175 292.581);
+  --color-violet-800: oklch(43.2% 0.151 292.759);
+  --color-violet-900: oklch(38% 0.123 293.745);
+  --color-violet-950: oklch(28.3% 0.092 291.089);
+  --color-purple-50: oklch(97.7% 0.005 308.299);
+  --color-purple-100: oklch(94.6% 0.012 307.174);
+  --color-purple-200: oklch(90.2% 0.022 306.703);
+  --color-purple-300: oklch(82.7% 0.059 306.383);
+  --color-purple-400: oklch(71.4% 0.102 305.504);
+  --color-purple-500: oklch(62.7% 0.172 303.9);
+  --color-purple-600: oklch(55.8% 0.187 302.321);
+  --color-purple-700: oklch(49.6% 0.172 301.924);
+  --color-purple-800: oklch(43.8% 0.141 303.724);
+  --color-purple-900: oklch(38.1% 0.115 304.987);
+  --color-purple-950: oklch(29.1% 0.097 302.717);
+  --color-fuchsia-50: oklch(97.7% 0.006 320.058);
+  --color-fuchsia-100: oklch(95.2% 0.013 318.852);
+  --color-fuchsia-200: oklch(90.3% 0.026 319.62);
+  --color-fuchsia-300: oklch(83.3% 0.072 321.434);
+  --color-fuchsia-400: oklch(74% 0.119 322.16);
+  --color-fuchsia-500: oklch(66.7% 0.192 322.15);
+  --color-fuchsia-600: oklch(59.1% 0.190 322.896);
+  --color-fuchsia-700: oklch(51.8% 0.164 323.949);
+  --color-fuchsia-800: oklch(45.2% 0.137 324.591);
+  --color-fuchsia-900: oklch(40.1% 0.111 325.612);
+  --color-fuchsia-950: oklch(29.3% 0.089 325.661);
+  --color-pink-50: oklch(97.1% 0.005 343.198);
+  --color-pink-100: oklch(94.8% 0.010 342.258);
+  --color-pink-200: oklch(89.9% 0.021 343.231);
+  --color-pink-300: oklch(82.3% 0.060 346.018);
+  --color-pink-400: oklch(71.8% 0.101 349.761);
+  --color-pink-500: oklch(65.6% 0.157 354.308);
+  --color-pink-600: oklch(59.2% 0.162 0.584);
+  --color-pink-700: oklch(52.5% 0.145 3.958);
+  --color-pink-800: oklch(45.9% 0.122 3.815);
+  --color-pink-900: oklch(40.8% 0.099 2.432);
+  --color-pink-950: oklch(28.4% 0.071 3.907);
+  --color-rose-50: oklch(96.9% 0.005 12.422);
+  --color-rose-100: oklch(94.1% 0.010 12.58);
+  --color-rose-200: oklch(89.2% 0.020 10.001);
+  --color-rose-300: oklch(81% 0.058 11.638);
+  --color-rose-400: oklch(71.2% 0.097 13.428);
+  --color-rose-500: oklch(64.5% 0.160 16.439);
+  --color-rose-600: oklch(58.6% 0.164 17.585);
+  --color-rose-700: oklch(51.4% 0.145 16.935);
+  --color-rose-800: oklch(45.5% 0.122 13.697);
+  --color-rose-900: oklch(41% 0.103 10.272);
+  --color-rose-950: oklch(27.1% 0.068 12.094);
 }
 
 html {
@@ -49,7 +251,8 @@ html {
 }
 body {
   font-family: var(--font-sans);
-  letter-spacing: -0.01em; /* 토스 특유의 살짝 좁은 자간 */
+  letter-spacing: -0.012em; /* Apple 본문 자간 — 살짝 좁게 */
+  -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3 {
   letter-spacing: -0.02em; /* 제목은 조금 더 조밀하게 — 또렷한 위계 */
@@ -498,4 +701,20 @@ html[data-theme="riviera"] .rounded-card.bg-white {
 /* 풍경 높이는 화면 폭에 비례(1200:110) — 넓은 모니터에서 종탑·해가 잘리지 않고, 폰에선 최소 84px로 양옆만 잘린다 */
 .coast-scene {
   height: clamp(84px, 9.1667vw, 180px);
+}
+
+/* ⏱️ 타이머 종료 — 부드럽게 두 번 깜빡 (눈부시지 않게 투명도만) */
+@keyframes timer-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.timer-flash {
+  animation: timer-flash 0.9s ease-in-out 4;
+}
+
+/* 🖊️ 전자칠판 글 층 — 비었을 때 안내 문구 */
+.board-text:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.35;
+  pointer-events: none;
 }

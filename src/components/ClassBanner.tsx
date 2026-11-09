@@ -8,17 +8,18 @@ export default function ClassBanner({ compact = false }: { compact?: boolean }) 
   const showMain = banner.active && banner.title.trim();
   const showEvent = banner.eventActive && banner.eventText?.trim();
   if (!showMain && !showEvent) return null;
-  // 그라데이션 배너 유지하되 브랜드 파랑으로 — 앱 전체가 파랑 한 계열로 통일 (사용자 결정)
+  // 🍎 2026-11 미니멀 개편: 파랑 그라데이션 → 짙은 잉크 한 장 (Apple 프로모 카드). 화면에서 가장 무거운 덩어리라
+  // 한 번에 "이게 우리 반 목표"가 읽히고, 아래 흰 카드들과 경쟁하지 않는다.
   return (
     <div className="space-y-1.5">
       {showMain && (
         <div
-          className={`rounded-card bg-gradient-to-r from-brand to-blue-600 px-5 text-white shadow ${
+          className={`rounded-card bg-ink-900 px-5 text-white ${
             compact ? "py-3" : "py-3.5"
           }`}
         >
           {!compact && banner.sub?.trim() && (
-            <p className="text-xs font-medium opacity-90">{banner.sub}</p>
+            <p className="text-xs font-medium text-white/60">{banner.sub}</p>
           )}
           <p className={`font-extrabold ${compact ? "text-base" : "mt-0.5 text-lg"}`}>
             🎯 {banner.title}

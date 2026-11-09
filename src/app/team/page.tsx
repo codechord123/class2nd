@@ -91,7 +91,7 @@ function TodayProgressBar({
 
   return (
     <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
-      <div className="flex items-center gap-1 rounded-full border border-ink-200 bg-white/95 px-2 py-1.5 shadow-pop backdrop-blur">
+      <div className="flex w-max items-center gap-1 whitespace-nowrap rounded-full border border-ink-200 bg-white/95 px-2 py-1.5 shadow-pop backdrop-blur">
         {(
           [
             ["peer-eval", "📋 평가", doneScores],

@@ -23,7 +23,7 @@ export default function EventBanner() {
   if (!boosts.length) return null;
 
   return (
-    <div className="rounded-card border border-amber-300 bg-gradient-to-r from-amber-50 to-pink-50 px-4 py-3 shadow-card">
+    <div className="rounded-card border border-ink-200 bg-warn-weak px-4 py-3">
       <p className="text-sm font-extrabold text-amber-800">
         🎉 {ev.name?.trim() || "점수 이벤트"} 진행 중!
       </p>

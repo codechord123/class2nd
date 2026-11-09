@@ -15,21 +15,21 @@ export default function VoteBoardTabs({
     { key: "hidden", href: "/hidden", label: "🕵️ 숨은기여" },
   ] as const;
   return (
-    // 네 개라 좁은 화면에서 넘칠 수 있어 가로 스크롤 허용 (탭이 잘리지 않게)
+    // 3단계(페이지 안) 메뉴 — 위 하위 메뉴(우리 반 › 투표·건의)와 구분되게 세그먼트 모양으로
     <div className="mb-4 -mx-4 overflow-x-auto px-4">
-      <div className="flex w-max gap-1.5">
+      <div className="flex w-max gap-0.5 rounded-[10px] bg-ink-200/70 p-[3px] text-[13px] font-bold">
         {items.map((it) => (
           <Link
             key={it.key}
             href={it.href}
             aria-current={current === it.key ? "page" : undefined}
-            className={`press shrink-0 rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+            className={`press shrink-0 rounded-[8px] px-4 py-1.5 transition-colors ${
               current === it.key
-                ? "bg-violet-500 text-white shadow-card"
-                : "bg-ink-100 text-ink-600 hover:bg-ink-200"
+                ? "bg-white text-ink-900 shadow-[0_1px_3px_rgba(0,0,0,0.12),0_0_0_0.5px_rgba(0,0,0,0.04)]"
+                : "text-ink-600 hover:text-ink-900"
             }`}
           >
-            {it.label}
+            {it.label.replace(/^\S+\s/, "")}
           </Link>
         ))}
       </div>
