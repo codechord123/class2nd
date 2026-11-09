@@ -98,7 +98,9 @@ service cloud.firestore {
     //    방학 등 '혹시 모를' 기간에 상점 사용을 서버에서 즉시 잠근다 (설정 문서 1회 조회).
     function inRequestWindow() {
       let p = /databases/$(database)/documents/classData/settings;
-      let locked = exists(p) && get(p).data.usageLocked == true;
+      // ⚠️ 'in' 가드 필수 — 설정에 usageLocked가 아직 없으면 바로 읽는 순간 규칙이 오류로 끝나
+      //    학생 상점 신청이 '전부' 거부됐다 (2026-11 에뮬레이터 재현: 화면은 열림인데 저장은 막힘)
+      let locked = exists(p) && 'usageLocked' in get(p).data && get(p).data.usageLocked == true;
       let h = (request.time.toMillis() + 9 * 3600000) % 86400000 / 3600000;
       let open = exists(p) && 'requestOpenHour' in get(p).data ? get(p).data.requestOpenHour : 16;
       let close = exists(p) && 'requestCloseHour' in get(p).data ? get(p).data.requestCloseHour : 24;

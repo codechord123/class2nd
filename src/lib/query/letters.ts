@@ -268,7 +268,7 @@ export function useAllLetters(enabled: boolean, days: number) {
   return useQuery({
     queryKey: ["letters", "board", days],
     enabled,
-    queryFn: async (): Promise<{ letters: BoardLetter[]; indexUrl: string | null }> => {
+    queryFn: async (): Promise<{ letters: BoardLetter[]; indexUrl: string | null; fallback?: boolean }> => {
       const since = days > 0 ? Date.now() - days * 86400000 : 0;
       const toRow = (d: { id: string; ref: { parent: { parent: { id: string } | null } }; data: () => unknown }) => {
         const raw = d.data() as Omit<Letter, "id">;
@@ -287,6 +287,27 @@ export function useAllLetters(enabled: boolean, days: number) {
         );
         rows = snap.docs.map(toRow);
       } catch (e) {
+        if ((e as { code?: string })?.code === "permission-denied") {
+          // 새 규칙(컬렉션 그룹 읽기)이 아직 게시되지 않았다 — 학생별 우체통을 하나씩 읽어 모은다
+          // (예전 규칙으로도 교사는 각 우체통을 읽을 수 있다). 학생마다 최근 30통까지.
+          const per = await Promise.all(
+            students
+              .filter((s) => !s.inactive)
+              .map((s) =>
+                getDocs(
+                  query(collection(db(), "letters", String(s.id), "items"), orderBy("createdAt", "desc"), limit(30))
+                ).then(
+                  (snap) => snap.docs.map(toRow),
+                  () => [] as BoardLetter[]
+                )
+              )
+          );
+          return {
+            letters: per.flat().filter((l) => l.createdAt >= since).sort((a, b) => b.createdAt - a.createdAt),
+            indexUrl: null,
+            fallback: true,
+          };
+        }
         if ((e as { code?: string })?.code !== "failed-precondition") throw e;
         indexUrl = /https:\/\/console\.firebase\.google\.com\S+/.exec(String((e as Error).message))?.[0] ?? null;
         const snap = await getDocs(collectionGroup(db(), "items"));

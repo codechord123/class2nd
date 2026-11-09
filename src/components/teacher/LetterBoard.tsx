@@ -225,7 +225,7 @@ export default function LetterBoard() {
   );
 }
 
-function LetterModal({
+export function LetterModal({
   letter,
   allTags,
   onClose,

@@ -175,6 +175,7 @@ export function useDecideRequest(kind: WalletKind) {
     });
 
     void qc.invalidateQueries({ queryKey: ["pendingRequests", kind] });
+    void qc.invalidateQueries({ queryKey: ["shopDecidedRecent"] });
     void qc.invalidateQueries({ queryKey: ["balances", kind] });
   };
 }
@@ -326,4 +327,21 @@ export function useAdjustClassGold() {
     });
     void qc.invalidateQueries({ queryKey: ["balances", "s1"] });
   };
+}
+
+/** 📬 알림 게시판용 — 최근 n일 안에 승인·반려한 신청 (decidedAt 단일 필드 범위 → 자동 색인으로 충분) */
+export function useRecentDecided(days: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["shopDecidedRecent", days],
+    enabled,
+    queryFn: async (): Promise<(SpendRequest & { wallet: WalletKind; decidedAt?: number })[]> => {
+      const since = Date.now() - days * 86400000;
+      const make = (coll: string) => query(collection(db(), coll), where("decidedAt", ">=", since));
+      const [a, b] = await Promise.all([getDocs(make("coinTxns")), getDocs(make("s1Spends"))]);
+      const map = (snap: typeof a, wallet: WalletKind) =>
+        snap.docs.map((d) => ({ id: d.id, wallet, ...(d.data() as Omit<SpendRequest, "id"> & { decidedAt?: number }) }));
+      return [...map(a, "s2"), ...map(b, "s1")];
+    },
+    staleTime: 60 * 1000,
+  });
 }

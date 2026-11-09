@@ -26,6 +26,7 @@ import {
 import { useSettings, fetchFreshSettings } from "@/lib/query/settings";
 import { withReauth } from "@/components/ReauthDialog";
 import { codeOf } from "@/lib/auth";
+import { pingInbox } from "@/lib/query/inbox";
 import { isRequestOpen, requestWindowLabel } from "@/lib/requestWindow";
 import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -268,6 +269,8 @@ export default function ShopPage() {
       setBuyBurst((k) => k + 1);
       toast(`"${m.name}" 신청 완료! 선생님 승인을 기다려주세요.`, "success");
     } catch (e) {
+      // 📬 저장이 막혔다 — 선생님 🔔·알림 게시판에 알린다 (누구를 도와야 하는지 바로 보이게)
+      if (role === "student") pingInbox(studentId, "shopFail");
       toast(
         codeOf(e) === "permission-denied"
           ? "신청이 막혔어요 — 방금 상점이 잠겼거나 신청 시간이 지났을 수 있어요. 기기 시계가 맞는지도 확인해 주세요. 🕓"

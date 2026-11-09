@@ -4,7 +4,8 @@
 // 읽기: inbox/main 문서 1개를 1분마다 (lib/query/inbox.ts 설명 참고).
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { useInbox, unseen, KIND_LABEL } from "@/lib/query/inbox";
+import { useInbox, unseen, KIND_LABEL, refreshInboxSources } from "@/lib/query/inbox";
+import { useQueryClient } from "@tanstack/react-query";
 import { studentById } from "@/lib/roster";
 import { useFeedback } from "@/components/ui/Feedback";
 
@@ -13,6 +14,7 @@ const BASE_TITLE = "2학기 학급 자치 시스템";
 export default function TeacherBell() {
   const { data } = useInbox(true);
   const { toast } = useFeedback();
+  const qc = useQueryClient();
   const fresh = unseen(data);
   const n = fresh.length;
   const lastTop = useRef<number | null>(null); // 이번 접속에서 마지막으로 본 가장 새 시각
@@ -28,6 +30,8 @@ export default function TeacherBell() {
     const arrived = data.events.filter((e) => e.at > (lastTop.current ?? 0));
     lastTop.current = Math.max(lastTop.current, top);
     if (!arrived.length) return;
+    // 새로 온 종류의 목록을 바로 다시 읽는다 — 알림함·상점 관리 화면에 곧장 보이게
+    refreshInboxSources(qc, [...new Set(arrived.map((x) => x.kind))]);
     const e = arrived[0];
     const who = studentById.get(e.sid)?.name ?? `${e.sid}번`;
     const k = KIND_LABEL[e.kind];
@@ -38,7 +42,7 @@ export default function TeacherBell() {
       if (typeof Notification !== "undefined" && Notification.permission === "granted")
         new Notification("📬 학급 알림", { body: line, tag: "class2nd-inbox" });
     } catch {}
-  }, [data, toast]);
+  }, [data, toast, qc]);
 
   // 탭 제목에 숫자 — 다른 탭에서 일하다가도 보인다
   useEffect(() => {

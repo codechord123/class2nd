@@ -136,6 +136,13 @@ export default function TeacherPage() {
   // 📚 사서 명단 자가 치유 — 화면은 기본값(이다인·이채연)을 보여 주지만 설정 문서에 librarians가
   // 없으면 규칙(isLibrarian)이 사서의 빌려주기·반납을 전부 거부했다 (2026-11 '반납이 안 돼요' 원인).
   // 교사 화면이 열릴 때 비어 있으면 기본값을 한 번 저장한다 (규칙 쪽에도 같은 기본값 폴백 있음).
+  // 🛒 같은 이유로 usageLocked가 문서에 없으면 (게시 전) 규칙이 학생 상점 신청을 '전부' 거부했다 —
+  //    화면은 '열림'인데 저장이 막혀 "신청이 안 돼요"가 됐다. 비어 있으면 false를 한 번 저장한다.
+  useEffect(() => {
+    if (role !== "teacher" || !settings || settings.usageLocked !== undefined) return;
+    void patchSettings({ usageLocked: false }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, settings]);
   useEffect(() => {
     if (role !== "teacher" || !settings || settings.librarians !== undefined) return;
     void patchSettings({ librarians: DEFAULT_LIBRARIANS }).catch(() => {});

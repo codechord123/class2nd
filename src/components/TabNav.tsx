@@ -71,7 +71,12 @@ export default function TabNav() {
   const baseTabs = applyTabConfig(uiText);
   const tabs =
     mounted && role === "teacher"
-      ? [...baseTabs, { href: "/teacher", label: "교사", accent: "bg-ink-800" }]
+      ? [
+          ...baseTabs,
+          // 📬 아이들이 보낸 모든 것을 한 게시판에 — 머리의 🔔만으로는 찾기 어려웠다 (2026-11 사용자)
+          { href: "/inbox", label: "알림함", accent: "bg-danger" },
+          { href: "/teacher", label: "교사", accent: "bg-ink-800" },
+        ]
       : baseTabs;
   const tabCount = tabs.length;
 

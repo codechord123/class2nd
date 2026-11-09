@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export type InboxKind = "letter" | "shop" | "menu" | "appeal" | "seat" | "board" | "hidden";
+export type InboxKind = "letter" | "shop" | "menu" | "appeal" | "seat" | "board" | "hidden" | "shopFail";
 
 export const KIND_LABEL: Record<InboxKind, { emoji: string; label: string; verb: string }> = {
   letter: { emoji: "💌", label: "편지", verb: "편지를 보냈어요" },
@@ -27,6 +27,8 @@ export const KIND_LABEL: Record<InboxKind, { emoji: string; label: string; verb:
   seat: { emoji: "💺", label: "자리 신청", verb: "자리 변경을 신청했어요" },
   board: { emoji: "📝", label: "건의 게시판", verb: "게시판에 글을 썼어요" },
   hidden: { emoji: "🌟", label: "숨은 기여", verb: "숨은 기여를 추천했어요" },
+  // 신청이 '실패'했을 때 — 시간 밖·잠금처럼 아이 화면에서 안내로 끝나는 건 보내지 않고, 저장이 막힌 것만
+  shopFail: { emoji: "⚠️", label: "상점 신청 실패", verb: "상점 신청에 실패했어요 — 다시 로그인을 도와주세요" },
 };
 
 const REF = () => doc(db(), "inbox", "main");
@@ -96,4 +98,20 @@ export function useMarkInboxSeen() {
     qc.setQueryData<InboxState>(["inbox"], (o) => (o ? { ...o, teacherSeenAt: at } : o));
     await setDoc(REF(), { teacherSeenAt: at }, { merge: true }).catch(() => {});
   };
+}
+
+/** 종류별로 다시 읽을 목록 — 새 신호가 오거나 알림 게시판을 열 때 (캐시가 몇 분 묵어 '안 보이던' 문제) */
+export const INBOX_SOURCE_KEYS: Record<InboxKind, unknown[][]> = {
+  shop: [["pendingRequests"], ["shopDecidedRecent"]],
+  shopFail: [],
+  letter: [["letters", "board"], ["letters", "allMeta"], ["letters", "waiting"]],
+  menu: [["menuRequests"]],
+  appeal: [["appeals"]],
+  seat: [["pendingSeatRequests"]],
+  board: [["suggestions"]],
+  hidden: [["hiddenNominations"], ["suggestions"]],
+};
+export function refreshInboxSources(qc: ReturnType<typeof useQueryClient>, kinds?: InboxKind[]) {
+  const ks = kinds ?? (Object.keys(INBOX_SOURCE_KEYS) as InboxKind[]);
+  for (const k of ks) for (const key of INBOX_SOURCE_KEYS[k]) void qc.invalidateQueries({ queryKey: key });
 }
