@@ -606,6 +606,22 @@ export default function TeacherPage() {
                 <span className="truncate text-ink-800">
                   → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
                 </span>
+                {(() => {
+                  // 같은 자리를 먼저 신청한 친구가 있으면 순서를 알려 준다 (승인 순서가 곧 결과)
+                  const earlier = pendSeat.find(
+                    (x) =>
+                      x.id !== r.id &&
+                      x.week === r.week &&
+                      x.targetGroup === r.targetGroup &&
+                      x.targetRole === r.targetRole &&
+                      x.createdAt < r.createdAt
+                  );
+                  return earlier ? (
+                    <span className="shrink-0 rounded bg-warn-weak px-1.5 py-0.5 text-[11px] font-bold text-warn">
+                      ⚠️ 같은 자리 먼저 신청: {studentById.get(earlier.studentId)?.name}
+                    </span>
+                  ) : null;
+                })()}
               </span>
               <span className="flex gap-1.5">
                 <button

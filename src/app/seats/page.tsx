@@ -22,6 +22,7 @@ import {
   applySwaps,
   useWeekRequests,
   useCreateSeatRequest,
+  lockedSeatHolders,
   seatChangeDeadline,
 } from "@/lib/query/seatChange";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
@@ -90,6 +91,9 @@ export default function SeatsPage() {
   // 자리 변경은 '두 사람이 맞바꾸는' 방식이라 상대가 없으면 성립하지 않는다
   // (예전엔 신청·승인이 되면서 실버만 빠지고 자리는 그대로였음 — 2026-08-19 차단).
   const isVacant = targetSid == null;
+  // 🔒 이번 기에 먼저 신청해서 그 자리로 옮겨 온 친구의 자리는 신청할 수 없다
+  const isLocked =
+    targetSid != null && targetSid !== studentId && lockedSeatHolders(weekRequests).has(targetSid);
 
   // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
   // (잔액 1개로 상점·자리 이중 신청 방지. 문서는 모두 캐시 공유 — 추가 읽기 거의 0)
@@ -105,6 +109,10 @@ export default function SeatsPage() {
     }
     if (isVacant) {
       toast("🈳 비어 있는 자리예요 — 친구와 맞바꾸는 신청만 할 수 있어요.", "warn");
+      return;
+    }
+    if (isLocked) {
+      toast(`🔒 ${targetName}이(가) 먼저 신청해서 바꾼 자리예요 — 이번 기에는 바꿀 수 없어요.`, "warn");
       return;
     }
     const cost = settings?.seatChangeCost ?? 10;
@@ -142,6 +150,7 @@ export default function SeatsPage() {
         targetGroup,
         targetRole,
         existing: weekRequests ?? [],
+        occupant: targetSid ?? null,
       });
       setSeatBurst((k) => k + 1);
       toast("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.", "success");
@@ -266,7 +275,7 @@ export default function SeatsPage() {
                   </select>
                   <button
                     onClick={() => void submitRequest()}
-                    disabled={busy || isMySeat || isVacant}
+                    disabled={busy || isMySeat || isVacant || isLocked}
                     className="press rounded-btn bg-brand px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   >
                     {busy ? "신청 중…" : "신청하기"}
@@ -275,6 +284,11 @@ export default function SeatsPage() {
                   <p className="w-full text-xs text-ink-500">
                     {isMySeat ? (
                       <>✋ 지금 내 자리예요 — 다른 자리를 골라주세요!</>
+                    ) : isLocked ? (
+                      <>
+                        🔒 <b className="text-ink-700">{targetName}</b>이(가) 먼저 신청해서 바꾼
+                        자리예요 — 이번 기에는 바꿀 수 없어요. 다른 자리를 골라주세요!
+                      </>
                     ) : targetName ? (
                       <>
                         지금 그 자리엔 <b className="text-ink-700">{targetName}</b> — 승인되면

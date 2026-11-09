@@ -21,6 +21,7 @@ import {
 import { db } from "@/lib/firebase";
 import { pingInbox } from "@/lib/query/inbox";
 import { scheduleOfWeek } from "@/lib/schedule";
+import { studentById } from "@/lib/roster";
 import type { RoleKey, WeekSchedule, GroupAssignment } from "@/types";
 
 export interface SeatChangeRequest {
@@ -46,19 +47,33 @@ export function seatChangeDeadline(weekStart: string): Date {
   return d;
 }
 
+async function fetchWeekRequests(week: number): Promise<SeatChangeRequest[]> {
+  const q = query(collection(db(), "seatChangeRequests"), where("week", "==", week));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<SeatChangeRequest, "id">) }))
+    .sort((a, b) => a.createdAt - b.createdAt); // 선착순
+}
+
 export function useWeekRequests(week: number) {
   return useQuery({
     queryKey: ["seatRequests", week],
-    queryFn: async (): Promise<SeatChangeRequest[]> => {
-      const q = query(collection(db(), "seatChangeRequests"), where("week", "==", week));
-      const snap = await getDocs(q);
-      return snap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as Omit<SeatChangeRequest, "id">) }))
-        .sort((a, b) => a.createdAt - b.createdAt); // 선착순
-    },
+    queryFn: () => fetchWeekRequests(week),
     staleTime: 2 * 60 * 1000,
   });
 }
+
+/**
+ * 🔒 이번 기에 '신청해서' 자리를 바꾼 학생 — 그 자리는 다른 친구가 신청·승인으로 빼앗을 수 없다
+ * (사용자 확정 2026-11-09). 신청은 모두 기의 첫 주(week)로 저장되므로 그 주의 승인 건이 곧 이번 기.
+ * 실사례 위험: 같은 자리에 거의 동시에 두 명이 신청(화면 목록이 몇 분 묵어 중복 검사를 통과) →
+ * 둘 다 승인하면 두 번째가 먼저 옮겨 온 아이를 다시 밀어냈다.
+ */
+export function lockedSeatHolders(reqs: SeatChangeRequest[] | undefined): Set<number> {
+  return new Set((reqs ?? []).filter((r) => r.status === "approved").map((r) => r.studentId));
+}
+
+const nameOf = (id: number) => studentById.get(id)?.name ?? `${id}번`;
 
 export function useCreateSeatRequest(myId: number | null) {
   const qc = useQueryClient();
@@ -68,19 +83,26 @@ export function useCreateSeatRequest(myId: number | null) {
     targetGroup: number;
     targetRole: RoleKey | "소통";
     existing: SeatChangeRequest[];
+    occupant?: number | null; // 지금 그 자리의 주인 (화면에서 swap 반영해 계산)
   }) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (new Date() > seatChangeDeadline(req.weekStart))
       throw new Error("신청 기한(전주 수요일 자정)이 지났어요.");
+    // 판정은 서버의 지금 목록으로 — 화면 목록은 몇 분 묵어 동시 신청을 놓친다
+    const existing = await fetchWeekRequests(req.week).catch(() => req.existing);
+    if (req.occupant != null && req.occupant !== myId && lockedSeatHolders(existing).has(req.occupant))
+      throw new Error(
+        `🔒 ${nameOf(req.occupant)}이(가) 먼저 신청해서 바꾼 자리예요 — 이번 기에는 바꿀 수 없어요.`
+      );
     // 선착순: 같은 자리에 먼저 대기 중인 신청이 있으면 안내
-    const taken = req.existing.find(
+    const taken = existing.find(
       (r) =>
         r.status !== "rejected" &&
         r.targetGroup === req.targetGroup &&
         r.targetRole === req.targetRole
     );
     if (taken) throw new Error("이미 먼저 신청한 친구가 있어요. (선착순)");
-    if (req.existing.some((r) => r.studentId === myId && r.status === "pending"))
+    if (existing.some((r) => r.studentId === myId && r.status === "pending"))
       throw new Error("이 주차에 이미 신청했어요.");
     const docBody = {
       studentId: myId,
@@ -179,6 +201,15 @@ export function useDecideSeatRequest() {
     const d = db();
     const reqRef = doc(d, "seatChangeRequests", req.id);
     const balRef = doc(d, "coinTxns", "0_balances");
+
+    // 🔒 먼저 신청해서 그 자리로 옮겨 온 친구는 다시 밀어낼 수 없다 (사용자 확정 2026-11-09)
+    if (approve && occupantId != null && occupantId !== req.studentId) {
+      const others = (await fetchWeekRequests(req.week)).filter((r) => r.id !== req.id);
+      if (lockedSeatHolders(others).has(occupantId))
+        throw new Error(
+          `🔒 ${nameOf(occupantId)}이(가) 먼저 신청해서 바꾼 자리라 승인할 수 없어요 — 반려해 주세요.`
+        );
+    }
 
     // 승인/반려 상태 전환을 '신청 문서'를 트랜잭션 안에서 읽고 검사해 원자 처리.
     // 이전에는 잔액 문서만 읽어(신청 문서는 읽지 않고 update만) 더블클릭·이중 실행 시
