@@ -4,7 +4,8 @@
 // · '순간 소리(박수 한 번)'로 울리지 않게 기준을 1.2초 넘게 계속 넘을 때만 경고.
 // · 경고 소리는 낮고 부드럽게 + 5초 쉬었다가 다시 (계속 울리면 그게 더 시끄럽다).
 // · '조용한 시간'이 쌓이는 게 보상 — 경고 횟수보다 앞에 크게 둔다.
-import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY } from "@/lib/tools/useNoiseMeter";
+import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS } from "@/lib/tools/useNoiseMeter";
+import { NOISE_ALARMS, playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 
 export default function NoisePage() {
@@ -114,15 +115,52 @@ export default function NoisePage() {
               {prefs.gain > 0 ? `+${prefs.gain}` : prefs.gain}
             </span>
           </label>
-          <label className="flex min-h-12 cursor-pointer items-center justify-between px-4 text-[15px]">
-            <span className="font-bold text-ink-800">경고 소리</span>
-            <input
-              type="checkbox"
-              checked={prefs.sound}
-              onChange={(e) => setPrefs((p) => ({ ...p, sound: e.target.checked }))}
-              className="h-5 w-5 accent-[var(--color-ink-900)]"
-            />
-          </label>
+          <div className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">
+            <span className="font-bold text-ink-800">경고음</span>
+            <span className="flex items-center gap-2">
+              <select
+                value={prefs.alarm}
+                onChange={(e) => setPrefs((p) => ({ ...p, alarm: e.target.value as NoiseAlarm }))}
+                className="h-9 rounded-[8px] bg-ink-100 px-2 text-[14px] font-bold text-ink-800"
+                aria-label="경고음 종류"
+              >
+                {NOISE_ALARMS.map((a) => (
+                  <option key={a.key} value={a.key}>
+                    {a.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  unlockAudio();
+                  playNoiseAlarm(prefs.alarm);
+                }}
+                disabled={prefs.alarm === "none"}
+                className="press h-9 rounded-full bg-ink-100 px-3 text-[13px] font-bold text-ink-700 hover:bg-ink-200 disabled:opacity-30"
+              >
+                들어 보기
+              </button>
+            </span>
+          </div>
+          <div className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">
+            <span className="font-bold text-ink-800">
+              기준을 넘으면
+              <span className="ml-2 text-[13px] font-normal text-ink-500">박수 한 번에도 울린다면 길게</span>
+            </span>
+            <span className="flex gap-1">
+              {HOLD_OPTIONS.map((o) => (
+                <button
+                  key={o.ms}
+                  onClick={() => setPrefs((p) => ({ ...p, holdMs: o.ms }))}
+                  className={`press h-9 rounded-full px-3 text-[13px] font-bold ${
+                    prefs.holdMs === o.ms ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </span>
+          </div>
           <p className="px-4 py-3 text-[13px] leading-relaxed text-ink-500">
             팁: 평소 수업 소리일 때 막대가 기준선의 절반쯤 오도록 ‘마이크 감도’를 맞춰 두세요. 노트북 내장 마이크는 감도를 조금 올리는 게 좋아요.
           </p>

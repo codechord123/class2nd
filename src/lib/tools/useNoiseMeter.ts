@@ -1,24 +1,34 @@
 "use client";
 // 🔊 소음 측정 엔진 — 소음 화면과 떠 있는 소음 창이 같이 쓴다.
 // · 소리는 이 기기 안에서만 계산한다 (녹음·전송·저장 없음).
-// · 순간 소리(박수 한 번)로 울리지 않게 기준을 1.2초 넘게 계속 넘을 때만 경고, 경고 뒤 5초 쉼.
+// · 기준선을 넘으면 경고음 (사용자 2026-11: "넘어갈 때 경고음 나오게") — 기본 '삐삐'를 0.6초 넘으면.
+//   박수 한 번 같은 순간 소리는 거르도록 '얼마나 넘으면'을 고를 수 있다. 경고 뒤 3초는 쉰다(연달아 울리지 않게).
 import { useEffect, useRef, useState } from "react";
-import { chimeQuiet, unlockAudio } from "@/lib/tools/chime";
+import { playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 
 const LS = "class2nd-noise";
-const HOLD_MS = 1200;
-const COOLDOWN_MS = 5000;
+const COOLDOWN_MS = 3000;
+export const HOLD_OPTIONS = [
+  { ms: 300, label: "바로" },
+  { ms: 600, label: "0.6초 넘게" },
+  { ms: 1200, label: "1.2초 넘게" },
+  { ms: 2000, label: "2초 넘게" },
+];
 export const NOISE_HISTORY = 120; // 약 60초 (0.5초 간격)
 
 export interface NoisePrefs {
   threshold: number; // 0~100
   gain: number; // 보정 −20~+20
-  sound: boolean;
+  alarm: NoiseAlarm; // 경고음 종류
+  holdMs: number; // 기준을 이만큼 넘게 이어지면 경고
 }
-const DEF: NoisePrefs = { threshold: 65, gain: 0, sound: true };
+const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600 };
 const loadPrefs = (): NoisePrefs => {
   try {
-    return { ...DEF, ...(JSON.parse(localStorage.getItem(LS) ?? "{}") as Partial<NoisePrefs>) };
+    const raw = JSON.parse(localStorage.getItem(LS) ?? "{}") as Partial<NoisePrefs> & { sound?: boolean };
+    // 옛 저장본: sound=false(소리 끔)만 그대로 존중, 나머지는 새 기본값(삐삐·0.6초)
+    const { sound, ...rest } = raw;
+    return { ...DEF, ...rest, ...(sound === false && !rest.alarm ? { alarm: "none" as const } : {}) };
   } catch {
     return DEF;
   }
@@ -103,20 +113,20 @@ export function useNoiseMeter() {
       let sum = 0;
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       const db = 20 * Math.log10(Math.max(Math.sqrt(sum / buf.length), 1e-6));
-      const { threshold, gain, sound } = prefsRef.current;
+      const { threshold, gain, alarm, holdMs } = prefsRef.current;
       // −70dBFS(아주 조용) ~ −10dBFS(고함)를 0~100으로. 오를 땐 빠르게, 내릴 땐 천천히
       const raw = Math.max(0, Math.min(100, ((db + 70 + gain) / 60) * 100));
       smooth = raw > smooth ? smooth * 0.6 + raw * 0.4 : smooth * 0.92 + raw * 0.08;
       const t = Date.now();
       if (smooth >= threshold) {
         if (!overSince) overSince = t;
-        if (t - overSince >= HOLD_MS && t - lastWarn >= COOLDOWN_MS) {
+        if (t - overSince >= holdMs && t - lastWarn >= COOLDOWN_MS) {
           lastWarn = t;
           setWarns((n) => n + 1);
           setQuietFrom(t);
           setWarning(true);
           setTimeout(() => setWarning(false), 2500);
-          if (sound) chimeQuiet();
+          playNoiseAlarm(alarm);
         }
       } else overSince = 0;
       if (t - lastPaint > 66) {

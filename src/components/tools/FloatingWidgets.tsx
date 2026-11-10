@@ -197,7 +197,8 @@ function PickW() {
   const today = todayKST();
   const { data: att } = useAttendance();
   const absent = useMemo(() => new Set((att?.[today] ?? []).map(String)), [att, today]);
-  const [shown, setShown] = useState<string>("");
+  const [shown, setShown] = useState<string[]>([]);
+  const [cnt, setCnt] = useState(1);
   const [rolling, setRolling] = useState(false);
   const [rev, setRev] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -216,11 +217,20 @@ function PickW() {
   const excluded = new Set<string>(saved.excluded ?? []);
   const picked = new Set<string>(saved.picked?.class ?? []);
   const pool = all.filter((n) => !excluded.has(n) && (!saved.noRepeat || !picked.has(n)));
+  const n = Math.max(1, Math.min(cnt, pool.length || 1));
 
+  const shuffle = (arr: string[]) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
   const roll = () => {
     if (!pool.length || rolling) return;
     unlockAudio();
-    const win = pool[Math.floor(Math.random() * pool.length)];
+    const win = shuffle(pool).slice(0, n);
     setRolling(true);
     let step = 0;
     const steps = 16;
@@ -231,34 +241,69 @@ function PickW() {
         setRolling(false);
         chimePick();
         const cur = read();
-        cur.picked = { ...cur.picked, class: [...(cur.picked?.class ?? []), win] };
+        cur.picked = { ...cur.picked, class: [...(cur.picked?.class ?? []), ...win] };
         try {
           localStorage.setItem(PICK_LS, JSON.stringify(cur));
         } catch {}
         setRev((r) => r + 1);
         return;
       }
-      setShown(pool[Math.floor(Math.random() * pool.length)]);
+      setShown(shuffle(pool).slice(0, n));
       tick();
       timer.current = setTimeout(spin, 40 + Math.pow(step / steps, 2.2) * 200);
     };
     spin();
   };
 
+  // 여러 명이면 글자를 줄여 창 안에 다 들어오게
+  const k = shown.length;
+  const nameSize = k <= 1 ? "min(24cqw, 36cqh)" : `min(${(30 / Math.sqrt(k + 1)).toFixed(1)}cqw, ${(40 / (k * 0.55 + 0.9)).toFixed(1)}cqh)`;
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-[4cqh] px-3">
-      <p
-        className={`max-w-full truncate font-bold leading-none tracking-tight text-ink-900 ${rolling ? "opacity-60" : shown ? "badge-pop" : ""}`}
-        style={{ fontSize: shown ? "min(24cqw, 36cqh)" : "max(13px, min(6cqw, 9cqh))" }}
-        key={rolling ? undefined : shown}
-      >
-        {shown || (pool.length ? `${pool.length}명 중에서` : "모두 뽑았어요")}
-      </p>
-      <div className="flex items-center gap-[3cqw]">
+    <div className="flex h-full flex-col items-center justify-center gap-[3cqh] px-3">
+      {k ? (
+        <div className={`flex max-w-full flex-wrap items-center justify-center ${k > 1 ? "gap-x-[3cqw] gap-y-[1.5cqh]" : ""}`}>
+          {shown.map((name, i) => (
+            <span
+              key={rolling ? `r${i}` : `${name}-${i}`}
+              className={`font-bold leading-tight tracking-tight text-ink-900 ${rolling ? "opacity-60" : "badge-pop"}`}
+              style={{ fontSize: nameSize }}
+            >
+              {k > 1 && <span className="mr-[0.25em] text-[0.55em] tabular-nums text-ink-400">{i + 1}</span>}
+              {name}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="font-bold text-ink-400" style={{ fontSize: "max(13px, min(6cqw, 9cqh))" }}>
+          {pool.length ? `${pool.length}명 중에서` : "모두 뽑았어요"}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-center gap-[2.5cqw]">
+        {/* 몇 명 */}
+        <span className="flex items-center rounded-full bg-ink-100 p-0.5 text-[max(12px,4cqw)] font-bold">
+          <button
+            onClick={() => setCnt(Math.max(1, n - 1))}
+            disabled={n <= 1}
+            aria-label="한 명 줄이기"
+            className="grid h-[max(26px,11cqh)] w-[max(26px,11cqh)] place-items-center rounded-full text-ink-600 hover:bg-white disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="min-w-[3.2em] text-center tabular-nums text-ink-900">{n}명</span>
+          <button
+            onClick={() => setCnt(Math.min(pool.length || 1, n + 1))}
+            disabled={n >= pool.length}
+            aria-label="한 명 늘리기"
+            className="grid h-[max(26px,11cqh)] w-[max(26px,11cqh)] place-items-center rounded-full text-ink-600 hover:bg-white disabled:opacity-30"
+          >
+            +
+          </button>
+        </span>
         <button
           onClick={roll}
           disabled={!pool.length || rolling}
-          className={`${btn} h-[max(36px,16cqh)] bg-ink-900 px-[max(18px,8cqw)] text-[max(14px,5.5cqw)] text-white disabled:opacity-30`}
+          className={`${btn} h-[max(34px,14cqh)] bg-ink-900 px-[max(16px,7cqw)] text-[max(14px,5cqw)] text-white disabled:opacity-30`}
         >
           {rolling ? "…" : "뽑기"}
         </button>
@@ -269,15 +314,15 @@ function PickW() {
             try {
               localStorage.setItem(PICK_LS, JSON.stringify(cur));
             } catch {}
-            setShown("");
+            setShown([]);
             setRev((r) => r + 1);
           }}
-          className={`${btn} h-[max(32px,13cqh)] bg-ink-100 px-[max(10px,3cqw)] text-[max(12px,4cqw)] text-ink-700`}
+          className={`${btn} h-[max(30px,12cqh)] bg-ink-100 px-[max(10px,3cqw)] text-[max(12px,3.8cqw)] text-ink-700`}
         >
           처음부터
         </button>
       </div>
-      <p className="text-[max(11px,3.4cqw)] text-ink-400">
+      <p className="text-[max(11px,3.2cqw)] text-ink-400">
         남은 {pool.length}명{absent.size ? ` · 결석 ${absent.size}명 제외` : ""}
       </p>
     </div>

@@ -109,3 +109,28 @@ export function playEnd(kind: EndSound) {
   else if (kind === "bell") bell();
   else if (kind === "alarm") alarm();
 }
+
+/** 소음 경고음 — 또렷한 '삐-삐' 두 번 (교실 소음 위로 들리게, 타이머 소리 크기와 무관하게 조금 크게) */
+export function warnBeep() {
+  [0, 0.32].forEach((b) => {
+    tone(1046, b, 0.2, 0.32, "square");
+    tone(784, b + 0.12, 0.16, 0.22, "square");
+  });
+}
+
+export type NoiseAlarm = "beep" | "soft" | "bell" | "none";
+export const NOISE_ALARMS: { key: NoiseAlarm; label: string }[] = [
+  { key: "beep", label: "삐삐 경고음" },
+  { key: "soft", label: "부드러운 소리" },
+  { key: "bell", label: "종" },
+  { key: "none", label: "소리 없음" },
+];
+export function playNoiseAlarm(kind: NoiseAlarm) {
+  // 타이머 '소리 크기'를 작게 해 둬도 소음 경고는 들려야 한다 — 이 순간만 최소 85%
+  const v = volume;
+  volume = Math.max(v, 0.85);
+  if (kind === "beep") warnBeep();
+  else if (kind === "soft") chimeQuiet();
+  else if (kind === "bell") bell();
+  volume = v;
+}

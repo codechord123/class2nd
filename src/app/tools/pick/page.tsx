@@ -9,6 +9,7 @@ import { useAttendance } from "@/lib/query/classMeta";
 import { todayKST } from "@/lib/date";
 import { chimePick, tick, unlockAudio } from "@/lib/tools/chime";
 import SegmentedControl from "@/components/ui/SegmentedControl";
+import { useFeedback } from "@/components/ui/Feedback";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 
 type Source = "class" | "range" | "custom";
@@ -52,6 +53,8 @@ export default function PickPage() {
   }, [s]);
   const [source, setSource] = useState<Source>("class");
   const [count, setCount] = useState(1);
+  const { toast } = useFeedback();
+  const toastCopy = () => toast("뽑힌 순서를 복사했어요.", "success");
   const [rolling, setRolling] = useState<string[] | null>(null);
   const [result, setResult] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,6 +107,13 @@ export default function PickPage() {
 
   const shown = rolling ?? result;
   const big = shown.length <= 1;
+  // 여러 명이면 순서 번호를 붙여 칩으로 — 발표·청소 순서로 바로 쓰게. 많을수록 글자를 줄여 한 화면에
+  const many = shown.length;
+  const chipSize = focus
+    ? many <= 4 ? "text-6xl" : many <= 10 ? "text-4xl" : "text-2xl"
+    : many <= 4 ? "text-3xl sm:text-4xl" : many <= 10 ? "text-2xl" : "text-lg";
+  const maxCount = Math.max(1, pool.length);
+  const n = Math.min(count, maxCount);
 
   const stage = (
     <div
@@ -112,18 +122,20 @@ export default function PickPage() {
       }`}
     >
       {shown.length ? (
-        <div className={`flex flex-wrap items-center justify-center ${big ? "" : "gap-3"}`}>
+        <div className={`flex flex-wrap items-center justify-center ${big ? "" : many > 10 ? "gap-2" : "gap-3"}`}>
           {shown.map((name, i) => (
             <span
               key={rolling ? `r${i}` : `${name}-${i}`}
+              style={!rolling && !big ? { animationDelay: `${Math.min(i, 20) * 40}ms` } : undefined}
               className={`font-bold tracking-tight ${rolling ? "opacity-70" : "badge-pop"} ${
                 big
                   ? focus
                     ? "text-[min(22vh,16vw)]"
                     : "text-6xl sm:text-8xl"
-                  : `rounded-[16px] px-5 py-3 ${focus ? "bg-white/10 text-6xl" : "bg-ink-100 text-3xl sm:text-4xl"}`
+                  : `inline-flex items-baseline gap-2 rounded-[14px] ${many > 10 ? "px-3 py-2" : "px-5 py-3"} ${focus ? "bg-white/10" : "bg-ink-100"} ${chipSize}`
               } ${focus ? "text-white" : "text-ink-900"}`}
             >
+              {!big && <span className={`text-[0.55em] tabular-nums ${focus ? "text-white/50" : "text-ink-400"}`}>{i + 1}</span>}
               {name}
             </span>
           ))}
@@ -185,19 +197,62 @@ export default function PickPage() {
       {stage}
 
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <div className="flex items-center rounded-full bg-ink-100 p-1 text-sm font-bold">
-          {[1, 2, 3, 4, 5].map((n) => (
+        {/* 몇 명 — 빠른 선택(1·2·3·4·5) + 직접 조절(−/+) + '모두'(전원 순서 정하기) */}
+        <div className="flex items-center gap-1 rounded-full bg-ink-100 p-1 text-sm font-bold">
+          <button
+            onClick={() => setCount(Math.max(1, n - 1))}
+            disabled={n <= 1}
+            aria-label="한 명 줄이기"
+            className="press h-9 w-9 rounded-full text-ink-600 hover:bg-white disabled:opacity-30"
+          >
+            −
+          </button>
+          <span className="min-w-14 text-center tabular-nums text-ink-900" aria-live="polite">
+            {n >= maxCount && maxCount > 5 ? "모두" : `${n}명`}
+          </span>
+          <button
+            onClick={() => setCount(Math.min(maxCount, n + 1))}
+            disabled={n >= maxCount}
+            aria-label="한 명 늘리기"
+            className="press h-9 w-9 rounded-full text-ink-600 hover:bg-white disabled:opacity-30"
+          >
+            +
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          {[2, 3, 4, 5].filter((x) => x <= maxCount).map((x) => (
             <button
-              key={n}
-              onClick={() => setCount(n)}
-              className={`press h-9 w-10 rounded-full ${count === n ? "bg-white text-ink-900 shadow-card" : "text-ink-500"}`}
-              aria-label={`${n}명 뽑기`}
+              key={x}
+              onClick={() => setCount(x)}
+              className={`press h-9 rounded-full px-3 text-[13px] font-bold ${n === x ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-100"}`}
             >
-              {n}
+              {x}명
             </button>
           ))}
+          {maxCount > 5 && (
+            <button
+              onClick={() => setCount(maxCount)}
+              title="남은 후보 전원을 무작위 순서로 — 발표 순서 정하기"
+              className={`press h-9 rounded-full px-3 text-[13px] font-bold ${n >= maxCount ? "bg-ink-900 text-white" : "text-ink-600 hover:bg-ink-100"}`}
+            >
+              모두 순서대로
+            </button>
+          )}
         </div>
         {rollBtn}
+        {result.length > 1 && !rolling && (
+          <button
+            onClick={() =>
+              void navigator.clipboard
+                ?.writeText(result.map((x, i) => `${i + 1}. ${x}`).join("\n"))
+                .then(() => toastCopy())
+                .catch(() => {})
+            }
+            className="press h-9 rounded-full px-3 text-[13px] font-bold text-ink-600 hover:bg-ink-100"
+          >
+            결과 복사
+          </button>
+        )}
       </div>
 
       {/* 설정 — 미리알림식 그룹 목록 */}
