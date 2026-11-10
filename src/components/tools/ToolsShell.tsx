@@ -164,7 +164,10 @@ export function TimerWatcher() {
       {lockedNotice}
       <Link
         href="/tools/timer"
-        className={`press fixed bottom-20 right-4 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop md:bottom-5 md:right-5 ${
+        className={`press fixed bottom-20 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop md:bottom-5 ${
+          // 칠판에선 오른쪽 아래에 판 이동 버튼(▲▼·한 화면 더)이 있어 왼쪽 아래로 비킨다
+          path.startsWith("/tools/board") ? "left-4 md:left-5" : "right-4 md:right-5"
+        } ${
           t.doneAt ? "animate-pulse bg-danger text-white" : "bg-ink-900 text-white"
         }`}
       >

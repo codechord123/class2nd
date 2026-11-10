@@ -26,15 +26,14 @@ export default function TimerPage() {
   const running = sw ? !!t.swStart : !!t.endAt;
   const done = !sw && !!t.doneAt;
   useEffect(() => {
-    if (!running && !done) return;
+    if (!running) return; // 끝나면 시계를 멈춘다 (사용자 2026-11: "끝나면 계속 흐르는 게 아니라 멈추게")
     const id = setInterval(() => setNow(Date.now()), sw ? 50 : 100);
     return () => clearInterval(id);
-  }, [running, done, sw]);
+  }, [running, sw]);
 
   const left = done ? 0 : leftMs(t, now);
   const frac = sw ? 1 : t.total > 0 ? left / t.total : 0;
   const urgent = !sw && running && left <= Math.max(10_000, t.total * 0.1);
-  const over = done && t.doneAt ? now - t.doneAt : 0;
   const R = 46;
   const C = 2 * Math.PI * R;
   const ringColor = done ? "var(--color-danger)" : urgent ? "var(--color-warn)" : "var(--color-ink-900)";
@@ -52,8 +51,77 @@ export default function TimerPage() {
     ? `fixed inset-0 z-[60] flex flex-col items-center justify-center gap-8 p-6 ${done ? "timer-flash bg-danger" : "bg-ink-900"} text-white`
     : `flex flex-col items-center gap-5 rounded-card border border-ink-200 p-6 sm:p-8 ${done ? "timer-flash bg-danger-weak" : "bg-white"}`;
 
+  // 시간 더하기·빼기 — 흐르는 중에도 (크게 보기에선 시계 아래, 보통 화면에선 오른쪽 칸)
+  const stepsEl = !sw && !done ? (
+    <div className={`flex flex-wrap items-center gap-1 ${focus ? "justify-center text-base" : "text-sm"}`}>
+              {[...TIME_STEPS, ["+10분", 10 * MIN] as [string, number]].map(([label, d]) => (
+                <button
+                  key={label}
+                  onClick={() => t.add(d)}
+                  className={`press rounded-full font-bold ${focus ? "h-11 px-4" : "h-9 px-3"} ${
+                    focus
+                      ? d < 0
+                        ? "bg-white/5 text-white/60 hover:bg-white/15"
+                        : "bg-white/10 text-white hover:bg-white/20"
+                      : d < 0
+                        ? "bg-ink-50 text-ink-500 hover:bg-ink-200"
+                        : "bg-ink-100 text-ink-800 hover:bg-ink-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+  ) : null;
+  // 길이 고르기 — 기본 + 내가 저장한 것 (멈춰 있을 때)
+  const presetsEl = (
+    <div className="flex flex-wrap gap-2">
+              {PRESETS.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => t.setTotal(m * MIN)}
+                  className={`press h-10 rounded-full px-4 text-sm font-bold ${
+                    t.total === m * MIN ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+                  }`}
+                >
+                  {m}분
+                </button>
+              ))}
+              {t.presets
+                .filter((ms) => !PRESETS.some((m) => m * MIN === ms))
+                .map((ms) => (
+                  <span key={ms} className="inline-flex">
+                    <button
+                      onClick={() => t.setTotal(ms)}
+                      className={`press h-10 rounded-l-full pl-4 pr-2 text-sm font-bold ${
+                        t.total === ms ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+                      }`}
+                    >
+                      {fmt(ms)}
+                    </button>
+                    <button
+                      onClick={() => t.removePreset(ms)}
+                      aria-label={`${fmt(ms)} 프리셋 지우기`}
+                      className={`press h-10 rounded-r-full pl-1 pr-3 text-xs ${t.total === ms ? "bg-ink-900 text-white/60" : "bg-ink-100 text-ink-400 hover:bg-ink-200"}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              {!PRESETS.some((m) => m * MIN === t.total) && !t.presets.includes(t.total) && t.total > 0 && (
+                <button
+                  onClick={() => t.savePreset(t.total)}
+                  className="press h-10 rounded-full border border-dashed border-ink-300 px-4 text-sm font-bold text-ink-600 hover:bg-ink-50"
+                >
+                  + {fmt(t.total)} 저장
+                </button>
+              )}
+            </div>
+  );
+
   return (
-    <div className="space-y-4">
+    // 보통 화면: 왼쪽 시계 | 오른쪽 조절·길이·알림 (사용자 2026-11: "아래 메뉴는 시계 옆에") — 스크롤 없이 한 화면
+    <div className={focus ? "" : "grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]"}>
       <section className={shell}>
         <div className={`flex w-full flex-wrap items-center justify-between gap-2 ${focus ? "absolute left-0 top-0 p-5" : ""}`}>
           {!focus ? (
@@ -164,9 +232,6 @@ export default function TimerPage() {
                 } ${!sw && !running && !done ? `cursor-text rounded-[12px] px-2 ${focus ? "hover:bg-white/5" : "hover:bg-ink-50"}` : "cursor-default"}`}
               >
                 {digits}
-                {done && over > 1000 && (
-                  <span className={`mt-1 block text-[0.28em] font-bold ${focus ? "text-white/80" : "text-danger/80"}`}>+{fmt(over)} 지남</span>
-                )}
               </button>
             )}
           </div>
@@ -221,28 +286,7 @@ export default function TimerPage() {
             </div>
           )}
 
-          {/* 시간 더하기·빼기 — 흐르는 중에도 */}
-          {!sw && !done && (
-            <div className={`flex flex-wrap items-center justify-center gap-1 ${focus ? "text-base" : "text-sm"}`}>
-              {[...TIME_STEPS, ["+10분", 10 * MIN] as [string, number]].map(([label, d]) => (
-                <button
-                  key={label}
-                  onClick={() => t.add(d)}
-                  className={`press rounded-full font-bold ${focus ? "h-11 px-4" : "h-9 px-3"} ${
-                    focus
-                      ? d < 0
-                        ? "bg-white/5 text-white/60 hover:bg-white/15"
-                        : "bg-white/10 text-white hover:bg-white/20"
-                      : d < 0
-                        ? "bg-ink-50 text-ink-500 hover:bg-ink-200"
-                        : "bg-ink-100 text-ink-800 hover:bg-ink-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+          {focus && stepsEl}
 
           {/* 크게 보기: 길이 고르기 (멈춰 있을 때) */}
           {!sw && !running && !done && focus && (
@@ -259,56 +303,20 @@ export default function TimerPage() {
             </div>
           )}
 
-          {/* 프리셋 — 기본 + 내가 저장한 것 */}
-          {!sw && !running && !done && !focus && (
-            <div className="flex max-w-xl flex-wrap justify-center gap-2">
-              {PRESETS.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => t.setTotal(m * MIN)}
-                  className={`press h-10 rounded-full px-4 text-sm font-bold ${
-                    t.total === m * MIN ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
-                  }`}
-                >
-                  {m}분
-                </button>
-              ))}
-              {t.presets
-                .filter((ms) => !PRESETS.some((m) => m * MIN === ms))
-                .map((ms) => (
-                  <span key={ms} className="inline-flex">
-                    <button
-                      onClick={() => t.setTotal(ms)}
-                      className={`press h-10 rounded-l-full pl-4 pr-2 text-sm font-bold ${
-                        t.total === ms ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
-                      }`}
-                    >
-                      {fmt(ms)}
-                    </button>
-                    <button
-                      onClick={() => t.removePreset(ms)}
-                      aria-label={`${fmt(ms)} 프리셋 지우기`}
-                      className={`press h-10 rounded-r-full pl-1 pr-3 text-xs ${t.total === ms ? "bg-ink-900 text-white/60" : "bg-ink-100 text-ink-400 hover:bg-ink-200"}`}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              {!PRESETS.some((m) => m * MIN === t.total) && !t.presets.includes(t.total) && t.total > 0 && (
-                <button
-                  onClick={() => t.savePreset(t.total)}
-                  className="press h-10 rounded-full border border-dashed border-ink-300 px-4 text-sm font-bold text-ink-600 hover:bg-ink-50"
-                >
-                  + {fmt(t.total)} 저장
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </section>
 
-      {/* 알림·소리 설정 */}
-      {!focus && !sw && <AlertSettings />}
+      {!focus && !sw && (
+        <aside className="space-y-4 lg:sticky lg:top-6">
+          <section className="space-y-3 rounded-card border border-ink-200 bg-white p-4">
+            <p className="text-[13px] font-bold text-ink-500">시간 조절 {running ? "· 흐르는 중에도 돼요" : ""}</p>
+            {stepsEl ?? <p className="text-[13px] text-ink-400">끝난 뒤엔 ‘+1분 더’를 눌러요</p>}
+            <p className="pt-1 text-[13px] font-bold text-ink-500">길이 고르기</p>
+            {!running && !done ? presetsEl : <p className="text-[13px] text-ink-400">멈추면 길이를 고를 수 있어요</p>}
+          </section>
+          <AlertSettings />
+        </aside>
+      )}
     </div>
   );
 }

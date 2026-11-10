@@ -60,7 +60,10 @@ const isDark = (bg: BoardBg) => bg === "dark" || bg === "green";
 // 칠판색 — 어두운 판은 분필처럼 밝게, 밝은 판은 진하게 (사용자 칠판의 빨·주·노·초·파)
 const COLORS_DARK = ["#f6f1e7", "#ff6b6b", "#ffa94d", "#ffd43b", "#8ce99a", "#74c0fc", "#da77f2"];
 const COLORS_LIGHT = ["#26211b", "#d6336c", "#e8590c", "#c08a00", "#2b8a3e", "#1c7ed6", "#7048e8"];
-const SIZES = [36, 48, 60, 75, 90];
+// 글자 크기 — 블록(선택)한 글자에만 적용 (사용자 2026-11: "크기를 바꾸면 모든 글씨가 바뀐다, 부분 변경·다양한 크기")
+const SIZES = [20, 24, 28, 32, 36, 40, 48, 56, 60, 64, 72, 80, 96, 120, 150];
+// 칠판 전체의 기본 크기 (아무 크기도 정하지 않은 글자)
+const BASE_SIZES = [36, 48, 60, 75, 90];
 const PEN_W = [3, 6, 10];
 
 const fmtDate = (t: number) => {
@@ -417,6 +420,88 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
   };
   const keep = (e: React.MouseEvent) => e.preventDefault();
 
+  // ── 부분 글자 크기 ──
+  // 크기 고르기 칸을 누르면 편집 칸의 선택(블록)이 풀리므로, 마지막 선택을 기억해 두었다가 되살린 뒤 적용한다.
+  const savedRange = useRef<Range | null>(null);
+  const [selSize, setSelSize] = useState<number | null>(null); // 지금 커서·블록 글자의 크기(논리 px)
+  useEffect(() => {
+    const onSel = () => {
+      const ed = editorRef.current;
+      const sel = document.getSelection();
+      if (!ed || !sel || !sel.rangeCount || !ed.contains(sel.anchorNode)) return;
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+      const el = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : (sel.anchorNode as HTMLElement | null);
+      if (el && ed.contains(el)) setSelSize(Math.round(parseFloat(getComputedStyle(el).fontSize)));
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
+  // 선택 영역을 직접 감싼다 (execCommand fontSize는 브라우저마다 결과가 달라 커서·글자 순서가 꼬였다)
+  const applySize = (px: number) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    ed.focus();
+    const sel = document.getSelection();
+    const saved = savedRange.current;
+    const range = saved && ed.contains(saved.commonAncestorContainer) ? saved.cloneRange() : null;
+    if (!sel || !range) return;
+    const stripSizes = (root: ParentNode) =>
+      root.querySelectorAll<HTMLElement>("[style]").forEach((n) => n.style.removeProperty("font-size"));
+    if (range.collapsed) {
+      // 블록 없이 커서만 — 그 자리에 크기를 가진 빈 칸을 두고 커서를 안에 넣는다 → 이어서 쓰는 글자가 그 크기
+      const span = document.createElement("span");
+      span.style.fontSize = `${px}px`;
+      const zw = document.createTextNode("\u200b");
+      span.appendChild(zw);
+      range.insertNode(span);
+      const r2 = document.createRange();
+      r2.setStart(zw, 1);
+      r2.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r2);
+      savedRange.current = r2.cloneRange();
+    } else {
+      const frag = range.extractContents();
+      stripSizes(frag);
+      const out = document.createDocumentFragment();
+      let inline: HTMLSpanElement | null = null;
+      for (const node of [...frag.childNodes]) {
+        const isBlock = node.nodeType === 1 && /^(DIV|P)$/.test((node as HTMLElement).tagName);
+        if (isBlock) {
+          // 여러 줄을 골랐으면 줄(칸)마다 크기를 준다 — 줄을 span으로 감싸면 줄바꿈이 깨진다
+          (node as HTMLElement).style.fontSize = `${px}px`;
+          inline = null;
+          out.appendChild(node);
+        } else {
+          if (!inline) {
+            inline = document.createElement("span");
+            inline.style.fontSize = `${px}px`;
+            out.appendChild(inline);
+          }
+          inline.appendChild(node);
+        }
+      }
+      const first = out.firstChild;
+      const last = out.lastChild;
+      range.insertNode(out);
+      if (first && last) {
+        const r2 = document.createRange();
+        r2.setStartBefore(first);
+        r2.setEndAfter(last);
+        sel.removeAllRanges();
+        sel.addRange(r2);
+        savedRange.current = r2.cloneRange();
+      }
+    }
+    setSelSize(px);
+    setHtml(ed.innerHTML);
+  };
+  const stepSize = (dir: 1 | -1) => {
+    const cur = selSize ?? fs;
+    const next = dir > 0 ? SIZES.find((n) => n > cur) : [...SIZES].reverse().find((n) => n < cur);
+    if (next) applySize(next);
+  };
+
   const undo = () => {
     if (mode === "text") return exec("undo");
     if (!strokes.length) return;
@@ -539,18 +624,29 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
               {label}
             </button>
           ))}
-          <select
-            value={fs}
-            onChange={(e) => setFs(Number(e.target.value))}
-            className="ml-1 h-9 rounded-[8px] bg-ink-100 px-2 text-[13px] font-bold text-ink-700"
-            aria-label="글자 크기"
-          >
-            {SIZES.map((n) => (
-              <option key={n} value={n}>
-                {n}px
-              </option>
-            ))}
-          </select>
+          {/* 글자 크기 — 블록으로 고른 글자만 (블록이 없으면 이어서 쓰는 글자부터) */}
+          <span className="ml-1 flex items-center rounded-[8px] bg-ink-100">
+            <button onMouseDown={keep} onClick={() => stepSize(-1)} aria-label="글자 작게" title="글자 작게" className="press h-9 w-8 rounded-l-[8px] text-[13px] font-bold text-ink-700 hover:bg-ink-200">
+              가−
+            </button>
+            <select
+              value={SIZES.includes(selSize ?? -1) ? String(selSize) : ""}
+              onChange={(e) => e.target.value && applySize(Number(e.target.value))}
+              className="h-9 bg-transparent px-1 text-[13px] font-bold text-ink-700"
+              aria-label="고른 글자 크기"
+              title="블록으로 고른 글자의 크기"
+            >
+              <option value="">{selSize ? `${selSize}px` : "크기"}</option>
+              {SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n}px
+                </option>
+              ))}
+            </select>
+            <button onMouseDown={keep} onClick={() => stepSize(1)} aria-label="글자 크게" title="글자 크게" className="press h-9 w-8 rounded-r-[8px] text-[15px] font-bold text-ink-700 hover:bg-ink-200">
+              가+
+            </button>
+          </span>
         </div>
       ) : mode !== "er" ? (
         <div className="flex items-center gap-0.5">
@@ -591,6 +687,20 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
         <button onMouseDown={keep} onClick={redoFn} className="press h-9 w-9 rounded-[8px] text-[18px] text-ink-600 hover:bg-ink-200/70" aria-label="다시 하기" title="다시 하기">
           ↷
         </button>
+        {/* 칠판 전체 기본 크기 — 크기를 따로 정하지 않은 글자에만 */}
+        <select
+          value={fs}
+          onChange={(e) => setFs(Number(e.target.value))}
+          className="h-9 rounded-[8px] bg-ink-100 px-2 text-[13px] font-bold text-ink-700"
+          aria-label="기본 글자 크기"
+          title="크기를 따로 정하지 않은 글자 전체"
+        >
+          {BASE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              기본 {n}
+            </option>
+          ))}
+        </select>
         <select
           value={bg}
           onChange={(e) => setBg(e.target.value as BoardBg)}
@@ -648,6 +758,14 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
                   const ed = editorRef.current;
                   setHtml(ed?.innerHTML ?? "");
                   if (ed) grow(textBottom(ed)); // 글이 아래로 넘치면 칠판을 늘린다
+                }}
+                onKeyUp={() => {
+                  const sel = document.getSelection();
+                  if (sel?.rangeCount && editorRef.current?.contains(sel.anchorNode)) savedRange.current = sel.getRangeAt(0).cloneRange();
+                }}
+                onMouseUp={() => {
+                  const sel = document.getSelection();
+                  if (sel?.rangeCount && editorRef.current?.contains(sel.anchorNode)) savedRange.current = sel.getRangeAt(0).cloneRange();
                 }}
                 onPaste={(e) => {
                   // 붙여넣기는 글자만 — 웹 문서의 이상한 서식·이미지가 섞이지 않게
