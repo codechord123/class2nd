@@ -18,6 +18,7 @@ import {
   useBoardOps,
   type BoardBg,
   type BoardData,
+  type BoardMeta,
   type Stroke,
   type StrokeTool,
 } from "@/lib/query/tools";
@@ -84,28 +85,131 @@ function BoardList() {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const list = useMemo(() => Object.entries(index ?? {}).sort((a, b) => b[1].updatedAt - a[1].updatedAt), [index]);
+  const all = useMemo(() => Object.entries(index ?? {}).sort((a, b) => b[1].updatedAt - a[1].updatedAt), [index]);
+  // ★ 자주 쓰는 칠판(아침 안내·규칙 등)은 위 칸에 따로 — 날마다 쌓이는 칠판에 묻히지 않게 (사용자 2026-11)
+  const pinned = useMemo(() => all.filter(([, m]) => m.pinned).sort((a, b) => a[1].title.localeCompare(b[1].title, "ko")), [all]);
+  const recent = useMemo(() => all.filter(([, m]) => !m.pinned), [all]);
 
+  const today = () => {
+    const d = new Date();
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})`;
+  };
   const create = async () => {
     setBusy(true);
     try {
-      const d = new Date();
-      const days = "일월화수목금토";
-      const nid = await ops.create(`${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]}) 칠판`);
-      go(nid);
+      go(await ops.create(`${today()} 칠판`));
     } catch {
       toast("칠판을 만들지 못했어요. 인터넷 연결을 확인해 주세요.", "error");
     } finally {
       setBusy(false);
     }
   };
+  // 자주 쓰는 칠판으로 새 칠판 — 원본은 그대로 두고 오늘 날짜 사본을 열어 고쳐 쓴다
+  const startFromTemplate = async (bid: string, title: string) => {
+    setBusy(true);
+    try {
+      const nid = await ops.duplicate(bid, { title: `${today()} ${title}` });
+      if (nid) go(nid);
+    } catch {
+      toast("새 칠판을 만들지 못했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const tile = (bid: string, m: BoardMeta, isPinned: boolean) => (
+    <div key={bid} className="group min-w-0">
+      <button onClick={() => (isPinned ? void startFromTemplate(bid, m.title) : go(bid))} className="press relative block w-full" title={isPinned ? "이걸로 새 칠판 만들기 (원본은 그대로)" : "열기"}>
+        <div className="aspect-video overflow-hidden rounded-[10px] border border-ink-200 bg-[#1d1b18]">
+          {m.thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={m.thumb} alt="" className="h-full w-full object-cover" />
+          ) : null}
+        </div>
+        {isPinned && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-1 text-[12px] font-bold text-ink-900 opacity-0 shadow-pop transition-opacity group-hover:opacity-100">
+            ＋ 이걸로 새 칠판
+          </span>
+        )}
+      </button>
+      {renaming === bid ? (
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => {
+            if (name.trim() && name !== m.title) void ops.rename(bid, name.trim()).catch(() => toast("이름을 바꾸지 못했어요.", "error"));
+            setRenaming(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") setRenaming(null);
+          }}
+          className="mt-2 h-8 w-full rounded-btn bg-white px-2 text-[14px] font-bold outline-none ring-2 ring-ink-300"
+        />
+      ) : (
+        <div className="mt-2 flex items-start justify-between gap-1">
+          <button onClick={() => go(bid)} className="min-w-0 text-left" title={isPinned ? "원본 열어서 고치기" : "열기"}>
+            <p className="truncate text-[14px] font-bold text-ink-900">{m.title || "제목 없는 칠판"}</p>
+            <p className="text-[12px] text-ink-500">{isPinned ? "원본 고치기" : fmtDate(m.updatedAt)}</p>
+          </button>
+          <div className="flex shrink-0 opacity-60 transition-opacity group-hover:opacity-100">
+            <IconBtn
+              label={isPinned ? "자주 쓰는 칠판에서 빼기" : "자주 쓰는 칠판으로"}
+              onClick={() =>
+                void ops
+                  .setPinned(bid, !isPinned)
+                  .then(() => toast(isPinned ? "자주 쓰는 칠판에서 뺐어요." : "★ 자주 쓰는 칠판에 넣었어요.", "success"))
+                  .catch(() => toast("바꾸지 못했어요.", "error"))
+              }
+            >
+              {isPinned ? "★" : "☆"}
+            </IconBtn>
+            <IconBtn
+              label="이름 바꾸기"
+              onClick={() => {
+                setName(m.title);
+                setRenaming(bid);
+              }}
+            >
+              ✎
+            </IconBtn>
+            {!isPinned && (
+              <IconBtn
+                label="복사본 만들기"
+                onClick={() =>
+                  void ops
+                    .duplicate(bid)
+                    .then(() => toast("복사본을 만들었어요.", "success"))
+                    .catch(() => toast("복사하지 못했어요.", "error"))
+                }
+              >
+                ⧉
+              </IconBtn>
+            )}
+            <IconBtn
+              label="지우기"
+              danger
+              onClick={async () => {
+                if (!(await confirm({ title: `'${m.title}'을(를) 지울까요?`, body: "지운 칠판은 되돌릴 수 없어요.", danger: true, confirmLabel: "지우기" })))
+                  return;
+                void ops.remove(bid).catch(() => toast("지우지 못했어요.", "error"));
+              }}
+            >
+              ✕
+            </IconBtn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-bold tracking-tight text-ink-900">칠판</h2>
-          <p className="text-[13px] text-ink-500">쓰는 대로 저장돼요 · {list.length}개</p>
+          <p className="text-[13px] text-ink-500">쓰는 대로 저장돼요 · {all.length}개</p>
         </div>
         <button
           onClick={() => void create()}
@@ -118,81 +222,137 @@ function BoardList() {
 
       {isLoading ? (
         <p className="py-10 text-center text-sm text-ink-400">불러오는 중…</p>
-      ) : list.length === 0 ? (
+      ) : all.length === 0 ? (
         <div className="rounded-card border border-ink-200 bg-white p-8">
           <EmptyState emoji="🖊️" title="아직 칠판이 없어요" desc="‘새 칠판’을 누르면 바로 쓸 수 있어요. 다 쓴 칠판은 여기 모여요." />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 lg:grid-cols-4">
-          {list.map(([bid, m]) => (
-            <div key={bid} className="group min-w-0">
-              <button onClick={() => go(bid)} className="press block w-full">
-                <div className="aspect-video overflow-hidden rounded-[10px] border border-ink-200 bg-[#1d1b18]">
-                  {m.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.thumb} alt="" className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
-              </button>
-              {renaming === bid ? (
-                <input
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={() => {
-                    if (name.trim() && name !== m.title) void ops.rename(bid, name.trim()).catch(() => toast("이름을 바꾸지 못했어요.", "error"));
-                    setRenaming(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.nativeEvent.isComposing) (e.target as HTMLInputElement).blur();
-                    if (e.key === "Escape") setRenaming(null);
-                  }}
-                  className="mt-2 h-8 w-full rounded-btn bg-white px-2 text-[14px] font-bold outline-none ring-2 ring-ink-300"
-                />
-              ) : (
-                <div className="mt-2 flex items-start justify-between gap-1">
-                  <button onClick={() => go(bid)} className="min-w-0 text-left">
-                    <p className="truncate text-[14px] font-bold text-ink-900">{m.title || "제목 없는 칠판"}</p>
-                    <p className="text-[12px] text-ink-500">{fmtDate(m.updatedAt)}</p>
-                  </button>
-                  <div className="flex shrink-0 opacity-60 transition-opacity group-hover:opacity-100">
-                    <IconBtn
-                      label="이름 바꾸기"
-                      onClick={() => {
-                        setName(m.title);
-                        setRenaming(bid);
-                      }}
-                    >
-                      ✎
-                    </IconBtn>
-                    <IconBtn
-                      label="복사본 만들기"
-                      onClick={() =>
-                        void ops
-                          .duplicate(bid)
-                          .then(() => toast("복사본을 만들었어요.", "success"))
-                          .catch(() => toast("복사하지 못했어요.", "error"))
-                      }
-                    >
-                      ⧉
-                    </IconBtn>
-                    <IconBtn
-                      label="지우기"
-                      danger
-                      onClick={async () => {
-                        if (!(await confirm({ title: `'${m.title}'을(를) 지울까요?`, body: "지운 칠판은 되돌릴 수 없어요.", danger: true, confirmLabel: "지우기" })))
-                          return;
-                        void ops.remove(bid).catch(() => toast("지우지 못했어요.", "error"));
-                      }}
-                    >
-                      ✕
-                    </IconBtn>
-                  </div>
-                </div>
-              )}
+        <>
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-[15px] font-bold text-ink-900">★ 자주 쓰는 칠판</h3>
+              <p className="text-[12.5px] text-ink-500">
+                {pinned.length
+                  ? "그림을 누르면 원본은 그대로 두고 오늘 칠판으로 새로 열려요. 이름을 누르면 원본을 고쳐요."
+                  : "아침 안내·규칙처럼 자주 쓰는 칠판은 ☆를 눌러 여기에 모아 두세요. 칠판 안의 ‘★ 자주 쓰는 칠판으로 저장’도 돼요."}
+              </p>
             </div>
-          ))}
-        </div>
+            {pinned.length > 0 && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 lg:grid-cols-4">
+                {pinned.map(([bid, m]) => tile(bid, m, true))}
+              </div>
+            )}
+          </section>
+          <section className="space-y-3">
+            <h3 className="text-[15px] font-bold text-ink-900">모든 칠판 <span className="text-[13px] font-normal text-ink-500">최근 순</span></h3>
+            {recent.length ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 lg:grid-cols-4">
+                {recent.map(([bid, m]) => tile(bid, m, false))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-ink-400">아직 없어요</p>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ★ 칠판 안에서 바로 — 자주 쓰는 칠판 골라 새로 열기 / 지금 칠판을 자주 쓰는 칠판으로 저장 (사용자 2026-11)
+ * 저장은 '지금 모습 그대로 복사'해서 넣는다 → 오늘 칠판을 계속 고쳐도 저장해 둔 원본은 안 바뀐다.
+ */
+function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: string; currentTitle: string; beforeLeave: () => Promise<void> }) {
+  const { data: index } = useBoardIndex(true);
+  const ops = useBoardOps();
+  const { toast } = useFeedback();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const pinned = Object.entries(index ?? {})
+    .filter(([bid, m]) => m.pinned && bid !== currentId)
+    .sort((a, b) => a[1].title.localeCompare(b[1].title, "ko"));
+  const today = () => {
+    const d = new Date();
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})`;
+  };
+  // "11월 10일 (화) 아침 안내" → "아침 안내" (자주 쓰는 칠판 이름엔 날짜를 빼고)
+  const baseName = (t: string) => t.replace(/^\d{1,2}월 \d{1,2}일( \([일월화수목금토]\))?\s*/, "").replace(/\s*칠판$/, "").trim();
+
+  const saveAsTemplate = async () => {
+    setBusy(true);
+    try {
+      await beforeLeave(); // 지금 쓴 것까지 저장한 뒤 복사
+      const name = baseName(currentTitle) || "자주 쓰는 칠판";
+      await ops.duplicate(currentId, { title: name, pinned: true });
+      toast(`★ '${name}'을(를) 자주 쓰는 칠판에 저장했어요.`, "success");
+      setOpen(false);
+    } catch {
+      toast("저장하지 못했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const openTemplate = async (bid: string, name: string) => {
+    setBusy(true);
+    try {
+      await beforeLeave();
+      const nid = await ops.duplicate(bid, { title: `${today()} ${name}` });
+      setOpen(false);
+      if (nid) go(nid);
+    } catch {
+      toast("열지 못했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="press inline-flex h-9 items-center gap-1.5 rounded-full bg-ink-100 px-3.5 text-[13px] font-bold text-ink-800 hover:bg-ink-200"
+      >
+        ★ 자주 쓰는 칠판
+      </button>
+      {open && (
+        <>
+          <button aria-label="닫기" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-11 z-50 w-72 overflow-hidden rounded-[12px] border border-ink-200 bg-white shadow-pop">
+            <button
+              onClick={() => void saveAsTemplate()}
+              disabled={busy}
+              className="flex w-full items-center gap-2 border-b border-ink-100 px-4 py-3 text-left text-[14px] font-bold text-ink-900 hover:bg-ink-50 disabled:opacity-40"
+            >
+              ＋ 지금 칠판을 자주 쓰는 칠판으로 저장
+            </button>
+            <p className="px-4 pb-1 pt-2.5 text-[12px] font-bold text-ink-500">골라서 새 칠판으로 열기 (원본은 그대로)</p>
+            {pinned.length ? (
+              <ul className="max-h-72 overflow-y-auto pb-1.5">
+                {pinned.map(([bid, m]) => (
+                  <li key={bid}>
+                    <button
+                      onClick={() => void openTemplate(bid, m.title)}
+                      disabled={busy}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-ink-50 disabled:opacity-40"
+                    >
+                      <span className="h-9 w-16 shrink-0 overflow-hidden rounded-[6px] border border-ink-200 bg-[#1d1b18]">
+                        {m.thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={m.thumb} alt="" className="h-full w-full object-cover" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-ink-800">{m.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-4 pb-3 text-[13px] text-ink-400">아직 없어요 — 위 버튼으로 지금 칠판을 저장해 보세요</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -839,6 +999,7 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
       <section className="fixed inset-0 z-[60] flex flex-col gap-2 bg-ink-100 p-3">
         <div className="flex items-center gap-3 rounded-[12px] border border-ink-200 bg-white px-3 py-1.5">
           {toolbar}
+          <TemplateMenu currentId={id} currentTitle={title} beforeLeave={flush} />
           <FloatLaunchers compact />
           <FocusButton on={focus} toggle={toggle} />
         </div>
@@ -859,6 +1020,7 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
           aria-label="칠판 이름"
         />
         {status}
+        <TemplateMenu currentId={id} currentTitle={title} beforeLeave={flush} />
         <FocusButton on={focus} toggle={toggle} />
       </div>
       <div className="rounded-[12px] border border-ink-200 bg-white px-3 py-2">{toolbar}</div>

@@ -384,6 +384,21 @@ function PickW() {
             +
           </button>
         </span>
+        {/* 뽑기 방식 — 매번 전체에서 / 뽑힌 사람 빼고 (뽑기 화면과 같은 설정) */}
+        <button
+          onClick={() => {
+            const cur = read();
+            cur.noRepeat = !saved.noRepeat;
+            try {
+              localStorage.setItem(PICK_LS, JSON.stringify(cur));
+            } catch {}
+            setRev((r) => r + 1);
+          }}
+          title={saved.noRepeat ? "지금: 뽑힌 사람 빼고 — 누르면 매번 전체에서" : "지금: 매번 전체에서 — 누르면 뽑힌 사람 빼고"}
+          className={`${btn} h-[max(26px,11cqh)] px-[max(9px,2.6cqw)] text-[max(11px,3.4cqw)] ${saved.noRepeat ? "bg-ink-100 text-ink-700" : "bg-warn-weak text-warn"}`}
+        >
+          {saved.noRepeat ? "뽑힌 사람 빼고" : "매번 전체"}
+        </button>
         <button
           onClick={roll}
           disabled={!pool.length || rolling}

@@ -165,6 +165,7 @@ export interface BoardMeta {
   createdAt: number;
   updatedAt: number;
   thumb?: string; // 160×90 JPEG data URL (~3KB)
+  pinned?: boolean; // ★ 자주 쓰는 칠판 — 목록 위 칸에 따로, '이걸로 새 칠판'으로 원본은 그대로 두고 꺼내 쓴다
 }
 
 /** 점 [x0,y0,x1,y1,…] → "x0,y0,dx,dy,…" 36진 차분 — 손글씨는 이웃 점이 가까워 한두 글자로 줄어든다 */
@@ -307,19 +308,31 @@ export function useBoardOps() {
       await updateDoc(indexRef(), { [`items.${id}.title`]: title });
       await setDoc(boardRef(id), { title }, { merge: true });
     },
-    duplicate: async (id: string): Promise<string | null> => {
+    /** 복사 — opts.title로 이름, opts.pinned로 '자주 쓰는 칠판'에 넣을지 */
+    duplicate: async (id: string, opts: { title?: string; pinned?: boolean } = {}): Promise<string | null> => {
       const snap = await getDoc(boardRef(id));
       if (!snap.exists()) return null;
       const src = snap.data() as BoardData;
       const nid = newId();
       const now = Date.now();
-      const title = `${src.title || "칠판"} 사본`;
+      const title = opts.title ?? `${src.title || "칠판"} 사본`;
       await setDoc(boardRef(nid), { ...src, title, updatedAt: now });
       const old = qc.getQueryData<Record<string, BoardMeta>>(BI_KEY)?.[id];
-      const meta: BoardMeta = { title, createdAt: now, updatedAt: now, ...(old?.thumb ? { thumb: old.thumb } : {}) };
+      const meta: BoardMeta = {
+        title,
+        createdAt: now,
+        updatedAt: now,
+        ...(old?.thumb ? { thumb: old.thumb } : {}),
+        ...(opts.pinned ? { pinned: true } : {}),
+      };
       await setDoc(indexRef(), { items: { [nid]: meta } }, { merge: true });
       setMeta(nid, meta);
       return nid;
+    },
+    /** ★ 자주 쓰는 칠판으로 표시/해제 */
+    setPinned: async (id: string, pinned: boolean) => {
+      setMeta(id, { pinned });
+      await updateDoc(indexRef(), { [`items.${id}.pinned`]: pinned ? true : deleteField() });
     },
     remove: async (id: string) => {
       setMeta(id, null);

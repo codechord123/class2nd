@@ -160,6 +160,33 @@ export default function PickPage() {
     </button>
   );
 
+  // 뽑기 방식 — 뽑기 버튼 바로 옆에서 고른다 (사용자 2026-11: "매번 새로 뽑기 / 뽑은 인원 빼고 뽑기")
+  const modeToggle = (dark: boolean) => (
+    <div className={`flex items-center rounded-full p-1 text-[13px] font-bold ${dark ? "bg-white/10" : "bg-ink-100"}`} role="radiogroup" aria-label="뽑기 방식">
+      {(
+        [
+          [false, "매번 전체에서"],
+          [true, "뽑힌 사람 빼고"],
+        ] as const
+      ).map(([v, label]) => {
+        const on = s.noRepeat === v;
+        return (
+          <button
+            key={label}
+            role="radio"
+            aria-checked={on}
+            onClick={() => setS((p) => ({ ...p, noRepeat: v }))}
+            className={`press h-9 rounded-full px-3.5 ${
+              on ? (dark ? "bg-white text-ink-900" : "bg-white text-ink-900 shadow-card") : dark ? "text-white/70" : "text-ink-500"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (focus)
     return (
       <section className="fixed inset-0 z-[60] flex flex-col bg-ink-900 p-6 text-white">
@@ -170,7 +197,10 @@ export default function PickPage() {
           <FocusButton on={focus} toggle={toggle} dark />
         </div>
         {stage}
-        <div className="flex justify-center pb-4">{rollBtn}</div>
+        <div className="flex flex-wrap items-center justify-center gap-3 pb-4">
+          {modeToggle(true)}
+          {rollBtn}
+        </div>
       </section>
     );
 
@@ -239,6 +269,7 @@ export default function PickPage() {
             </button>
           )}
         </div>
+        {modeToggle(false)}
         {rollBtn}
         {result.length > 1 && !rolling && (
           <button
@@ -257,15 +288,6 @@ export default function PickPage() {
 
       {/* 설정 — 미리알림식 그룹 목록 */}
       <section className="divide-y divide-ink-100 overflow-hidden rounded-card border border-ink-200 bg-white shadow-card">
-        <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 px-4 text-[15px]">
-          <span className="font-bold text-ink-800">뽑힌 사람 제외</span>
-          <input
-            type="checkbox"
-            className="h-5 w-5 accent-[var(--color-brand)]"
-            checked={s.noRepeat}
-            onChange={(e) => setS((p) => ({ ...p, noRepeat: e.target.checked }))}
-          />
-        </label>
         {source === "range" && (
           <label className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">
             <span className="font-bold text-ink-800">1번부터</span>
