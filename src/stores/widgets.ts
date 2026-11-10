@@ -15,7 +15,7 @@ export interface WidgetBox {
 }
 
 export const WIDGET_META: Record<WidgetKind, { label: string; w: number; h: number; minW: number; minH: number }> = {
-  timer: { label: "타이머", w: 300, h: 300, minW: 200, minH: 190 },
+  timer: { label: "타이머", w: 360, h: 380, minW: 220, minH: 200 },
   pick: { label: "뽑기", w: 340, h: 260, minW: 240, minH: 190 },
   noise: { label: "소음", w: 300, h: 260, minW: 200, minH: 180 },
 };

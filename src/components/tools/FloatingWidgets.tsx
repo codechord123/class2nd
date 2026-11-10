@@ -4,7 +4,7 @@
 // 선생님 화면 어디서든 셸에 한 번 그려진다 (칠판 '크게 보기' 위에도 뜬다: z-index 80+).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useWidgets, WIDGET_META, type WidgetBox, type WidgetKind } from "@/stores/widgets";
-import { useTimer, leftMs, swMs, fmt, fmtSw } from "@/stores/timer";
+import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime, TIME_STEPS } from "@/stores/timer";
 import { chimePick, tick, unlockAudio } from "@/lib/tools/chime";
 import { useNoiseMeter, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
 import { students } from "@/lib/roster";
@@ -17,7 +17,7 @@ export default function FloatingWidgets() {
     <>
       {open.map((w) => (
         <Win key={w.kind} box={w}>
-          {w.kind === "timer" ? <TimerW /> : w.kind === "pick" ? <PickW /> : <NoiseW />}
+          {w.kind === "timer" ? <TimerW box={w} /> : w.kind === "pick" ? <PickW /> : <NoiseW />}
         </Win>
       ))}
     </>
@@ -121,48 +121,98 @@ function Win({ box, children }: { box: WidgetBox; children: React.ReactNode }) {
 
 const btn = "press grid place-items-center rounded-full font-bold";
 
-// ── 타이머 창 ──
-function TimerW() {
+// ── 타이머 창 ── 제목 쓰기 · 숫자 눌러 직접 입력 · 시간 더하기/빼기 · 프리셋 (창이 크면 더 보인다)
+const W_PRESETS = [1, 3, 5, 10, 15];
+function TimerW({ box }: { box: WidgetBox }) {
   const t = useTimer();
   const [now, setNow] = useState(() => Date.now());
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   const running = t.mode === "stopwatch" ? !!t.swStart : !!t.endAt;
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setNow(Date.now()), t.mode === "stopwatch" ? 100 : 250);
     return () => clearInterval(id);
   }, [running, t.mode]);
-  const done = t.mode === "timer" && !!t.doneAt;
+  const sw = t.mode === "stopwatch";
+  const done = !sw && !!t.doneAt;
   const left = leftMs(t, now);
   const frac = t.total ? left / t.total : 0;
-  const text = t.mode === "stopwatch" ? fmtSw(swMs(t, now)) : done ? "끝!" : fmt(left);
+  const text = sw ? fmtSw(swMs(t, now)) : done ? "끝!" : fmt(left);
+  // 창 크기에 따라 보이는 줄 — 작게 줄이면 시간·시작만, 키우면 더하기/빼기·프리셋까지
+  const showSteps = !sw && !done && box.h >= 250;
+  const showPresets = !sw && !done && !running && box.h >= 330;
+  const commit = () => {
+    const ms = parseTime(draft);
+    if (ms != null && ms > 0) t.setTotal(ms);
+    setEditing(false);
+  };
   return (
-    <div className={`flex h-full flex-col items-center justify-center gap-[3cqh] px-3 ${done ? "timer-flash bg-danger-weak" : ""}`}>
-      {t.label && <p className="max-w-full truncate font-bold text-ink-500" style={{ fontSize: "max(12px, min(6cqw, 8cqh))" }}>{t.label}</p>}
-      <p
-        className={`font-bold leading-none tabular-nums tracking-tight ${done ? "text-danger" : "text-ink-900"}`}
-        style={{ fontSize: `min(${t.mode === "stopwatch" ? 20 : 27}cqw, 38cqh)` }}
-      >
-        {text}
-      </p>
-      {t.mode === "timer" && (
-        <div className="h-[max(4px,1.6cqh)] w-[80%] overflow-hidden rounded-full bg-ink-100">
+    <div className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
+      {/* 제목 — 바로 써서 고친다 */}
+      <input
+        value={t.label}
+        onChange={(e) => t.setLabel(e.target.value)}
+        placeholder="제목 쓰기 (예: 모둠 토의)"
+        aria-label="타이머 제목"
+        className="w-[92%] truncate rounded-[8px] bg-transparent text-center font-bold text-ink-700 outline-none placeholder:font-normal placeholder:text-ink-300 hover:bg-ink-50 focus:bg-ink-50"
+        style={{ fontSize: "max(13px, min(6.5cqw, 8cqh))" }}
+      />
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value.replace(/[^\d:]/g, ""))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          inputMode="numeric"
+          placeholder="5:30"
+          className="w-[80%] bg-transparent text-center font-bold tabular-nums text-ink-900 outline-none"
+          style={{ fontSize: "min(20cqw, 28cqh)" }}
+        />
+      ) : (
+        <button
+          onClick={() => {
+            if (sw || running || done) return;
+            setDraft("");
+            setEditing(true);
+          }}
+          title={!sw && !running && !done ? "눌러서 시간 직접 입력 (5:30 · 숫자만 쓰면 분)" : undefined}
+          className={`rounded-[10px] px-2 font-bold leading-none tabular-nums tracking-tight ${done ? "text-danger" : "text-ink-900"} ${
+            !sw && !running && !done ? "cursor-text hover:bg-ink-50" : "cursor-default"
+          }`}
+          style={{ fontSize: `min(${sw ? 18 : 24}cqw, ${showPresets ? 22 : showSteps ? 28 : 36}cqh)` }}
+        >
+          {text}
+        </button>
+      )}
+      {!sw && (
+        <div className="h-[max(4px,1.4cqh)] w-[80%] overflow-hidden rounded-full bg-ink-100">
           <div
-            className={`h-full rounded-full ${left <= Math.max(10_000, t.total * 0.1) && !done ? "bg-warn" : "bg-ink-900"}`}
+            className={`h-full rounded-full ${left <= Math.max(10_000, t.total * 0.1) && !done && running ? "bg-warn" : "bg-ink-900"}`}
             style={{ width: `${(done ? 0 : frac) * 100}%`, transition: "width .25s linear" }}
           />
         </div>
       )}
       <div className="flex items-center gap-[3cqw]">
         {done ? (
-          <button onClick={t.dismiss} className={`${btn} h-[max(34px,14cqh)] bg-ink-900 px-5 text-[max(13px,5cqw)] text-white`}>
-            확인
-          </button>
+          <>
+            <button onClick={() => t.add(60_000)} className={`${btn} h-[max(32px,11cqh)] bg-ink-100 px-4 text-[max(13px,4.4cqw)] text-ink-800`}>
+              +1분 더
+            </button>
+            <button onClick={t.dismiss} className={`${btn} h-[max(32px,11cqh)] bg-ink-900 px-5 text-[max(13px,4.6cqw)] text-white`}>
+              확인
+            </button>
+          </>
         ) : (
           <>
             <button
               onClick={t.reset}
               aria-label="처음으로"
-              className={`${btn} h-[max(32px,13cqh)] w-[max(32px,13cqh)] bg-ink-100 text-[max(13px,5cqw)] text-ink-700`}
+              className={`${btn} h-[max(30px,11cqh)] w-[max(30px,11cqh)] bg-ink-100 text-[max(13px,4.6cqw)] text-ink-700`}
             >
               ↺
             </button>
@@ -172,21 +222,42 @@ function TimerW() {
                 if (running) t.pause();
                 else t.start();
               }}
-              className={`${btn} h-[max(36px,15cqh)] px-[max(16px,7cqw)] text-[max(14px,5.5cqw)] ${running ? "bg-warn-weak text-warn" : "bg-ink-900 text-white"}`}
+              disabled={!sw && left <= 0}
+              className={`${btn} h-[max(34px,12.5cqh)] px-[max(16px,7cqw)] text-[max(14px,5cqw)] disabled:opacity-30 ${running ? "bg-warn-weak text-warn" : "bg-ink-900 text-white"}`}
             >
               {running ? "멈춤" : "시작"}
             </button>
-            {t.mode === "timer" && (
-              <button
-                onClick={() => t.add(60_000)}
-                className={`${btn} h-[max(32px,13cqh)] px-[max(10px,3cqw)] bg-ink-100 text-[max(12px,4.2cqw)] text-ink-700`}
-              >
-                +1분
-              </button>
-            )}
           </>
         )}
       </div>
+      {/* 시간 더하기·빼기 — 흐르는 중에도 */}
+      {showSteps && (
+        <div className="flex max-w-full flex-wrap justify-center gap-1">
+          {TIME_STEPS.map(([label, d]) => (
+            <button
+              key={label}
+              onClick={() => t.add(d)}
+              className={`${btn} h-[max(26px,8cqh)] px-[max(7px,2cqw)] text-[max(11.5px,3.5cqw)] ${d < 0 ? "text-ink-500" : "text-ink-800"} bg-ink-100 hover:bg-ink-200`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* 길이 고르기 — 멈춰 있을 때만 */}
+      {showPresets && (
+        <div className="flex max-w-full flex-wrap justify-center gap-1">
+          {[...W_PRESETS.map((m) => m * 60_000), ...t.presets.filter((ms) => !W_PRESETS.some((m) => m * 60_000 === ms))].map((ms) => (
+            <button
+              key={ms}
+              onClick={() => t.setTotal(ms)}
+              className={`${btn} h-[max(26px,8cqh)] px-[max(8px,2.4cqw)] text-[max(11.5px,3.5cqw)] ${t.total === ms ? "bg-ink-900 text-white" : "border border-ink-200 text-ink-700 hover:bg-ink-50"}`}
+            >
+              {ms % 60_000 === 0 ? `${ms / 60_000}분` : fmt(ms)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

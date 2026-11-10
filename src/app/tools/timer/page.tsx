@@ -5,7 +5,7 @@
 //   · 종료 전 알림(1분·30초) · 마지막 10초 똑딱 · 끝 소리 고르기·크기 (소리는 셸의 TimerWatcher가 낸다)
 //   · '창으로 띄우기' — 칠판 위 등 어디서든 끌어 옮기고 크기 조절
 import { useEffect, useState } from "react";
-import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime } from "@/stores/timer";
+import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime, TIME_STEPS } from "@/stores/timer";
 import { END_SOUNDS, playEnd, setVolume, unlockAudio, warnSoft } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { useWidgets } from "@/stores/widgets";
@@ -85,18 +85,28 @@ export default function TimerPage() {
 
         {/* 이름표 — '모둠 토의', '정리 시간'처럼 무엇을 하는 시간인지 */}
         {focus ? (
-          t.label && <p className="text-[min(6vh,5vw)] font-bold text-white/80">{t.label}</p>
-        ) : (
+          // 크게 보기에서도 바로 고친다 — 글자처럼 보이다가 누르면 입력 (사용자 2026-11)
           <input
             value={t.label}
             onChange={(e) => t.setLabel(e.target.value)}
-            placeholder="무엇을 하는 시간인가요? (예: 모둠 토의)"
-            className="h-10 w-full max-w-sm rounded-full bg-ink-50 px-4 text-center text-[15px] font-bold text-ink-800 outline-none placeholder:font-normal placeholder:text-ink-400 focus:bg-white focus:ring-2 focus:ring-ink-300"
+            placeholder="제목 쓰기"
+            aria-label="타이머 제목"
+            className="w-[min(90vw,900px)] rounded-[14px] bg-transparent text-center text-[min(6vh,5vw)] font-bold text-white/90 outline-none placeholder:text-white/25 hover:bg-white/5 focus:bg-white/10"
           />
+        ) : (
+          <label className="flex w-full max-w-md flex-col items-center gap-1">
+            <span className="text-[12px] font-bold text-ink-500">제목</span>
+            <input
+              value={t.label}
+              onChange={(e) => t.setLabel(e.target.value)}
+              placeholder="예: 모둠 토의 · 정리 시간 · 쪽지 시험"
+              className="h-12 w-full rounded-[12px] border border-ink-200 bg-ink-50 px-4 text-center text-[20px] font-bold text-ink-900 outline-none placeholder:text-[15px] placeholder:font-normal placeholder:text-ink-400 focus:border-ink-400 focus:bg-white"
+            />
+          </label>
         )}
 
         {/* 링 + 숫자 */}
-        <div className={`relative ${focus ? "h-[min(64vh,80vw)] w-[min(64vh,80vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}>
+        <div className={`relative ${focus ? "h-[min(52vh,72vw)] w-[min(52vh,72vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}>
           <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
             <circle cx="50" cy="50" r={R} fill="none" stroke={dark ? "rgba(255,255,255,0.12)" : "var(--color-ink-100)"} strokeWidth="5" />
             {!sw && (
@@ -127,19 +137,19 @@ export default function TimerPage() {
                 }}
                 inputMode="numeric"
                 placeholder="5:30"
-                className="w-[70%] bg-transparent text-center text-6xl font-bold tabular-nums text-ink-900 outline-none sm:text-7xl"
+                className={`w-[70%] bg-transparent text-center font-bold tabular-nums outline-none ${focus ? "text-[min(14vh,17vw)] text-white placeholder:text-white/30" : "text-6xl text-ink-900 sm:text-7xl"}`}
               />
             ) : (
               <button
                 onClick={() => {
-                  if (sw || running || done || focus) return;
+                  if (sw || running || done) return;
                   setDraft("");
                   setEditing(true);
                 }}
                 title={!sw && !running && !done ? "눌러서 직접 입력 (5:30 · 숫자만 쓰면 분)" : undefined}
-                className={`text-center font-bold tabular-nums tracking-tight ${focus ? "text-[min(17vh,19vw)]" : sw ? "text-5xl sm:text-6xl" : "text-6xl sm:text-7xl"} ${
+                className={`text-center font-bold tabular-nums tracking-tight ${focus ? "text-[min(14vh,17vw)]" : sw ? "text-5xl sm:text-6xl" : "text-6xl sm:text-7xl"} ${
                   focus ? "" : done ? "text-danger" : "text-ink-900"
-                } ${!sw && !running && !done && !focus ? "cursor-text rounded-[12px] px-2 hover:bg-ink-50" : "cursor-default"}`}
+                } ${!sw && !running && !done ? `cursor-text rounded-[12px] px-2 ${focus ? "hover:bg-white/5" : "hover:bg-ink-50"}` : "cursor-default"}`}
               >
                 {digits}
                 {done && over > 1000 && (
@@ -200,19 +210,38 @@ export default function TimerPage() {
           )}
 
           {/* 시간 더하기·빼기 — 흐르는 중에도 */}
-          {!sw && !done && !focus && (
-            <div className="flex flex-wrap items-center justify-center gap-1 text-sm">
-              {(
-                [
-                  ["−1분", -MIN],
-                  ["−10초", -10_000],
-                  ["+10초", 10_000],
-                  ["+30초", 30_000],
-                  ["+5분", 5 * MIN],
-                ] as const
-              ).map(([label, d]) => (
-                <button key={label} onClick={() => t.add(d)} className="press h-9 rounded-full px-3 font-bold text-ink-600 hover:bg-ink-100">
+          {!sw && !done && (
+            <div className={`flex flex-wrap items-center justify-center gap-1 ${focus ? "text-base" : "text-sm"}`}>
+              {[...TIME_STEPS, ["+10분", 10 * MIN] as [string, number]].map(([label, d]) => (
+                <button
+                  key={label}
+                  onClick={() => t.add(d)}
+                  className={`press rounded-full font-bold ${focus ? "h-11 px-4" : "h-9 px-3"} ${
+                    focus
+                      ? d < 0
+                        ? "bg-white/5 text-white/60 hover:bg-white/15"
+                        : "bg-white/10 text-white hover:bg-white/20"
+                      : d < 0
+                        ? "bg-ink-50 text-ink-500 hover:bg-ink-200"
+                        : "bg-ink-100 text-ink-800 hover:bg-ink-200"
+                  }`}
+                >
                   {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 크게 보기: 길이 고르기 (멈춰 있을 때) */}
+          {!sw && !running && !done && focus && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {[...PRESETS.map((m) => m * MIN), ...t.presets.filter((ms) => !PRESETS.some((m) => m * MIN === ms))].map((ms) => (
+                <button
+                  key={ms}
+                  onClick={() => t.setTotal(ms)}
+                  className={`press h-11 rounded-full px-5 text-base font-bold ${t.total === ms ? "bg-white text-ink-900" : "border border-white/25 text-white/80 hover:bg-white/10"}`}
+                >
+                  {ms % MIN === 0 ? `${ms / MIN}분` : fmt(ms)}
                 </button>
               ))}
             </div>

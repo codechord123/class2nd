@@ -143,3 +143,14 @@ export function parseTime(input: string): number | null {
   if (m) return (Number(m[1]) * 60 + Number(m[2])) * 1000;
   return null;
 }
+
+/** 시간 더하기·빼기 버튼 — 타이머 화면과 떠 있는 창 공용 (흐르는 중에도 쓸 수 있다) */
+export const TIME_STEPS: [string, number][] = [
+  ["−5분", -300_000],
+  ["−1분", -60_000],
+  ["−10초", -10_000],
+  ["+10초", 10_000],
+  ["+30초", 30_000],
+  ["+1분", 60_000],
+  ["+5분", 300_000],
+];
