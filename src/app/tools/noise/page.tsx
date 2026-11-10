@@ -4,7 +4,7 @@
 // · '순간 소리(박수 한 번)'로 울리지 않게 기준을 1.2초 넘게 계속 넘을 때만 경고.
 // · 경고 소리는 낮고 부드럽게 + 5초 쉬었다가 다시 (계속 울리면 그게 더 시끄럽다).
 // · '조용한 시간'이 쌓이는 게 보상 — 경고 횟수보다 앞에 크게 둔다.
-import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS, WARN_GOALS, QUIET_GOALS } from "@/lib/tools/useNoiseMeter";
+import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS, QUIET_GOALS } from "@/lib/tools/useNoiseMeter";
 import { NOISE_ALARMS, playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
@@ -227,18 +227,37 @@ export default function NoisePage() {
                 ))}
               </select>
               <span className="ml-2">경고</span>
-              <select
-                value={prefs.warnGoal}
-                onChange={(e) => setPrefs((p) => ({ ...p, warnGoal: Number(e.target.value) }))}
-                className="h-9 rounded-[8px] bg-ink-100 px-2 text-[14px] font-bold text-ink-800"
-                aria-label="경고 횟수 목표"
-              >
-                {WARN_GOALS.map((n) => (
-                  <option key={n} value={n}>
-                    {n ? `${n}번 이하` : "없음"}
-                  </option>
-                ))}
-              </select>
+              {/* 경고 목표는 직접 — −/+ 또는 숫자 입력 (사용자 2026-11: "경고 횟수는 내가 고를 수 있게"), 0 = 없음 */}
+              <span className="flex items-center rounded-[8px] bg-ink-100 p-0.5">
+                <button
+                  onClick={() => setPrefs((p) => ({ ...p, warnGoal: Math.max(0, p.warnGoal - 1) }))}
+                  disabled={prefs.warnGoal <= 0}
+                  aria-label="경고 목표 줄이기"
+                  className="press grid h-8 w-8 place-items-center rounded-[6px] text-ink-600 hover:bg-white disabled:opacity-30"
+                >
+                  −
+                </button>
+                <input
+                  value={prefs.warnGoal || ""}
+                  onChange={(e) => {
+                    const n = Number(e.target.value.replace(/\D/g, "").slice(0, 2));
+                    setPrefs((p) => ({ ...p, warnGoal: Math.min(99, n || 0) }));
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  inputMode="numeric"
+                  placeholder="없음"
+                  aria-label="경고 횟수 목표"
+                  className="h-8 w-12 bg-transparent text-center font-bold tabular-nums text-ink-900 outline-none placeholder:text-[13px] placeholder:text-ink-400"
+                />
+                <button
+                  onClick={() => setPrefs((p) => ({ ...p, warnGoal: Math.min(99, p.warnGoal + 1) }))}
+                  aria-label="경고 목표 늘리기"
+                  className="press grid h-8 w-8 place-items-center rounded-[6px] text-ink-600 hover:bg-white"
+                >
+                  +
+                </button>
+              </span>
+              {prefs.warnGoal > 0 && <span>번 이하</span>}
             </span>
           </div>
           <div className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">

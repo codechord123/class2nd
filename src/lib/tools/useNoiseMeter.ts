@@ -31,7 +31,6 @@ export interface NoisePrefs {
   quietGoalMin: number; // 🎯 조용한 시간 목표(분) — 경고 없이 이만큼 이어지면 달성 (0 = 끔)
 }
 const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 0, alarmVol: 1, warnGoal: 0, quietGoalMin: 0 };
-export const WARN_GOALS = [0, 1, 2, 3, 4, 5, 7, 10];
 export const QUIET_GOALS = [0, 1, 2, 3, 5, 10, 15, 20];
 const loadPrefs = (): NoisePrefs => {
   try {
