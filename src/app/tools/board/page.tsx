@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   BOARD_H,
+  BOARD_MAX_H,
   BOARD_MAX_BYTES,
   BOARD_W,
   boardBytes,
@@ -247,6 +248,12 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
   const [title, setTitle] = useState(initial.title);
   const [bg, setBg] = useState<BoardBg>(initial.bg);
   const [fs, setFs] = useState(initial.fs);
+  // ↕ 칠판 높이(논리 px) — 글이 넘치거나 아래쪽에 쓰면 반 화면씩 늘어난다 → 판 안에서 위아래로 스크롤
+  const [h, setH] = useState(() => Math.min(Math.max(initial.h ?? BOARD_H, BOARD_H), BOARD_MAX_H));
+  const HALF = BOARD_H / 2;
+  const grow = useCallback((need: number) => {
+    setH((cur) => (need > cur - 80 ? Math.min(BOARD_MAX_H, Math.ceil((need + HALF) / HALF) * HALF) : cur));
+  }, [HALF]);
   const [html, setHtml] = useState(() => sanitizeBoardHtml(initial.html));
   const [strokes, setStrokes] = useState<Stroke[]>(initial.strokes);
   const [redo, setRedo] = useState<Stroke[]>([]);
@@ -259,6 +266,8 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
 
   const editorRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
@@ -287,7 +296,8 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
 
   // ── 펜 층 그리기 ──
   const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-  const k = Math.min(2, Math.max(1, scale * dpr)); // 캔버스 해상도 배율 (선명함 vs 메모리)
+  // 캔버스 해상도 배율 (선명함 vs 메모리) — 길어진 칠판은 메모리를 아끼려고 조금 낮춘다
+  const k = Math.min(h > BOARD_H * 3 ? 1.25 : 2, Math.max(1, scale * dpr));
   const drawStroke = useCallback(
     (ctx: CanvasRenderingContext2D, s: Stroke, pts = decodePoints(s.p)) => {
       if (pts.length < 2) return;
@@ -328,13 +338,13 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
   }, [strokes, drawStroke, k]);
   useEffect(() => {
     redraw();
-  }, [redraw, focus]); // 크게 보기 전환 시 캔버스가 새로 붙는다
+  }, [redraw, focus, h]); // 크게 보기 전환·높이 변화 시 캔버스가 새로 그려져야 한다 // 크게 보기 전환 시 캔버스가 새로 붙는다
 
   const cur = useRef<{ t: StrokeTool; c: string; w: number; pts: number[]; pid: number } | null>(null);
   const penSeen = useRef(false);
   const toLogical = (e: { clientX: number; clientY: number }) => {
     const r = liveRef.current!.getBoundingClientRect();
-    return [((e.clientX - r.left) / r.width) * BOARD_W, ((e.clientY - r.top) / r.height) * BOARD_H] as const;
+    return [((e.clientX - r.left) / r.width) * BOARD_W, ((e.clientY - r.top) / r.height) * h] as const;
   };
   const tooBig = boardBytes({ strokes, html }) > BOARD_MAX_BYTES;
 
@@ -390,6 +400,10 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
     const stroke: Stroke = { t: s.t, c: s.c, w: s.w, p: encodePoints(s.pts) };
     setStrokes((arr) => [...arr, stroke]);
     setRedo([]);
+    // 아래쪽 끝까지 쓰면 칠판을 늘려 계속 쓸 수 있게
+    let maxY = 0;
+    for (let i = 1; i < s.pts.length; i += 2) maxY = Math.max(maxY, s.pts[i]);
+    if (s.t !== "er") grow(maxY);
   };
 
   // ── 글 층 서식 ── (버튼은 onMouseDown에서 기본 동작을 막아 선택 영역을 잃지 않는다)
@@ -461,7 +475,7 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
     }
   }, [bg, strokes, drawStroke]);
 
-  const value = useMemo(() => ({ title, bg, fs, html, strokes }), [title, bg, fs, html, strokes]);
+  const value = useMemo(() => ({ title, bg, fs, html, strokes, h }), [title, bg, fs, html, strokes, h]);
   useEffect(() => {
     try {
       localStorage.setItem(`class2nd-board-${id}`, JSON.stringify({ ...value, updatedAt: Date.now(), at: Date.now() }));
@@ -479,6 +493,8 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
   const clearAll = async () => {
     if (!(await confirm({ title: "칠판을 모두 지울까요?", body: "글과 펜 글씨가 모두 지워져요.", danger: true, confirmLabel: "모두 지우기" }))) return;
     setStrokes([]);
+    setH(BOARD_H);
+    scrollRef.current?.scrollTo({ top: 0 });
     setRedo([]);
     if (editorRef.current) editorRef.current.innerHTML = "";
     setHtml("");
@@ -594,49 +610,101 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
     </div>
   );
 
+  // 글이 실제로 끝나는 위치(논리 px) — 편집 칸 높이(=칠판 높이)가 아니라 글자의 아래 끝을 잰다
+  const textBottom = (ed: HTMLElement) => {
+    const r = document.createRange();
+    r.selectNodeContents(ed);
+    const rect = r.getBoundingClientRect();
+    const er = ed.getBoundingClientRect();
+    if (!rect.height) return 0;
+    return (rect.bottom - er.top) / (er.width / BOARD_W || 1) + 40;
+  };
+  const frameH = BOARD_H * scale;
+  const pages = Math.ceil(h / BOARD_H - 0.01);
+  const scrollBy = (dir: 1 | -1) => scrollRef.current?.scrollBy({ top: dir * frameH * 0.8, behavior: "smooth" });
   const stage = (
     <div ref={boxRef} className={`relative min-h-0 w-full ${focus ? "flex-1" : "aspect-video"}`}>
       <div
-        className="absolute left-1/2 top-1/2 overflow-hidden rounded-[10px] shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
-        style={{ width: BOARD_W * scale, height: BOARD_H * scale, transform: "translate(-50%,-50%)" }}
+        className="absolute left-1/2 top-1/2 rounded-[10px] shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+        style={{ width: BOARD_W * scale, height: frameH, transform: "translate(-50%,-50%)", ...BG[bg].css }}
       >
+        {/* ↕ 판 안에서 위아래로 — 마우스 휠·터치(글 모드)·오른쪽 아래 버튼 */}
         <div
-          className="absolute left-0 top-0 origin-top-left"
-          style={{ width: BOARD_W, height: BOARD_H, transform: `scale(${scale})`, ...BG[bg].css }}
+          ref={scrollRef}
+          onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+          className="board-scroll h-full w-full overflow-y-auto overflow-x-hidden rounded-[10px]"
         >
-          <div
-            ref={setEditor}
-            contentEditable={mode === "text"}
-            suppressContentEditableWarning
-            spellCheck={false}
-            onInput={() => setHtml(editorRef.current?.innerHTML ?? "")}
-            onPaste={(e) => {
-              // 붙여넣기는 글자만 — 웹 문서의 이상한 서식·이미지가 섞이지 않게
-              e.preventDefault();
-              document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+          <div className="relative" style={{ width: BOARD_W * scale, height: h * scale }}>
+            <div
+              className="absolute left-0 top-0 origin-top-left"
+              style={{ width: BOARD_W, height: h, transform: `scale(${scale})`, ...BG[bg].css }}
+            >
+              <div
+                ref={setEditor}
+                contentEditable={mode === "text"}
+                suppressContentEditableWarning
+                spellCheck={false}
+                onInput={() => {
+                  const ed = editorRef.current;
+                  setHtml(ed?.innerHTML ?? "");
+                  if (ed) grow(textBottom(ed)); // 글이 아래로 넘치면 칠판을 늘린다
+                }}
+                onPaste={(e) => {
+                  // 붙여넣기는 글자만 — 웹 문서의 이상한 서식·이미지가 섞이지 않게
+                  e.preventDefault();
+                  document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+                }}
+                data-placeholder="여기에 써요 — 줄마다 색을 바꿀 수 있어요"
+                className="board-text absolute inset-0 overflow-hidden px-12 py-10 outline-none"
+                style={{ color: ink, fontSize: fs, lineHeight: 1.38, fontWeight: 500, letterSpacing: "-0.01em" }}
+              />
+              <canvas
+                ref={baseRef}
+                width={BOARD_W * k}
+                height={h * k}
+                className="pointer-events-none absolute inset-0"
+                style={{ width: BOARD_W, height: h }}
+              />
+              <canvas
+                ref={liveRef}
+                width={BOARD_W * k}
+                height={h * k}
+                onPointerDown={onDown}
+                onPointerMove={onMove}
+                onPointerUp={onUp}
+                onPointerCancel={onUp}
+                className={`absolute inset-0 touch-none ${mode === "text" ? "pointer-events-none" : mode === "er" ? "cursor-cell" : "cursor-crosshair"}`}
+                style={{ width: BOARD_W, height: h }}
+              />
+            </div>
+          </div>
+        </div>
+        {/* 위아래 이동 + 아래로 늘리기 */}
+        <div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-full bg-white/90 p-1 shadow-pop backdrop-blur">
+          <button onClick={() => scrollBy(-1)} disabled={scrollTop <= 1} aria-label="위로" className="press grid h-8 w-8 place-items-center rounded-full text-ink-700 hover:bg-ink-100 disabled:opacity-30">
+            ▲
+          </button>
+          <span className="min-w-[3.6em] text-center text-[12px] font-bold tabular-nums text-ink-600">
+            {Math.min(pages, Math.floor(scrollTop / Math.max(1, frameH) + 0.5) + 1)} / {pages}
+          </span>
+          <button
+            onClick={() => scrollBy(1)}
+            disabled={scrollTop + frameH >= h * scale - 1}
+            aria-label="아래로"
+            className="press grid h-8 w-8 place-items-center rounded-full text-ink-700 hover:bg-ink-100 disabled:opacity-30"
+          >
+            ▼
+          </button>
+          <button
+            onClick={() => {
+              setH((cur) => Math.min(BOARD_MAX_H, cur + BOARD_H));
+              setTimeout(() => scrollRef.current?.scrollTo({ top: 1e6, behavior: "smooth" }), 50);
             }}
-            data-placeholder="여기에 써요 — 줄마다 색을 바꿀 수 있어요"
-            className="board-text absolute inset-0 overflow-hidden px-12 py-10 outline-none"
-            style={{ color: ink, fontSize: fs, lineHeight: 1.38, fontWeight: 500, letterSpacing: "-0.01em" }}
-          />
-          <canvas
-            ref={baseRef}
-            width={BOARD_W * k}
-            height={BOARD_H * k}
-            className="pointer-events-none absolute inset-0"
-            style={{ width: BOARD_W, height: BOARD_H }}
-          />
-          <canvas
-            ref={liveRef}
-            width={BOARD_W * k}
-            height={BOARD_H * k}
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerCancel={onUp}
-            className={`absolute inset-0 touch-none ${mode === "text" ? "pointer-events-none" : mode === "er" ? "cursor-cell" : "cursor-crosshair"}`}
-            style={{ width: BOARD_W, height: BOARD_H }}
-          />
+            disabled={h >= BOARD_MAX_H}
+            className="press h-8 rounded-full px-3 text-[12px] font-bold text-ink-700 hover:bg-ink-100 disabled:opacity-30"
+          >
+            + 한 화면 더
+          </button>
         </div>
       </div>
     </div>

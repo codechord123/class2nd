@@ -137,6 +137,8 @@ export function useChecklistOps() {
 // 좌표는 논리 캔버스(BOARD_W×BOARD_H, 16:9) 기준 — 어떤 화면·프로젝터에서 열어도 같은 그림.
 export const BOARD_W = 1600;
 export const BOARD_H = 900;
+/** 칠판은 아래로 이어 쓸 수 있다 (사용자 2026-11: "칠판은 스크롤 기능이 필요해") — 화면 6장까지 */
+export const BOARD_MAX_H = BOARD_H * 6;
 /** Firestore 문서 한도(1MB) 전에 멈추는 선 — 넘으면 '새 칠판'을 권한다 */
 export const BOARD_MAX_BYTES = 900_000;
 
@@ -155,6 +157,7 @@ export interface BoardData {
   fs: number; // 기본 글자 크기(논리 px)
   html: string; // 글 층 — 줄마다 색·굵게 (허용 태그만, sanitizeBoardHtml)
   strokes: Stroke[]; // 펜 층
+  h?: number; // 논리 높이 — 아래로 이어 쓰면 늘어난다 (기본 BOARD_H, 최대 BOARD_MAX_H). 없으면 옛 칠판 = 900
   updatedAt: number;
 }
 export interface BoardMeta {
@@ -261,6 +264,7 @@ export function useBoardData(id: string | null) {
         fs: typeof d.fs === "number" ? d.fs : DEFAULT_FS,
         html: typeof d.html === "string" ? d.html : "",
         strokes: Array.isArray(d.strokes) ? (d.strokes as Stroke[]) : [],
+        h: typeof d.h === "number" ? Math.min(Math.max(d.h, BOARD_H), BOARD_MAX_H) : BOARD_H,
         updatedAt: typeof d.updatedAt === "number" ? d.updatedAt : 0,
       };
     },
@@ -283,7 +287,7 @@ export function useBoardOps() {
     create: async (title: string): Promise<string> => {
       const id = newId();
       const now = Date.now();
-      const data: BoardData = { title, bg: "dark", fs: DEFAULT_FS, html: "", strokes: [], updatedAt: now };
+      const data: BoardData = { title, bg: "dark", fs: DEFAULT_FS, html: "", strokes: [], h: BOARD_H, updatedAt: now };
       await setDoc(boardRef(id), data);
       const meta: BoardMeta = { title, createdAt: now, updatedAt: now };
       await setDoc(indexRef(), { items: { [id]: meta } }, { merge: true });
