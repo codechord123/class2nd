@@ -8,7 +8,9 @@ import { useWidgets, WIDGET_META, type WidgetBox, type WidgetKind } from "@/stor
 import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
 import TimeEntry from "@/components/tools/TimeEntry";
 import { chimePick, tick, unlockAudio } from "@/lib/tools/chime";
-import { useNoiseMeter, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
+import { useNoiseMeter, useNoiseLive, stopNoise, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { students } from "@/lib/roster";
 import { useAttendance } from "@/lib/query/classMeta";
 import { todayKST } from "@/lib/date";
@@ -34,6 +36,34 @@ function PopOutHost() {
   );
 }
 
+/** 소음 측정이 보이는 곳이 없는데 듣고 있으면 — 작은 알약 (모르는 새 경고음이 울리지 않게) */
+function NoiseWatcher() {
+  const path = usePathname();
+  const running = useNoiseLive((s) => s.running);
+  const warns = useNoiseLive((s) => s.warns);
+  const widget = useWidgets((s) => s.open.some((w) => w.kind === "noise"));
+  const popped = usePopOut((s) => s.kind === "noise");
+  if (!running || widget || popped || path.startsWith("/tools/noise")) return null;
+  return (
+    <div
+      className={`fixed bottom-36 z-[70] flex items-center gap-1 rounded-full bg-ink-900 py-1 pl-1 pr-1 text-white shadow-pop md:bottom-20 ${
+        path.startsWith("/tools/board") ? "left-4 md:left-5" : "right-4 md:right-5"
+      }`}
+    >
+      <Link href="/tools/noise" className="press rounded-full px-3 py-1.5 text-[14px] font-bold">
+        🔊 소음 듣는 중 · 경고 {warns}번
+      </Link>
+      <button
+        onClick={stopNoise}
+        aria-label="소음 측정 멈추기"
+        className="press grid h-8 w-8 place-items-center rounded-full bg-white/15 text-[13px] hover:bg-white/25"
+      >
+        ■
+      </button>
+    </div>
+  );
+}
+
 export default function FloatingWidgets() {
   const open = useWidgets((s) => s.open);
   return (
@@ -44,6 +74,7 @@ export default function FloatingWidgets() {
         </Win>
       ))}
       <PopOutHost />
+      <NoiseWatcher />
     </>
   );
 }
@@ -310,7 +341,14 @@ function PickW() {
   const today = todayKST();
   const { data: att } = useAttendance();
   const absent = useMemo(() => new Set((att?.[today] ?? []).map(String)), [att, today]);
-  const [shown, setShown] = useState<string[]>([]);
+  // 마지막 결과는 뽑기 화면과 같은 기록(last.class)에서 — 창을 닫았다 열어도 그대로
+  const [shown, setShown] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(PICK_LS) ?? "null")?.last?.class ?? [];
+    } catch {
+      return [];
+    }
+  });
   const [cnt, setCnt] = useState(1);
   const [rolling, setRolling] = useState(false);
   const [rev, setRev] = useState(0);
@@ -355,6 +393,7 @@ function PickW() {
         chimePick();
         const cur = read();
         cur.picked = { ...cur.picked, class: [...(cur.picked?.class ?? []), ...win] };
+        cur.last = { range: [], custom: [], ...(cur.last ?? {}), class: win };
         try {
           localStorage.setItem(PICK_LS, JSON.stringify(cur));
         } catch {}
@@ -460,21 +499,23 @@ function PickW() {
 // ── 소음 창 ──
 function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
   const m = useNoiseMeter();
-  // 따로 띄운 창은 열리자마자 듣기 시작 (마이크 허락은 이미 받은 상태)
+  // 따로 띄운 창은 열리자마자 듣기 시작 (이미 듣고 있으면 그대로 이어서 보여 줌)
   const started = useRef(false);
-  const { start } = m;
+  const { start, running } = m;
   useEffect(() => {
     if (!autoStart || started.current) return;
     started.current = true;
-    void start();
-  }, [autoStart, start]);
+    if (!running) void start();
+  }, [autoStart, start, running]);
   const th = m.prefs.threshold;
   const f = noiseFace(m.level, th, m.warning);
   const over = m.level >= th;
+  const wg = m.prefs.warnGoal;
+  const stat = "max(13px, min(7cqw, 9.5cqh))";
   return (
-    <div className={`flex h-full flex-col items-center justify-center gap-[3cqh] px-4 transition-colors ${m.warning ? "bg-danger-weak" : ""}`}>
-      <span aria-hidden className="leading-none" style={{ fontSize: "min(26cqw, 34cqh)" }}>
-        {m.running ? f.e : "🤫"}
+    <div className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-4 transition-colors ${m.warning ? "bg-danger-weak" : ""}`}>
+      <span aria-hidden className="leading-none" style={{ fontSize: "min(22cqw, 28cqh)" }}>
+        {m.running ? (m.cheering ? "🎉" : f.e) : "🤫"}
       </span>
       {m.err ? (
         <p className="text-center text-[12px] font-bold text-danger">{m.err}</p>
@@ -487,20 +528,34 @@ function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
           <div className="absolute inset-y-0 w-0.5 bg-danger" style={{ left: `${th}%` }} />
         </div>
       )}
-      <div className="flex items-center gap-[4cqw]">
-        {m.running && (
-          <p className="font-bold tabular-nums text-ink-900" style={{ fontSize: "max(14px, min(8cqw, 11cqh))" }}>
-            {mmss(m.quietMs)}
-            <span className="ml-1 text-[max(11px,3cqw)] font-bold text-ink-400">조용</span>
+      {m.running && (
+        <div className="flex items-baseline gap-[5cqw] font-bold tabular-nums">
+          <p className={m.quietHit ? "text-success" : "text-ink-900"} style={{ fontSize: stat }}>
+            <span className="mr-1 text-[max(11px,3cqw)] text-ink-400">조용</span>
+            {m.cheering ? "달성!" : mmss(m.quietMs)}
+            {m.prefs.quietGoalMin > 0 && !m.cheering && <span className="text-ink-400"> / {m.prefs.quietGoalMin}:00</span>}
           </p>
-        )}
-        <button
-          onClick={m.running ? m.stop : () => void m.start()}
-          className={`${btn} h-[max(32px,13cqh)] px-[max(14px,5cqw)] text-[max(13px,4.5cqw)] ${m.running ? "bg-ink-100 text-ink-800" : "bg-ink-900 text-white"}`}
-        >
-          {m.running ? "멈추기" : "시작"}
-        </button>
-      </div>
+          <p
+            className={m.overWarnGoal || (!wg && m.warns) ? "text-danger" : wg && m.warns === wg ? "text-warn" : "text-ink-900"}
+            style={{ fontSize: stat }}
+          >
+            <span className="mr-1 text-[max(11px,3cqw)] text-ink-400">경고</span>
+            {m.warns}
+            {wg > 0 && <span className="text-ink-400">/{wg}</span>}번
+          </p>
+        </div>
+      )}
+      {m.quietProgress != null && m.running && (
+        <div className="h-[max(4px,1.6cqh)] w-[60%] overflow-hidden rounded-full bg-ink-100">
+          <div className="h-full rounded-full bg-success transition-[width] duration-300" style={{ width: `${m.quietProgress * 100}%` }} />
+        </div>
+      )}
+      <button
+        onClick={m.running ? m.stop : () => void m.start()}
+        className={`${btn} h-[max(30px,12cqh)] px-[max(14px,5cqw)] text-[max(13px,4.2cqw)] ${m.running ? "bg-ink-100 text-ink-800" : "bg-ink-900 text-white"}`}
+      >
+        {m.running ? "멈추기" : "시작"}
+      </button>
     </div>
   );
 }

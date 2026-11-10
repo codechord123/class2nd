@@ -20,6 +20,8 @@ interface Saved {
   custom: string;
   rangeTo: number;
   noRepeat: boolean;
+  /** 마지막으로 뽑은 결과 — 다른 화면에 다녀와도 그대로 (사용자 2026-11: "뽑기 리스트가 그대로 남아 있어야, 봐야 할 때가 있어") */
+  last: Record<Source, string[]>;
 }
 const LS = "class2nd-pick";
 const blank = (date: string): Saved => ({
@@ -29,6 +31,7 @@ const blank = (date: string): Saved => ({
   custom: "",
   rangeTo: 25,
   noRepeat: true,
+  last: { class: [], range: [], custom: [] },
 });
 
 function load(date: string): Saved {
@@ -36,8 +39,9 @@ function load(date: string): Saved {
     const raw = JSON.parse(localStorage.getItem(LS) ?? "null") as Saved | null;
     if (!raw) return blank(date);
     // 날짜가 바뀌면 뽑힌 기록·제외만 비우고 직접 입력 목록·설정은 남긴다
-    if (raw.date !== date) return { ...blank(date), custom: raw.custom ?? "", rangeTo: raw.rangeTo ?? 25, noRepeat: raw.noRepeat ?? true };
-    return { ...blank(date), ...raw, picked: { ...blank(date).picked, ...raw.picked } };
+    const last = { ...blank(date).last, ...(raw.last ?? {}) };
+    if (raw.date !== date) return { ...blank(date), custom: raw.custom ?? "", rangeTo: raw.rangeTo ?? 25, noRepeat: raw.noRepeat ?? true, last };
+    return { ...blank(date), ...raw, picked: { ...blank(date).picked, ...raw.picked }, last };
   } catch {
     return blank(date);
   }
@@ -56,7 +60,8 @@ export default function PickPage() {
   const { toast } = useFeedback();
   const toastCopy = () => toast("뽑힌 순서를 복사했어요.", "success");
   const [rolling, setRolling] = useState<string[] | null>(null);
-  const [result, setResult] = useState<string[]>([]);
+  const result = s.last[source] ?? [];
+  const setResult = (src: Source, list: string[]) => setS((p) => ({ ...p, last: { ...p.last, [src]: list } }));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const { on: focus, toggle } = useFocusMode();
@@ -85,14 +90,13 @@ export default function PickPage() {
       [bag[i], bag[j]] = [bag[j], bag[i]];
     }
     const win = bag.slice(0, n);
-    setResult([]);
     let step = 0;
     const steps = 22;
     const spin = () => {
       step++;
       if (step >= steps) {
         setRolling(null);
-        setResult(win);
+        setResult(source, win);
         chimePick();
         setS((p) => ({ ...p, picked: { ...p.picked, [source]: [...p.picked[source], ...win] } }));
         return;
@@ -217,7 +221,6 @@ export default function PickPage() {
             active={source}
             onChange={(k) => {
               setSource(k);
-              setResult([]);
             }}
           />
         </div>
@@ -316,6 +319,32 @@ export default function PickPage() {
             />
           </div>
         )}
+        {s.picked[source].length > 0 && (
+          <div className="px-4 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[13px] font-bold text-ink-500">오늘 뽑힌 순서 · {s.picked[source].length}번</span>
+              <button
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(s.picked[source].map((x, i) => `${i + 1}. ${x}`).join("\n"))
+                    .then(() => toastCopy())
+                    .catch(() => {})
+                }
+                className="press rounded-full px-3 py-1 text-[13px] font-bold text-ink-600 hover:bg-ink-100"
+              >
+                복사
+              </button>
+            </div>
+            <ol className="flex flex-wrap gap-1.5">
+              {s.picked[source].map((x, i) => (
+                <li key={`${x}-${i}`} className="rounded-full bg-ink-50 px-2.5 py-1 text-[13px] font-bold text-ink-700">
+                  <span className="mr-1 tabular-nums text-ink-400">{i + 1}</span>
+                  {x}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         <div className="px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[13px] font-bold text-ink-500">
@@ -325,7 +354,7 @@ export default function PickPage() {
             <button
               onClick={() => {
                 setS((p) => ({ ...p, picked: { ...p.picked, [source]: [] }, excluded: [] }));
-                setResult([]);
+                setResult(source, []);
               }}
               className="press rounded-full px-3 py-1 text-[13px] font-bold text-brand hover:bg-brand-weak"
             >

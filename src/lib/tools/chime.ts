@@ -257,9 +257,31 @@ export function scheduleTimerSounds(
   return true;
 }
 
-/** 소음 경고음 — 또렷한 '삐-삐-삐' 세 번 */
-export function warnBeep() {
-  [0, 0.26, 0.52].forEach((b, i) => tone(i % 2 ? 1319 : 1760, b, 0.2, 0.3, "square"));
+/**
+ * 끝까지 같은 크기로 '유지'되는 소리 (경고음용). tone()은 치자마자 사그라드는 소리라 실제로 크게 들리는 건
+ * 앞의 20~30ms뿐이었다 → 사용자 2026-11 "경고음이 여전히 작아". 소리 크기 설정(volume)과 무관한 절대 크기.
+ */
+function toneHold(freq: number, at: number, dur: number, peak: number, type: OscillatorType = "square") {
+  const c = ac();
+  if (!c) return;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  const t0 = c.currentTime + at;
+  const p = Math.max(0.0002, Math.min(0.95, peak));
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(p, t0 + 0.005);
+  g.gain.setValueAtTime(p, t0 + dur - 0.025);
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+  o.connect(g).connect(c.destination);
+  o.start(t0);
+  o.stop(t0 + dur + 0.02);
+}
+
+/** 소음 경고음 — 또렷한 '삐-삐-삐-삐' (귀가 가장 잘 듣는 2kHz 근처, 소리를 끝까지 유지) */
+export function warnBeep(loud = 1) {
+  for (let i = 0; i < 4; i++) toneHold(i % 2 ? 1760 : 2093, i * 0.27, 0.2, 0.9 * loud, "square");
 }
 
 export type NoiseAlarm = "beep" | "soft" | "bell" | "none";
@@ -270,15 +292,31 @@ export const NOISE_ALARMS: { key: NoiseAlarm; label: string }[] = [
   { key: "none", label: "소리 없음" },
 ];
 /**
- * 소음 경고는 타이머 '소리 크기'와 무관하게 크게 (사용자 2026-11: "소음 측정기도 소리가 더 컸으면") —
- * 예전(최대 약 0.34)보다 약 3배, 거의 최대 음량까지. loud(0.2~1)는 소음 화면의 '경고음 크기'.
+ * 소음 경고는 타이머 '소리 크기'와 무관하게 크게 (사용자 2026-11: "소음 측정기도 소리가 더 컸으면", "여전히 작아") —
+ * 거의 최대 음량을 소리 길이 내내 유지(toneHold) — 사그라드는 소리보다 소리 에너지가 약 15배.
+ * loud(0.2~1)는 소음 화면의 '경고음 크기'.
  */
 export function playNoiseAlarm(kind: NoiseAlarm, loud = 1) {
-  const v = volume;
   const k = Math.max(0.2, Math.min(1, loud));
-  volume = k * (kind === "beep" ? 2.6 : kind === "soft" ? 2 : 1.5); // 종류마다 겹치는 소리가 달라 깨지지 않을 만큼
-  if (kind === "beep") warnBeep();
-  else if (kind === "soft") chimeQuiet();
-  else if (kind === "bell") bell();
+  if (kind === "beep") return warnBeep(k);
+  if (kind === "soft") {
+    // 부드러워도 작지 않게 — 낮은 두 음을 끝까지 유지
+    toneHold(523, 0, 0.45, 0.9 * k, "triangle");
+    toneHold(392, 0.5, 0.6, 0.9 * k, "triangle");
+    return;
+  }
+  if (kind === "bell") {
+    const v = volume;
+    volume = k * 1.5;
+    bell();
+    volume = v;
+  }
+}
+
+/** 🎯 조용한 시간 목표 달성 — 밝게 올라가는 네 음 (소음 경고음 크기를 따른다) */
+export function playCheer(loud = 1) {
+  const v = volume;
+  volume = Math.max(0.2, Math.min(1, loud)) * 1.6;
+  [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, i === 3 ? 0.7 : 0.25, 0.22, "triangle"));
   volume = v;
 }

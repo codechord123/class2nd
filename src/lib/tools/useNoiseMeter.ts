@@ -1,11 +1,13 @@
 "use client";
-// 🔊 소음 측정 엔진 — 소음 화면과 떠 있는 소음 창이 같이 쓴다.
+// 🔊 소음 측정 엔진 — 기기에 하나만 돈다. 소음 화면·떠 있는 창·따로 띄운 창은 모두 같은 측정을 보여 줄 뿐이라
+//   (사용자 2026-11: "따로 띄우면 경고가 몇 번인지 안 나오고, 끄면 본 화면과 이어지지 않아") 창을 닫거나 화면을
+//   옮겨도 경고 횟수·조용한 시간이 그대로 이어진다. 멈추기를 눌러야 멈춘다(듣는 중엔 셸에 작은 알약이 보인다).
 // · 소리는 이 기기 안에서만 계산한다 (녹음·전송·저장 없음).
 // · 기준선을 넘으면 경고음 (사용자 2026-11: "넘어갈 때 경고음 나오게") — 기본 '삐삐'를 0.6초 넘으면.
 //   박수 한 번 같은 순간 소리는 거르도록 '얼마나 넘으면'을 고를 수 있다. 경고 뒤 3초는 쉰다(연달아 울리지 않게).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { create } from "zustand";
-import { playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
+import { playNoiseAlarm, playCheer, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 
 const LS = "class2nd-noise";
 const COOLDOWN_MS = 3000;
@@ -23,8 +25,12 @@ export interface NoisePrefs {
   alarm: NoiseAlarm; // 경고음 종류
   holdMs: number; // 기준을 이만큼 넘게 이어지면 경고
   alarmVol: number; // 경고음 크기 0.2~1 (타이머 소리 크기와 따로)
+  warnGoal: number; // 🎯 경고 목표 'N번 이하' (0 = 끔)
+  quietGoalMin: number; // 🎯 조용한 시간 목표(분) — 경고 없이 이만큼 이어지면 달성 (0 = 끔)
 }
-const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600, alarmVol: 1 };
+const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600, alarmVol: 1, warnGoal: 0, quietGoalMin: 0 };
+export const WARN_GOALS = [0, 1, 2, 3, 4, 5, 7, 10];
+export const QUIET_GOALS = [0, 1, 2, 3, 5, 10, 15, 20];
 const loadPrefs = (): NoisePrefs => {
   try {
     const raw = JSON.parse(localStorage.getItem(LS) ?? "{}") as Partial<NoisePrefs> & { sound?: boolean };
@@ -56,30 +62,45 @@ useNoisePrefs.subscribe((s) => {
   } catch {}
 });
 
-export function useNoiseMeter() {
-  const prefs = useNoisePrefs((s) => s.p);
-  const setPrefs = useCallback(
-    (u: NoisePrefs | ((p: NoisePrefs) => NoisePrefs)) =>
-      useNoisePrefs.setState((s) => ({ p: typeof u === "function" ? u(s.p) : u })),
-    []
-  );
+interface Live {
+  running: boolean;
+  err: string | null;
+  level: number;
+  warning: boolean;
+  warns: number;
+  quietFrom: number; // 조용한 시간을 세기 시작한 시각 (경고가 나면 다시)
+  now: number;
+  hist: number[];
+  quietWins: number; // 조용한 시간 목표를 채운 횟수
+  quietHit: boolean; // 이번 조용한 구간에서 목표를 채웠나
+  cheerAt: number; // 방금 달성한 시각 (화면 축하 표시)
+}
+const IDLE = { level: 0, warning: false };
+export const useNoiseLive = create<Live>(() => ({
+  running: false,
+  err: null,
+  level: 0,
+  warning: false,
+  warns: 0,
+  quietFrom: 0,
+  now: 0,
+  hist: [],
+  quietWins: 0,
+  quietHit: false,
+  cheerAt: 0,
+}));
+const set = useNoiseLive.setState;
+let stopFn: (() => void) | null = null;
+let starting = false;
 
-  const [running, setRunning] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [level, setLevel] = useState(0);
-  const [warning, setWarning] = useState(false);
-  const [warns, setWarns] = useState(0);
-  const [quietFrom, setQuietFrom] = useState(0);
-  const [now, setNow] = useState(0);
-  const [hist, setHist] = useState<number[]>([]);
-  const stopRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopRef.current?.(), []);
-
-  const start = async () => {
-    setErr(null);
-    unlockAudio();
+export async function startNoise() {
+  if (stopFn || starting) return;
+  starting = true;
+  set({ err: null });
+  unlockAudio();
+  try {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setErr("이 브라우저(또는 http 주소)에서는 마이크를 쓸 수 없어요. 크롬·엣지 최신 버전에서 열어 주세요.");
+      set({ err: "이 브라우저(또는 http 주소)에서는 마이크를 쓸 수 없어요. 크롬·엣지 최신 버전에서 열어 주세요." });
       return;
     }
     let stream: MediaStream;
@@ -89,13 +110,14 @@ export function useNoiseMeter() {
       });
     } catch (e) {
       const name = (e as { name?: string }).name;
-      setErr(
-        name === "NotAllowedError"
-          ? "마이크가 막혀 있어요 — 주소창 왼쪽 자물쇠 → 마이크 '허용' 후 다시 눌러 주세요."
-          : name === "NotFoundError"
-            ? "연결된 마이크를 찾지 못했어요. 마이크(또는 웹캠)를 꽂고 다시 눌러 주세요."
-            : "마이크를 켜지 못했어요. 다른 프로그램(줌 등)이 쓰고 있는지 확인해 주세요."
-      );
+      set({
+        err:
+          name === "NotAllowedError"
+            ? "마이크가 막혀 있어요 — 주소창 왼쪽 자물쇠 → 마이크 '허용' 후 다시 눌러 주세요."
+            : name === "NotFoundError"
+              ? "연결된 마이크를 찾지 못했어요. 마이크(또는 웹캠)를 꽂고 다시 눌러 주세요."
+              : "마이크를 켜지 못했어요. 다른 프로그램(줌 등)이 쓰고 있는지 확인해 주세요.",
+      });
       return;
     }
     const C = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -113,16 +135,15 @@ export function useNoiseMeter() {
     let lastPush = 0;
     let lastPaint = 0;
     let lastT = 0;
-    setQuietFrom(Date.now());
-    setWarns(0);
-    setHist([]);
+    const t0 = Date.now();
+    set({ running: true, warns: 0, quietFrom: t0, now: t0, hist: [], quietWins: 0, quietHit: false, cheerAt: 0 });
 
     proc.onaudioprocess = (ev) => {
       const buf = ev.inputBuffer.getChannelData(0);
       let sum = 0;
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       const db = 20 * Math.log10(Math.max(Math.sqrt(sum / buf.length), 1e-6));
-      const { threshold, gain, alarm, holdMs, alarmVol } = useNoisePrefs.getState().p;
+      const { threshold, gain, alarm, holdMs, alarmVol, quietGoalMin } = useNoisePrefs.getState().p;
       // −70dBFS(아주 조용) ~ −10dBFS(고함)를 0~100으로. 오를 땐 빠르게, 내릴 땐 천천히 (60fps 기준 계수를 실제 간격에 맞춤)
       const raw = Math.max(0, Math.min(100, ((db + 70 + gain) / 60) * 100));
       const t = Date.now();
@@ -134,24 +155,27 @@ export function useNoiseMeter() {
         if (!overSince) overSince = t;
         if (t - overSince >= holdMs && t - lastWarn >= COOLDOWN_MS) {
           lastWarn = t;
-          setWarns((n) => n + 1);
-          setQuietFrom(t);
-          setWarning(true);
-          setTimeout(() => setWarning(false), 2500);
+          set((s) => ({ warns: s.warns + 1, quietFrom: t, quietHit: false, warning: true }));
+          setTimeout(() => set({ warning: false }), 2500);
           playNoiseAlarm(alarm, alarmVol);
         }
       } else overSince = 0;
+      // 🎯 조용한 시간 목표 — 경고 없이 이어진 시간이 목표에 닿는 순간 한 번 축하
+      const st = useNoiseLive.getState();
+      if (quietGoalMin > 0 && !st.quietHit && t - st.quietFrom >= quietGoalMin * 60_000) {
+        set((s) => ({ quietHit: true, quietWins: s.quietWins + 1, cheerAt: t }));
+        playCheer(alarmVol);
+      }
       if (t - lastPaint > 66) {
         lastPaint = t;
-        setLevel(smooth);
-        setNow(t);
+        set({ level: smooth, now: t });
       }
       if (t - lastPush > 500) {
         lastPush = t;
-        setHist((h) => [...h.slice(-(NOISE_HISTORY - 1)), smooth]);
+        set((s) => ({ hist: [...s.hist.slice(-(NOISE_HISTORY - 1)), smooth] }));
       }
     };
-    stopRef.current = () => {
+    stopFn = () => {
       proc.onaudioprocess = null;
       try {
         src.disconnect();
@@ -159,17 +183,39 @@ export function useNoiseMeter() {
       } catch {}
       stream.getTracks().forEach((tr) => tr.stop());
       void ctx.close().catch(() => {});
-      stopRef.current = null;
     };
-    setRunning(true);
-  };
+  } finally {
+    starting = false;
+  }
+}
 
-  const stop = () => {
-    stopRef.current?.();
-    setRunning(false);
-    setLevel(0);
-    setWarning(false);
-  };
+export function stopNoise() {
+  stopFn?.();
+  stopFn = null;
+  set({ running: false, ...IDLE });
+}
 
-  return { prefs, setPrefs, running, err, level, warning, warns, quietMs: Math.max(0, now - quietFrom), hist, start, stop };
+export function useNoiseMeter() {
+  const prefs = useNoisePrefs((s) => s.p);
+  const setPrefs = useCallback(
+    (u: NoisePrefs | ((p: NoisePrefs) => NoisePrefs)) =>
+      useNoisePrefs.setState((s) => ({ p: typeof u === "function" ? u(s.p) : u })),
+    []
+  );
+  const live = useNoiseLive();
+  const quietMs = live.running ? Math.max(0, live.now - live.quietFrom) : 0;
+  const goalMs = prefs.quietGoalMin * 60_000;
+  return {
+    prefs,
+    setPrefs,
+    ...live,
+    quietMs,
+    /** 조용한 시간 목표까지 0~1 (목표 없으면 null) */
+    quietProgress: goalMs > 0 ? Math.min(1, quietMs / goalMs) : null,
+    /** 경고 목표를 넘었나 */
+    overWarnGoal: prefs.warnGoal > 0 && live.warns > prefs.warnGoal,
+    cheering: live.cheerAt > 0 && live.now - live.cheerAt < 4000,
+    start: startNoise,
+    stop: stopNoise,
+  };
 }

@@ -4,18 +4,18 @@
 // · '순간 소리(박수 한 번)'로 울리지 않게 기준을 1.2초 넘게 계속 넘을 때만 경고.
 // · 경고 소리는 낮고 부드럽게 + 5초 쉬었다가 다시 (계속 울리면 그게 더 시끄럽다).
 // · '조용한 시간'이 쌓이는 게 보상 — 경고 횟수보다 앞에 크게 둔다.
-import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS } from "@/lib/tools/useNoiseMeter";
+import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS, WARN_GOALS, QUIET_GOALS } from "@/lib/tools/useNoiseMeter";
 import { NOISE_ALARMS, playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
 
 export default function NoisePage() {
-  const { prefs, setPrefs, running, err, level, warning, warns, quietMs, hist, start, stop } = useNoiseMeter();
+  const { prefs, setPrefs, running, err, level, warning, warns, quietMs, hist, start, stop, quietProgress, quietWins, quietHit, overWarnGoal, cheering } = useNoiseMeter();
   const { on: focus, toggle } = useFocusMode();
   const popped = usePopOut((s) => s.kind === "noise");
   const popPip = usePopOut((s) => s.pip);
   const popOut = () => {
-    stop(); // 이 화면과 따로 띄운 창이 함께 들으면 경고음이 두 번 난다
+    // 측정은 하나라 그대로 이어진다 — 안 듣고 있었으면 따로 띄운 창이 열리면서 시작
     void openPopOut("noise").then((ok) => {
       if (!ok) alert("새 창이 막혀 있어요 — 주소창 오른쪽의 '팝업 차단' 표시를 눌러 허용해 주세요.");
     });
@@ -85,16 +85,34 @@ export default function NoisePage() {
           </span>
         </div>
 
-        {/* 조용한 시간이 주인공 */}
+        {/* 조용한 시간이 주인공 — 🎯 목표가 있으면 '지금 / 목표'와 채워지는 막대 */}
         {running && (
           <div className="flex items-end gap-8">
             <div className="text-center">
-              <p className={`text-[13px] font-bold ${sub}`}>조용한 시간</p>
-              <p className={`font-bold tabular-nums ${focus ? "text-7xl" : "text-4xl"}`}>{mmss(quietMs)}</p>
+              <p className={`text-[13px] font-bold ${sub}`}>
+                조용한 시간{prefs.quietGoalMin > 0 ? ` · 목표 ${prefs.quietGoalMin}분` : ""}
+              </p>
+              <p className={`font-bold tabular-nums ${focus ? "text-7xl" : "text-4xl"} ${quietHit ? "text-success" : ""}`}>
+                {cheering ? "🎉 달성!" : mmss(quietMs)}
+              </p>
+              {quietProgress != null && (
+                <div className={`mx-auto mt-2 h-2 overflow-hidden rounded-full ${focus ? "w-72 bg-white/10" : "w-40 bg-ink-100"}`}>
+                  <div className="h-full rounded-full bg-success transition-[width] duration-300" style={{ width: `${quietProgress * 100}%` }} />
+                </div>
+              )}
+              {quietWins > 0 && <p className={`mt-1 text-[13px] font-bold ${focus ? "text-white/70" : "text-success"}`}>목표 달성 {quietWins}번</p>}
             </div>
             <div className="text-center">
-              <p className={`text-[13px] font-bold ${sub}`}>경고</p>
-              <p className={`font-bold tabular-nums ${focus ? "text-5xl" : "text-3xl"} ${warns ? "text-danger" : ""}`}>{warns}번</p>
+              <p className={`text-[13px] font-bold ${sub}`}>경고{prefs.warnGoal > 0 ? ` · 목표 ${prefs.warnGoal}번 이하` : ""}</p>
+              <p
+                className={`font-bold tabular-nums ${focus ? "text-5xl" : "text-3xl"} ${
+                  overWarnGoal || (prefs.warnGoal === 0 && warns) ? "text-danger" : prefs.warnGoal > 0 && warns === prefs.warnGoal ? "text-warn" : ""
+                }`}
+              >
+                {warns}
+                {prefs.warnGoal > 0 && <span className="opacity-50"> / {prefs.warnGoal}</span>}번
+              </p>
+              {overWarnGoal && <p className="mt-1 text-[13px] font-bold text-danger">목표를 넘었어요</p>}
             </div>
           </div>
         )}
@@ -189,6 +207,40 @@ export default function NoisePage() {
             />
             <span className="w-10 text-right font-bold tabular-nums text-ink-600">{Math.round(prefs.alarmVol * 100)}</span>
           </label>
+          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-2 text-[15px]">
+            <span className="font-bold text-ink-800">
+              🎯 목표
+              <span className="ml-2 text-[13px] font-normal text-ink-500">시작할 때마다 새로 세요</span>
+            </span>
+            <span className="flex flex-wrap items-center gap-2 text-[14px] font-bold text-ink-700">
+              조용한 시간
+              <select
+                value={prefs.quietGoalMin}
+                onChange={(e) => setPrefs((p) => ({ ...p, quietGoalMin: Number(e.target.value) }))}
+                className="h-9 rounded-[8px] bg-ink-100 px-2 text-[14px] font-bold text-ink-800"
+                aria-label="조용한 시간 목표"
+              >
+                {QUIET_GOALS.map((m) => (
+                  <option key={m} value={m}>
+                    {m ? `${m}분` : "없음"}
+                  </option>
+                ))}
+              </select>
+              <span className="ml-2">경고</span>
+              <select
+                value={prefs.warnGoal}
+                onChange={(e) => setPrefs((p) => ({ ...p, warnGoal: Number(e.target.value) }))}
+                className="h-9 rounded-[8px] bg-ink-100 px-2 text-[14px] font-bold text-ink-800"
+                aria-label="경고 횟수 목표"
+              >
+                {WARN_GOALS.map((n) => (
+                  <option key={n} value={n}>
+                    {n ? `${n}번 이하` : "없음"}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </div>
           <div className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">
             <span className="font-bold text-ink-800">
               기준을 넘으면
