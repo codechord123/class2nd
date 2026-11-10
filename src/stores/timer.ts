@@ -10,6 +10,7 @@ export interface TimerPrefs {
   warn60: boolean; // 1분 전 알림
   warn30: boolean; // 30초 전 알림
   tick10: boolean; // 마지막 10초 똑딱
+  tickAll: boolean; // 매초 틱톡 (흐르는 내내)
   sound: EndSound;
   volume: number; // 0~1
 }
@@ -53,7 +54,7 @@ export const useTimer = create<TimerState>()(
       doneAt: null,
       swStart: null,
       swAcc: 0,
-      prefs: { warn60: true, warn30: false, tick10: true, sound: "chime", volume: 0.8 },
+      prefs: { warn60: true, warn30: false, tick10: true, tickAll: false, sound: "chime", volume: 0.8 },
       presets: [],
       setMode: (mode) => {
         get().pause();

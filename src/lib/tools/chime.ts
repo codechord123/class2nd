@@ -144,9 +144,16 @@ export function cancelTimerSounds() {
  * endAt(끝나는 시각)에 맞춰 끝 소리·종료 전 알림을 오디오 시계에 예약한다. 이전 예약은 지운다.
  * 소리가 잠겨 있으면(누르기 전) 아무것도 예약하지 않고 false — 풀리면 다시 부른다.
  */
+/** 매초 틱·톡 — 나무 블록처럼 짧고 낮게 번갈아 (오래 들어도 거슬리지 않게) */
+function tickTock(k: number, off: number) {
+  tone(k % 2 ? 740 : 980, off, 0.045, 0.1, "triangle");
+}
+/** 매초 틱톡은 앞으로 이만큼(초)만 예약하고, 엔진이 1분마다 다시 건다 — 20분 타이머에 1,200개를 한꺼번에 만들지 않게 */
+export const TICK_HORIZON = 180;
+
 export function scheduleTimerSounds(
   endAt: number,
-  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean }
+  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean; tickAll?: boolean }
 ): boolean {
   cancelTimerSounds();
   const c = ac();
@@ -158,6 +165,15 @@ export function scheduleTimerSounds(
     if (p.warn60 && d > 60.5) warnSoft(d - 60);
     if (p.warn30 && d > 30.5) warnSoft(d - 30);
     if (p.tick10) for (let k = 10; k >= 1; k--) if (d - k > 0.05) countTick(k === 1, d - k);
+    if (p.tickAll) {
+      // 남은 시간이 k초가 되는 순간마다 (마지막 10초 똑딱이 켜져 있으면 그 구간은 그쪽 소리로)
+      const lower = p.tick10 ? 11 : 1;
+      for (let k = Math.floor(d - 0.05); k >= lower; k--) {
+        const off = d - k;
+        if (off > TICK_HORIZON) break;
+        tickTock(k, off);
+      }
+    }
     playEnd(p.sound, d);
     timerNodes = collect;
   } finally {

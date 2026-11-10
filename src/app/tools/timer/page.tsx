@@ -79,6 +79,18 @@ export default function TimerPage() {
                 {widgetOpen ? "창 닫기" : "창으로 띄우기"}
               </button>
             )}
+            {focus && !sw && (
+              <button
+                onClick={() => {
+                  unlockAudio();
+                  t.setPrefs({ tickAll: !t.prefs.tickAll });
+                }}
+                aria-pressed={t.prefs.tickAll}
+                className={`press inline-flex h-9 items-center rounded-full px-3.5 text-[13px] font-bold ${t.prefs.tickAll ? "bg-white text-ink-900" : "bg-white/10 text-white hover:bg-white/20"}`}
+              >
+                틱톡 {t.prefs.tickAll ? "켬" : "끔"}
+              </button>
+            )}
             <FocusButton on={focus} toggle={toggle} dark={dark} />
           </div>
         </div>
@@ -304,7 +316,7 @@ export default function TimerPage() {
 function AlertSettings() {
   const { prefs, setPrefs } = useTimer();
   const row = "flex min-h-12 items-center justify-between gap-4 px-4 text-[15px]";
-  const check = (k: "warn60" | "warn30" | "tick10", label: string, desc: string) => (
+  const check = (k: "warn60" | "warn30" | "tick10" | "tickAll", label: string, desc: string) => (
     <label className={`${row} cursor-pointer`}>
       <span>
         <span className="font-bold text-ink-800">{label}</span>
@@ -323,7 +335,8 @@ function AlertSettings() {
       <p className="px-4 pb-2 pt-3.5 text-[13px] font-bold text-ink-500">알림과 소리</p>
       {check("warn60", "1분 전 알림", "부드러운 소리 한 번")}
       {check("warn30", "30초 전 알림", "부드러운 소리 한 번")}
-      {check("tick10", "마지막 10초", "1초마다 똑딱")}
+      {check("tickAll", "매초 틱톡", "흐르는 내내 1초마다 틱·톡")}
+      {check("tick10", "마지막 10초", "1초마다 똑딱 (조금 더 또렷하게)")}
       <div className={row}>
         <span className="font-bold text-ink-800">끝 소리</span>
         <span className="flex items-center gap-2">

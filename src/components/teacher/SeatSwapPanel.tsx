@@ -7,33 +7,41 @@
 import { useState } from "react";
 import { students, studentById } from "@/lib/roster";
 import { todayKST } from "@/lib/date";
-import { currentWeekNum, scheduleOfWeek } from "@/lib/schedule";
+import { currentWeekNum, scheduleOfWeek, TOTAL_WEEKS } from "@/lib/schedule";
 import {
   useWeekSwaps,
   useDaySwaps,
   useTeacherSwapSeats,
   useClearSwaps,
+  useRemoveSwap,
   applySwaps,
+  type SeatSwap,
 } from "@/lib/query/seatChange";
 import { useFeedback } from "@/components/ui/Feedback";
 
 export default function SeatSwapPanel() {
-  const week = currentWeekNum();
+  const curWeek = currentWeekNum();
   const date = todayKST();
+  const curPeriod = scheduleOfWeek(curWeek).period;
+  // 다음 기 첫 주 — 기(2주)가 시작되기 전에 미리 바꿔 둘 수 있게 (2026-11 사용자)
+  const nextWeek = curPeriod * 2 + 1 <= TOTAL_WEEKS ? curPeriod * 2 + 1 : null;
+  const [scope, setScope] = useState<"session" | "day" | "next">("day");
+  const week = scope === "next" && nextWeek ? nextWeek : curWeek;
   const period = scheduleOfWeek(week).period;
   const { data: swaps } = useWeekSwaps(week);
   const { data: daySwaps } = useDaySwaps(date);
   const swapSeats = useTeacherSwapSeats();
   const clearSwaps = useClearSwaps();
+  const removeSwap = useRemoveSwap();
+  const kind: "session" | "day" = scope === "day" ? "day" : "session";
   const { toast, confirm } = useFeedback();
 
   const [a, setA] = useState<number>(0);
   const [b, setB] = useState<number>(0);
-  const [scope, setScope] = useState<"session" | "day">("day");
   const [busy, setBusy] = useState(false);
 
   // 지금 적용된 배치 (기 스왑 + 오늘 스왑) — 바꾸기 전 '누가 어디' 확인용
-  const applied = applySwaps(scheduleOfWeek(week), [...(swaps ?? []), ...(daySwaps ?? [])]);
+  const applied = applySwaps(scheduleOfWeek(week), [...(swaps ?? []), ...(scope === "next" ? [] : (daySwaps ?? []))]);
   const seatOf = (sid: number) => {
     const g = applied.groups.find(
       (x) => x.chair === sid || x.members.some((m) => m.studentId === sid)
@@ -67,7 +75,7 @@ export default function SeatSwapPanel() {
       toast("의장은 의장끼리만 자리를 바꿀 수 있어요.", "warn");
       return;
     }
-    const label = scope === "day" ? `오늘(${date}) 하루만` : `${period}기 세션 내내`;
+    const label = scope === "day" ? `오늘(${date}) 하루만` : `${period}기(${period * 2 - 1}·${period * 2}주) 내내`;
     if (
       !(await confirm({
         title: `${nameOf(a)} ↔ ${nameOf(b)} 자리를 바꿀까요?`,
@@ -83,7 +91,7 @@ export default function SeatSwapPanel() {
       return;
     setBusy(true);
     try {
-      await swapSeats({ a, b, scope, week, date });
+      await swapSeats({ a, b, scope: kind, week, date });
       toast(`💺 ${nameOf(a)} ↔ ${nameOf(b)} 자리를 바꿨어요 (${label}).`, "success");
       setA(0);
       setB(0);
@@ -108,7 +116,7 @@ export default function SeatSwapPanel() {
       return;
     setBusy(true);
     try {
-      await clearSwaps({ scope, week, date });
+      await clearSwaps({ scope: kind, week, date });
       toast(`↩️ ${label} 자리 교환을 되돌렸어요.`, "success");
     } catch (e) {
       toast(e instanceof Error ? e.message : "되돌리기에 실패했어요.", "error");
@@ -144,15 +152,23 @@ export default function SeatSwapPanel() {
       </p>
 
       <div className="mt-3 flex gap-1.5">
-        {(["day", "session"] as const).map((k) => (
+        {(["day", "session", ...(nextWeek ? (["next"] as const) : [])] as const).map((k) => (
           <button
             key={k}
-            onClick={() => setScope(k)}
+            onClick={() => {
+              setScope(k);
+              setA(0);
+              setB(0);
+            }}
             className={`press flex-1 rounded-btn px-3 py-2 text-xs font-bold ${
               scope === k ? "bg-brand text-white" : "border border-ink-200 bg-white text-ink-500"
             }`}
           >
-            {k === "day" ? `📅 오늘 하루만 (${date.slice(5)})` : `🗓 이번 ${period}기 내내`}
+            {k === "day"
+              ? `오늘 하루만 (${date.slice(5)})`
+              : k === "session"
+                ? `이번 ${curPeriod}기 내내`
+                : `다음 ${curPeriod + 1}기 (${nextWeek}·${(nextWeek ?? 0) + 1}주)`}
           </button>
         ))}
       </div>
@@ -181,12 +197,39 @@ export default function SeatSwapPanel() {
       {list.length > 0 && (
         <div className="mt-3 border-t border-ink-100 pt-2.5">
           <p className="text-xs font-bold text-ink-700">
-            {scope === "day" ? `오늘 적용된 교환 ${list.length}건` : `${period}기 적용된 교환 ${list.length}건`}
+            {scope === "day" ? `오늘 적용된 교환 ${list.length}건` : `${period}기 적용된 교환 ${list.length}건 (위에서부터 차례로 적용)`}
           </p>
           <ul className="mt-1.5 space-y-1">
-            {list.map((s, i) => (
-              <li key={i} className="rounded-btn bg-ink-50 px-3 py-1.5 text-xs text-ink-600">
-                {nameOf(s.a)} ↔ {nameOf(s.b)}
+            {list.map((s: SeatSwap, i) => (
+              <li key={`${s.a}-${s.b}-${s.at}-${i}`} className="flex items-center justify-between gap-2 rounded-btn bg-ink-50 px-3 py-1.5 text-xs text-ink-600">
+                <span>
+                  <b className="text-ink-800">{nameOf(s.a)}</b> ↔ <b className="text-ink-800">{nameOf(s.b)}</b>
+                  {s.at ? <span className="ml-1.5 text-ink-400">{new Date(s.at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}</span> : null}
+                </span>
+                {/* 이 교환 하나만 되돌리기 — 잘못 승인된 교환만 골라 지우고 나머지 교환은 그대로 */}
+                <button
+                  onClick={async () => {
+                    if (
+                      !(await confirm({
+                        title: `${nameOf(s.a)} ↔ ${nameOf(s.b)} 교환을 되돌릴까요?`,
+                        body: "이 교환만 지워져 두 학생이 교환 전 자리로 돌아가요. 다른 교환은 그대로예요. (학생이 낸 실버는 자동으로 돌려주지 않아요)",
+                        confirmLabel: "되돌리기",
+                        danger: true,
+                      }))
+                    )
+                      return;
+                    try {
+                      await removeSwap({ swap: s, scope: kind, week, date });
+                      toast(`↩️ ${nameOf(s.a)} ↔ ${nameOf(s.b)} 교환을 되돌렸어요.`, "success");
+                    } catch (e) {
+                      toast(e instanceof Error ? e.message : "되돌리기에 실패했어요.", "error");
+                    }
+                  }}
+                  disabled={busy}
+                  className="press shrink-0 rounded-full px-2.5 py-1 font-bold text-danger hover:bg-danger-weak"
+                >
+                  되돌리기
+                </button>
               </li>
             ))}
           </ul>

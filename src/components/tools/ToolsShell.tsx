@@ -128,11 +128,18 @@ export function TimerWatcher() {
 
   // ⏰ 소리 예약 — 시작·시간 더하기·설정 변경·소리 풀림 때마다 끝나는 시각에 맞춰 다시 건다.
   //    끝나서 멈춘 경우(doneAt)엔 울리고 있는 끝 소리를 끊지 않는다.
-  const { sound, warn60, warn30, tick10, volume } = t.prefs;
+  const { sound, warn60, warn30, tick10, tickAll, volume } = t.prefs;
+  // 매초 틱톡은 앞 3분만 예약 → 흐르는 동안 1분마다 다시 걸어 끊기지 않게
+  const [tickRev, setTickRev] = useState(0);
   useEffect(() => {
-    if (t.endAt) scheduleTimerSounds(t.endAt, { sound, warn60, warn30, tick10 });
+    if (!t.endAt || !tickAll) return;
+    const id = setInterval(() => setTickRev((r) => r + 1), 60_000);
+    return () => clearInterval(id);
+  }, [t.endAt, tickAll]);
+  useEffect(() => {
+    if (t.endAt) scheduleTimerSounds(t.endAt, { sound, warn60, warn30, tick10, tickAll });
     else if (!t.doneAt) cancelTimerSounds();
-  }, [t.endAt, t.doneAt, sound, warn60, warn30, tick10, volume, audioRev]);
+  }, [t.endAt, t.doneAt, sound, warn60, warn30, tick10, tickAll, volume, audioRev, tickRev]);
 
   // 끝난 상태로 바꾸기(화면 깜빡임·'시간 끝!') — 소리는 위 예약이 이미 그 시각에 냈다
   useEffect(() => {

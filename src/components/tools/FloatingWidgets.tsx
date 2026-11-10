@@ -216,6 +216,19 @@ function TimerW({ box }: { box: WidgetBox }) {
             >
               ↺
             </button>
+            {!sw && (
+              <button
+                onClick={() => {
+                  unlockAudio();
+                  t.setPrefs({ tickAll: !t.prefs.tickAll });
+                }}
+                aria-pressed={t.prefs.tickAll}
+                title={t.prefs.tickAll ? "매초 틱톡 끄기" : "매초 틱톡 켜기"}
+                className={`${btn} h-[max(30px,11cqh)] px-[max(9px,2.6cqw)] text-[max(11.5px,3.6cqw)] ${t.prefs.tickAll ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-600"}`}
+              >
+                틱톡
+              </button>
+            )}
             <button
               onClick={() => {
                 unlockAudio();

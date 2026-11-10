@@ -7,6 +7,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
+  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -310,6 +311,21 @@ export function useTeacherSwapSeats() {
       { swaps: arrayUnion({ a, b, at: Date.now() }) },
       { merge: true }
     );
+    if (scope === "day") void qc.invalidateQueries({ queryKey: ["seatSwapsDay", date] });
+    else void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(week)] });
+  };
+}
+
+/**
+ * 교사: 교환 하나만 되돌린다 (2026-11 실사례: 의장끼리 바꾸려던 신청이 의장 아닌 학생과 승인돼 버림 —
+ * '모두 되돌리기'는 다른 학생의 정상 교환까지 지운다). 읽어 온 항목 그대로 빼므로 at까지 같아야 지워진다.
+ */
+export function useRemoveSwap() {
+  const qc = useQueryClient();
+  return async (opts: { swap: SeatSwap; scope: "session" | "day"; week: number; date: string }) => {
+    const { swap, scope, week, date } = opts;
+    const key = scope === "day" ? `seatSwapsDay-${date}` : `seatSwaps-${swapWeekOf(week)}`;
+    await setDoc(doc(db(), "classData", key), { swaps: arrayRemove(swap) }, { merge: true });
     if (scope === "day") void qc.invalidateQueries({ queryKey: ["seatSwapsDay", date] });
     else void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(week)] });
   };
