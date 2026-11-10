@@ -4,7 +4,7 @@
 //   스톱워치, '무엇을 하는 시간' 이름표, 내 프리셋 저장, 끝난 뒤 '지난 시간' 표시.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { EndSound } from "@/lib/tools/chime";
+import type { EndSound, TickStyle } from "@/lib/tools/chime";
 
 export interface TimerPrefs {
   warn60: boolean; // 1분 전 알림
@@ -12,6 +12,7 @@ export interface TimerPrefs {
   tick10: boolean; // 마지막 10초 똑딱
   tickAll: boolean; // 매초 틱톡 (흐르는 내내)
   tickVol: number; // 틱톡 크기 0~1 (끝 소리 크기와 따로)
+  tickStyle: TickStyle; // 티티티티틱(초침) / 틱·톡(벽시계)
   sound: EndSound;
   volume: number; // 0~1
 }
@@ -22,6 +23,7 @@ interface TimerState {
   total: number; // 설정한 길이(ms) — 진행 링의 분모
   remaining: number; // 멈춰 있을 때 남은 ms
   endAt: number | null; // 흐르는 중이면 끝나는 시각
+  runFrom?: number; // endAt을 정한 순간 — 화면의 '지금'이 그보다 옛날이면 그때로 본다 (시작 직후 숫자 튐 방지)
   doneAt: number | null; // 끝난 시각 (화면 깜빡임·지난 시간 표시)
   swStart: number | null; // 스톱워치 흐르기 시작한 시각
   swAcc: number; // 스톱워치 누적(ms)
@@ -55,7 +57,7 @@ export const useTimer = create<TimerState>()(
       doneAt: null,
       swStart: null,
       swAcc: 0,
-      prefs: { warn60: true, warn30: false, tick10: true, tickAll: false, tickVol: 0.5, sound: "chime", volume: 0.8 },
+      prefs: { warn60: true, warn30: false, tick10: true, tickAll: false, tickVol: 0.5, tickStyle: "fast", sound: "chime", volume: 0.8 },
       presets: [],
       setMode: (mode) => {
         get().pause();
@@ -67,12 +69,12 @@ export const useTimer = create<TimerState>()(
         const { endAt, remaining, total, doneAt } = get();
         if (doneAt) {
           // 끝난 뒤 '+1분' — 바로 그만큼 다시 흐른다 (조금만 더!)
-          if (ms > 0) set({ total: ms, remaining: ms, endAt: Date.now() + ms, doneAt: null });
+          if (ms > 0) set({ total: ms, remaining: ms, endAt: Date.now() + ms, runFrom: Date.now(), doneAt: null });
           return;
         }
         if (endAt) {
           const left = clamp(endAt - Date.now() + ms);
-          set({ endAt: Date.now() + left, total: Math.max(total + ms, left) });
+          set({ endAt: Date.now() + left, runFrom: Date.now(), total: Math.max(total + ms, left) });
         } else {
           // 아직 시작 전(남은 = 전체)이면 '길이 설정', 일시정지 중이면 남은 시간만 조정
           const r = clamp(remaining + ms);
@@ -87,7 +89,7 @@ export const useTimer = create<TimerState>()(
         }
         const r = s.remaining > 0 ? s.remaining : s.total;
         if (r <= 0) return;
-        set({ endAt: Date.now() + r, remaining: r, doneAt: null });
+        set({ endAt: Date.now() + r, runFrom: Date.now(), remaining: r, doneAt: null });
       },
       pause: () => {
         const { endAt, swStart, swAcc } = get();
@@ -116,11 +118,13 @@ export const useTimer = create<TimerState>()(
   )
 );
 
-export function leftMs(s: Pick<TimerState, "endAt" | "remaining">, now = Date.now()) {
-  return s.endAt ? Math.max(0, s.endAt - now) : s.remaining;
+// 사용자 2026-11 "시작하면 시간이 잠시 튀었다 돌아와요": 화면은 '지금'을 0.25초마다 상태로 갖고 있어서,
+// 멈춰 있던 동안 묵은 값으로 첫 장면을 그리면 남은 시간이 그만큼 커 보였다 → 시작 시각보다 이른 '지금'은 시작 시각으로.
+export function leftMs(s: Pick<TimerState, "endAt" | "remaining" | "runFrom">, now = Date.now()) {
+  return s.endAt ? Math.max(0, s.endAt - Math.max(now, s.runFrom ?? 0)) : s.remaining;
 }
 export function swMs(s: Pick<TimerState, "swStart" | "swAcc">, now = Date.now()) {
-  return s.swAcc + (s.swStart ? now - s.swStart : 0);
+  return s.swAcc + (s.swStart ? Math.max(0, now - s.swStart) : 0);
 }
 
 export function fmt(ms: number) {

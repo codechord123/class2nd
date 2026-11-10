@@ -7,10 +7,19 @@
 import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS } from "@/lib/tools/useNoiseMeter";
 import { NOISE_ALARMS, playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
+import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
 
 export default function NoisePage() {
   const { prefs, setPrefs, running, err, level, warning, warns, quietMs, hist, start, stop } = useNoiseMeter();
   const { on: focus, toggle } = useFocusMode();
+  const popped = usePopOut((s) => s.kind === "noise");
+  const popPip = usePopOut((s) => s.pip);
+  const popOut = () => {
+    stop(); // 이 화면과 따로 띄운 창이 함께 들으면 경고음이 두 번 난다
+    void openPopOut("noise").then((ok) => {
+      if (!ok) alert("새 창이 막혀 있어요 — 주소창 오른쪽의 '팝업 차단' 표시를 눌러 허용해 주세요.");
+    });
+  };
 
 
   const th = prefs.threshold;
@@ -32,8 +41,30 @@ export default function NoisePage() {
     >
       <div className="flex items-center justify-between gap-3">
         <p className={`text-[13px] font-bold ${sub}`}>{running ? "듣는 중 · 소리는 이 기기에서만 계산하고 저장하지 않아요" : "마이크로 교실 소리를 재요"}</p>
-        <FocusButton on={focus} toggle={toggle} dark={dark} />
+        <span className="flex items-center gap-1.5">
+          {!focus && (
+            <button
+              onClick={popOut}
+              title="브라우저 밖 작은 창으로 — 크롬·엣지는 PPT를 띄워도 그 위에 떠 있어요"
+              className="press inline-flex h-9 items-center gap-1.5 rounded-full bg-ink-100 px-3.5 text-[13px] font-bold text-ink-800 hover:bg-ink-200"
+            >
+              ⧉ 따로 띄우기
+            </button>
+          )}
+          <FocusButton on={focus} toggle={toggle} dark={dark} />
+        </span>
       </div>
+
+      {popped && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-btn bg-ink-100 px-4 py-3 text-[14px]">
+          <span className="font-bold text-ink-800">
+            ⧉ 소음 측정기가 따로 띄운 창에서 듣고 있어요{popPip ? " (항상 위)" : ""}
+          </span>
+          <button onClick={closePopOut} className="press h-8 rounded-full bg-white px-3 text-[13px] font-bold text-ink-700">
+            그 창 닫기
+          </button>
+        </div>
+      )}
 
       {err && <p className="rounded-btn bg-danger-weak px-4 py-3 text-sm font-bold text-danger">{err}</p>}
 
@@ -133,7 +164,7 @@ export default function NoisePage() {
               <button
                 onClick={() => {
                   unlockAudio();
-                  playNoiseAlarm(prefs.alarm);
+                  playNoiseAlarm(prefs.alarm, prefs.alarmVol);
                 }}
                 disabled={prefs.alarm === "none"}
                 className="press h-9 rounded-full bg-ink-100 px-3 text-[13px] font-bold text-ink-700 hover:bg-ink-200 disabled:opacity-30"
@@ -142,6 +173,22 @@ export default function NoisePage() {
               </button>
             </span>
           </div>
+          <label className="flex min-h-12 items-center gap-4 px-4 text-[15px]">
+            <span className="w-20 shrink-0 font-bold text-ink-800">경고음 크기</span>
+            <input
+              type="range"
+              min={20}
+              max={100}
+              value={Math.round(prefs.alarmVol * 100)}
+              onChange={(e) => setPrefs((p) => ({ ...p, alarmVol: Number(e.target.value) / 100 }))}
+              onPointerUp={(e) => {
+                unlockAudio();
+                playNoiseAlarm(prefs.alarm, Number((e.target as HTMLInputElement).value) / 100);
+              }}
+              className="flex-1 accent-[var(--color-ink-900)]"
+            />
+            <span className="w-10 text-right font-bold tabular-nums text-ink-600">{Math.round(prefs.alarmVol * 100)}</span>
+          </label>
           <div className="flex min-h-12 items-center justify-between gap-3 px-4 text-[15px]">
             <span className="font-bold text-ink-800">
               기준을 넘으면

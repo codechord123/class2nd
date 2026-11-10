@@ -42,7 +42,7 @@ export function onAudioState(cb: () => void): () => void {
   return () => c.removeEventListener("statechange", cb);
 }
 
-let collect: OscillatorNode[] | null = null; // 예약 중이면 만든 소리를 모아 둔다(취소용)
+let collect: AudioScheduledSourceNode[] | null = null; // 예약 중이면 만든 소리를 모아 둔다(취소용)
 
 function tone(freq: number, at: number, dur: number, vol = 0.25, type: OscillatorType = "sine") {
   const c = ac();
@@ -111,12 +111,6 @@ export function warnSoft(off = 0) {
   tone(1175, off + 0.18, 0.6, 0.14, "sine");
 }
 
-/** 마지막 10초 카운트 — 짧은 똑딱 (마지막은 조금 높게) */
-export function countTick(last = false, off = 0, gain = 0.3) {
-  tone(last ? 1320 : 990, off, 0.1, gain, "triangle");
-  tone(last ? 2640 : 1980, off, 0.02, gain * 0.4, "square");
-}
-
 export type EndSound = "chime" | "bell" | "alarm" | "none";
 export const END_SOUNDS: { key: EndSound; label: string }[] = [
   { key: "chime", label: "실로폰" },
@@ -130,8 +124,98 @@ export function playEnd(kind: EndSound, off = 0) {
   else if (kind === "alarm") alarm(4, off);
 }
 
+// ── 진짜 시계 같은 틱 소리 ──
+// 사용자 2026-11: "삑 하는 음원보다 실제 틱톡 소리에 가깝게 — 티티티티틱(1초)". 기계식 시계의 '틱'은 탈진기가 맞물리며
+// 몇 ms 간격으로 나는 작은 금속 충돌음 2~3개다 → 금방 사라지는 고음 공명 여러 개 + 아주 짧은 잡음을 겹쳐 만든다.
+// 1~2초짜리 소리를 한 번 만들어 반복 재생(loop)하므로 20분 타이머도 소리 하나로 끝까지 박자가 맞는다.
+export type TickStyle = "fast" | "clock";
+export const TICK_STYLES: { key: TickStyle; label: string }[] = [
+  { key: "fast", label: "티티티티틱 (초침)" },
+  { key: "clock", label: "틱·톡 (벽시계)" },
+];
+type Res = [number, number][]; // [주파수, 사라지는 시간(초)]
+const BRIGHT: Res = [[3300, 0.0045], [5100, 0.003], [7400, 0.002], [1250, 0.006]];
+const DARK: Res = [[1900, 0.006], [3000, 0.004], [4600, 0.0025], [850, 0.009]];
+
+function strike(d: Float32Array, sr: number, t0: number, amp: number, res: Res) {
+  // 탈진기: 0 · 7 · 16ms에 잇달아 맞물림 (점점 약하게)
+  for (const [dt, a] of [[0, 1], [0.007, 0.5], [0.016, 0.28]]) {
+    const i0 = Math.round((t0 + dt) * sr);
+    const n = Math.round(0.05 * sr);
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      let v = (Math.random() * 2 - 1) * Math.exp(-t / 0.0007) * 0.7;
+      for (const [f, tau] of res) v += Math.sin(2 * Math.PI * f * t) * Math.exp(-t / tau);
+      d[(i0 + i) % d.length] += amp * a * v; // 끝을 넘으면 앞으로 감아 반복 이음새가 없게
+    }
+  }
+}
+const tickBufs = new Map<string, AudioBuffer>();
+/** fast = 틱(0초) + 티 네 번(0.2·0.4·0.6·0.8초) / clock = 틱(0초)·톡(1초) / single = 1초마다 틱 하나 */
+function tickBuffer(c: AudioContext, kind: TickStyle | "single"): AudioBuffer {
+  const key = `${kind}-${c.sampleRate}`;
+  const hit = tickBufs.get(key);
+  if (hit) return hit;
+  const sr = c.sampleRate;
+  const buf = c.createBuffer(1, sr * (kind === "clock" ? 2 : 1), sr);
+  const d = buf.getChannelData(0);
+  const accent = (t: number) => {
+    strike(d, sr, t, 1, DARK);
+    strike(d, sr, t, 0.6, BRIGHT);
+  };
+  if (kind === "clock") {
+    strike(d, sr, 0, 1, BRIGHT);
+    strike(d, sr, 1, 1, DARK);
+  } else {
+    accent(0);
+    if (kind === "fast") for (const t of [0.2, 0.4, 0.6, 0.8]) strike(d, sr, t, 0.42, BRIGHT);
+  }
+  let peak = 0;
+  for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  if (peak > 0) for (let i = 0; i < d.length; i++) d[i] *= 0.95 / peak;
+  tickBufs.set(key, buf);
+  return buf;
+}
+/** 틱톡 크기(0~1) × 전체 '소리 크기' → 실제 음량 (기본 0.5 → 0.65, 끝까지 → 1) */
+const clickGain = (tickVol: number) => (0.3 + 0.7 * Math.max(0, Math.min(1, tickVol))) * Math.min(1, volume * 1.25);
+
+/** 남은 시간 from초 → to초 구간에 틱 소리를 반복 재생. 소리의 0초(틱)가 숫자가 바뀌는 순간에 오도록 맞춘다. */
+function loopSeg(c: AudioContext, buf: AudioBuffer, d: number, from: number, to: number, gain: number) {
+  const L = Math.round(buf.duration);
+  const startOff = Math.max(0.03, d - from);
+  const stopOff = d - to - 0.03;
+  if (stopOff <= startOff) return;
+  const r = d - startOff; // 재생을 시작하는 순간의 남은 초
+  const n = Math.floor(r);
+  const pos = ((((n % L) - (r - n)) % L) + L) % L;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const g = c.createGain();
+  g.gain.value = gain;
+  src.connect(g).connect(c.destination);
+  const t = c.currentTime;
+  src.start(t + startOff, pos);
+  src.stop(t + stopOff);
+  collect?.push(src);
+}
+
+/** 틱톡 미리 듣기 — 2초 */
+export function previewTick(tickVol: number, style: TickStyle) {
+  const c = ac();
+  if (!c) return;
+  const src = c.createBufferSource();
+  src.buffer = tickBuffer(c, style);
+  src.loop = true;
+  const g = c.createGain();
+  g.gain.value = clickGain(tickVol);
+  src.connect(g).connect(c.destination);
+  src.start(c.currentTime + 0.03, 0);
+  src.stop(c.currentTime + 2.03);
+}
+
 // ── 타이머 소리 예약 ──
-let timerNodes: OscillatorNode[] = [];
+let timerNodes: AudioScheduledSourceNode[] = [];
 export function cancelTimerSounds() {
   for (const o of timerNodes) {
     try {
@@ -141,30 +225,14 @@ export function cancelTimerSounds() {
   }
   timerNodes = [];
 }
-/** 매초 틱·톡 — 나무 블록처럼 짧고 낮게 번갈아 (오래 들어도 거슬리지 않게) */
-// 사용자 2026-11: "틱톡 소리가 너무 작아" — 예전 0.1 → 기본 0.35 + 짧은 '딱' 소리를 겹쳐 교실에서도 들리게
-function tickTock(k: number, off: number, gain: number) {
-  tone(k % 2 ? 740 : 980, off, 0.07, gain, "triangle");
-  tone(k % 2 ? 1500 : 2000, off, 0.03, gain * 0.45, "square"); // 딱 — 시작 순간을 또렷하게
-}
-/** 틱톡 크기(0~1) → 실제 음량 */
-export const tickGainOf = (tickVol: number) => 0.12 + Math.max(0, Math.min(1, tickVol)) * 0.48;
-/** 매초 틱톡은 앞으로 이만큼(초)만 예약하고, 엔진이 1분마다 다시 건다 — 20분 타이머에 1,200개를 한꺼번에 만들지 않게 */
-export const TICK_HORIZON = 180;
-/** 틱톡 크기 미리 듣기 — 틱·톡 두 번 */
-export function previewTick(tickVol: number) {
-  const g = tickGainOf(tickVol);
-  tickTock(0, 0.02, g);
-  tickTock(1, 1.02, g);
-}
 
 /**
- * endAt(끝나는 시각)에 맞춰 끝 소리·종료 전 알림을 오디오 시계에 예약한다. 이전 예약은 지운다.
+ * endAt(끝나는 시각)에 맞춰 끝 소리·종료 전 알림·틱 소리를 오디오 시계에 예약한다. 이전 예약은 지운다.
  * 소리가 잠겨 있으면(누르기 전) 아무것도 예약하지 않고 false — 풀리면 다시 부른다.
  */
 export function scheduleTimerSounds(
   endAt: number,
-  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean; tickAll?: boolean; tickVol?: number }
+  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean; tickAll?: boolean; tickVol?: number; tickStyle?: TickStyle }
 ): boolean {
   cancelTimerSounds();
   const c = ac();
@@ -175,17 +243,12 @@ export function scheduleTimerSounds(
   try {
     if (p.warn60 && d > 60.5) warnSoft(d - 60);
     if (p.warn30 && d > 30.5) warnSoft(d - 30);
-    if (p.tick10)
-      for (let k = 10; k >= 1; k--) if (d - k > 0.05) countTick(k === 1, d - k, Math.max(0.3, tickGainOf(p.tickVol ?? 0.5) * 1.15));
-    if (p.tickAll) {
-      // 남은 시간이 k초가 되는 순간마다 (마지막 10초 똑딱이 켜져 있으면 그 구간은 그쪽 소리로)
-      const lower = p.tick10 ? 11 : 1;
-      for (let k = Math.floor(d - 0.05); k >= lower; k--) {
-        const off = d - k;
-        if (off > TICK_HORIZON) break;
-        tickTock(k, off, tickGainOf(p.tickVol ?? 0.5));
-      }
-    }
+    const style = p.tickStyle ?? "fast";
+    const g = clickGain(p.tickVol ?? 0.5);
+    // 흐르는 내내 (마지막 10초가 켜져 있으면 그 구간은 아래에서 더 크게)
+    if (p.tickAll) loopSeg(c, tickBuffer(c, style), d, d + 1, p.tick10 ? 10 : 0, g);
+    // 마지막 10초 — 1.5배 또렷하게 (매초 틱톡이 꺼져 있으면 1초마다 '틱' 하나)
+    if (p.tick10) loopSeg(c, tickBuffer(c, p.tickAll ? style : "single"), d, 10, 0, Math.min(1, g * 1.5));
     playEnd(p.sound, d);
     timerNodes = collect;
   } finally {
@@ -194,12 +257,9 @@ export function scheduleTimerSounds(
   return true;
 }
 
-/** 소음 경고음 — 또렷한 '삐-삐' 두 번 (교실 소음 위로 들리게, 타이머 소리 크기와 무관하게 조금 크게) */
+/** 소음 경고음 — 또렷한 '삐-삐-삐' 세 번 */
 export function warnBeep() {
-  [0, 0.32].forEach((b) => {
-    tone(1046, b, 0.2, 0.32, "square");
-    tone(784, b + 0.12, 0.16, 0.22, "square");
-  });
+  [0, 0.26, 0.52].forEach((b, i) => tone(i % 2 ? 1319 : 1760, b, 0.2, 0.3, "square"));
 }
 
 export type NoiseAlarm = "beep" | "soft" | "bell" | "none";
@@ -209,10 +269,14 @@ export const NOISE_ALARMS: { key: NoiseAlarm; label: string }[] = [
   { key: "bell", label: "종" },
   { key: "none", label: "소리 없음" },
 ];
-export function playNoiseAlarm(kind: NoiseAlarm) {
-  // 타이머 '소리 크기'를 작게 해 둬도 소음 경고는 들려야 한다 — 이 순간만 최소 85%
+/**
+ * 소음 경고는 타이머 '소리 크기'와 무관하게 크게 (사용자 2026-11: "소음 측정기도 소리가 더 컸으면") —
+ * 예전(최대 약 0.34)보다 약 3배, 거의 최대 음량까지. loud(0.2~1)는 소음 화면의 '경고음 크기'.
+ */
+export function playNoiseAlarm(kind: NoiseAlarm, loud = 1) {
   const v = volume;
-  volume = Math.max(v, 0.85);
+  const k = Math.max(0.2, Math.min(1, loud));
+  volume = k * (kind === "beep" ? 2.6 : kind === "soft" ? 2 : 1.5); // 종류마다 겹치는 소리가 달라 깨지지 않을 만큼
   if (kind === "beep") warnBeep();
   else if (kind === "soft") chimeQuiet();
   else if (kind === "bell") bell();

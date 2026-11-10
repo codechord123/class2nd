@@ -3,7 +3,8 @@
 // · 소리는 이 기기 안에서만 계산한다 (녹음·전송·저장 없음).
 // · 기준선을 넘으면 경고음 (사용자 2026-11: "넘어갈 때 경고음 나오게") — 기본 '삐삐'를 0.6초 넘으면.
 //   박수 한 번 같은 순간 소리는 거르도록 '얼마나 넘으면'을 고를 수 있다. 경고 뒤 3초는 쉰다(연달아 울리지 않게).
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { create } from "zustand";
 import { playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 
 const LS = "class2nd-noise";
@@ -21,8 +22,9 @@ export interface NoisePrefs {
   gain: number; // 보정 −20~+20
   alarm: NoiseAlarm; // 경고음 종류
   holdMs: number; // 기준을 이만큼 넘게 이어지면 경고
+  alarmVol: number; // 경고음 크기 0.2~1 (타이머 소리 크기와 따로)
 }
-const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600 };
+const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600, alarmVol: 1 };
 const loadPrefs = (): NoisePrefs => {
   try {
     const raw = JSON.parse(localStorage.getItem(LS) ?? "{}") as Partial<NoisePrefs> & { sound?: boolean };
@@ -46,17 +48,21 @@ export const mmss = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
+// 설정은 화면·떠 있는 창·따로 띄운 창이 함께 쓴다 — 소음 화면에서 기준선을 옮기면 듣고 있는 창에도 바로
+const useNoisePrefs = create<{ p: NoisePrefs }>(() => ({ p: typeof window === "undefined" ? DEF : loadPrefs() }));
+useNoisePrefs.subscribe((s) => {
+  try {
+    localStorage.setItem(LS, JSON.stringify(s.p));
+  } catch {}
+});
+
 export function useNoiseMeter() {
-  const [prefs, setPrefs] = useState<NoisePrefs>(() => (typeof window === "undefined" ? DEF : loadPrefs()));
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS, JSON.stringify(prefs));
-    } catch {}
-  }, [prefs]);
-  const prefsRef = useRef(prefs);
-  useEffect(() => {
-    prefsRef.current = prefs;
-  }, [prefs]);
+  const prefs = useNoisePrefs((s) => s.p);
+  const setPrefs = useCallback(
+    (u: NoisePrefs | ((p: NoisePrefs) => NoisePrefs)) =>
+      useNoisePrefs.setState((s) => ({ p: typeof u === "function" ? u(s.p) : u })),
+    []
+  );
 
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -94,30 +100,36 @@ export function useNoiseMeter() {
     }
     const C = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new C();
-    const an = ctx.createAnalyser();
-    an.fftSize = 2048;
-    ctx.createMediaStreamSource(stream).connect(an);
-    const buf = new Float32Array(an.fftSize);
+    void ctx.resume().catch(() => {});
+    // 소리 계산은 오디오 처리 콜백에서 — 화면 그리기(requestAnimationFrame)는 브라우저가 뒤로 가거나
+    // PPT를 띄우면 멈추지만(따로 띄운 창에서도), 오디오 콜백은 계속 돈다 → 경고음이 빠지지 않는다.
+    const src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(2048, 1, 1);
+    src.connect(proc);
+    proc.connect(ctx.destination); // 출력은 0(무음) — 연결해야 콜백이 돈다
     let smooth = 0;
     let overSince = 0;
     let lastWarn = 0;
     let lastPush = 0;
     let lastPaint = 0;
-    let raf = 0;
+    let lastT = 0;
     setQuietFrom(Date.now());
     setWarns(0);
     setHist([]);
 
-    const loop = () => {
-      an.getFloatTimeDomainData(buf);
+    proc.onaudioprocess = (ev) => {
+      const buf = ev.inputBuffer.getChannelData(0);
       let sum = 0;
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       const db = 20 * Math.log10(Math.max(Math.sqrt(sum / buf.length), 1e-6));
-      const { threshold, gain, alarm, holdMs } = prefsRef.current;
-      // −70dBFS(아주 조용) ~ −10dBFS(고함)를 0~100으로. 오를 땐 빠르게, 내릴 땐 천천히
+      const { threshold, gain, alarm, holdMs, alarmVol } = useNoisePrefs.getState().p;
+      // −70dBFS(아주 조용) ~ −10dBFS(고함)를 0~100으로. 오를 땐 빠르게, 내릴 땐 천천히 (60fps 기준 계수를 실제 간격에 맞춤)
       const raw = Math.max(0, Math.min(100, ((db + 70 + gain) / 60) * 100));
-      smooth = raw > smooth ? smooth * 0.6 + raw * 0.4 : smooth * 0.92 + raw * 0.08;
       const t = Date.now();
+      const frames = lastT ? Math.min(10, ((t - lastT) / 1000) * 60) : 1;
+      lastT = t;
+      const a = 1 - Math.pow(raw > smooth ? 0.6 : 0.92, frames);
+      smooth += (raw - smooth) * a;
       if (smooth >= threshold) {
         if (!overSince) overSince = t;
         if (t - overSince >= holdMs && t - lastWarn >= COOLDOWN_MS) {
@@ -126,7 +138,7 @@ export function useNoiseMeter() {
           setQuietFrom(t);
           setWarning(true);
           setTimeout(() => setWarning(false), 2500);
-          playNoiseAlarm(alarm);
+          playNoiseAlarm(alarm, alarmVol);
         }
       } else overSince = 0;
       if (t - lastPaint > 66) {
@@ -138,11 +150,13 @@ export function useNoiseMeter() {
         lastPush = t;
         setHist((h) => [...h.slice(-(NOISE_HISTORY - 1)), smooth]);
       }
-      raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
     stopRef.current = () => {
-      cancelAnimationFrame(raf);
+      proc.onaudioprocess = null;
+      try {
+        src.disconnect();
+        proc.disconnect();
+      } catch {}
       stream.getTracks().forEach((tr) => tr.stop());
       void ctx.close().catch(() => {});
       stopRef.current = null;

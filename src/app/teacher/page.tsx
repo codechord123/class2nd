@@ -66,7 +66,7 @@ import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
-import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS, periodLabel } from "@/lib/schedule";
 import type { ClassSettings } from "@/types";
 
 type TTab = "today" | "students" | "log" | "settings";
@@ -548,7 +548,7 @@ function TeacherPage() {
                   {studentById.get(r.studentId)?.name}
                 </span>
                 <span className="truncate text-ink-800">
-                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
+                  → <b>{periodLabel(r.week)} {r.targetGroup}모둠</b> {r.targetRole} 지킴이
                 </span>
                 {(() => {
                   // 같은 자리를 먼저 신청한 친구가 있으면 순서를 알려 준다 (승인 순서가 곧 결과)

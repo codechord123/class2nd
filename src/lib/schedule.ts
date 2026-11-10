@@ -41,6 +41,14 @@ export function scheduleOfWeek(week: number): WeekSchedule & { period: number } 
   return schedules.weeks[Math.min(Math.max(week, 1), TOTAL_WEEKS) - 1];
 }
 
+/** 자리 신청 표시용 — "8기 (15·16주)" · 마지막 1주짜리 기는 "11기 (21주)".
+ *  사용자 2026-11: 승인 목록의 '21주차'만 보고는 없는 자리로 오해했다 → 학생 화면의 기 단추와 같은 말로. */
+export function periodLabel(week: number): string {
+  const p = scheduleOfWeek(week).period;
+  const ws = schedules.weeks.filter((w) => w.period === p).map((w) => w.week);
+  return `${p}기 (${ws.join("·")}주)`;
+}
+
 /** 해당 주차에서 학생이 속한 모둠 (의장 포함 조회) */
 export function groupOf(week: number, studentId: number): GroupAssignment | undefined {
   const s = scheduleOfWeek(week);

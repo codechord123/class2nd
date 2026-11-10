@@ -3,13 +3,36 @@
 // 창 안 글자는 창 크기에 맞춰 커진다 (CSS 컨테이너 단위 cqw·cqh) — 크게 늘리면 프로젝터에서도 보인다.
 // 선생님 화면 어디서든 셸에 한 번 그려진다 (칠판 '크게 보기' 위에도 뜬다: z-index 80+).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useWidgets, WIDGET_META, type WidgetBox, type WidgetKind } from "@/stores/widgets";
-import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime, TIME_STEPS } from "@/stores/timer";
+import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
+import TimeEntry from "@/components/tools/TimeEntry";
 import { chimePick, tick, unlockAudio } from "@/lib/tools/chime";
 import { useNoiseMeter, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
 import { students } from "@/lib/roster";
 import { useAttendance } from "@/lib/query/classMeta";
 import { todayKST } from "@/lib/date";
+import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
+
+/** 따로 띄운 창(항상 위 PIP·팝업)에 도구를 그린다 — lib/tools/popout.ts */
+function PopOutHost() {
+  const kind = usePopOut((s) => s.kind);
+  const win = usePopOut((s) => s.win);
+  useEffect(() => {
+    // 이 탭을 닫거나 새로고침하면 따로 띄운 창도 닫는다 (빈 창이 남지 않게)
+    const off = () => closePopOut();
+    window.addEventListener("pagehide", off);
+    return () => window.removeEventListener("pagehide", off);
+  }, []);
+  const root = win?.document.getElementById("pop-root");
+  if (!kind || !root) return null;
+  return createPortal(
+    <div className="h-screen w-screen overflow-hidden bg-white text-ink-900" style={{ containerType: "size" }}>
+      {kind === "noise" && <NoiseW autoStart />}
+    </div>,
+    root
+  );
+}
 
 export default function FloatingWidgets() {
   const open = useWidgets((s) => s.open);
@@ -20,6 +43,7 @@ export default function FloatingWidgets() {
           {w.kind === "timer" ? <TimerW box={w} /> : w.kind === "pick" ? <PickW /> : <NoiseW />}
         </Win>
       ))}
+      <PopOutHost />
     </>
   );
 }
@@ -91,6 +115,21 @@ function Win({ box, children }: { box: WidgetBox; children: React.ReactNode }) {
         className="flex h-9 shrink-0 cursor-grab touch-none select-none items-center justify-between border-b border-ink-200 bg-ink-50 pl-3 pr-1 active:cursor-grabbing"
       >
         <span className="text-[12.5px] font-bold text-ink-600">{meta.label}</span>
+        <span className="flex items-center">
+        {box.kind === "noise" && (
+          <button
+            onClick={() =>
+              void openPopOut("noise").then((ok) => {
+                if (ok) close("noise");
+                else alert("새 창이 막혀 있어요 — 주소창 오른쪽의 '팝업 차단' 표시를 눌러 허용해 주세요.");
+              })
+            }
+            title="브라우저 밖 작은 창으로 따로 띄우기 (크롬·엣지는 PPT 위에도 떠 있어요)"
+            className="h-7 rounded-full px-2 text-[12px] font-bold text-ink-500 hover:bg-ink-200 hover:text-ink-900"
+          >
+            ⧉ 따로
+          </button>
+        )}
         <button
           onClick={() => close(box.kind)}
           aria-label={`${meta.label} 창 닫기`}
@@ -98,6 +137,7 @@ function Win({ box, children }: { box: WidgetBox; children: React.ReactNode }) {
         >
           ✕
         </button>
+        </span>
       </header>
       <div className="relative min-h-0 flex-1" style={{ containerType: "size" }}>
         {children}
@@ -127,7 +167,6 @@ function TimerW({ box }: { box: WidgetBox }) {
   const t = useTimer();
   const [now, setNow] = useState(() => Date.now());
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
   const running = t.mode === "stopwatch" ? !!t.swStart : !!t.endAt;
   useEffect(() => {
     if (!running) return;
@@ -142,11 +181,6 @@ function TimerW({ box }: { box: WidgetBox }) {
   // 창 크기에 따라 보이는 줄 — 작게 줄이면 시간·시작만, 키우면 더하기/빼기·프리셋까지
   const showSteps = !sw && !done && box.h >= 250;
   const showPresets = !sw && !done && !running && box.h >= 330;
-  const commit = () => {
-    const ms = parseTime(draft);
-    if (ms != null && ms > 0) t.setTotal(ms);
-    setEditing(false);
-  };
   return (
     <div className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
       {/* 제목 — 바로 써서 고친다 */}
@@ -159,28 +193,23 @@ function TimerW({ box }: { box: WidgetBox }) {
         style={{ fontSize: "max(13px, min(6.5cqw, 8cqh))" }}
       />
       {editing ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value.replace(/[^\d:]/g, ""))}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") setEditing(false);
+        <TimeEntry
+          initialMs={left}
+          onSubmit={(ms) => {
+            t.setTotal(ms);
+            setEditing(false);
           }}
-          inputMode="numeric"
-          placeholder="5:30"
-          className="w-[80%] bg-transparent text-center font-bold tabular-nums text-ink-900 outline-none"
-          style={{ fontSize: "min(20cqw, 28cqh)" }}
+          onCancel={() => setEditing(false)}
+          className="leading-none text-ink-900"
+          style={{ fontSize: `min(17cqw, ${showPresets ? 18 : showSteps ? 23 : 30}cqh)` }}
         />
       ) : (
         <button
           onClick={() => {
             if (sw || running || done) return;
-            setDraft("");
             setEditing(true);
           }}
-          title={!sw && !running && !done ? "눌러서 시간 직접 입력 (5:30 · 숫자만 쓰면 분)" : undefined}
+          title={!sw && !running && !done ? "눌러서 분·초 직접 입력" : undefined}
           className={`rounded-[10px] px-2 font-bold leading-none tabular-nums tracking-tight ${done ? "text-danger" : "text-ink-900"} ${
             !sw && !running && !done ? "cursor-text hover:bg-ink-50" : "cursor-default"
           }`}
@@ -429,8 +458,16 @@ function PickW() {
 }
 
 // ── 소음 창 ──
-function NoiseW() {
+function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
   const m = useNoiseMeter();
+  // 따로 띄운 창은 열리자마자 듣기 시작 (마이크 허락은 이미 받은 상태)
+  const started = useRef(false);
+  const { start } = m;
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    void start();
+  }, [autoStart, start]);
   const th = m.prefs.threshold;
   const f = noiseFace(m.level, th, m.warning);
   const over = m.level >= th;

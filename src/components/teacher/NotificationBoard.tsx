@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { studentById } from "@/lib/roster";
+import { periodLabel } from "@/lib/schedule";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import Pager from "@/components/ui/Pager";
@@ -172,7 +173,7 @@ export default function NotificationBoard({ seenBefore }: { seenBefore: number |
         key: `seat-${r.id}`,
         kind: "seat",
         sid: r.studentId,
-        title: `${r.week}주차 ${r.targetGroup}모둠 ${r.targetRole} 자리로`,
+        title: `${periodLabel(r.week)} ${r.targetGroup}모둠 ${r.targetRole} 자리로`,
         at: r.createdAt,
         todo: true,
         status: "⏳ 승인 대기",

@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { pingInbox } from "@/lib/query/inbox";
-import { scheduleOfWeek } from "@/lib/schedule";
+import { periodLabel, scheduleOfWeek } from "@/lib/schedule";
 import { studentById } from "@/lib/roster";
 import type { RoleKey, WeekSchedule, GroupAssignment } from "@/types";
 
@@ -260,7 +260,7 @@ export function useDecideSeatRequest() {
         await addDoc(collection(d, "coinTxns"), {
           studentId: req.studentId,
           amount: cost,
-          item: `자리 변경 (${req.week}주차 ${req.targetGroup}모둠 ${req.targetRole})`,
+          item: `자리 변경 (${periodLabel(req.week)} ${req.targetGroup}모둠 ${req.targetRole})`,
           type: "spend",
           status: "approved",
           createdAt: Date.now(),

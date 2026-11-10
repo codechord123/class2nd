@@ -5,8 +5,9 @@
 //   · 종료 전 알림(1분·30초) · 마지막 10초 똑딱 · 끝 소리 고르기·크기 (소리는 셸의 TimerWatcher가 낸다)
 //   · '창으로 띄우기' — 칠판 위 등 어디서든 끌어 옮기고 크기 조절
 import { useEffect, useState } from "react";
-import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime, TIME_STEPS } from "@/stores/timer";
-import { END_SOUNDS, playEnd, previewTick, setVolume, unlockAudio, warnSoft } from "@/lib/tools/chime";
+import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
+import TimeEntry from "@/components/tools/TimeEntry";
+import { END_SOUNDS, TICK_STYLES, playEnd, previewTick, setVolume, unlockAudio, warnSoft } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { useWidgets } from "@/stores/widgets";
 import SegmentedControl from "@/components/ui/SegmentedControl";
@@ -21,7 +22,6 @@ export default function TimerPage() {
   const widgetOpen = useWidgets((w) => w.open.some((x) => x.kind === "timer"));
   const [now, setNow] = useState(() => Date.now());
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
   const sw = t.mode === "stopwatch";
   const running = sw ? !!t.swStart : !!t.endAt;
   const done = !sw && !!t.doneAt;
@@ -38,12 +38,6 @@ export default function TimerPage() {
   const C = 2 * Math.PI * R;
   const ringColor = done ? "var(--color-danger)" : urgent ? "var(--color-warn)" : "var(--color-ink-900)";
   const digits = sw ? fmtSw(swMs(t, now)) : done ? "끝!" : fmt(left);
-
-  const commitDraft = () => {
-    const ms = parseTime(draft);
-    if (ms != null && ms > 0) t.setTotal(ms);
-    setEditing(false);
-  };
 
   const dark = focus;
   const sub = dark ? "text-white/60" : "text-ink-500";
@@ -206,27 +200,23 @@ export default function TimerPage() {
           </svg>
           <div className="absolute inset-0 grid place-items-center">
             {editing ? (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value.replace(/[^\d:]/g, ""))}
-                onBlur={commitDraft}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitDraft();
-                  if (e.key === "Escape") setEditing(false);
+              <TimeEntry
+                initialMs={left}
+                onSubmit={(ms) => {
+                  t.setTotal(ms);
+                  setEditing(false);
                 }}
-                inputMode="numeric"
-                placeholder="5:30"
-                className={`w-[70%] bg-transparent text-center font-bold tabular-nums outline-none ${focus ? "text-[min(14vh,17vw)] text-white placeholder:text-white/30" : "text-6xl text-ink-900 sm:text-7xl"}`}
+                onCancel={() => setEditing(false)}
+                dark={focus}
+                className={focus ? "text-[min(12vh,14vw)] text-white" : "text-5xl text-ink-900 sm:text-6xl"}
               />
             ) : (
               <button
                 onClick={() => {
                   if (sw || running || done) return;
-                  setDraft("");
                   setEditing(true);
                 }}
-                title={!sw && !running && !done ? "눌러서 직접 입력 (5:30 · 숫자만 쓰면 분)" : undefined}
+                title={!sw && !running && !done ? "눌러서 분·초 직접 입력" : undefined}
                 className={`text-center font-bold tabular-nums tracking-tight ${focus ? "text-[min(14vh,17vw)]" : sw ? "text-5xl sm:text-6xl" : "text-6xl sm:text-7xl"} ${
                   focus ? "" : done ? "text-danger" : "text-ink-900"
                 } ${!sw && !running && !done ? `cursor-text rounded-[12px] px-2 ${focus ? "hover:bg-white/5" : "hover:bg-ink-50"}` : "cursor-default"}`}
@@ -343,8 +333,30 @@ function AlertSettings() {
       <p className="px-4 pb-2 pt-3.5 text-[13px] font-bold text-ink-500">알림과 소리</p>
       {check("warn60", "1분 전 알림", "부드러운 소리 한 번")}
       {check("warn30", "30초 전 알림", "부드러운 소리 한 번")}
-      {check("tickAll", "매초 틱톡", "흐르는 내내 1초마다 틱·톡")}
-      {check("tick10", "마지막 10초", "1초마다 똑딱 (조금 더 또렷하게)")}
+      {check("tickAll", "매초 틱톡", "흐르는 내내 시계 소리")}
+      {check("tick10", "마지막 10초", "시계 소리를 더 또렷하게")}
+      <div className={row}>
+        <span className="font-bold text-ink-800">시계 소리</span>
+        <span className="flex gap-1">
+          {TICK_STYLES.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => {
+                setPrefs({ tickStyle: o.key });
+                unlockAudio();
+                setVolume(prefs.volume);
+                previewTick(prefs.tickVol, o.key);
+              }}
+              aria-pressed={prefs.tickStyle === o.key}
+              className={`press h-9 rounded-full px-3 text-[13px] font-bold ${
+                prefs.tickStyle === o.key ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </span>
+      </div>
       <div className={row}>
         <span className="font-bold text-ink-800">끝 소리</span>
         <span className="flex items-center gap-2">
@@ -399,7 +411,7 @@ function AlertSettings() {
           onPointerUp={(e) => {
             unlockAudio();
             setVolume(prefs.volume);
-            previewTick(Number((e.target as HTMLInputElement).value) / 100);
+            previewTick(Number((e.target as HTMLInputElement).value) / 100, prefs.tickStyle);
           }}
           className="flex-1 accent-[var(--color-ink-900)]"
         />
