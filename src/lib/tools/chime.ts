@@ -54,7 +54,7 @@ function tone(freq: number, at: number, dur: number, vol = 0.25, type: Oscillato
   o.frequency.value = freq;
   const t0 = c.currentTime + at;
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * volume * 1.25), t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * volume * 1.25), t0 + Math.min(0.02, dur * 0.3)); // 짧은 소리는 더 빨리 솟게(또렷한 '딱')
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g).connect(c.destination);
   o.start(t0);
@@ -112,8 +112,9 @@ export function warnSoft(off = 0) {
 }
 
 /** 마지막 10초 카운트 — 짧은 똑딱 (마지막은 조금 높게) */
-export function countTick(last = false, off = 0) {
-  tone(last ? 1320 : 990, off, 0.09, 0.16, "triangle");
+export function countTick(last = false, off = 0, gain = 0.3) {
+  tone(last ? 1320 : 990, off, 0.1, gain, "triangle");
+  tone(last ? 2640 : 1980, off, 0.02, gain * 0.4, "square");
 }
 
 export type EndSound = "chime" | "bell" | "alarm" | "none";
@@ -140,20 +141,30 @@ export function cancelTimerSounds() {
   }
   timerNodes = [];
 }
+/** 매초 틱·톡 — 나무 블록처럼 짧고 낮게 번갈아 (오래 들어도 거슬리지 않게) */
+// 사용자 2026-11: "틱톡 소리가 너무 작아" — 예전 0.1 → 기본 0.35 + 짧은 '딱' 소리를 겹쳐 교실에서도 들리게
+function tickTock(k: number, off: number, gain: number) {
+  tone(k % 2 ? 740 : 980, off, 0.07, gain, "triangle");
+  tone(k % 2 ? 1500 : 2000, off, 0.03, gain * 0.45, "square"); // 딱 — 시작 순간을 또렷하게
+}
+/** 틱톡 크기(0~1) → 실제 음량 */
+export const tickGainOf = (tickVol: number) => 0.12 + Math.max(0, Math.min(1, tickVol)) * 0.48;
+/** 매초 틱톡은 앞으로 이만큼(초)만 예약하고, 엔진이 1분마다 다시 건다 — 20분 타이머에 1,200개를 한꺼번에 만들지 않게 */
+export const TICK_HORIZON = 180;
+/** 틱톡 크기 미리 듣기 — 틱·톡 두 번 */
+export function previewTick(tickVol: number) {
+  const g = tickGainOf(tickVol);
+  tickTock(0, 0.02, g);
+  tickTock(1, 1.02, g);
+}
+
 /**
  * endAt(끝나는 시각)에 맞춰 끝 소리·종료 전 알림을 오디오 시계에 예약한다. 이전 예약은 지운다.
  * 소리가 잠겨 있으면(누르기 전) 아무것도 예약하지 않고 false — 풀리면 다시 부른다.
  */
-/** 매초 틱·톡 — 나무 블록처럼 짧고 낮게 번갈아 (오래 들어도 거슬리지 않게) */
-function tickTock(k: number, off: number) {
-  tone(k % 2 ? 740 : 980, off, 0.045, 0.1, "triangle");
-}
-/** 매초 틱톡은 앞으로 이만큼(초)만 예약하고, 엔진이 1분마다 다시 건다 — 20분 타이머에 1,200개를 한꺼번에 만들지 않게 */
-export const TICK_HORIZON = 180;
-
 export function scheduleTimerSounds(
   endAt: number,
-  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean; tickAll?: boolean }
+  p: { sound: EndSound; warn60: boolean; warn30: boolean; tick10: boolean; tickAll?: boolean; tickVol?: number }
 ): boolean {
   cancelTimerSounds();
   const c = ac();
@@ -164,14 +175,15 @@ export function scheduleTimerSounds(
   try {
     if (p.warn60 && d > 60.5) warnSoft(d - 60);
     if (p.warn30 && d > 30.5) warnSoft(d - 30);
-    if (p.tick10) for (let k = 10; k >= 1; k--) if (d - k > 0.05) countTick(k === 1, d - k);
+    if (p.tick10)
+      for (let k = 10; k >= 1; k--) if (d - k > 0.05) countTick(k === 1, d - k, Math.max(0.3, tickGainOf(p.tickVol ?? 0.5) * 1.15));
     if (p.tickAll) {
       // 남은 시간이 k초가 되는 순간마다 (마지막 10초 똑딱이 켜져 있으면 그 구간은 그쪽 소리로)
       const lower = p.tick10 ? 11 : 1;
       for (let k = Math.floor(d - 0.05); k >= lower; k--) {
         const off = d - k;
         if (off > TICK_HORIZON) break;
-        tickTock(k, off);
+        tickTock(k, off, tickGainOf(p.tickVol ?? 0.5));
       }
     }
     playEnd(p.sound, d);

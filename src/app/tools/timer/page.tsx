@@ -6,7 +6,7 @@
 //   · '창으로 띄우기' — 칠판 위 등 어디서든 끌어 옮기고 크기 조절
 import { useEffect, useState } from "react";
 import { useTimer, leftMs, swMs, fmt, fmtSw, parseTime, TIME_STEPS } from "@/stores/timer";
-import { END_SOUNDS, playEnd, setVolume, unlockAudio, warnSoft } from "@/lib/tools/chime";
+import { END_SOUNDS, playEnd, previewTick, setVolume, unlockAudio, warnSoft } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { useWidgets } from "@/stores/widgets";
 import SegmentedControl from "@/components/ui/SegmentedControl";
@@ -387,6 +387,23 @@ function AlertSettings() {
           className="flex-1 accent-[var(--color-ink-900)]"
         />
         <span className="w-10 text-right font-bold tabular-nums text-ink-600">{Math.round(prefs.volume * 100)}</span>
+      </label>
+      <label className={row}>
+        <span className="w-20 shrink-0 font-bold text-ink-800">틱톡 크기</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={Math.round(prefs.tickVol * 100)}
+          onChange={(e) => setPrefs({ tickVol: Number(e.target.value) / 100 })}
+          onPointerUp={(e) => {
+            unlockAudio();
+            setVolume(prefs.volume);
+            previewTick(Number((e.target as HTMLInputElement).value) / 100);
+          }}
+          className="flex-1 accent-[var(--color-ink-900)]"
+        />
+        <span className="w-10 text-right font-bold tabular-nums text-ink-600">{Math.round(prefs.tickVol * 100)}</span>
       </label>
     </section>
   );
