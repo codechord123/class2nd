@@ -10,11 +10,13 @@ import { create } from "zustand";
 import { playNoiseAlarm, playCheer, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 
 const LS = "class2nd-noise";
-const COOLDOWN_MS = 3000;
+const COOLDOWN_MS = 2000; // 경고음(약 1초)이 끝나고 잠깐 쉰 뒤 — 계속 시끄러우면 2초마다 다시
+// 사용자 2026-11 "기준을 넘었는데 바로 소리가 안 나와": 기본을 '바로'(넘는 순간)로. 길게 고르면 그 시간만큼 넘어야
+// 하는데, 잠깐 기준 아래로 내려가도 처음부터 다시 세지 않는다(넘은 시간을 모으고 아래일 땐 천천히 덜어 냄).
 export const HOLD_OPTIONS = [
-  { ms: 300, label: "바로" },
-  { ms: 600, label: "0.6초 넘게" },
-  { ms: 1200, label: "1.2초 넘게" },
+  { ms: 0, label: "바로" },
+  { ms: 500, label: "0.5초 넘게" },
+  { ms: 1000, label: "1초 넘게" },
   { ms: 2000, label: "2초 넘게" },
 ];
 export const NOISE_HISTORY = 120; // 약 60초 (0.5초 간격)
@@ -28,14 +30,16 @@ export interface NoisePrefs {
   warnGoal: number; // 🎯 경고 목표 'N번 이하' (0 = 끔)
   quietGoalMin: number; // 🎯 조용한 시간 목표(분) — 경고 없이 이만큼 이어지면 달성 (0 = 끔)
 }
-const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 600, alarmVol: 1, warnGoal: 0, quietGoalMin: 0 };
+const DEF: NoisePrefs = { threshold: 65, gain: 0, alarm: "beep", holdMs: 0, alarmVol: 1, warnGoal: 0, quietGoalMin: 0 };
 export const WARN_GOALS = [0, 1, 2, 3, 4, 5, 7, 10];
 export const QUIET_GOALS = [0, 1, 2, 3, 5, 10, 15, 20];
 const loadPrefs = (): NoisePrefs => {
   try {
     const raw = JSON.parse(localStorage.getItem(LS) ?? "{}") as Partial<NoisePrefs> & { sound?: boolean };
     // 옛 저장본: sound=false(소리 끔)만 그대로 존중, 나머지는 새 기본값(삐삐·0.6초)
-    const { sound, ...rest } = raw;
+    const { sound, v, ...rest } = raw as typeof raw & { v?: number };
+    // v2 이전 저장본의 대기 시간(옛 기본 0.6초 포함)은 새 기본 '바로'로, 1.2초는 1초로
+    if (v !== 2 && rest.holdMs != null) rest.holdMs = rest.holdMs >= 2000 ? 2000 : rest.holdMs >= 1200 ? 1000 : 0;
     return { ...DEF, ...rest, ...(sound === false && !rest.alarm ? { alarm: "none" as const } : {}) };
   } catch {
     return DEF;
@@ -58,7 +62,7 @@ export const mmss = (ms: number) => {
 const useNoisePrefs = create<{ p: NoisePrefs }>(() => ({ p: typeof window === "undefined" ? DEF : loadPrefs() }));
 useNoisePrefs.subscribe((s) => {
   try {
-    localStorage.setItem(LS, JSON.stringify(s.p));
+    localStorage.setItem(LS, JSON.stringify({ ...s.p, v: 2 }));
   } catch {}
 });
 
@@ -130,7 +134,7 @@ export async function startNoise() {
     src.connect(proc);
     proc.connect(ctx.destination); // 출력은 0(무음) — 연결해야 콜백이 돈다
     let smooth = 0;
-    let overSince = 0;
+    let overAcc = 0; // 기준을 넘은 시간(ms)을 모은다
     let lastWarn = 0;
     let lastPush = 0;
     let lastPaint = 0;
@@ -151,20 +155,22 @@ export async function startNoise() {
       lastT = t;
       const a = 1 - Math.pow(raw > smooth ? 0.6 : 0.92, frames);
       smooth += (raw - smooth) * a;
+      const dt = Math.min(200, (frames / 60) * 1000);
       if (smooth >= threshold) {
-        if (!overSince) overSince = t;
-        if (t - overSince >= holdMs && t - lastWarn >= COOLDOWN_MS) {
+        overAcc += dt;
+        if (overAcc >= holdMs && t - lastWarn >= COOLDOWN_MS) {
           lastWarn = t;
+          overAcc = 0;
           set((s) => ({ warns: s.warns + 1, quietFrom: t, quietHit: false, warning: true }));
           setTimeout(() => set({ warning: false }), 2500);
-          playNoiseAlarm(alarm, alarmVol);
+          playNoiseAlarm(alarm, alarmVol, ctx); // 마이크와 같은 오디오 — 이미 켜져 있어 잠김 없이 바로 울린다
         }
-      } else overSince = 0;
+      } else overAcc = Math.max(0, overAcc - dt * 0.5);
       // 🎯 조용한 시간 목표 — 경고 없이 이어진 시간이 목표에 닿는 순간 한 번 축하
       const st = useNoiseLive.getState();
       if (quietGoalMin > 0 && !st.quietHit && t - st.quietFrom >= quietGoalMin * 60_000) {
         set((s) => ({ quietHit: true, quietWins: s.quietWins + 1, cheerAt: t }));
-        playCheer(alarmVol);
+        playCheer(alarmVol, ctx);
       }
       if (t - lastPaint > 66) {
         lastPaint = t;

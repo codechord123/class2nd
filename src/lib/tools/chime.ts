@@ -10,7 +10,9 @@ export function setVolume(v: number) {
   volume = Math.max(0, Math.min(1, v));
 }
 
+let forced: AudioContext | null = null; // 소음 경고는 마이크 측정용 오디오로 낸다 (playNoiseAlarm)
 function ac(): AudioContext | null {
+  if (forced && forced.state !== "closed") return forced;
   if (typeof window === "undefined") return null;
   try {
     if (!ctx) {
@@ -296,7 +298,15 @@ export const NOISE_ALARMS: { key: NoiseAlarm; label: string }[] = [
  * 거의 최대 음량을 소리 길이 내내 유지(toneHold) — 사그라드는 소리보다 소리 에너지가 약 15배.
  * loud(0.2~1)는 소음 화면의 '경고음 크기'.
  */
-export function playNoiseAlarm(kind: NoiseAlarm, loud = 1) {
+export function playNoiseAlarm(kind: NoiseAlarm, loud = 1, via?: AudioContext) {
+  forced = via ?? null;
+  try {
+    playNoiseAlarmIn(kind, loud);
+  } finally {
+    forced = null;
+  }
+}
+function playNoiseAlarmIn(kind: NoiseAlarm, loud: number) {
   const k = Math.max(0.2, Math.min(1, loud));
   if (kind === "beep") return warnBeep(k);
   if (kind === "soft") {
@@ -314,9 +324,11 @@ export function playNoiseAlarm(kind: NoiseAlarm, loud = 1) {
 }
 
 /** 🎯 조용한 시간 목표 달성 — 밝게 올라가는 네 음 (소음 경고음 크기를 따른다) */
-export function playCheer(loud = 1) {
+export function playCheer(loud = 1, via?: AudioContext) {
+  forced = via ?? null;
   const v = volume;
   volume = Math.max(0.2, Math.min(1, loud)) * 1.6;
   [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, i === 3 ? 0.7 : 0.25, 0.22, "triangle"));
   volume = v;
+  forced = null;
 }
