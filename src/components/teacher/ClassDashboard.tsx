@@ -79,7 +79,12 @@ const fmtDate = (ms: number) => {
   return `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
 };
 
-export default function ClassDashboard() {
+/**
+ * view="status": 학급 합계 + 학생별 표(이름 → 상세 팝업) — '학생·점수 › 현황판'
+ * view="money" : 학급 골드 ± · 전원 실버 지급 · 여러 명 차감 — '점수 보정 › 실버·골드'
+ * (2026-11 재설계: 보기와 고치기를 한 화면에 섞지 않는다)
+ */
+export default function ClassDashboard({ view = "status" }: { view?: "status" | "money" } = {}) {
   const { data: cum } = useCumulativeScores();
   const { data: stats } = useReadingStats();
   const { data: s2Bal } = useBalances("s2");
@@ -292,11 +297,12 @@ export default function ClassDashboard() {
 
   return (
     <div className="space-y-4">
+      {view === "money" && (<>
       {/* ① 학급 골드 카드 */}
-      <section className="rounded-card border border-amber-200 bg-amber-50/50 p-4 shadow-card">
+      <section className="rounded-card border border-ink-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-amber-800">🥇 학급 골드토큰 (공용)</h2>
+            <h2 className="text-[17px] font-bold text-ink-900">학급 골드 (공용)</h2>
             <p className="mt-0.5 text-xs text-ink-600">
               자동 적립 {goldEarned} · 교사 보너스 {goldBonus >= 0 ? "+" : ""}
               {goldBonus} · 사용 {goldUsed}
@@ -330,8 +336,8 @@ export default function ClassDashboard() {
       </section>
 
       {/* 👥 전체 실버 일괄 지급 — 이벤트·행사 보상 등을 반 전체에 한 번에 */}
-      <section className="rounded-card border border-emerald-200 bg-emerald-50/40 p-4 shadow-card">
-        <h2 className="text-lg font-bold text-emerald-800">👥 전체 실버 지급</h2>
+      <section className="rounded-card border border-ink-200 bg-white p-5">
+        <h2 className="text-[17px] font-bold text-ink-900">전원 실버 지급</h2>
         <p className="mt-0.5 text-xs text-ink-600">
           전출 학생을 뺀 <b>{students.filter((s) => !s.inactive).length}명 전원</b>에게 한 번에
           지급해요 (행사·이벤트 보상 등).
@@ -365,8 +371,8 @@ export default function ClassDashboard() {
       </section>
 
       {/* ➖ 여러 명 실버 차감 — 상점 사용을 수동으로 기록·차감 (예: 방학 이월 사용분 재입력) */}
-      <section className="rounded-card border border-rose-200 bg-rose-50/40 p-4 shadow-card">
-        <h2 className="text-lg font-bold text-rose-700">➖ 실버 차감 (여러 명)</h2>
+      <section className="rounded-card border border-ink-200 bg-white p-5">
+        <h2 className="text-[17px] font-bold text-ink-900">여러 명 실버 차감</h2>
         <p className="mt-0.5 text-xs text-ink-600">
           상점 사용을 수동으로 기록해요. 학생을 골라 개수를 적고 한 번에 차감해요 (잔액 부족이면
           막혀요).
@@ -473,12 +479,15 @@ export default function ClassDashboard() {
         </div>
       </section>
 
+      </>)}
+
+      {view === "status" && (<>
       {/* 학급 합계 요약 */}
       <section className="grid grid-cols-3 gap-2">
         {[
-          { label: "🏅 학급 총점", value: totalScore, tone: "text-indigo-600" },
-          { label: "💰 2학기 실버 합", value: totalSilver, tone: "text-ink-900" },
-          { label: "🐢 학급 권수", value: totalBooks, tone: "text-emerald-600" },
+          { label: "학급 총점", value: totalScore, tone: "text-ink-900" },
+          { label: "2학기 실버 합", value: totalSilver, tone: "text-ink-900" },
+          { label: "학급 권수", value: totalBooks, tone: "text-ink-900" },
         ].map((s) => (
           <div key={s.label} className="rounded-card border border-ink-200 bg-white p-3 text-center shadow-card">
             <p className="text-[11px] text-ink-400">{s.label}</p>
@@ -489,7 +498,7 @@ export default function ClassDashboard() {
 
       {/* ② 학생별 종합표 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">🗂️ 학생별 현황</h2>
+        <h2 className="text-[17px] font-bold text-ink-900">학생별 현황</h2>
         <p className="mt-0.5 text-xs text-ink-600">
           이름을 누르면 점수·실버 지급과 상점 내역 팝업이 열려요. 열 제목을 누르면 정렬돼요.
         </p>
@@ -513,19 +522,20 @@ export default function ClassDashboard() {
                     sel === s.id ? "bg-brand-weak/40" : "hover:bg-ink-50"
                   }`}
                 >
-                  <td className="py-2 pr-2 font-medium">
+                  <td className="py-1.5 pr-2 font-medium">
                     <span className="text-ink-400">{s.id}</span> {studentById.get(s.id)?.name ?? s.name}
                   </td>
-                  <td className="tnum py-2 pr-2 text-right font-bold text-indigo-600">{cumScore(s.id)}</td>
-                  <td className="tnum py-2 pr-2 text-right font-bold text-ink-900">{s2Silver(s.id)}</td>
-                  <td className="tnum py-2 pr-2 text-right text-brand-strong">{s1Carry(s.id)}</td>
-                  <td className="tnum py-2 text-right text-emerald-600">{booksOf(s.id)}</td>
+                  <td className="tnum py-1.5 pr-2 text-right font-bold text-ink-900">{cumScore(s.id)}</td>
+                  <td className="tnum py-1.5 pr-2 text-right text-ink-800">{s2Silver(s.id)}</td>
+                  <td className="tnum py-1.5 pr-2 text-right text-ink-600">{s1Carry(s.id)}</td>
+                  <td className="tnum py-1.5 text-right text-ink-600">{booksOf(s.id)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </section>
+      </>)}
 
       {/* ③ 선택 학생 상세 — 팝업 (점수 조정 + 실버 지급 + 상점 내역) */}
       {sel != null && (

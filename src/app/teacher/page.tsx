@@ -47,6 +47,7 @@ import BulkRecalcPanel from "@/components/teacher/BulkRecalcPanel";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
 import SegmentedControl from "@/components/ui/SegmentedControl";
+import SideSections from "@/components/ui/SideSections";
 import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
 import { RankPointsEditor } from "@/components/teacher/SettingsEditors";
@@ -97,6 +98,12 @@ function TeacherPage() {
   };
   const setTTab = (x: string) => router.push(tabUrl(x));
   // 학생·점수 안의 3단 — 이의제기·숨은 기여로 들어오면 '점수 보정'을 먼저
+  const hash0 = typeof window !== "undefined" ? window.location.hash : "";
+  const [setSec, setSetSec] = useState<"rules" | "eval" | "notice" | "accounts" | "seats" | "export" | "backup" | "etc">(() =>
+    hash0 === "#panel-password" ? "accounts" : "rules"
+  );
+  const [adjSec, setAdjSec] = useState<"appeal" | "bonus" | "reading" | "money" | "settle">("appeal");
+  const [logView, setLogView] = useState<"log" | "mood">(() => (hash0 === "#panel-mood" ? "mood" : "log"));
   const [sView, setSView] = useState<"board" | "report" | "adjust" | "check">(() =>
     typeof window !== "undefined" && /panel-(appeal|hidden)/.test(window.location.hash) ? "adjust" : "board"
   );
@@ -413,26 +420,58 @@ function TeacherPage() {
           active={sView}
           onChange={setSView}
         />
-        {sView === "board" && <ClassDashboard />}
+        {sView === "board" && <ClassDashboard view="status" />}
         {sView === "report" && <DailyReportPanel date={date} onDateChange={setDate} />}
         {sView === "adjust" && (
-        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-          <div id="panel-appeal">
-            <AppealPanel />
-          </div>
-          <div id="panel-hidden">
-            <HiddenContributionPanel />
-          </div>
-          <BonusPanel />
-          <ReadingAdjustPanel />
-          <DuplicateReportPanel />
-          <EventBoostPanel />
-          <BestPlayerRecalcPanel />
-          <SilverAdjustPanel />
-          <GoldAdjustPanel />
-          <S1MergePanel />
-          <BiweeklySettlePanel />
-        </div>
+          <SideSections
+            sections={[
+              { key: "appeal", label: "이의제기·숨은 기여", desc: "학생이 올린 것 처리" },
+              { key: "bonus", label: "보너스·이벤트", desc: "개인 보너스·점수 배수·베플" },
+              { key: "reading", label: "독서 보정", desc: "권수 보정·중복 감상문" },
+              { key: "money", label: "실버·골드", desc: "지급·차감·학급 골드" },
+              { key: "settle", label: "정산·이관", desc: "2주 정산·1학기 실버 합치기" },
+            ]}
+            active={adjSec}
+            onChange={setAdjSec}
+          >
+            {adjSec === "appeal" && (
+              <>
+                <div id="panel-appeal">
+                  <AppealPanel />
+                </div>
+                <div id="panel-hidden">
+                  <HiddenContributionPanel />
+                </div>
+              </>
+            )}
+            {adjSec === "bonus" && (
+              <>
+                <BonusPanel />
+                <EventBoostPanel />
+                <BestPlayerRecalcPanel />
+              </>
+            )}
+            {adjSec === "reading" && (
+              <>
+                <ReadingAdjustPanel />
+                <DuplicateReportPanel />
+              </>
+            )}
+            {adjSec === "money" && (
+              <>
+                {/* 현황판에 섞여 있던 골드 ±·전원 지급·여러 명 차감을 여기로 — 현황판은 '보기'만 */}
+                <ClassDashboard view="money" />
+                <SilverAdjustPanel />
+                <GoldAdjustPanel />
+              </>
+            )}
+            {adjSec === "settle" && (
+              <>
+                <BiweeklySettlePanel />
+                <S1MergePanel />
+              </>
+            )}
+          </SideSections>
         )}
         {sView === "check" && (
           <>
@@ -442,17 +481,31 @@ function TeacherPage() {
         )}
       </>)}
 
-      {/* 📔 담임 일지 — 교사 전용 기록 (학생은 규칙으로 차단) */}
+      {/* 📔 일지·감정 — 일지(쓰기·모아보기·메모장) / 감정(오늘·지도·통계) 두 일을 나눠서 (예전엔 한 줄로 2,700px) */}
       {tTab === "log" && (
         <div className="space-y-4">
-          {/* 감정과 일지는 둘 다 '아이를 살피는' 도구라 한 탭에 모은다.
-              살펴볼 친구를 발견하면 바로 아래 일지에 기록하는 흐름. */}
-          <div id="panel-mood" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-            <MoodPanel onGoLetters={() => router.push("/inbox#letters")} />
-          </div>
-          <div id="panel-log" className="space-y-4">
-            <TeacherLogPanel />
-          </div>
+          <SegmentedControl
+            tabs={[
+              { key: "log", label: "일지" },
+              { key: "mood", label: "감정" },
+            ]}
+            active={logView}
+            onChange={setLogView}
+          />
+          {logView === "mood" && (
+            <div id="panel-mood" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+              <MoodPanel onGoLetters={() => router.push("/inbox#letters")} />
+            </div>
+          )}
+          {logView === "log" && (
+            // 넓은 화면: 쓰기 | 모아보기 나란히 (한 화면에), 메모장은 아래 전체 폭
+            <div id="panel-log" className="grid items-start gap-4 xl:grid-cols-2">
+              <TeacherLogPanel />
+              <div className="xl:col-span-2">
+                <TeacherMemoWidget />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -460,7 +513,11 @@ function TeacherPage() {
       {/* 📋 오늘 할 일 — 흩어진 대기 항목 한 줄 요약 + 규칙 미게시·순위 미선정 경고 */}
       <TodayBriefing
         onGo={(t, anchor) => {
-          if (anchor && /panel-(appeal|hidden)/.test(anchor)) setSView("adjust");
+          if (anchor && /panel-(appeal|hidden)/.test(anchor)) {
+            setSView("adjust");
+            setAdjSec("appeal");
+          }
+          if (anchor === "panel-password") setSetSec("accounts");
           setTTab(t);
           if (anchor) revealPanel(anchor); // 탭 렌더를 기다렸다가 펼치고 스크롤
         }}
@@ -704,23 +761,23 @@ function TeacherPage() {
       </details>
       </>)}
 
-      {/* ⚙️ 설정 — 자리 수동 교환 + 학급 설정 + 관리 도구 */}
-      {tTab === "settings" && (<>
-      <SeatSwapPanel />
-
-      {/* ⚙️ 설정 — 접어둠 (자주 안 바꿈) */}
-      <details className="rounded-card border border-ink-200 bg-white shadow-card">
-        <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
-          ⚙️ 학급 설정 <span className="text-xs font-normal text-ink-400">— 배너·평가 기준·점수 설정</span>
-        </summary>
-        <div className="space-y-4 border-t border-ink-100 p-4">
-      {/* 학급 목표 배너 편집 */}
-      <BannerEditor />
-      {/* 부서장 평가 O/X 기준 편집 */}
-      <Card title="🤝 부서장 평가 미션" desc="부서장이 모둠원을 평가할 미션. 미션당 0.5점 — 둘 다 하면 +1, 하나만 +0.5, 안 하면 0 (마이너스 없음).">
-        <PeerCriteriaEditor />
-      </Card>
-      {/* 평가 척도 설정 — 모듈형 */}
+      {/* ⚙️ 설정 — 왼쪽 분류 목록 + 오른쪽 그 분류만 (예전엔 접힌 상자 2개 안에 20여 개 패널, 펼치면 6,700px) */}
+      {tTab === "settings" && (
+        <SideSections
+          sections={[
+            { key: "rules", label: "운영 규칙", desc: "점수·상점 시간·잠금·우체통·공휴일" },
+            { key: "eval", label: "평가 기준", desc: "부서장 O/X 미션" },
+            { key: "notice", label: "배너·문구·메뉴", desc: "학급 목표·바로가기·문구·메뉴 이름" },
+            { key: "accounts", label: "학생 계정", desc: "비밀번호 초기화·전학·전출" },
+            { key: "seats", label: "자리 직접 바꾸기", desc: "하루만 / 이번 기 내내" },
+            { key: "export", label: "인쇄·내보내기", desc: "감상문집·CSV·헌법 인쇄" },
+            { key: "backup", label: "백업·점검", desc: "전체 백업·코인 대사" },
+            { key: "etc", label: "기타", desc: "거북이 이벤트·샘플 데이터" },
+          ]}
+          active={setSec}
+          onChange={setSetSec}
+        >
+          {setSec === "rules" && (
       <Card title="⚙️ 점수 설정" desc="버튼으로 조절하고, 학생 화면 미리보기로 바로 확인하세요.">
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <RankPointsEditor value={dRank ?? settings.rankPoints} onChange={setDRank} />
@@ -912,47 +969,54 @@ function TeacherPage() {
           {savedFlash ? "✓ 저장됨" : "설정 저장"}
         </Button>
       </Card>
-        </div>
-      </details>
-
-      {/* 🧰 관리 도구 — 접어둠 (가끔 씀) */}
-      <details className="rounded-card border border-ink-200 bg-white shadow-card">
-        <summary className="cursor-pointer list-none px-4 py-3 text-lg font-bold">
-          🧰 관리 도구 <span className="text-xs font-normal text-ink-400">— 비밀번호·전입·인쇄·CSV·백업·감사·기타</span>
-        </summary>
-        <div className="space-y-4 border-t border-ink-100 p-4">
-      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-        <div id="panel-password">
-          <PasswordResetPanel />
-        </div>
-        <div className="lg:col-span-2">
-          <TransferPanel />
-        </div>
-        {/* 학생 칩 25개가 넓게 퍼지는 카드는 전체 폭 */}
-        <div className="lg:col-span-2">
-          <BookletExportPanel />
-        </div>
-        <CsvExportPanel />
-        <StudyPrintPanel />
-        <BackupPanel />
-        <LinksEditor />
-        <CoinAuditPanel />
-        <TurtleEventPanel />
-        <div className="lg:col-span-2">
-          <UiTextPanel />
-        </div>
-        <TabConfigPanel />
-        <SampleDataPanel date={date} />
-        <div className="lg:col-span-2">
-          <TeacherMemoWidget />
-        </div>
-      </div>
-        </div>
-      </details>
-
-      {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}
-      {todayKST() <= BETA_END && <BetaResetPanel />}
-      </>)}
+          )}
+          {setSec === "eval" && (
+      <Card title="🤝 부서장 평가 미션" desc="부서장이 모둠원을 평가할 미션. 미션당 0.5점 — 둘 다 하면 +1, 하나만 +0.5, 안 하면 0 (마이너스 없음).">
+        <PeerCriteriaEditor />
+      </Card>
+          )}
+          {setSec === "notice" && (
+            <>
+              <BannerEditor />
+              <LinksEditor />
+              <UiTextPanel />
+              <TabConfigPanel />
+            </>
+          )}
+          {setSec === "accounts" && (
+            <>
+              <div id="panel-password">
+                <PasswordResetPanel />
+              </div>
+              <TransferPanel />
+            </>
+          )}
+          {setSec === "seats" && <SeatSwapPanel />}
+          {setSec === "export" && (
+            <>
+              <BookletExportPanel />
+              <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+                <CsvExportPanel />
+                <StudyPrintPanel />
+              </div>
+            </>
+          )}
+          {setSec === "backup" && (
+            <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+              <BackupPanel />
+              <CoinAuditPanel />
+            </div>
+          )}
+          {setSec === "etc" && (
+            <>
+              <TurtleEventPanel />
+              <SampleDataPanel date={date} />
+              {/* 베타 테스트 초기화 — 베타 기간에만 노출 (개학 후 실데이터 보호) */}
+              {todayKST() <= BETA_END && <BetaResetPanel />}
+            </>
+          )}
+        </SideSections>
+      )}
 
 
       {msg && <p className="text-sm">{msg}</p>}

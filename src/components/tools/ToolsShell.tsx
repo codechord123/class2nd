@@ -2,9 +2,9 @@
 // 🧰 교실 도구 공용 틀 — 3단 위계의 마지막 단(도구 사이 이동) + 전체 화면 + 어디서나 흐르는 타이머.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTimer, leftMs, fmt } from "@/stores/timer";
-import { countTick, playEnd, setVolume, warnSoft } from "@/lib/tools/chime";
+import { audioRunning, cancelTimerSounds, onAudioState, scheduleTimerSounds, setVolume, unlockAudio } from "@/lib/tools/chime";
 import { useWidgets, WIDGET_META } from "@/stores/widgets";
 
 export const TOOLS = [
@@ -96,59 +96,76 @@ export function TimerWatcher() {
   const t = useTimer();
   const timerOpen = useWidgets((w) => w.open.some((x) => x.kind === "timer"));
   const [now, setNow] = useState(() => Date.now());
-  const fired = useRef<{ endAt: number | null; w60: boolean; w30: boolean; tick: number }>({ endAt: null, w60: false, w30: false, tick: 99 });
+  const [audioRev, setAudioRev] = useState(0); // 소리 잠김↔풀림이 바뀔 때마다 +1 → 예약 다시
+  const [audioOn, setAudioOn] = useState(true);
+
+  // 소리 잠금 풀기 — 새로고침 뒤엔 브라우저가 소리를 막는다. 화면 어디든 한 번 누르면 풀린다.
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock, true);
+    window.addEventListener("keydown", unlock, true);
+    const off = onAudioState(() => {
+      setAudioOn(audioRunning());
+      setAudioRev((r) => r + 1);
+    });
+    const id = setTimeout(() => setAudioOn(audioRunning()), 0);
+    return () => {
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+      off();
+      clearTimeout(id);
+    };
+  }, []);
+
   useEffect(() => {
     if (!t.endAt) return;
-    const id = setInterval(() => setNow(Date.now()), 200);
+    const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
   }, [t.endAt]);
   useEffect(() => {
     setVolume(t.prefs.volume);
   }, [t.prefs.volume]);
+
+  // ⏰ 소리 예약 — 시작·시간 더하기·설정 변경·소리 풀림 때마다 끝나는 시각에 맞춰 다시 건다.
+  //    끝나서 멈춘 경우(doneAt)엔 울리고 있는 끝 소리를 끊지 않는다.
+  const { sound, warn60, warn30, tick10, volume } = t.prefs;
   useEffect(() => {
-    if (!t.endAt) return;
-    const f = fired.current;
-    if (f.endAt !== t.endAt) {
-      // 새로 시작했거나 시간을 더한 경우 — 이미 지난 경계는 다시 울리지 않게 지금 남은 시간으로 맞춘다
-      const left0 = t.endAt - Date.now();
-      fired.current = { endAt: t.endAt, w60: left0 <= 60_000, w30: left0 <= 30_000, tick: Math.ceil(left0 / 1000) };
-      return;
-    }
-    const left = t.endAt - now;
-    if (left <= 0) {
-      t.finish();
-      playEnd(t.prefs.sound);
-      return;
-    }
-    if (t.prefs.warn60 && !f.w60 && left <= 60_000) {
-      f.w60 = true;
-      warnSoft();
-    }
-    if (t.prefs.warn30 && !f.w30 && left <= 30_000) {
-      f.w30 = true;
-      warnSoft();
-    }
-    const sec = Math.ceil(left / 1000);
-    if (t.prefs.tick10 && sec <= 10 && sec < f.tick) {
-      f.tick = sec;
-      countTick(sec === 1);
-    }
+    if (t.endAt) scheduleTimerSounds(t.endAt, { sound, warn60, warn30, tick10 });
+    else if (!t.doneAt) cancelTimerSounds();
+  }, [t.endAt, t.doneAt, sound, warn60, warn30, tick10, volume, audioRev]);
+
+  // 끝난 상태로 바꾸기(화면 깜빡임·'시간 끝!') — 소리는 위 예약이 이미 그 시각에 냈다
+  useEffect(() => {
+    if (t.endAt && now >= t.endAt) t.finish();
   }, [now, t]);
 
-  if (path.startsWith("/tools/timer") || timerOpen) return null;
+  const lockedNotice =
+    !audioOn && (t.endAt || t.doneAt) && t.prefs.sound !== "none" ? (
+      <button
+        onClick={() => unlockAudio()}
+        className="press fixed left-1/2 top-3 z-[90] -translate-x-1/2 rounded-full bg-warn px-4 py-2 text-[13px] font-bold text-white shadow-pop"
+      >
+        🔇 타이머 소리가 꺼져 있어요 — 여기를 한 번 눌러 주세요
+      </button>
+    ) : null;
+
+  if (path.startsWith("/tools/timer") || timerOpen) return lockedNotice;
   const left = leftMs(t, now);
-  if (!t.endAt && !t.doneAt) return null;
+  if (!t.endAt && !t.doneAt) return lockedNotice;
   return (
-    <Link
-      href="/tools/timer"
-      className={`press fixed bottom-20 right-4 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop md:bottom-5 md:right-5 ${
-        t.doneAt ? "animate-pulse bg-danger text-white" : "bg-ink-900 text-white"
-      }`}
-    >
-      <span aria-hidden>⏱️</span>
-      {t.label && <span className="max-w-32 truncate text-[13px] font-bold opacity-70">{t.label}</span>}
-      {t.doneAt ? "시간 끝!" : fmt(left)}
-    </Link>
+    <>
+      {lockedNotice}
+      <Link
+        href="/tools/timer"
+        className={`press fixed bottom-20 right-4 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop md:bottom-5 md:right-5 ${
+          t.doneAt ? "animate-pulse bg-danger text-white" : "bg-ink-900 text-white"
+        }`}
+      >
+        <span aria-hidden>⏱️</span>
+        {t.label && <span className="max-w-32 truncate text-[13px] font-bold opacity-70">{t.label}</span>}
+        {t.doneAt ? "시간 끝!" : fmt(left)}
+      </Link>
+    </>
   );
 }
 

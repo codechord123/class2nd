@@ -109,7 +109,7 @@ export default function TodayBriefing({
     "press rounded-full bg-white px-3 py-1.5 text-xs font-bold text-ink-700 ring-1 ring-ink-200 hover:ring-brand";
   return (
     <section className="rounded-card border border-brand/30 bg-brand-weak/40 p-4 shadow-card">
-      <h2 className="text-sm font-extrabold text-ink-800">📋 오늘 할 일</h2>
+      <h2 className="text-sm font-extrabold text-ink-800">지금 확인할 것</h2>
       {missingRules.length > 0 && (
         <p className="mt-2 rounded-btn bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700">
           {anonTeacher
