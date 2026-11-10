@@ -10,6 +10,9 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { useFeedback } from "@/components/ui/Feedback";
 import LetterBoard from "@/components/teacher/LetterBoard";
+import LetterPanel from "@/components/teacher/LetterPanel";
+import SegmentedControl from "@/components/ui/SegmentedControl";
+import { peekLetterIntent } from "@/lib/letterIntent";
 import NotificationBoard from "@/components/teacher/NotificationBoard";
 import { useInbox, useMarkInboxSeen } from "@/lib/query/inbox";
 import { useAllLetters } from "@/lib/query/letters";
@@ -27,19 +30,36 @@ export default function InboxPage() {
         <EmptyState emoji="🔒" title="선생님만 볼 수 있어요" />
       </Card>
     );
-  const tabCls = (on: boolean) =>
-    `press flex-1 rounded-btn py-2 text-sm font-bold ${on ? "bg-white text-ink-900 shadow-card" : "text-ink-500"}`;
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 rounded-card bg-ink-100 p-1">
-        <button onClick={() => setTab("feed")} className={tabCls(tab === "feed")}>
-          📬 알림 게시판
-        </button>
-        <button onClick={() => setTab("letters")} className={tabCls(tab === "letters")}>
-          💌 편지함
+      <SegmentedControl
+        tabs={[
+          { key: "feed", label: "처리할 일" },
+          { key: "letters", label: "편지함" },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
+      {tab === "feed" ? <Feed /> : <Letters />}
+    </div>
+  );
+}
+
+/** 💌 편지함 — 모든 편지 게시판 + 위에 '편지 쓰기' (예전엔 관리 화면에 따로 있던 것을 한 곳으로) */
+function Letters() {
+  const [compose, setCompose] = useState(() => !!peekLetterIntent());
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setCompose((v) => !v)}
+          className={`press h-10 rounded-full px-5 text-sm font-bold ${compose ? "bg-ink-200 text-ink-800" : "bg-ink-900 text-white"}`}
+        >
+          {compose ? "닫기" : "편지 쓰기"}
         </button>
       </div>
-      {tab === "feed" ? <Feed /> : <LetterBoard />}
+      {compose && <LetterPanel composeOnly />}
+      <LetterBoard />
     </div>
   );
 }
@@ -65,8 +85,9 @@ function Feed() {
 
   return (
     <>
-      <StatusCard />
       <NotificationBoard seenBefore={boundary} />
+      {/* 상태 점검은 '안 될 때' 보는 것 — 매일 보는 목록 아래로 */}
+      <StatusCard />
     </>
   );
 }

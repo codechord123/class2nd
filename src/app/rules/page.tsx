@@ -500,8 +500,8 @@ export default function RulesPage() {
   return (
     <div className="space-y-4">
       <Card
-        title="🏛️ 우리 반 민주교실"
-        desc="학생들이 함께 만든 헌법·법률·역할이에요."
+        title="우리 반이 함께 만든 약속"
+        desc="헌법은 우리 반의 큰 원칙, 법률은 부서별 약속, 역할은 부서장이 하는 일이에요."
         action={
           // 법률 탭은 부서 헤더 바에 수정 버튼이 따로 있다 (중복 방지)
           role === "teacher" &&

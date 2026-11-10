@@ -88,6 +88,8 @@ export function useCreateSeatRequest(myId: number | null) {
     if (myId == null) throw new Error("로그인이 필요해요.");
     if (new Date() > seatChangeDeadline(req.weekStart))
       throw new Error("신청 기한(전주 수요일 자정)이 지났어요.");
+    const pairErr = chairPairError(await isChairSeat(req.week, myId), req.targetRole);
+    if (pairErr) throw new Error(pairErr);
     // 판정은 서버의 지금 목록으로 — 화면 목록은 몇 분 묵어 동시 신청을 놓친다
     const existing = await fetchWeekRequests(req.week).catch(() => req.existing);
     if (req.occupant != null && req.occupant !== myId && lockedSeatHolders(existing).has(req.occupant))
@@ -173,6 +175,23 @@ export async function findOccupant(
   return g.members.find((m) => m.role === role)?.studentId ?? null;
 }
 
+/** 그 주차에 이 학생이 의장 자리(소통)에 앉아 있나 — 교환까지 반영 */
+export async function isChairSeat(week: number, sid: number): Promise<boolean> {
+  const snap = await getDoc(doc(db(), "classData", `seatSwaps-${swapWeekOf(week)}`));
+  const swaps = snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
+  return applySwaps(scheduleOfWeek(week), swaps).groups.some((g) => g.chair === sid);
+}
+
+/**
+ * 🪑 의장은 의장끼리 (사용자 확정 2026-11-10): 의장 자리(소통)는 의장끼리만 맞바꾼다.
+ * 의장이 모둠원 자리로 가거나, 모둠원이 의장 자리로 오면 모둠에 의장이 없거나 둘이 된다.
+ */
+export function chairPairError(requesterIsChair: boolean, targetRole: RoleKey | "소통"): string | null {
+  if (requesterIsChair && targetRole !== "소통") return "의장은 다른 모둠의 의장 자리와만 바꿀 수 있어요.";
+  if (!requesterIsChair && targetRole === "소통") return "의장 자리는 의장끼리만 바꿀 수 있어요.";
+  return null;
+}
+
 // ── 교사: 승인 → swap 기록 + 실버 차감 신청 흐름과 연결 ─────────
 export function usePendingSeatRequests(enabled: boolean) {
   return useQuery({
@@ -202,6 +221,11 @@ export function useDecideSeatRequest() {
     const reqRef = doc(d, "seatChangeRequests", req.id);
     const balRef = doc(d, "coinTxns", "0_balances");
 
+    // 🪑 의장은 의장끼리 — 승인 시점의 실제 자리로 다시 판정 (신청 뒤 교사가 자리를 바꿨을 수도)
+    if (approve) {
+      const pairErr = chairPairError(await isChairSeat(req.week, req.studentId), req.targetRole);
+      if (pairErr) throw new Error(`${pairErr} — 반려해 주세요.`);
+    }
     // 🔒 먼저 신청해서 그 자리로 옮겨 온 친구는 다시 밀어낼 수 없다 (사용자 확정 2026-11-09)
     if (approve && occupantId != null && occupantId !== req.studentId) {
       const others = (await fetchWeekRequests(req.week)).filter((r) => r.id !== req.id);

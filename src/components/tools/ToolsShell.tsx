@@ -2,9 +2,10 @@
 // 🧰 교실 도구 공용 틀 — 3단 위계의 마지막 단(도구 사이 이동) + 전체 화면 + 어디서나 흐르는 타이머.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTimer, leftMs, fmt } from "@/stores/timer";
-import { chimeEnd } from "@/lib/tools/chime";
+import { countTick, playEnd, setVolume, warnSoft } from "@/lib/tools/chime";
+import { useWidgets, WIDGET_META } from "@/stores/widgets";
 
 export const TOOLS = [
   { href: "/tools/board", label: "칠판", emoji: "🖊️", desc: "색 글씨 줄·손글씨, 쓰는 대로 저장되고 목록에서 다시 열어요" },
@@ -86,37 +87,94 @@ export function FocusButton({ on, toggle, dark = false }: { on: boolean; toggle:
 }
 
 /**
- * ⏱️ 타이머 감시 — 도구 화면 어디에 있든 끝나는 순간 소리를 낸다.
- * 타이머 화면이 아닐 땐 오른쪽 아래에 작은 알약으로 남은 시간을 띄운다 (칠판에 쓰면서 시간 보기).
+ * ⏱️ 타이머 엔진 — 선생님 화면 어디에 있든(셸에 한 번) 돌아간다.
+ * 끝 소리·종료 전 알림(1분·30초)·마지막 10초 똑딱을 여기서 낸다 → 타이머 화면·떠 있는 창·다른 화면 모두 같은 소리.
+ * 타이머 화면도 아니고 타이머 창도 안 떠 있으면 오른쪽 아래 작은 알약으로 남은 시간을 보여 준다.
  */
 export function TimerWatcher() {
   const path = usePathname();
   const t = useTimer();
+  const timerOpen = useWidgets((w) => w.open.some((x) => x.kind === "timer"));
   const [now, setNow] = useState(() => Date.now());
+  const fired = useRef<{ endAt: number | null; w60: boolean; w30: boolean; tick: number }>({ endAt: null, w60: false, w30: false, tick: 99 });
   useEffect(() => {
     if (!t.endAt) return;
-    const id = setInterval(() => setNow(Date.now()), 250);
+    const id = setInterval(() => setNow(Date.now()), 200);
     return () => clearInterval(id);
   }, [t.endAt]);
   useEffect(() => {
-    if (t.endAt && now >= t.endAt) {
+    setVolume(t.prefs.volume);
+  }, [t.prefs.volume]);
+  useEffect(() => {
+    if (!t.endAt) return;
+    const f = fired.current;
+    if (f.endAt !== t.endAt) {
+      // 새로 시작했거나 시간을 더한 경우 — 이미 지난 경계는 다시 울리지 않게 지금 남은 시간으로 맞춘다
+      const left0 = t.endAt - Date.now();
+      fired.current = { endAt: t.endAt, w60: left0 <= 60_000, w30: left0 <= 30_000, tick: Math.ceil(left0 / 1000) };
+      return;
+    }
+    const left = t.endAt - now;
+    if (left <= 0) {
       t.finish();
-      chimeEnd();
+      playEnd(t.prefs.sound);
+      return;
+    }
+    if (t.prefs.warn60 && !f.w60 && left <= 60_000) {
+      f.w60 = true;
+      warnSoft();
+    }
+    if (t.prefs.warn30 && !f.w30 && left <= 30_000) {
+      f.w30 = true;
+      warnSoft();
+    }
+    const sec = Math.ceil(left / 1000);
+    if (t.prefs.tick10 && sec <= 10 && sec < f.tick) {
+      f.tick = sec;
+      countTick(sec === 1);
     }
   }, [now, t]);
 
-  if (path.startsWith("/tools/timer")) return null;
+  if (path.startsWith("/tools/timer") || timerOpen) return null;
   const left = leftMs(t, now);
   if (!t.endAt && !t.doneAt) return null;
   return (
     <Link
       href="/tools/timer"
-      className={`press fixed bottom-5 right-5 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop ${
+      className={`press fixed bottom-20 right-4 z-[70] flex items-center gap-2 rounded-full px-4 py-2.5 text-lg font-bold tabular-nums shadow-pop md:bottom-5 md:right-5 ${
         t.doneAt ? "animate-pulse bg-danger text-white" : "bg-ink-900 text-white"
       }`}
     >
       <span aria-hidden>⏱️</span>
+      {t.label && <span className="max-w-32 truncate text-[13px] font-bold opacity-70">{t.label}</span>}
       {t.doneAt ? "시간 끝!" : fmt(left)}
     </Link>
+  );
+}
+
+/** 떠 있는 창 켜기/끄기 버튼 줄 — 도구 탭 옆·칠판 도구 막대에 */
+export function FloatLaunchers({ compact = false }: { compact?: boolean }) {
+  const open = useWidgets((w) => w.open);
+  const toggle = useWidgets((w) => w.toggle);
+  return (
+    <div className="flex items-center gap-1">
+      {!compact && <span className="mr-1 text-[12px] font-bold text-ink-500">창 띄우기</span>}
+      {(["timer", "pick", "noise"] as const).map((k) => {
+        const on = open.some((x) => x.kind === k);
+        return (
+          <button
+            key={k}
+            onClick={() => toggle(k)}
+            aria-pressed={on}
+            title={`${WIDGET_META[k].label} 창 ${on ? "닫기" : "띄우기"}`}
+            className={`press h-8 rounded-full px-3 text-[12.5px] font-bold transition-colors ${
+              on ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+            }`}
+          >
+            {WIDGET_META[k].label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

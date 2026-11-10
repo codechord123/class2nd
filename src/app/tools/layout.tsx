@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { useSession } from "@/stores/session";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
-import { ToolsTabs, TimerWatcher } from "@/components/tools/ToolsShell";
+import { ToolsTabs, FloatLaunchers } from "@/components/tools/ToolsShell";
 
 const noop = () => () => {};
 
@@ -22,9 +22,14 @@ export default function ToolsLayout({ children }: { children: React.ReactNode })
     );
   return (
     <div className="space-y-4">
-      <ToolsTabs />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <ToolsTabs />
+        </div>
+        {/* 도구를 떠 있는 창으로 — 칠판 위에 타이머를 올려 두는 식으로 (끌어 옮기고 모서리로 크기 조절) */}
+        <FloatLaunchers />
+      </div>
       {children}
-      <TimerWatcher />
     </div>
   );
 }

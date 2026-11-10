@@ -26,7 +26,7 @@ const isDenied = (e: unknown) => (e as { code?: string })?.code === "permission-
 export default function TodayBriefing({
   onGo,
 }: {
-  onGo: (tab: "manage" | "settings", anchor?: string) => void;
+  onGo: (tab: "today" | "manage" | "settings", anchor?: string) => void;
 }) {
   const { data: seat } = usePendingSeatRequests(true);
   const { data: pendS2 } = usePendingRequests("s2", true);
@@ -73,12 +73,12 @@ export default function TodayBriefing({
   const chips: {
     key: string;
     label: string;
-    go?: "manage" | "settings";
+    go?: "today" | "manage" | "settings";
     anchor?: string;
     href?: string;
   }[] = [];
   if (nSeat)
-    chips.push({ key: "seat", label: `🎫 자리 승인 ${nSeat}건`, go: "settings", anchor: "panel-seat-approve" });
+    chips.push({ key: "seat", label: `🎫 자리 승인 ${nSeat}건`, go: "today", anchor: "panel-seat-approve" });
   if (nShop) chips.push({ key: "shop", label: `🛒 상점 신청 ${nShop}건`, href: "/shop" });
   if (nAppeal)
     chips.push({ key: "appeal", label: `🙋 이의제기 ${nAppeal}건`, go: "manage", anchor: "panel-appeal" });

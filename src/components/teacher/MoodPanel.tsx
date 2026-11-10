@@ -193,7 +193,7 @@ export default function MoodPanel({ onGoLetters }: { onGoLetters?: () => void } 
           <EmptyState
             emoji="🙂"
             title="오늘 기록된 기분이 아직 없어요"
-            desc="아이들이 모둠 탭에서 기분을 고르면 여기에 모여요."
+            desc="아이들이 오늘 화면에서 기분을 고르면 여기에 모여요."
           />
         ) : (
           <div className="mt-3 flex flex-wrap gap-1.5">

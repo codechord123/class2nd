@@ -55,7 +55,7 @@ export default function MailBoxCard() {
       .map((id) => studentById.get(id)?.name ?? `${id}번`)
       .join(", ");
     return (
-      <Shell href="/teacher#panel-letters" highlight={n > 0} dot={n > 0} cta={n > 0 ? "읽어보기 →" : "열기 →"}>
+      <Shell href="/inbox#letters" highlight={n > 0} dot={n > 0} cta={n > 0 ? "읽어보기 →" : "열기 →"}>
         {n > 0 ? (
           <>
             <b className="text-pink-700">답장을 기다리는 편지 {n}통</b>

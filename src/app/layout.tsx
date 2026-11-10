@@ -2,9 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Jua } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
-import TabNav from "@/components/TabNav";
+import AppShell from "@/components/shell/AppShell";
 import LoginGate from "@/components/LoginGate";
-import UserChip from "@/components/UserChip";
 import BetaBanner from "@/components/BetaBanner";
 import CoastDecor from "@/components/CoastDecor";
 import ThemeApplier from "@/components/ThemeApplier";
@@ -48,36 +47,12 @@ export default function RootLayout({
           <ThemeApplier />
           <RivieraFx />
           <ReauthDialog />
-          {/* 브랜드 행은 스크롤과 함께 지나가고 탭만 상단 고정 — 작은 화면에서
-              상시 점유 높이를 132px → 60px대로 (레이아웃 감사 반영) */}
-          <header className="bg-white">
-            <BetaBanner />
-            <div className="mx-auto max-w-3xl px-4 lg:max-w-5xl">
-              <div className="flex items-center justify-between gap-2 py-3">
-                {/* 좁은 화면(아이폰 390px 교사 모드)에서 '학급 자\n치'로 꺾이지 않게 nowrap,
-                    장식용 2학기 칩은 sm 미만에서 숨겨 우측 버튼 자리를 확보 */}
-                <h1 className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[15px] font-extrabold tracking-tight text-ink-900">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] bg-ink-900 text-[13px] font-extrabold text-white">
-                    학
-                  </span>
-                  학급 자치
-                  <span className="hidden text-[13px] font-bold text-ink-400 sm:inline-block">
-                    2학기
-                  </span>
-                </h1>
-                <UserChip />
-              </div>
-            </div>
-            <CoastDecor />
-          </header>
-          <div className="tabbar sticky top-0 z-20 border-b border-ink-200 bg-white/80 backdrop-blur-xl">
-            <div className="mx-auto max-w-3xl px-4 pt-2 lg:max-w-5xl">
-              <TabNav />
-            </div>
-          </div>
-          <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4 lg:max-w-5xl">
+          {/* 🏛️ 2026-11 재설계: 머리+탭줄 → 왼쪽 사이드바(태블릿·PC) / 아래 탭 막대(휴대폰) */}
+          <BetaBanner />
+          <CoastDecor />
+          <AppShell>
             <LoginGate>{children}</LoginGate>
-          </main>
+          </AppShell>
         </Providers>
       </body>
     </html>

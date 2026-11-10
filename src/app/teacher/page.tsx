@@ -1,7 +1,8 @@
 "use client";
 // 교사 탭 — 평가 척도 설정(요구사항 Q3: 교사가 수정 가능) + 일일 집계 실행.
 // 집계는 교사만 원시 평가(하루 최대 50문서)를 읽고, 학생들은 결과 문서만 읽는다.
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/stores/session";
 import { useSettings, usePatchSettings, fetchFreshSettings } from "@/lib/query/settings";
 import { DEFAULT_LIBRARIANS } from "@/lib/query/library";
@@ -43,9 +44,9 @@ import BannerEditor from "@/components/teacher/BannerEditor";
 import { BETA_END } from "@/components/BetaBanner";
 import ScoreDiagnosisPanel from "@/components/teacher/ScoreDiagnosisPanel";
 import BulkRecalcPanel from "@/components/teacher/BulkRecalcPanel";
-import SubTabs from "@/components/ui/SubTabs";
 import { SkeletonPage } from "@/components/ui/Skeleton";
 import Card from "@/components/ui/Card";
+import SegmentedControl from "@/components/ui/SegmentedControl";
 import Button from "@/components/ui/Button";
 import NumberStepper from "@/components/ui/NumberStepper";
 import { RankPointsEditor } from "@/components/teacher/SettingsEditors";
@@ -56,7 +57,7 @@ import EventBoostPanel from "@/components/teacher/EventBoostPanel";
 import BestPlayerRecalcPanel from "@/components/teacher/BestPlayerRecalcPanel";
 import HiddenContributionPanel from "@/components/teacher/HiddenContributionPanel";
 import TodayBriefing from "@/components/teacher/TodayBriefing";
-import LetterPanel from "@/components/teacher/LetterPanel";
+import AttendancePanel from "@/components/team/AttendancePanel";
 import S1MergePanel from "@/components/teacher/S1MergePanel";
 import TeacherLogPanel from "@/components/teacher/TeacherLogPanel";
 import MoodPanel from "@/components/teacher/MoodPanel";
@@ -67,15 +68,38 @@ import { useFeedback } from "@/components/ui/Feedback";
 import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import type { ClassSettings } from "@/types";
 
-export default function TeacherPage() {
+type TTab = "today" | "students" | "log" | "settings";
+
+// useSearchParams는 Suspense 안에서 (정적 빌드 요구사항)
+export default function TeacherPageRoute() {
+  return (
+    <Suspense fallback={<SkeletonPage />}>
+      <TeacherPage />
+    </Suspense>
+  );
+}
+
+function TeacherPage() {
   const { role } = useSession();
   const { data: settings } = useSettings();
   const patchSettings = usePatchSettings();
   const qc = useQueryClient();
 
-  // 교사 탭 — 사용 빈도 기준 4탭 평탄화 (사용자 확정): 매일 쓰는 '오늘'을 기본 화면으로.
-  //   오늘(제출·순위·집계) / 현황·리포트 / 점수 관리(보정 전부) / 설정·기타(자리승인·설정·관리)
-  const [tTab, setTTab] = useState<"today" | "status" | "manage" | "log" | "settings">("today");
+  // 교사 화면 — 2026-11 재설계: 탭 줄 대신 사이드바 '선생님' 메뉴가 ?t= 로 고른다.
+  //   오늘 운영(출결·자리 승인·제출·순위·집계) / 학생·점수(현황판·리포트·보정 전부) / 일지·감정 / 설정
+  //   편지는 '할 일(/inbox)'로 옮겼다 — 받은 편지·보내기·태그가 한 곳에.
+  const router = useRouter();
+  const tParam = useSearchParams().get("t");
+  const tTab: TTab = tParam === "students" || tParam === "log" || tParam === "settings" ? tParam : "today";
+  const tabUrl = (x: string) => {
+    const k = x === "status" || x === "manage" ? "students" : x;
+    return k === "today" ? "/teacher" : `/teacher?t=${k}`;
+  };
+  const setTTab = (x: string) => router.push(tabUrl(x));
+  // 학생·점수 안의 3단 — 이의제기·숨은 기여로 들어오면 '점수 보정'을 먼저
+  const [sView, setSView] = useState<"board" | "report" | "adjust" | "check">(() =>
+    typeof window !== "undefined" && /panel-(appeal|hidden)/.test(window.location.hash) ? "adjust" : "board"
+  );
   const [date, setDate] = useState(todayKST());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AggregateResult | null>(null);
@@ -109,13 +133,13 @@ export default function TeacherPage() {
 
   // 개요 카드 등에서 /teacher#panel-... 로 들어오면 그 패널까지 데려다준다
   // (탭만 맞춰도 접힌 <details> 안이거나 화면 밖이면 아무 일도 없어 보인다)
-  const HASH_TAB: Record<string, "today" | "manage" | "log" | "settings"> = {
-    "panel-letters": "today",
+  const HASH_TAB: Record<string, TTab | "inbox"> = {
+    "panel-letters": "inbox",
     "panel-log": "log",
     "panel-mood": "log",
-    "panel-appeal": "manage",
-    "panel-hidden": "manage",
-    "panel-seat-approve": "settings",
+    "panel-appeal": "students",
+    "panel-hidden": "students",
+    "panel-seat-approve": "today",
     "panel-password": "settings",
   };
   useEffect(() => {
@@ -125,7 +149,8 @@ export default function TeacherPage() {
     if (!tab) return;
     // 렌더 중 동기 setState를 피해 다음 프레임에 — revealPanel도 그때 패널을 찾는다
     const t = requestAnimationFrame(() => {
-      setTTab(tab);
+      if (tab === "inbox") return router.replace("/inbox#letters");
+      if (tab !== tTab) router.replace(`${tabUrl(tab)}#${id}`);
       revealPanel(id);
     });
     return () => cancelAnimationFrame(t);
@@ -375,28 +400,22 @@ export default function TeacherPage() {
 
   return (
     <div className="space-y-4">
-      <SubTabs
-        tabs={[
-          { key: "today" as const, label: "📌 오늘" },
-          { key: "status" as const, label: "📊 현황·리포트" },
-          { key: "manage" as const, label: "🛠 점수 관리" },
-          { key: "log" as const, label: "📔 일지·감정" },
-          { key: "settings" as const, label: "⚙️ 설정·기타" },
-        ]}
-        active={tTab}
-        onChange={setTTab}
-      />
 
-      {/* 📊 현황·리포트 — 리포트를 맨 위로(가장 자주 봄, 사용자 확정) + 현황판 + 점수 진단 */}
-      {tTab === "status" && (<>
-        <DailyReportPanel date={date} onDateChange={setDate} />
-        <ClassDashboard />
-        <ScoreDiagnosisPanel />
-        <BulkRecalcPanel />
-      </>)}
-
-      {/* 🛠 점수 관리 — 이의제기·보너스·독서권수·이벤트배수·베플·실버·골드·정산 (모든 보정 한곳) */}
-      {tTab === "manage" && (
+      {/* 👥 학생·점수 — 현황판(학생 표·상세) → 리포트 → 점수 보정 전부 → 진단·재계산 (예전 '현황·리포트'+'점수 관리') */}
+      {tTab === "students" && (<>
+        <SegmentedControl
+          tabs={[
+            { key: "board", label: "현황판" },
+            { key: "report", label: "리포트" },
+            { key: "adjust", label: "점수 보정" },
+            { key: "check", label: "점검·재계산" },
+          ]}
+          active={sView}
+          onChange={setSView}
+        />
+        {sView === "board" && <ClassDashboard />}
+        {sView === "report" && <DailyReportPanel date={date} onDateChange={setDate} />}
+        {sView === "adjust" && (
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
           <div id="panel-appeal">
             <AppealPanel />
@@ -414,7 +433,14 @@ export default function TeacherPage() {
           <S1MergePanel />
           <BiweeklySettlePanel />
         </div>
-      )}
+        )}
+        {sView === "check" && (
+          <>
+            <ScoreDiagnosisPanel />
+            <BulkRecalcPanel />
+          </>
+        )}
+      </>)}
 
       {/* 📔 담임 일지 — 교사 전용 기록 (학생은 규칙으로 차단) */}
       {tTab === "log" && (
@@ -422,12 +448,7 @@ export default function TeacherPage() {
           {/* 감정과 일지는 둘 다 '아이를 살피는' 도구라 한 탭에 모은다.
               살펴볼 친구를 발견하면 바로 아래 일지에 기록하는 흐름. */}
           <div id="panel-mood" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-            <MoodPanel
-              onGoLetters={() => {
-                setTTab("today");
-                revealPanel("panel-letters"); // 탭 렌더를 기다렸다가 스크롤
-              }}
-            />
+            <MoodPanel onGoLetters={() => router.push("/inbox#letters")} />
           </div>
           <div id="panel-log" className="space-y-4">
             <TeacherLogPanel />
@@ -439,21 +460,109 @@ export default function TeacherPage() {
       {/* 📋 오늘 할 일 — 흩어진 대기 항목 한 줄 요약 + 규칙 미게시·순위 미선정 경고 */}
       <TodayBriefing
         onGo={(t, anchor) => {
+          if (anchor && /panel-(appeal|hidden)/.test(anchor)) setSView("adjust");
           setTTab(t);
           if (anchor) revealPanel(anchor); // 탭 렌더를 기다렸다가 펼치고 스크롤
         }}
       />
 
-      {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
-      <TodaySubmissionsPanel date={date} />
 
-      {/* 💌 우체통 — 편지 보내기 + 열람(비밀 우체통의 안전망) */}
-      <div id="panel-letters" className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-        <LetterPanel />
+      {/* 하루 흐름: 왼쪽(아침) 출결·자리 승인 / 오른쪽(종회) 순위 저장·집계 — 한 화면에 */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
+      {/* 🙋 출결 — 결석을 먼저 찍어야 할 일 완주·모둠 보너스·뽑기가 맞는다 (예전엔 모둠 화면에 있었다) */}
+      <AttendancePanel />
+      {/* 🎫 자리 변경 승인 — 매일 처리하는 일이라 오늘 운영으로 (예전엔 설정·기타 맨 아래에 숨어 있었다) */}
+      {!!pendSeat?.length && (
+      <section id="panel-seat-approve" className="rounded-card border border-ink-200 bg-white p-5">
+        <h2 className="text-lg font-bold">
+          🎫 자리 변경 승인 대기{" "}
+          <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
+        </h2>
+        {!pendSeat?.length && <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>}
+        <ul className="mt-3 space-y-2">
+          {pendSeat?.map((r) => (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[15px]">
+                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
+                  {studentById.get(r.studentId)?.name}
+                </span>
+                <span className="truncate text-ink-800">
+                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
+                </span>
+                {(() => {
+                  // 같은 자리를 먼저 신청한 친구가 있으면 순서를 알려 준다 (승인 순서가 곧 결과)
+                  const earlier = pendSeat.find(
+                    (x) =>
+                      x.id !== r.id &&
+                      x.week === r.week &&
+                      x.targetGroup === r.targetGroup &&
+                      x.targetRole === r.targetRole &&
+                      x.createdAt < r.createdAt
+                  );
+                  return earlier ? (
+                    <span className="shrink-0 rounded bg-warn-weak px-1.5 py-0.5 text-[11px] font-bold text-warn">
+                      ⚠️ 같은 자리 먼저 신청: {studentById.get(earlier.studentId)?.name}
+                    </span>
+                  ) : null;
+                })()}
+              </span>
+              <span className="flex gap-1.5">
+                <button
+                  onClick={() =>
+                    void (async () => {
+                      try {
+                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                        // 🈳 빈 역할(4명 모둠의 공석)은 맞바꿀 상대가 없다 — 승인하면 실버만
+                        // 빠지고 자리는 그대로이므로 승인 자체를 막는다 (2026-08-19).
+                        if (occ == null) {
+                          toast(
+                            `🈳 ${r.targetGroup}모둠 ${r.targetRole} 자리는 비어 있어요 — 맞바꿀 친구가 없어 승인할 수 없습니다. 반려해주세요.`,
+                            "warn"
+                          );
+                          return;
+                        }
+                        const cost = settings!.seatChangeCost;
+                        const done = await decideSeat(r, true, occ ?? undefined, cost);
+                        toast(
+                          done
+                            ? `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
+                            : "이미 처리된 신청이에요."
+                        );
+                      } catch (e) {
+                        toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
+                      }
+                    })()
+                  }
+                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
+                >
+                  승인(자리 교환)
+                </button>
+                <button
+                  onClick={() =>
+                    void decideSeat(r, false).then(
+                      () => toast("반려 처리했어요."),
+                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
+                    )
+                  }
+                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
+                >
+                  반려
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      )}
+
       </div>
-
-      {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 — 매일 쓰는 두 카드를 맨 위(2열)에 */}
-      <div className="space-y-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+      {/* 종회 루틴: ① 순위 저장 → ② 집계 실행 */}
+      <div className="space-y-4">
 
       {/* 오늘의 모둠 순위(1~5위) 선정 */}
       <section className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
@@ -578,6 +687,10 @@ export default function TeacherPage() {
         )}
       </section>
       </div>
+      </div>
+
+      {/* 오늘 제출 현황 — 집계 전 원시 데이터 확인 (저장되고 있는지 즉시 확인) */}
+      <TodaySubmissionsPanel date={date} />
 
       {/* 칭찬 점검 — 매일 필수는 아니고, 복붙·무관 칭찬을 지울 때만. 그래서 집계 아래로 내렸다.
           (예전엔 제출현황과 집계 사이에 있어 매일 스크롤로 지나쳐야 했음 — 사용자 지적) */}
@@ -591,93 +704,8 @@ export default function TeacherPage() {
       </details>
       </>)}
 
-      {/* ⚙️ 설정·기타 — 자리 승인(맨 위) + 설정·관리 도구(접기) */}
+      {/* ⚙️ 설정 — 자리 수동 교환 + 학급 설정 + 관리 도구 */}
       {tTab === "settings" && (<>
-      {/* 자리 변경 승인 — 대기 건이 있으면 눈에 띄게 맨 위 */}
-      <section id="panel-seat-approve" className="rounded-card border border-ink-200 bg-white p-4 shadow-card">
-        <h2 className="text-lg font-bold">
-          🎫 자리 변경 승인 대기{" "}
-          <span className="text-sm font-normal text-ink-400">({pendSeat?.length ?? 0}건)</span>
-        </h2>
-        {!pendSeat?.length && <p className="mt-2 text-sm text-ink-400">대기 중인 신청이 없어요.</p>}
-        <ul className="mt-3 space-y-2">
-          {pendSeat?.map((r) => (
-            <li
-              key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-btn border border-ink-200 bg-white px-3.5 py-2.5"
-            >
-              <span className="flex min-w-0 items-center gap-2 text-[15px]">
-                <span className="shrink-0 rounded bg-brand-weak px-1.5 py-0.5 text-[12px] font-bold text-brand-strong">
-                  {studentById.get(r.studentId)?.name}
-                </span>
-                <span className="truncate text-ink-800">
-                  → <b>{r.week}주차 {r.targetGroup}모둠</b> {r.targetRole} 지킴이
-                </span>
-                {(() => {
-                  // 같은 자리를 먼저 신청한 친구가 있으면 순서를 알려 준다 (승인 순서가 곧 결과)
-                  const earlier = pendSeat.find(
-                    (x) =>
-                      x.id !== r.id &&
-                      x.week === r.week &&
-                      x.targetGroup === r.targetGroup &&
-                      x.targetRole === r.targetRole &&
-                      x.createdAt < r.createdAt
-                  );
-                  return earlier ? (
-                    <span className="shrink-0 rounded bg-warn-weak px-1.5 py-0.5 text-[11px] font-bold text-warn">
-                      ⚠️ 같은 자리 먼저 신청: {studentById.get(earlier.studentId)?.name}
-                    </span>
-                  ) : null;
-                })()}
-              </span>
-              <span className="flex gap-1.5">
-                <button
-                  onClick={() =>
-                    void (async () => {
-                      try {
-                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
-                        // 🈳 빈 역할(4명 모둠의 공석)은 맞바꿀 상대가 없다 — 승인하면 실버만
-                        // 빠지고 자리는 그대로이므로 승인 자체를 막는다 (2026-08-19).
-                        if (occ == null) {
-                          toast(
-                            `🈳 ${r.targetGroup}모둠 ${r.targetRole} 자리는 비어 있어요 — 맞바꿀 친구가 없어 승인할 수 없습니다. 반려해주세요.`,
-                            "warn"
-                          );
-                          return;
-                        }
-                        const cost = settings!.seatChangeCost;
-                        const done = await decideSeat(r, true, occ ?? undefined, cost);
-                        toast(
-                          done
-                            ? `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
-                            : "이미 처리된 신청이에요."
-                        );
-                      } catch (e) {
-                        toast(`⚠️ ${e instanceof Error ? e.message : "승인 실패"}`, "error");
-                      }
-                    })()
-                  }
-                  className="press rounded-btn bg-success px-4 py-2 text-sm font-bold text-white"
-                >
-                  승인(자리 교환)
-                </button>
-                <button
-                  onClick={() =>
-                    void decideSeat(r, false).then(
-                      () => toast("반려 처리했어요."),
-                      (e: Error) => toast(`⚠️ ${e.message}`, "error")
-                    )
-                  }
-                  className="press rounded-btn border border-danger/40 bg-white px-4 py-2 text-sm font-bold text-danger"
-                >
-                  반려
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <SeatSwapPanel />
 
       {/* ⚙️ 설정 — 접어둠 (자주 안 바꿈) */}

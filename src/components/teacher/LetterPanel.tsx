@@ -25,7 +25,8 @@ const fmt = (ts: number) => {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 };
 
-export default function LetterPanel() {
+/** composeOnly: 편지함(/inbox#letters) 위에 '편지 쓰기'만 — 받은 편지 보기는 편지함 게시판이 맡는다 (중복 정리) */
+export default function LetterPanel({ composeOnly = false }: { composeOnly?: boolean } = {}) {
   const { toast, confirm } = useFeedback();
   const active = students.filter((s) => !s.inactive);
 
@@ -97,8 +98,7 @@ export default function LetterPanel() {
 
   const thread = [...(letters ?? [])].sort((a, b) => a.createdAt - b.createdAt);
 
-  return (
-    <>
+  const compose = (
       <Card
         title="✉️ 편지 보내기"
         desc="고른 학생의 우체통으로 들어가요. 학생 화면엔 '선생님'으로 표시돼요."
@@ -157,6 +157,11 @@ export default function LetterPanel() {
         </button>
       </Card>
 
+  );
+  if (composeOnly) return <div id="panel-letters">{compose}</div>;
+  return (
+    <>
+      {compose}
       <Card
         title="📬 우체통"
         desc="학생을 고르면 그 학생과 주고받은 편지가 보여요 (고른 1명만 읽어요)."

@@ -124,7 +124,7 @@ export default function MoodCalendar({ data, today }: { data: MoodSelf | undefin
             )}
           </>
         ) : (
-          "이 달엔 아직 기록이 없어요. 모둠 탭에서 기분을 고르면 여기에 쌓여요."
+          "이 달엔 아직 기록이 없어요. 오늘 화면에서 기분을 고르면 여기에 쌓여요."
         )}
       </p>
       <p className="mt-1 text-[11px] text-ink-400">🔒 이 달력은 본인과 선생님만 볼 수 있어요.</p>

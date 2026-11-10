@@ -61,6 +61,12 @@ export default function SeatSwapPanel() {
       toast("서로 다른 두 학생을 골라주세요.", "warn");
       return;
     }
+    // 🪑 의장은 의장끼리 (사용자 확정 2026-11-10) — 의장↔모둠원 교환은 모둠에 의장이 없거나 둘이 된다
+    const isChair = (sid: number) => applied.groups.some((g) => g.chair === sid);
+    if (isChair(a) !== isChair(b)) {
+      toast("의장은 의장끼리만 자리를 바꿀 수 있어요.", "warn");
+      return;
+    }
     const label = scope === "day" ? `오늘(${date}) 하루만` : `${period}기 세션 내내`;
     if (
       !(await confirm({

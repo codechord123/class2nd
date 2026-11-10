@@ -23,7 +23,7 @@ import {
 import { useAutosave, saveLabel } from "@/lib/useAutosave";
 import { useFeedback } from "@/components/ui/Feedback";
 import EmptyState from "@/components/ui/EmptyState";
-import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
+import { FloatLaunchers, FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 
 // ── 주소 #아이디 ──
 const subHash = (cb: () => void) => {
@@ -653,6 +653,7 @@ function Editor({ id, initial, dirty }: { id: string; initial: BoardData; dirty:
       <section className="fixed inset-0 z-[60] flex flex-col gap-2 bg-ink-100 p-3">
         <div className="flex items-center gap-3 rounded-[12px] border border-ink-200 bg-white px-3 py-1.5">
           {toolbar}
+          <FloatLaunchers compact />
           <FocusButton on={focus} toggle={toggle} />
         </div>
         {stage}

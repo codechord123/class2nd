@@ -1,6 +1,6 @@
 "use client";
 // 탭 이름·순서 편집 — 코딩 없이 내비게이션을 조정한다 (classData/uiText의 nav.* 키).
-// 2026-11 2단 메뉴 개편: 순서는 '주 메뉴'만(nav.order2), 이름은 주 메뉴·하위 메뉴 모두(nav.label.경로).
+// 2026-11 2단 메뉴 개편: 순서는 '주 메뉴'만(nav.order3), 이름은 주 메뉴·하위 메뉴 모두(nav.label.경로).
 // 이름을 비우면 기본 이름으로 복귀. (예전 1단 순서 nav.order는 더 쓰지 않는다)
 import { useEffect, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
@@ -12,7 +12,7 @@ import { useFeedback } from "@/components/ui/Feedback";
 import Card from "@/components/ui/Card";
 
 /** 저장된 순서를 지워 기본 순서(코드의 TABS)로 복귀 — 이름 커스텀은 유지 */
-const RESET_PATCH = { "nav.order2": "" };
+const RESET_PATCH = { "nav.order3": "" };
 
 interface Row {
   href: string;
@@ -84,7 +84,7 @@ export default function TabConfigPanel() {
     setBusy(true);
     try {
       const patch: Record<string, string> = {
-        "nav.order2": rows.filter((r) => !r.sub).map((r) => r.href).join(","),
+        "nav.order3": rows.filter((r) => !r.sub).map((r) => r.href).join(","),
       };
       for (const r of rows) patch[`nav.label.${r.href}`] = r.label.trim();
       // 빈 라벨 키는 저장하지 않도록 정리 후 merge

@@ -11,12 +11,21 @@ import { useFeedback } from "@/components/ui/Feedback";
 
 const BASE_TITLE = "2학기 학급 자치 시스템";
 
-export default function TeacherBell() {
+/** 새 소식 수 — 사이드바 '할 일' 배지 등 어디서든 (같은 쿼리를 공유해 읽기는 1번) */
+export function useUnseenCount(enabled = true) {
+  const { data } = useInbox(enabled);
+  return unseen(data).length;
+}
+
+/**
+ * 감시자 — 화면에 그리지 않고 토스트·컴퓨터 알림·탭 제목만 담당. 셸에 딱 한 번만 둔다
+ * (사이드바와 휴대폰 머리에 종이 둘 있어도 알림은 한 번만 울리게).
+ */
+export function TeacherInboxWatcher() {
   const { data } = useInbox(true);
   const { toast } = useFeedback();
   const qc = useQueryClient();
-  const fresh = unseen(data);
-  const n = fresh.length;
+  const n = unseen(data).length;
   const lastTop = useRef<number | null>(null); // 이번 접속에서 마지막으로 본 가장 새 시각
 
   // 새로 들어온 것만 알린다 — 첫 로드(이미 쌓여 있던 것)는 숫자로만
@@ -52,6 +61,12 @@ export default function TeacherBell() {
     };
   }, [n]);
 
+  return null;
+}
+
+/** 🔔 종 — 누르면 알림함. 숫자는 감시자와 같은 쿼리 */
+export default function TeacherBell() {
+  const n = useUnseenCount();
   return (
     <Link
       href="/inbox"

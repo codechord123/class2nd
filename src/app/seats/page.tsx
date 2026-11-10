@@ -66,7 +66,10 @@ export default function SeatsPage() {
   const createRequest = useCreateSeatRequest(studentId);
   const [showRequest, setShowRequest] = useState(false);
   const [targetGroup, setTargetGroup] = useState(1);
-  const [targetRole, setTargetRole] = useState<RoleKey>("질서");
+  const [targetRoleSel, setTargetRole] = useState<RoleKey>("질서");
+  // 🪑 의장은 의장끼리 (사용자 확정 2026-11-10) — 의장이면 고를 수 있는 자리는 다른 모둠의 의장 자리뿐
+  const iAmChair = myRole === "소통";
+  const targetRole: RoleKey | "소통" = iAmChair ? "소통" : targetRoleSel;
   const [busy, setBusy] = useState(false);
   const [seatBurst, setSeatBurst] = useState(0); // 신청 성공 juice
   // 홈 '자리 결과' 배너 읽음 처리 — 자리 탭을 연 순간 본 것으로
@@ -82,9 +85,8 @@ export default function SeatsPage() {
   const deadlinePassed = new Date() > deadline;
 
   // 고른 자리의 현재 주인 미리보기 — '누구와 바뀌는지'가 아이에겐 핵심 정보
-  const targetSid = schedule.groups
-    .find((g) => g.groupId === targetGroup)
-    ?.members.find((m) => m.role === targetRole)?.studentId;
+  const tg = schedule.groups.find((g) => g.groupId === targetGroup);
+  const targetSid = targetRole === "소통" ? tg?.chair : tg?.members.find((m) => m.role === targetRole)?.studentId;
   const targetName = targetSid ? studentById.get(targetSid)?.name : null;
   const isMySeat = targetSid != null && targetSid === studentId;
   // 🈳 빈 역할 — 4명 모둠(전출로 24명이 되며 생김)에는 역할 하나가 공석이다.
@@ -136,7 +138,7 @@ export default function SeatsPage() {
     }
     const ok = await confirm({
       title: "자리를 바꿀까요?",
-      body: `${targetGroup}모둠 · ${targetRole} 지킴이${
+      body: `${targetGroup}모둠 · ${targetRole === "소통" ? "의장" : `${targetRole} 지킴이`}${
         targetName ? ` (지금 ${targetName} 자리)` : ""
       }로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,
       confirmLabel: "신청",
@@ -262,17 +264,23 @@ export default function SeatsPage() {
                       </option>
                     ))}
                   </select>
-                  <select
-                    value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value as RoleKey)}
-                    className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
-                  >
-                    {ROLE_INFO.filter((r) => r.key !== "소통").map((r) => (
-                      <option key={r.key} value={r.key}>
-                        {r.emoji} {r.key} 지킴이
-                      </option>
-                    ))}
-                  </select>
+                  {iAmChair ? (
+                    <span className="rounded-btn bg-ink-100 px-3 py-2 text-sm font-bold text-ink-700">
+                      의장 자리 (의장끼리만 바꿔요)
+                    </span>
+                  ) : (
+                    <select
+                      value={targetRoleSel}
+                      onChange={(e) => setTargetRole(e.target.value as RoleKey)}
+                      className="rounded-btn border border-ink-300 px-3 py-2 text-sm"
+                    >
+                      {ROLE_INFO.filter((r) => r.key !== "소통").map((r) => (
+                        <option key={r.key} value={r.key}>
+                          {r.emoji} {r.key} 지킴이
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     onClick={() => void submitRequest()}
                     disabled={busy || isMySeat || isVacant || isLocked}

@@ -22,6 +22,8 @@ import TurtleMarathon from "@/components/reading/TurtleMarathon";
 import ReadingAlert from "@/components/reading/ReadingAlert";
 import { useUiText, uiTextOf } from "@/lib/uiText";
 import JuiceBurst from "@/components/ui/Juice";
+import Link from "next/link";
+import { hasUnread, useMailMeta } from "@/lib/query/letters";
 
 type Tone = "slate" | "emerald" | "indigo" | "amber";
 const toneStyle: Record<Tone, { tile: string; value: string }> = {
@@ -41,8 +43,13 @@ function Stat({ label, value, sub, tone = "slate" }: { label: string; value: Rea
   );
 }
 
-export default function MyStatus() {
+/**
+ * variant="aside": '오늘' 화면 왼쪽 아래 — 내 현황 3줄 + 소식 목록 (예전 홈의 색 배너 5종을 한 목록으로).
+ * variant="home"(기본): 교사·옛 화면용.
+ */
+export default function MyStatus({ variant = "home" }: { variant?: "home" | "aside" } = {}) {
   const { role, studentId } = useSession();
+  const { data: mailMeta } = useMailMeta(variant === "aside" && role === "student" ? studentId : null);
   const { data: settings } = useSettings();
   const { data: stats } = useReadingStats();
   const { data: myTodayRead } = useMyTodayReadCount(role === "student" ? studentId : null);
@@ -282,6 +289,107 @@ export default function MyStatus() {
   const doneCount = checkable.filter((t) => t.done).length;
   // 쉬는 날 + 방학이면 체크 항목이 0개 — 0/0을 '완료'로 축하하지 않는다
   const allDone = checkable.length > 0 && doneCount === checkable.length;
+
+  if (variant === "aside") {
+    const news: { href: string; text: React.ReactNode; tone?: "hot"; onClick?: () => void }[] = [
+      ...(hasUnread(mailMeta) ? [{ href: "/letters", text: <b>선생님 편지가 왔어요</b>, tone: "hot" as const }] : []),
+      ...(myNotes > 0 && noteDate ? [{ href: "/team#received", text: <>{noteLabel} 받은 칭찬 <b>{myNotes}개</b></> }] : []),
+      ...(firstDecided
+        ? [
+            {
+              href: "/shop",
+              text: (
+                <>
+                  상점 “{firstDecided.item}” <b>{firstDecided.status === "approved" ? "승인" : "반려"}</b>
+                  {decided.length > 1 ? ` 외 ${decided.length - 1}건` : ""}
+                </>
+              ),
+            },
+          ]
+        : []),
+      ...(seatDecided
+        ? [
+            {
+              href: "/seats",
+              onClick: () => {
+                try {
+                  localStorage.setItem(seatSeenKey, String(Date.now()));
+                } catch {}
+              },
+              text:
+                seatDecided.status === "approved" ? (
+                  <>
+                    자리 변경 <b>승인</b> — {seatDecided.targetGroup}모둠 {seatDecided.targetRole}
+                  </>
+                ) : (
+                  <>자리 신청이 <b>반려</b>됐어요</>
+                ),
+            },
+          ]
+        : []),
+      ...(appealDecided
+        ? [
+            {
+              href: "/team#received",
+              onClick: () => {
+                try {
+                  localStorage.setItem(appealSeenKey, String(Date.now()));
+                } catch {}
+              },
+              text: <>이의제기 답변: <b>{appealDecided.status === "resolved" ? "인정" : "반려"}</b></>,
+            },
+          ]
+        : []),
+      ...(openUnvoted > 0 ? [{ href: "/vote", text: <>진행 중인 투표 <b>{openUnvoted}건</b></>, tone: "hot" as const }] : []),
+    ];
+    return (
+      <>
+        <div className="rounded-card border border-ink-200 bg-white px-4 py-3">
+          <dl className="space-y-2 text-[14px]">
+            <div className="flex items-baseline justify-between">
+              <dt className="text-ink-500">누적 점수</dt>
+              <dd className="text-[17px] font-bold tabular-nums text-ink-900">{typeof myScore === "number" ? myScore : 0}</dd>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <dt className="text-ink-500">실버</dt>
+              <dd className="font-bold tabular-nums text-ink-900">
+                {mySilver}
+                {myCarry > 0 && <span className="ml-1 text-[12px] font-normal text-ink-400">+ 이월 {myCarry}</span>}
+              </dd>
+            </div>
+            {myGroup && (
+              <div className="flex items-baseline justify-between">
+                <dt className="text-ink-500">이번 주</dt>
+                <dd className="font-bold text-ink-900">
+                  {myGroup.groupId}모둠 · {myRole}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+        {news.length > 0 && (
+          <div className="overflow-hidden rounded-card border border-ink-200 bg-white">
+            <p className="px-4 pb-1 pt-3 text-[13px] font-bold text-ink-500">새 소식</p>
+            <ul>
+              {news.map((n, i) => (
+                <li key={i}>
+                  <Link
+                    href={n.href}
+                    onClick={n.onClick}
+                    className="flex min-h-11 items-center gap-2.5 px-4 text-[14px] text-ink-800 hover:bg-ink-50"
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${n.tone === "hot" ? "bg-danger" : "bg-ink-300"}`} />
+                    <span className="min-w-0 flex-1">{n.text}</span>
+                    <span className="text-ink-300">›</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -158,11 +158,13 @@ export default function UsPage() {
   const composer = editing || (!mine && myId != null);
 
   return (
+    // 태블릿·PC: 두 줄 — 왼쪽 '내 마음'(날씨·이름 붙이기), 오른쪽 '함께'(담벼락·달력·약속). 한 화면에 들어오게
+    <div className="grid items-start gap-4 lg:grid-cols-2">
     <div className="space-y-4">
       {/* 🌤️ 우리 반 마음 날씨 — 이름도 숫자도 없이 '비율'만. 혼자가 아니라는 감각이 목적이다 */}
       <Card
         title="🌤️ 오늘 우리 반 마음 날씨"
-        desc="모둠 탭에서 고른 기분이 이름 없이 모여요. 누가 어떤지는 아무도 몰라요."
+        desc="오늘 화면에서 고른 기분이 이름 없이 모여요. 누가 어떤지는 아무도 몰라요."
       >
         {w.total < WEATHER_MIN ? (
           <p className="mt-3 rounded-btn bg-ink-50 px-3 py-3 text-sm text-ink-500">
@@ -192,8 +194,8 @@ export default function UsPage() {
           </>
         )}
         {myId != null && myMoodToday == null && (
-          <Link href="/team" className="mt-2 inline-block text-xs font-bold text-brand-strong underline">
-            아직 오늘 기분을 안 골랐어요 → 모둠 탭에서 고르기
+          <Link href="/" className="mt-2 inline-block text-xs font-bold text-brand-strong underline">
+            아직 오늘 기분을 안 골랐어요 → 오늘 화면에서 고르기
           </Link>
         )}
       </Card>
@@ -358,6 +360,8 @@ export default function UsPage() {
         </Card>
       )}
 
+    </div>
+    <div className="space-y-4">
       {/* 💗 오늘의 마음 담벼락 */}
       <Card
         title="💗 오늘의 마음 담벼락"
@@ -417,7 +421,7 @@ export default function UsPage() {
                     isTeacher={isTeacher}
                     onLetter={() => {
                       setLetterIntent({ sid: c.sid, text: wordLetterText(c.word) });
-                      router.push("/teacher#panel-letters");
+                      router.push("/inbox#letters");
                     }}
                     onReact={async (k) => {
                       try {
@@ -486,6 +490,7 @@ export default function UsPage() {
           </li>
         </ol>
       </section>
+    </div>
     </div>
   );
 }
