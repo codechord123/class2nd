@@ -57,7 +57,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           <MobileTop />
         </Suspense>
-        <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-7">
+        {/* 본문은 메뉴 바로 옆에서 시작 (사용자 2026-11: 넓은 화면에서 가운데 정렬이라 메뉴와 내용 사이가 비었다) */}
+        <main className="w-full max-w-[1320px] flex-1 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-7">
           <Suspense fallback={null}>
             <PageHeader />
           </Suspense>

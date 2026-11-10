@@ -272,6 +272,12 @@ function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: str
   const pinned = Object.entries(index ?? {})
     .filter(([bid, m]) => m.pinned && bid !== currentId)
     .sort((a, b) => a[1].title.localeCompare(b[1].title, "ko"));
+  // 다른 칠판도 여기서 바로 (사용자 2026-11: "다른 목록도 이 화면에서 불러올 수 있으면") — 최근 순
+  const others = Object.entries(index ?? {})
+    .filter(([bid, m]) => !m.pinned && bid !== currentId)
+    .sort((a, b) => b[1].updatedAt - a[1].updatedAt);
+  const [q, setQ] = useState("");
+  const match = (t: string) => !q.trim() || t.replace(/\s/g, "").includes(q.replace(/\s/g, ""));
   const today = () => {
     const d = new Date();
     return `${d.getMonth() + 1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})`;
@@ -289,6 +295,16 @@ function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: str
       setOpen(false);
     } catch {
       toast("저장하지 못했어요.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const openBoard = async (bid: string) => {
+    setBusy(true);
+    try {
+      await beforeLeave(); // 지금 칠판 저장 후 이동
+      setOpen(false);
+      go(bid);
     } finally {
       setBusy(false);
     }
@@ -314,12 +330,12 @@ function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: str
         aria-expanded={open}
         className="press inline-flex h-9 items-center gap-1.5 rounded-full bg-ink-100 px-3.5 text-[13px] font-bold text-ink-800 hover:bg-ink-200"
       >
-        ★ 자주 쓰는 칠판
+        ★ 칠판 불러오기
       </button>
       {open && (
         <>
           <button aria-label="닫기" className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-11 z-50 w-72 overflow-hidden rounded-[12px] border border-ink-200 bg-white shadow-pop">
+          <div className="absolute right-0 top-11 z-50 flex max-h-[min(70vh,560px)] w-80 flex-col overflow-hidden rounded-[12px] border border-ink-200 bg-white shadow-pop">
             <button
               onClick={() => void saveAsTemplate()}
               disabled={busy}
@@ -327,10 +343,19 @@ function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: str
             >
               ＋ 지금 칠판을 자주 쓰는 칠판으로 저장
             </button>
-            <p className="px-4 pb-1 pt-2.5 text-[12px] font-bold text-ink-500">골라서 새 칠판으로 열기 (원본은 그대로)</p>
-            {pinned.length ? (
-              <ul className="max-h-72 overflow-y-auto pb-1.5">
-                {pinned.map(([bid, m]) => (
+            <div className="border-b border-ink-100 px-3 py-2">
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="칠판 이름 찾기"
+                className="h-9 w-full rounded-[8px] bg-ink-50 px-3 text-[13.5px] outline-none focus:bg-white focus:ring-2 focus:ring-ink-200"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+            <p className="px-4 pb-1 pt-2.5 text-[12px] font-bold text-ink-500">★ 자주 쓰는 칠판 — 새 칠판으로 열기 (원본은 그대로)</p>
+            {pinned.filter(([, m]) => match(m.title)).length ? (
+              <ul className="pb-1.5">
+                {pinned.filter(([, m]) => match(m.title)).map(([bid, m]) => (
                   <li key={bid}>
                     <button
                       onClick={() => void openTemplate(bid, m.title)}
@@ -349,8 +374,36 @@ function TemplateMenu({ currentId, currentTitle, beforeLeave }: { currentId: str
                 ))}
               </ul>
             ) : (
-              <p className="px-4 pb-3 text-[13px] text-ink-400">아직 없어요 — 위 버튼으로 지금 칠판을 저장해 보세요</p>
+              <p className="px-4 pb-3 text-[13px] text-ink-400">{q ? "찾는 칠판이 없어요" : "아직 없어요 — 위 버튼으로 지금 칠판을 저장해 보세요"}</p>
             )}
+            <p className="border-t border-ink-100 px-4 pb-1 pt-2.5 text-[12px] font-bold text-ink-500">다른 칠판 — 그대로 열기 (최근 순)</p>
+            {others.filter(([, m]) => match(m.title)).length ? (
+              <ul className="pb-1.5">
+                {others.filter(([, m]) => match(m.title)).map(([bid, m]) => (
+                  <li key={bid}>
+                    <button
+                      onClick={() => void openBoard(bid)}
+                      disabled={busy}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-ink-50 disabled:opacity-40"
+                    >
+                      <span className="h-9 w-16 shrink-0 overflow-hidden rounded-[6px] border border-ink-200 bg-[#1d1b18]">
+                        {m.thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={m.thumb} alt="" className="h-full w-full object-cover" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-bold text-ink-800">{m.title || "제목 없는 칠판"}</span>
+                        <span className="block text-[11.5px] text-ink-400">{fmtDate(m.updatedAt)}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-4 pb-3 text-[13px] text-ink-400">{q ? "찾는 칠판이 없어요" : "다른 칠판이 없어요"}</p>
+            )}
+            </div>
           </div>
         </>
       )}
