@@ -7,7 +7,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { studentById } from "@/lib/roster";
-import { periodLabel } from "@/lib/schedule";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import Pager from "@/components/ui/Pager";
@@ -22,7 +21,7 @@ import {
 } from "@/lib/query/wallet";
 import { useMenuRequests } from "@/lib/query/classMeta";
 import { useAllAppeals } from "@/lib/query/appeals";
-import { usePendingSeatRequests } from "@/lib/query/seatChange";
+import { usePendingSeatRequests, requestWhen } from "@/lib/query/seatChange";
 import { useHiddenNominations, useSuggestions } from "@/lib/query/board";
 import { useInbox, refreshInboxSources } from "@/lib/query/inbox";
 import { useQueryClient } from "@tanstack/react-query";
@@ -173,7 +172,7 @@ export default function NotificationBoard({ seenBefore }: { seenBefore: number |
         key: `seat-${r.id}`,
         kind: "seat",
         sid: r.studentId,
-        title: `${periodLabel(r.week)} ${r.targetGroup}모둠 ${r.targetRole} 자리로`,
+        title: `${requestWhen(r)} ${r.targetGroup}모둠 ${r.targetRole} 자리로`,
         at: r.createdAt,
         todo: true,
         status: "⏳ 승인 대기",

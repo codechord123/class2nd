@@ -24,7 +24,14 @@ import {
   useCreateSeatRequest,
   lockedSeatHolders,
   seatChangeDeadline,
+  useDayRequests,
+  useSchedule,
+  nextSchoolDay,
+  weekOfDay,
+  dayLabel,
+  swapWeekOf,
 } from "@/lib/query/seatChange";
+import SegmentedControl from "@/components/ui/SegmentedControl";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import type { RoleKey } from "@/types";
 
@@ -43,6 +50,17 @@ export default function SeatsPage() {
     ...(swaps ?? []),
     ...(showDay ? (daySwaps ?? []) : []),
   ]);
+
+  // ── 📅 내일 하루 자리 바꾸기 (사용자 2026-11) — 내일(다음 등교일) 자리표 기준으로 고른다
+  const { data: settingsEarly } = useSettings();
+  const [mode, setMode] = useState<"session" | "day">("session");
+  const dayMode = mode === "day";
+  const dayDate = nextSchoolDay(today, settingsEarly?.holidays ?? []);
+  const dayWeek = weekOfDay(dayDate);
+  const daySchedule = useSchedule(dayWeek, dayDate);
+  const { data: dayReqs } = useDayRequests(role === "student" ? dayDate : "");
+  const { data: daySessionReqs } = useWeekRequests(swapWeekOf(dayWeek));
+  const reqSchedule = dayMode ? daySchedule : schedule;
 
   const myGroup = studentId
     ? schedule.groups.find(
@@ -68,7 +86,10 @@ export default function SeatsPage() {
   const [targetGroup, setTargetGroup] = useState(1);
   const [targetRoleSel, setTargetRole] = useState<RoleKey>("질서");
   // 🪑 의장은 의장끼리 (사용자 확정 2026-11-10) — 의장이면 고를 수 있는 자리는 다른 모둠의 의장 자리뿐
-  const iAmChair = myRole === "소통";
+  //    (하루 신청은 내일 자리표에서 내가 의장인지로)
+  const iAmChair = dayMode
+    ? !!studentId && reqSchedule.groups.some((g) => g.chair === studentId)
+    : myRole === "소통";
   const targetRole: RoleKey | "소통" = iAmChair ? "소통" : targetRoleSel;
   const [busy, setBusy] = useState(false);
   const [seatBurst, setSeatBurst] = useState(0); // 신청 성공 juice
@@ -82,10 +103,11 @@ export default function SeatsPage() {
   const { toast, confirm } = useFeedback();
 
   const deadline = seatChangeDeadline(sessionMeta.weekStart);
-  const deadlinePassed = new Date() > deadline;
+  const deadlinePassed = !dayMode && new Date() > deadline;
+  const lockRequests = dayMode ? daySessionReqs : weekRequests;
 
   // 고른 자리의 현재 주인 미리보기 — '누구와 바뀌는지'가 아이에겐 핵심 정보
-  const tg = schedule.groups.find((g) => g.groupId === targetGroup);
+  const tg = reqSchedule.groups.find((g) => g.groupId === targetGroup);
   const targetSid = targetRole === "소통" ? tg?.chair : tg?.members.find((m) => m.role === targetRole)?.studentId;
   const targetName = targetSid ? studentById.get(targetSid)?.name : null;
   const isMySeat = targetSid != null && targetSid === studentId;
@@ -95,7 +117,7 @@ export default function SeatsPage() {
   const isVacant = targetSid == null;
   // 🔒 이번 기에 먼저 신청해서 그 자리로 옮겨 온 친구의 자리는 신청할 수 없다
   const isLocked =
-    targetSid != null && targetSid !== studentId && lockedSeatHolders(weekRequests).has(targetSid);
+    targetSid != null && targetSid !== studentId && lockedSeatHolders(lockRequests).has(targetSid);
 
   // 잔액 홀드 — 상점 승인 대기분 + 내 자리 신청 대기분을 이미 쓴 것으로 계산
   // (잔액 1개로 상점·자리 이중 신청 방지. 문서는 모두 캐시 공유 — 추가 읽기 거의 0)
@@ -117,15 +139,17 @@ export default function SeatsPage() {
       toast(`🔒 ${targetName}이(가) 먼저 신청해서 바꾼 자리예요 — 이번 기에는 바꿀 수 없어요.`, "warn");
       return;
     }
-    const cost = settings?.seatChangeCost ?? 10;
+    const sessionCost = settings?.seatChangeCost ?? 10;
+    const dayCost = settings?.seatDayCost ?? 5;
+    const cost = dayMode ? dayCost : sessionCost;
     if (role === "student" && studentId) {
       const balance = s2Bal?.[String(studentId)] ?? 0;
       const shopHold = (myS2 ?? [])
         .filter((r) => r.status === "pending" && r.type !== "gold")
         .reduce((a, r) => a + r.amount, 0);
-      const seatHold = (weekRequests ?? []).filter(
-        (r) => r.studentId === studentId && r.status === "pending"
-      ).length * cost;
+      const mine = (list?: { studentId: number; status: string }[]) =>
+        (list ?? []).filter((r) => r.studentId === studentId && r.status === "pending").length;
+      const seatHold = mine(weekRequests) * sessionCost + mine(dayReqs) * dayCost;
       if (balance - shopHold - seatHold < cost) {
         toast(
           shopHold + seatHold > 0
@@ -137,22 +161,23 @@ export default function SeatsPage() {
       }
     }
     const ok = await confirm({
-      title: "자리를 바꿀까요?",
+      title: dayMode ? `${dayLabel(dayDate)} 하루만 자리를 바꿀까요?` : "자리를 바꿀까요?",
       body: `${targetGroup}모둠 · ${targetRole === "소통" ? "의장" : `${targetRole} 지킴이`}${
-        targetName ? ` (지금 ${targetName} 자리)` : ""
-      }로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).`,
+        targetName ? ` (그날 ${targetName} 자리)` : ""
+      }로 신청해요. 실버 ${cost}개가 들어요 (선생님 승인 후 차감).${dayMode ? " 다음 날엔 원래 자리로 돌아가요." : ""}`,
       confirmLabel: "신청",
     });
     if (!ok) return;
     setBusy(true);
     try {
       await createRequest({
-        week: sessionStartWeek, // 기의 첫 주 자리표에 적용 — 2주 단위 유지
+        week: dayMode ? dayWeek : sessionStartWeek, // 기 신청은 기의 첫 주 자리표에 적용 — 2주 단위 유지
         weekStart: sessionMeta.weekStart,
         targetGroup,
         targetRole,
-        existing: weekRequests ?? [],
+        existing: (dayMode ? dayReqs : weekRequests) ?? [],
         occupant: targetSid ?? null,
+        ...(dayMode ? { date: dayDate } : {}),
       });
       setSeatBurst((k) => k + 1);
       toast("✅ 신청 완료! 선생님 승인 후 자리가 바뀌어요.", "success");
@@ -226,20 +251,45 @@ export default function SeatsPage() {
         </div>
       </div>
 
-      <SeatGrid schedule={schedule} myStudentId={studentId} />
+      {dayMode && role === "student" && (
+        <p className="text-[13px] font-bold text-ink-600">📅 {dayLabel(dayDate)} 자리표 — 여기서 하루 바꿀 자리를 골라요</p>
+      )}
+      <SeatGrid schedule={dayMode && role === "student" ? daySchedule : schedule} myStudentId={studentId} />
 
       {/* 실버 자리변경 신청 */}
       {role === "student" && (
         <section className="relative rounded-card border border-ink-200 bg-white p-4 shadow-card">
           <JuiceBurst fireKey={seatBurst} emojis={["💺", "✨", "🎫"]} className="left-1/2 top-2" />
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기 ({selPeriod}기)</h3>
-            <span className="text-xs text-ink-400">
-              비용 {settings?.seatChangeCost ?? 10}실버 · <b>2주(기) 단위 적용</b> · 마감{" "}
-              {deadline.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" })} 수요일
-              자정 · 선착순
-            </span>
+            <h3 className="text-lg font-bold">🎫 실버로 자리 바꾸기</h3>
+            <div className="w-full sm:w-72">
+              <SegmentedControl
+                tabs={[
+                  { key: "session", label: `${selPeriod}기 (2주)` },
+                  { key: "day", label: `📅 내일 하루` },
+                ]}
+                active={mode}
+                onChange={(k) => {
+                  setMode(k);
+                  setShowRequest(false);
+                }}
+              />
+            </div>
           </div>
+          <p className="mt-2 text-xs text-ink-500">
+            {dayMode ? (
+              <>
+                <b className="text-ink-700">{dayLabel(dayDate)}</b> 하루만 · 비용 {settings?.seatDayCost ?? 5}실버 ·
+                선생님 승인 후 그날만 바뀌고 다음 날엔 원래 자리로 · 선착순
+              </>
+            ) : (
+              <>
+                비용 {settings?.seatChangeCost ?? 10}실버 · <b>2주(기) 단위 적용</b> · 마감{" "}
+                {deadline.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" })} 수요일
+                자정 · 선착순
+              </>
+            )}
+          </p>
 
           {deadlinePassed ? (
             <p className="mt-2 text-sm text-ink-400">이 주차는 신청 기한이 지났어요.</p>
@@ -249,7 +299,7 @@ export default function SeatsPage() {
                 onClick={() => setShowRequest((v) => !v)}
                 className="mt-2 rounded-btn border border-ink-300 px-3 py-1.5 text-sm text-ink-600 hover:bg-ink-50"
               >
-                {showRequest ? "닫기" : "+ 자리 변경 신청"}
+                {showRequest ? "닫기" : dayMode ? `+ ${dayLabel(dayDate)} 자리 신청` : "+ 자리 변경 신청"}
               </button>
               {showRequest && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -299,8 +349,8 @@ export default function SeatsPage() {
                       </>
                     ) : targetName ? (
                       <>
-                        지금 그 자리엔 <b className="text-ink-700">{targetName}</b> — 승인되면
-                        서로 자리가 바뀌어요 🤝
+                        {dayMode ? "그날" : "지금"} 그 자리엔 <b className="text-ink-700">{targetName}</b> — 승인되면
+                        {dayMode ? " 그날 하루" : ""} 서로 자리가 바뀌어요 🤝
                       </>
                     ) : (
                       <>
@@ -314,9 +364,9 @@ export default function SeatsPage() {
             </>
           )}
 
-          {(weekRequests?.length ?? 0) > 0 && (
+          {((dayMode ? dayReqs : weekRequests)?.length ?? 0) > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
-              {weekRequests!.map((r) => (
+              {(dayMode ? dayReqs : weekRequests)!.map((r) => (
                 <li key={r.id} className="flex justify-between rounded-btn bg-ink-50 px-3 py-1.5">
                   <span>
                     {studentById.get(r.studentId)?.name} → {r.targetGroup}모둠 {r.targetRole}

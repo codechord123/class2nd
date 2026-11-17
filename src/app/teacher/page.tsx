@@ -18,6 +18,7 @@ import {
   useDecideSeatRequest,
   findOccupant,
   useSchedule,
+  requestWhen,
 } from "@/lib/query/seatChange";
 import { useBestGroups, useSetBestGroup } from "@/lib/query/classMeta";
 import LinksEditor from "@/components/teacher/LinksEditor";
@@ -66,7 +67,7 @@ import { revealPanel } from "@/lib/revealPanel";
 import DuplicateReportPanel from "@/components/teacher/DuplicateReportPanel";
 import { requestWindowLabel } from "@/lib/requestWindow";
 import { useFeedback } from "@/components/ui/Feedback";
-import { SEMESTER_START, TOTAL_WEEKS, periodLabel } from "@/lib/schedule";
+import { SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
 import type { ClassSettings } from "@/types";
 
 type TTab = "today" | "students" | "log" | "settings";
@@ -117,6 +118,7 @@ function TeacherPage() {
   const [dRank, setDRank] = useState<number[] | null>(null);
   const [dQuota, setDQuota] = useState<number | null>(null);
   const [dSeat, setDSeat] = useState<number | null>(null);
+  const [dSeatDay, setDSeatDay] = useState<number | null>(null);
   const [dOpen, setDOpen] = useState<number | null>(null);
   const [dClose, setDClose] = useState<number | null>(null);
   const [dPresident, setDPresident] = useState<number | null | undefined>(undefined); // undefined=미편집
@@ -383,6 +385,7 @@ function TeacherPage() {
       rankPoints: dRank ?? settings!.rankPoints,
       weeklyReadingQuota: dQuota ?? settings!.weeklyReadingQuota,
       seatChangeCost: dSeat ?? settings!.seatChangeCost,
+      seatDayCost: dSeatDay ?? settings!.seatDayCost ?? 5,
       requestOpenHour: dOpen ?? settings!.requestOpenHour,
       requestCloseHour: dClose ?? settings!.requestCloseHour,
       presidentId: dPresident !== undefined ? dPresident : (settings!.presidentId ?? null),
@@ -548,7 +551,7 @@ function TeacherPage() {
                   {studentById.get(r.studentId)?.name}
                 </span>
                 <span className="truncate text-ink-800">
-                  → <b>{periodLabel(r.week)} {r.targetGroup}모둠</b> {r.targetRole} 지킴이
+                  → <b>{requestWhen(r)} {r.targetGroup}모둠</b> {r.targetRole} 지킴이
                 </span>
                 {(() => {
                   // 같은 자리를 먼저 신청한 친구가 있으면 순서를 알려 준다 (승인 순서가 곧 결과)
@@ -556,6 +559,7 @@ function TeacherPage() {
                     (x) =>
                       x.id !== r.id &&
                       x.week === r.week &&
+                      x.date === r.date &&
                       x.targetGroup === r.targetGroup &&
                       x.targetRole === r.targetRole &&
                       x.createdAt < r.createdAt
@@ -572,7 +576,7 @@ function TeacherPage() {
                   onClick={() =>
                     void (async () => {
                       try {
-                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole);
+                        const occ = await findOccupant(r.week, r.targetGroup, r.targetRole, r.date);
                         // 🈳 빈 역할(4명 모둠의 공석)은 맞바꿀 상대가 없다 — 승인하면 실버만
                         // 빠지고 자리는 그대로이므로 승인 자체를 막는다 (2026-08-19).
                         if (occ == null) {
@@ -582,11 +586,11 @@ function TeacherPage() {
                           );
                           return;
                         }
-                        const cost = settings!.seatChangeCost;
+                        const cost = r.date ? (settings!.seatDayCost ?? 5) : settings!.seatChangeCost;
                         const done = await decideSeat(r, true, occ ?? undefined, cost);
                         toast(
                           done
-                            ? `✅ 승인: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
+                            ? `✅ 승인${r.date ? ` (${requestWhen(r)})` : ""}: ${studentById.get(r.studentId)?.name} ↔ ${occ ? studentById.get(occ)?.name : "빈자리"} 교환 · 실버 ${cost}개 차감`
                             : "이미 처리된 신청이에요."
                         );
                       } catch (e) {
@@ -792,12 +796,21 @@ function TeacherPage() {
               />
             </div>
             <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
-              <span className="text-sm font-bold text-ink-800">🎫 자리 변경 비용(실버)</span>
+              <span className="text-sm font-bold text-ink-800">🎫 자리 변경 비용(실버) · 2주</span>
               <NumberStepper
                 value={dSeat ?? settings.seatChangeCost}
                 min={0}
                 max={20}
                 onChange={setDSeat}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">
+              <span className="text-sm font-bold text-ink-800">📅 하루 자리 바꾸기 비용(실버)</span>
+              <NumberStepper
+                value={dSeatDay ?? settings.seatDayCost ?? 5}
+                min={0}
+                max={20}
+                onChange={setDSeatDay}
               />
             </div>
             <div className="flex items-center justify-between rounded-card bg-ink-50 p-4">

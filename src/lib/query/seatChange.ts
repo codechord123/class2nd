@@ -21,7 +21,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { pingInbox } from "@/lib/query/inbox";
-import { periodLabel, scheduleOfWeek } from "@/lib/schedule";
+import { periodLabel, scheduleOfWeek, SEMESTER_START, TOTAL_WEEKS } from "@/lib/schedule";
+import { isWeekend, shiftDate, todayKST, weekOfDate } from "@/lib/date";
 import { studentById } from "@/lib/roster";
 import type { RoleKey, WeekSchedule, GroupAssignment } from "@/types";
 
@@ -33,6 +34,8 @@ export interface SeatChangeRequest {
   targetRole: RoleKey | "소통";
   status: "pending" | "approved" | "rejected";
   createdAt: number;
+  /** 📅 하루 자리 바꾸기면 그 날짜("YYYY-MM-DD") — 없으면 2주(기) 신청 */
+  date?: string;
 }
 
 export interface SeatSwap {
@@ -53,8 +56,45 @@ async function fetchWeekRequests(week: number): Promise<SeatChangeRequest[]> {
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => ({ id: d.id, ...(d.data() as Omit<SeatChangeRequest, "id">) }))
+    .filter((r) => !r.date) // 하루 신청은 따로 (fetchDayRequests) — 기 신청의 선착순·잠금에 섞이지 않게
     .sort((a, b) => a.createdAt - b.createdAt); // 선착순
 }
+
+// ── 📅 하루 자리 바꾸기 신청 (사용자 2026-11: "하루 자리 바꾸기도 아이들이 자리를 선택해서") ──
+// 내일(다음 등교일) 하루만 · 실버 seatDayCost(기본 5) · 선생님 승인 → classData/seatSwapsDay-{날짜}.
+// 기 신청과 같은 컬렉션에 date 필드만 더해 쓴다 (규칙 게시 불필요). 날짜 하나로 조회 — 단일 필드 색인.
+async function fetchDayRequests(date: string): Promise<SeatChangeRequest[]> {
+  const snap = await getDocs(query(collection(db(), "seatChangeRequests"), where("date", "==", date)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<SeatChangeRequest, "id">) }))
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+export function useDayRequests(date: string) {
+  return useQuery({
+    enabled: !!date,
+    queryKey: ["seatDayRequests", date],
+    queryFn: () => fetchDayRequests(date),
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/** 다음 등교일 — 주말·공휴일은 건너뛴다 (금요일 → 월요일) */
+export function nextSchoolDay(from: string, holidays: string[] = []): string {
+  let d = shiftDate(from, 1);
+  for (let i = 0; i < 14 && (isWeekend(d) || holidays.includes(d)); i++) d = shiftDate(d, 1);
+  return d;
+}
+/** 날짜 → 학기 주차 */
+export const weekOfDay = (date: string) => weekOfDate(date, SEMESTER_START, TOTAL_WEEKS);
+/** "11/18(수)" */
+export function dayLabel(date: string): string {
+  const d = new Date(date + "T00:00:00Z");
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${"일월화수목금토"[d.getUTCDay()]})`;
+}
+/** 신청 하나를 사람이 읽는 말로 — 기 신청은 "8기 (15·16주)", 하루 신청은 "📅 11/18(수) 하루" */
+export const requestWhen = (r: Pick<SeatChangeRequest, "week" | "date">) =>
+  r.date ? `📅 ${dayLabel(r.date)} 하루` : periodLabel(r.week);
+
 
 export function useWeekRequests(week: number) {
   return useQuery({
@@ -85,15 +125,20 @@ export function useCreateSeatRequest(myId: number | null) {
     targetRole: RoleKey | "소통";
     existing: SeatChangeRequest[];
     occupant?: number | null; // 지금 그 자리의 주인 (화면에서 swap 반영해 계산)
+    date?: string; // 📅 하루 신청이면 그 날짜 (내일)
   }) => {
     if (myId == null) throw new Error("로그인이 필요해요.");
-    if (new Date() > seatChangeDeadline(req.weekStart))
+    if (req.date) {
+      if (req.date <= todayKST()) throw new Error("하루 자리 바꾸기는 내일 자리만 신청할 수 있어요.");
+    } else if (new Date() > seatChangeDeadline(req.weekStart))
       throw new Error("신청 기한(전주 수요일 자정)이 지났어요.");
-    const pairErr = chairPairError(await isChairSeat(req.week, myId), req.targetRole);
+    const pairErr = chairPairError(await isChairSeat(req.week, myId, req.date), req.targetRole);
     if (pairErr) throw new Error(pairErr);
     // 판정은 서버의 지금 목록으로 — 화면 목록은 몇 분 묵어 동시 신청을 놓친다
-    const existing = await fetchWeekRequests(req.week).catch(() => req.existing);
-    if (req.occupant != null && req.occupant !== myId && lockedSeatHolders(existing).has(req.occupant))
+    // 🔒 기 신청으로 먼저 옮겨 온 친구의 자리는 하루라도 빼앗지 않는다 (그 기의 승인 목록으로 판정)
+    const sessionReqs = await fetchWeekRequests(swapWeekOf(req.week)).catch(() => (req.date ? [] : req.existing));
+    const existing = req.date ? await fetchDayRequests(req.date).catch(() => req.existing) : sessionReqs;
+    if (req.occupant != null && req.occupant !== myId && lockedSeatHolders(sessionReqs).has(req.occupant))
       throw new Error(
         `🔒 ${nameOf(req.occupant)}이(가) 먼저 신청해서 바꾼 자리예요 — 이번 기에는 바꿀 수 없어요.`
       );
@@ -106,7 +151,7 @@ export function useCreateSeatRequest(myId: number | null) {
     );
     if (taken) throw new Error("이미 먼저 신청한 친구가 있어요. (선착순)");
     if (existing.some((r) => r.studentId === myId && r.status === "pending"))
-      throw new Error("이 주차에 이미 신청했어요.");
+      throw new Error(req.date ? "내일 자리는 이미 신청했어요." : "이 주차에 이미 신청했어요.");
     const docBody = {
       studentId: myId,
       week: req.week,
@@ -114,14 +159,14 @@ export function useCreateSeatRequest(myId: number | null) {
       targetRole: req.targetRole,
       status: "pending" as const,
       createdAt: Date.now(),
+      ...(req.date ? { date: req.date } : {}),
     };
     const ref = await addDoc(collection(db(), "seatChangeRequests"), docBody);
     pingInbox(myId, "seat"); // 📬 교사 종
     // 낙관적 캐시 반영 — 재조회 공백 동안의 연속 신청도 홀드·중복 검사에 바로 잡히게
-    qc.setQueryData<SeatChangeRequest[]>(["seatRequests", req.week], (old) =>
-      old ? [...old, { id: ref.id, ...docBody }] : old
-    );
-    void qc.invalidateQueries({ queryKey: ["seatRequests", req.week] });
+    const listKey = req.date ? ["seatDayRequests", req.date] : ["seatRequests", req.week];
+    qc.setQueryData<SeatChangeRequest[]>(listKey, (old) => (old ? [...old, { id: ref.id, ...docBody }] : old));
+    void qc.invalidateQueries({ queryKey: listKey });
   };
 }
 
@@ -162,14 +207,26 @@ export function applySwaps(schedule: WeekSchedule, swaps: SeatSwap[]): WeekSched
 }
 
 /** 해당 주차·자리의 현재 점유자 (기존 swap까지 반영해 조회 — 승인 시 사용) */
+async function readSwaps(key: string): Promise<SeatSwap[]> {
+  const snap = await getDoc(doc(db(), "classData", key));
+  return snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
+}
+/** 그 주(그리고 date가 있으면 그날 하루 교환까지)의 실제 자리표 — 서버에서 새로 읽는다 */
+async function freshSchedule(week: number, date?: string): Promise<WeekSchedule> {
+  const [ws, ds] = await Promise.all([
+    readSwaps(`seatSwaps-${swapWeekOf(week)}`),
+    date ? readSwaps(`seatSwapsDay-${date}`) : Promise.resolve([]),
+  ]);
+  return applySwaps(scheduleOfWeek(week), [...ws, ...ds]);
+}
+
 export async function findOccupant(
   week: number,
   group: number,
-  role: RoleKey | "소통"
+  role: RoleKey | "소통",
+  date?: string
 ): Promise<number | null> {
-  const snap = await getDoc(doc(db(), "classData", `seatSwaps-${swapWeekOf(week)}`));
-  const swaps = snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
-  const sched = applySwaps(scheduleOfWeek(week), swaps);
+  const sched = await freshSchedule(week, date);
   const g = sched.groups.find((x) => x.groupId === group);
   if (!g) return null;
   if (role === "소통") return g.chair;
@@ -177,10 +234,8 @@ export async function findOccupant(
 }
 
 /** 그 주차에 이 학생이 의장 자리(소통)에 앉아 있나 — 교환까지 반영 */
-export async function isChairSeat(week: number, sid: number): Promise<boolean> {
-  const snap = await getDoc(doc(db(), "classData", `seatSwaps-${swapWeekOf(week)}`));
-  const swaps = snap.exists() ? ((snap.data().swaps as SeatSwap[] | undefined) ?? []) : [];
-  return applySwaps(scheduleOfWeek(week), swaps).groups.some((g) => g.chair === sid);
+export async function isChairSeat(week: number, sid: number, date?: string): Promise<boolean> {
+  return (await freshSchedule(week, date)).groups.some((g) => g.chair === sid);
 }
 
 /**
@@ -223,13 +278,15 @@ export function useDecideSeatRequest() {
     const balRef = doc(d, "coinTxns", "0_balances");
 
     // 🪑 의장은 의장끼리 — 승인 시점의 실제 자리로 다시 판정 (신청 뒤 교사가 자리를 바꿨을 수도)
+    if (approve && req.date && req.date < todayKST())
+      throw new Error(`${dayLabel(req.date)} 자리 신청인데 그날이 지났어요 — 반려해 주세요.`);
     if (approve) {
-      const pairErr = chairPairError(await isChairSeat(req.week, req.studentId), req.targetRole);
+      const pairErr = chairPairError(await isChairSeat(req.week, req.studentId, req.date), req.targetRole);
       if (pairErr) throw new Error(`${pairErr} — 반려해 주세요.`);
     }
-    // 🔒 먼저 신청해서 그 자리로 옮겨 온 친구는 다시 밀어낼 수 없다 (사용자 확정 2026-11-09)
+    // 🔒 먼저 신청해서 그 자리로 옮겨 온 친구는 다시 밀어낼 수 없다 (사용자 확정 2026-11-09) — 하루 신청도 마찬가지
     if (approve && occupantId != null && occupantId !== req.studentId) {
-      const others = (await fetchWeekRequests(req.week)).filter((r) => r.id !== req.id);
+      const others = (await fetchWeekRequests(swapWeekOf(req.week))).filter((r) => r.id !== req.id);
       if (lockedSeatHolders(others).has(occupantId))
         throw new Error(
           `🔒 ${nameOf(occupantId)}이(가) 먼저 신청해서 바꾼 자리라 승인할 수 없어요 — 반려해 주세요.`
@@ -260,7 +317,9 @@ export function useDecideSeatRequest() {
         await addDoc(collection(d, "coinTxns"), {
           studentId: req.studentId,
           amount: cost,
-          item: `자리 변경 (${periodLabel(req.week)} ${req.targetGroup}모둠 ${req.targetRole})`,
+          item: req.date
+            ? `하루 자리 (${dayLabel(req.date)} ${req.targetGroup}모둠 ${req.targetRole})`
+            : `자리 변경 (${periodLabel(req.week)} ${req.targetGroup}모둠 ${req.targetRole})`,
           type: "spend",
           status: "approved",
           createdAt: Date.now(),
@@ -268,11 +327,15 @@ export function useDecideSeatRequest() {
       }
       if (occupantId != null && occupantId !== req.studentId) {
         await setDoc(
-          doc(d, "classData", `seatSwaps-${swapWeekOf(req.week)}`),
+          doc(d, "classData", req.date ? `seatSwapsDay-${req.date}` : `seatSwaps-${swapWeekOf(req.week)}`),
           { swaps: arrayUnion({ a: req.studentId, b: occupantId, at: Date.now() }) },
           { merge: true }
         );
       }
+    }
+    if (req.date) {
+      void qc.invalidateQueries({ queryKey: ["seatSwapsDay", req.date] });
+      void qc.invalidateQueries({ queryKey: ["seatDayRequests", req.date] });
     }
     void qc.invalidateQueries({ queryKey: ["pendingSeatRequests"] });
     void qc.invalidateQueries({ queryKey: ["seatSwaps", swapWeekOf(req.week)] });

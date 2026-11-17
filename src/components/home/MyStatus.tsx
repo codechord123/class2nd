@@ -9,7 +9,7 @@ import { useSettings } from "@/lib/query/settings";
 import { useReadingStats, useMyTodayReadCount } from "@/lib/query/reading";
 import { useBalances, useMyRequests } from "@/lib/query/wallet";
 import { useMyAppeals } from "@/lib/query/appeals";
-import { useWeekRequests } from "@/lib/query/seatChange";
+import { useWeekRequests, useDayRequests, nextSchoolDay, dayLabel } from "@/lib/query/seatChange";
 import { usePolls, votesOf, isPollClosed } from "@/lib/query/board";
 import { useCumulativeScores, useDailyScores, useLatestAggregated, useMyEvaluation, type DailyMeta } from "@/lib/query/evaluation";
 import { getS1WalletOf, s1TotalOf, s1BooksOf } from "@/lib/staticData";
@@ -67,7 +67,10 @@ export default function MyStatus({ variant = "home" }: { variant?: "home" | "asi
   // 💺 자리·🙋 이의제기 결과 알림 — 각 탭과 캐시 공유
   const nowWeekNum = currentWeekNum();
   const sessionStartWeek = nowWeekNum - ((nowWeekNum - 1) % 2);
-  const { data: weekReqs } = useWeekRequests(sessionStartWeek);
+  const { data: sessionReqs } = useWeekRequests(sessionStartWeek);
+  // 📅 내일 하루 자리 신청 결과도 같은 배너로 (자리 탭과 캐시 공유)
+  const { data: dayReqs } = useDayRequests(role === "student" ? nextSchoolDay(todayKST()) : "");
+  const weekReqs = [...(sessionReqs ?? []), ...(dayReqs ?? [])];
   const { data: myAppeals } = useMyAppeals(role === "student" ? studentId : null);
   // 🗳 진행 중 투표 — 오늘 할 일 타일용 (투표 탭과 캐시 공유, 최근 1페이지만)
   const { data: polls } = usePolls(1);
@@ -319,7 +322,7 @@ export default function MyStatus({ variant = "home" }: { variant?: "home" | "asi
               text:
                 seatDecided.status === "approved" ? (
                   <>
-                    자리 변경 <b>승인</b> — {seatDecided.targetGroup}모둠 {seatDecided.targetRole}
+                    {seatDecided.date ? `${dayLabel(seatDecided.date)} 하루 ` : ""}자리 변경 <b>승인</b> — {seatDecided.targetGroup}모둠 {seatDecided.targetRole}
                   </>
                 ) : (
                   <>자리 신청이 <b>반려</b>됐어요</>
@@ -419,7 +422,7 @@ export default function MyStatus({ variant = "home" }: { variant?: "home" | "asi
           <span className="text-2xl">🛒</span>
           <span className="min-w-0 flex-1 text-sm text-ink-800">
             <b>
-              "{firstDecided.item}" {firstDecided.status === "approved" ? "✅ 승인" : "❌ 반려"}
+              {`"${firstDecided.item}"`} {firstDecided.status === "approved" ? "✅ 승인" : "❌ 반려"}
             </b>
             {decided.length > 1 && ` 외 ${decided.length - 1}건`} — 신청 결과가 나왔어요!
           </span>
@@ -443,9 +446,12 @@ export default function MyStatus({ variant = "home" }: { variant?: "home" | "asi
           <span className="text-2xl">💺</span>
           <span className="min-w-0 flex-1 text-sm text-ink-800">
             {seatDecided.status === "approved" ? (
-              <b>자리 변경 승인! {seatDecided.targetGroup}모둠 {seatDecided.targetRole} 지킴이로 이동해요 🎉</b>
+              <b>
+                자리 변경 승인! {seatDecided.date ? `${dayLabel(seatDecided.date)} 하루 ` : ""}
+                {seatDecided.targetGroup}모둠 {seatDecided.targetRole} 지킴이로 이동해요 🎉
+              </b>
             ) : (
-              <b>자리 신청이 반려됐어요 — 다음 기에 다시 도전!</b>
+              <b>자리 신청이 반려됐어요 — {seatDecided.date ? "다른 날 다시 도전!" : "다음 기에 다시 도전!"}</b>
             )}
           </span>
           <span className={`shrink-0 text-xs font-bold ${seatDecided.status === "approved" ? "text-success" : "text-ink-500"}`}>자리표 보기 →</span>

@@ -65,6 +65,8 @@ export interface ClassSettings {
   weeklyReadingQuota: number;
   /** 자리 변경 비용 (실버, 기본 1) */
   seatChangeCost: number;
+  /** 📅 하루 자리 바꾸기 비용 (실버, 기본 5 — 사용자 2026-11) */
+  seatDayCost?: number;
   /** 거북이 마라톤 학급 목표 권수 */
   readingGoal: number;
   /** 감상문 정식 등록 최소 글자수 (장면+인용+줄거리+느낀점 합산) */
@@ -112,6 +114,7 @@ export const DEFAULT_SETTINGS: ClassSettings = {
   rankPoints: [5, 4, 3, 2, 1],
   weeklyReadingQuota: 3,
   seatChangeCost: 10,
+  seatDayCost: 5,
   readingGoal: 1250,
   readingCharLimit: 700,
   semesterStart: "2026-08-17",
