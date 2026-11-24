@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTimer, leftMs, fmt } from "@/stores/timer";
 import { audioRunning, cancelTimerSounds, onAudioState, scheduleTimerSounds, setVolume, unlockAudio } from "@/lib/tools/chime";
 import { useWidgets, WIDGET_META } from "@/stores/widgets";
+import { closePopOut, usePopOut } from "@/lib/tools/popout";
 
 export const TOOLS = [
   { href: "/tools/board", label: "칠판", emoji: "🖊️", desc: "색 글씨 줄·손글씨, 쓰는 대로 저장되고 목록에서 다시 열어요" },
@@ -94,7 +95,9 @@ export function FocusButton({ on, toggle, dark = false }: { on: boolean; toggle:
 export function TimerWatcher() {
   const path = usePathname();
   const t = useTimer();
-  const timerOpen = useWidgets((w) => w.open.some((x) => x.kind === "timer"));
+  const timerWidget = useWidgets((w) => w.open.some((x) => x.kind === "timer"));
+  const timerPopped = !!usePopOut((s) => s.wins.timer);
+  const timerOpen = timerWidget || timerPopped; // 떠 있는 창·따로 띄운 창에 보이면 아래 알약은 안 띄운다
   const [now, setNow] = useState(() => Date.now());
   const [audioRev, setAudioRev] = useState(0); // 소리 잠김↔풀림이 바뀔 때마다 +1 → 예약 다시
   const [audioOn, setAudioOn] = useState(true);
@@ -177,15 +180,17 @@ export function TimerWatcher() {
 export function FloatLaunchers({ compact = false }: { compact?: boolean }) {
   const open = useWidgets((w) => w.open);
   const toggle = useWidgets((w) => w.toggle);
+  const popWins = usePopOut((s) => s.wins);
   return (
     <div className="flex items-center gap-1">
       {!compact && <span className="mr-1 text-[12px] font-bold text-ink-500">창 띄우기</span>}
       {(["timer", "pick", "noise"] as const).map((k) => {
-        const on = open.some((x) => x.kind === k);
+        const poppedOut = !!popWins[k];
+        const on = open.some((x) => x.kind === k) || poppedOut;
         return (
           <button
             key={k}
-            onClick={() => toggle(k)}
+            onClick={() => (poppedOut ? closePopOut(k) : toggle(k))}
             aria-pressed={on}
             title={`${WIDGET_META[k].label} 창 ${on ? "닫기" : "띄우기"}`}
             className={`press h-8 rounded-full px-3 text-[12.5px] font-bold transition-colors ${

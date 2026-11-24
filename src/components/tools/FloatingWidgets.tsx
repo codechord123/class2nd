@@ -14,23 +14,46 @@ import { usePathname } from "next/navigation";
 import { students } from "@/lib/roster";
 import { useAttendance } from "@/lib/query/classMeta";
 import { todayKST } from "@/lib/date";
-import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
+import { closePopOut, openPopOut, usePopOut, usePopped, type PopKind } from "@/lib/tools/popout";
+import { useWheelTime, Digits } from "@/components/tools/wheelTime";
 
 /** 따로 띄운 창(항상 위 PIP·팝업)에 도구를 그린다 — lib/tools/popout.ts */
 function PopOutHost() {
-  const kind = usePopOut((s) => s.kind);
-  const win = usePopOut((s) => s.win);
+  const wins = usePopOut((s) => s.wins);
   useEffect(() => {
     // 이 탭을 닫거나 새로고침하면 따로 띄운 창도 닫는다 (빈 창이 남지 않게)
     const off = () => closePopOut();
     window.addEventListener("pagehide", off);
     return () => window.removeEventListener("pagehide", off);
   }, []);
-  const root = win?.document.getElementById("pop-root");
-  if (!kind || !root) return null;
+  return (
+    <>
+      {(Object.keys(wins) as PopKind[]).map((k) => {
+        const w = wins[k];
+        return w ? <PopBody key={k} kind={k} win={w.win} /> : null;
+      })}
+    </>
+  );
+}
+function PopBody({ kind, win }: { kind: PopKind; win: Window }) {
+  // 창 크기 — 타이머는 창이 크면 더하기/빼기·프리셋 줄까지 보여 준다 (떠 있는 창과 같은 규칙)
+  const [size, setSize] = useState(() => ({ w: win.innerWidth, h: win.innerHeight }));
+  useEffect(() => {
+    const on = () => setSize({ w: win.innerWidth, h: win.innerHeight });
+    win.addEventListener("resize", on);
+    return () => win.removeEventListener("resize", on);
+  }, [win]);
+  const root = win.document.getElementById("pop-root");
+  if (!root) return null;
   return createPortal(
     <div className="h-screen w-screen overflow-hidden bg-white text-ink-900" style={{ containerType: "size" }}>
-      {kind === "noise" && <NoiseW autoStart />}
+      {kind === "noise" ? (
+        <NoiseW autoStart />
+      ) : kind === "pick" ? (
+        <PickW />
+      ) : (
+        <TimerW box={{ kind: "timer", x: 0, y: 0, z: 0, w: size.w, h: size.h }} />
+      )}
     </div>,
     root
   );
@@ -42,7 +65,7 @@ function NoiseWatcher() {
   const running = useNoiseLive((s) => s.running);
   const warns = useNoiseLive((s) => s.warns);
   const widget = useWidgets((s) => s.open.some((w) => w.kind === "noise"));
-  const popped = usePopOut((s) => s.kind === "noise");
+  const popped = usePopped("noise");
   if (!running || widget || popped || path.startsWith("/tools/noise")) return null;
   return (
     <div
@@ -147,20 +170,18 @@ function Win({ box, children }: { box: WidgetBox; children: React.ReactNode }) {
       >
         <span className="text-[12.5px] font-bold text-ink-600">{meta.label}</span>
         <span className="flex items-center">
-        {box.kind === "noise" && (
           <button
             onClick={() =>
-              void openPopOut("noise").then((ok) => {
-                if (ok) close("noise");
+              void openPopOut(box.kind).then((ok) => {
+                if (ok) close(box.kind);
                 else alert("새 창이 막혀 있어요 — 주소창 오른쪽의 '팝업 차단' 표시를 눌러 허용해 주세요.");
               })
             }
-            title="브라우저 밖 작은 창으로 따로 띄우기 (크롬·엣지는 PPT 위에도 떠 있어요)"
+            title="브라우저 밖 진짜 창으로 — 화면 어디로든 옮기고, 크롬·엣지는 PPT 위에도 떠 있어요"
             className="h-7 rounded-full px-2 text-[12px] font-bold text-ink-500 hover:bg-ink-200 hover:text-ink-900"
           >
-            ⧉ 따로
+            ⧉ 새 창
           </button>
-        )}
         <button
           onClick={() => close(box.kind)}
           aria-label={`${meta.label} 창 닫기`}
@@ -199,11 +220,19 @@ function TimerW({ box }: { box: WidgetBox }) {
   const [now, setNow] = useState(() => Date.now());
   const [editing, setEditing] = useState(false);
   const running = t.mode === "stopwatch" ? !!t.swStart : !!t.endAt;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const digitsRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setNow(Date.now()), t.mode === "stopwatch" ? 100 : 250);
-    return () => clearInterval(id);
+    // 따로 띄운 창이면 '그 창'의 시계로 돈다 — PPT를 띄워 원래 탭이 가려지면 그 탭의 타이머는 1분에 한 번까지 느려진다
+    const w = rootRef.current?.ownerDocument.defaultView ?? window;
+    const id = w.setInterval(() => setNow(Date.now()), t.mode === "stopwatch" ? 100 : 250);
+    return () => w.clearInterval(id);
   }, [running, t.mode]);
+  const { endAt, finish } = t;
+  useEffect(() => {
+    if (endAt && now >= endAt) finish(); // 원래 탭이 느려져 있어도 '끝!'이 제때
+  }, [now, endAt, finish]);
   const sw = t.mode === "stopwatch";
   const done = !sw && !!t.doneAt;
   const left = leftMs(t, now);
@@ -212,8 +241,9 @@ function TimerW({ box }: { box: WidgetBox }) {
   // 창 크기에 따라 보이는 줄 — 작게 줄이면 시간·시작만, 키우면 더하기/빼기·프리셋까지
   const showSteps = !sw && !done && box.h >= 250;
   const showPresets = !sw && !done && !running && box.h >= 330;
+  useWheelTime(digitsRef, !sw && !done && !editing, t.add);
   return (
-    <div className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
+    <div ref={rootRef} className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
       {/* 제목 — 바로 써서 고친다 */}
       <input
         value={t.label}
@@ -236,17 +266,18 @@ function TimerW({ box }: { box: WidgetBox }) {
         />
       ) : (
         <button
+          ref={digitsRef}
           onClick={() => {
             if (sw || running || done) return;
             setEditing(true);
           }}
-          title={!sw && !running && !done ? "눌러서 분·초 직접 입력" : undefined}
+          title={!sw && !done ? (running ? "휠로 시간 조절 (분·초 숫자 위에서)" : "눌러서 분·초 직접 입력 · 휠로 조절") : undefined}
           className={`rounded-[10px] px-2 font-bold leading-none tabular-nums tracking-tight ${done ? "text-danger" : "text-ink-900"} ${
             !sw && !running && !done ? "cursor-text hover:bg-ink-50" : "cursor-default"
           }`}
           style={{ fontSize: `min(${sw ? 18 : 24}cqw, ${showPresets ? 22 : showSteps ? 28 : 36}cqh)` }}
         >
-          {text}
+          {sw || done ? text : <Digits text={text} />}
         </button>
       )}
       {!sw && (

@@ -7,13 +7,14 @@
 import { useNoiseMeter, noiseFace as face, mmss, NOISE_HISTORY as HISTORY, HOLD_OPTIONS, QUIET_GOALS } from "@/lib/tools/useNoiseMeter";
 import { NOISE_ALARMS, playNoiseAlarm, unlockAudio, type NoiseAlarm } from "@/lib/tools/chime";
 import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
-import { closePopOut, openPopOut, usePopOut } from "@/lib/tools/popout";
+import { closePopOut, openPopOut, usePopped } from "@/lib/tools/popout";
 
 export default function NoisePage() {
   const { prefs, setPrefs, running, err, level, warning, warns, quietMs, hist, start, stop, quietProgress, quietWins, quietHit, overWarnGoal, cheering } = useNoiseMeter();
   const { on: focus, toggle } = useFocusMode();
-  const popped = usePopOut((s) => s.kind === "noise");
-  const popPip = usePopOut((s) => s.pip);
+  const poppedWin = usePopped("noise");
+  const popped = !!poppedWin;
+  const popPip = !!poppedWin?.pip;
   const popOut = () => {
     // 측정은 하나라 그대로 이어진다 — 안 듣고 있었으면 따로 띄운 창이 열리면서 시작
     void openPopOut("noise").then((ok) => {
@@ -48,7 +49,7 @@ export default function NoisePage() {
               title="브라우저 밖 작은 창으로 — 크롬·엣지는 PPT를 띄워도 그 위에 떠 있어요"
               className="press inline-flex h-9 items-center gap-1.5 rounded-full bg-ink-100 px-3.5 text-[13px] font-bold text-ink-800 hover:bg-ink-200"
             >
-              ⧉ 따로 띄우기
+              ⧉ 새 창으로
             </button>
           )}
           <FocusButton on={focus} toggle={toggle} dark={dark} />
@@ -60,7 +61,7 @@ export default function NoisePage() {
           <span className="font-bold text-ink-800">
             ⧉ 소음 측정기가 따로 띄운 창에서 듣고 있어요{popPip ? " (항상 위)" : ""}
           </span>
-          <button onClick={closePopOut} className="press h-8 rounded-full bg-white px-3 text-[13px] font-bold text-ink-700">
+          <button onClick={() => closePopOut("noise")} className="press h-8 rounded-full bg-white px-3 text-[13px] font-bold text-ink-700">
             그 창 닫기
           </button>
         </div>
