@@ -67,6 +67,9 @@ useNoisePrefs.subscribe((s) => {
 
 interface Live {
   running: boolean;
+  /** ⏸ 일시정지 — 마이크·경고는 끄고 경고 횟수·조용한 시간은 그대로 둔다 (사용자 2026-11: "정지하면 기록이 바로 리셋돼서") */
+  paused: boolean;
+  pausedAt: number;
   err: string | null;
   level: number;
   warning: boolean;
@@ -81,6 +84,8 @@ interface Live {
 const IDLE = { level: 0, warning: false };
 export const useNoiseLive = create<Live>(() => ({
   running: false,
+  paused: false,
+  pausedAt: 0,
   err: null,
   level: 0,
   warning: false,
@@ -96,7 +101,8 @@ const set = useNoiseLive.setState;
 let stopFn: (() => void) | null = null;
 let starting = false;
 
-export async function startNoise() {
+/** 시작 — resume이면 일시정지 전 기록(경고 횟수·조용한 시간·달성)을 이어서 센다 */
+export async function startNoise(opts: { resume?: boolean } = {}) {
   if (stopFn || starting) return;
   starting = true;
   set({ err: null });
@@ -139,7 +145,11 @@ export async function startNoise() {
     let lastPaint = 0;
     let lastT = 0;
     const t0 = Date.now();
-    set({ running: true, warns: 0, quietFrom: t0, now: t0, hist: [], quietWins: 0, quietHit: false, cheerAt: 0 });
+    if (opts.resume && useNoiseLive.getState().paused)
+      // 쉬는 동안은 조용한 시간에 넣지 않는다 — 멈춘 만큼 시작점을 뒤로 민다
+      set((s) => ({ running: true, paused: false, quietFrom: s.quietFrom + (t0 - s.pausedAt), now: t0 }));
+    else
+      set({ running: true, paused: false, warns: 0, quietFrom: t0, now: t0, hist: [], quietWins: 0, quietHit: false, cheerAt: 0 });
 
     proc.onaudioprocess = (ev) => {
       const buf = ev.inputBuffer.getChannelData(0);
@@ -194,10 +204,18 @@ export async function startNoise() {
   }
 }
 
+/** ⏸ 일시정지 — 기록은 그대로 */
+export function pauseNoise() {
+  if (!stopFn) return;
+  stopFn();
+  stopFn = null;
+  set({ running: false, paused: true, pausedAt: Date.now(), ...IDLE });
+}
+/** ■ 끝내기 — 기록까지 지운다 ('처음부터') */
 export function stopNoise() {
   stopFn?.();
   stopFn = null;
-  set({ running: false, ...IDLE });
+  set({ running: false, paused: false, ...IDLE, warns: 0, hist: [], quietWins: 0, quietHit: false, cheerAt: 0 });
 }
 
 export function useNoiseMeter() {
@@ -208,7 +226,11 @@ export function useNoiseMeter() {
     []
   );
   const live = useNoiseLive();
-  const quietMs = live.running ? Math.max(0, live.now - live.quietFrom) : 0;
+  const quietMs = live.running
+    ? Math.max(0, live.now - live.quietFrom)
+    : live.paused
+      ? Math.max(0, live.pausedAt - live.quietFrom)
+      : 0;
   const goalMs = prefs.quietGoalMin * 60_000;
   return {
     prefs,
@@ -220,7 +242,11 @@ export function useNoiseMeter() {
     /** 경고 목표를 넘었나 */
     overWarnGoal: prefs.warnGoal > 0 && live.warns > prefs.warnGoal,
     cheering: live.cheerAt > 0 && live.now - live.cheerAt < 4000,
-    start: startNoise,
+    /** 기록이 보이는 상태 (듣는 중이거나 일시정지) */
+    active: live.running || live.paused,
+    start: () => startNoise(),
+    resume: () => startNoise({ resume: true }),
+    pause: pauseNoise,
     stop: stopNoise,
   };
 }

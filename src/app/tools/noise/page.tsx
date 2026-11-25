@@ -10,7 +10,7 @@ import { FocusButton, useFocusMode } from "@/components/tools/ToolsShell";
 import { closePopOut, openPopOut, usePopped } from "@/lib/tools/popout";
 
 export default function NoisePage() {
-  const { prefs, setPrefs, running, err, level, warning, warns, quietMs, hist, start, stop, quietProgress, quietWins, quietHit, overWarnGoal, cheering } = useNoiseMeter();
+  const { prefs, setPrefs, running, paused, active, err, level, warning, warns, quietMs, hist, start, stop, pause, resume, quietProgress, quietWins, quietHit, overWarnGoal, cheering } = useNoiseMeter();
   const { on: focus, toggle } = useFocusMode();
   const poppedWin = usePopped("noise");
   const popped = !!poppedWin;
@@ -41,7 +41,7 @@ export default function NoisePage() {
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <p className={`text-[13px] font-bold ${sub}`}>{running ? "듣는 중 · 소리는 이 기기에서만 계산하고 저장하지 않아요" : "마이크로 교실 소리를 재요"}</p>
+        <p className={`text-[13px] font-bold ${sub}`}>{running ? "듣는 중 · 소리는 이 기기에서만 계산하고 저장하지 않아요" : paused ? "⏸ 일시정지 — 마이크와 경고음을 껐어요 (기록은 그대로)" : "마이크로 교실 소리를 재요"}</p>
         <span className="flex items-center gap-1.5">
           {!focus && (
             <button
@@ -71,9 +71,9 @@ export default function NoisePage() {
 
       <div className={`flex flex-col items-center ${focus ? "flex-1 justify-center gap-6" : "gap-4 py-2"}`}>
         <span aria-hidden className={`leading-none transition-transform duration-200 ${focus ? "text-[min(28vh,30vw)]" : "text-8xl"} ${warning ? "scale-110" : ""}`}>
-          {running ? f.e : "🤫"}
+          {running ? f.e : paused ? "⏸" : "🤫"}
         </span>
-        <p className={`font-bold ${focus ? "text-5xl" : "text-2xl"}`}>{running ? f.t : "시작을 누르면 소리를 재요"}</p>
+        <p className={`font-bold ${focus ? "text-5xl" : "text-2xl"}`}>{running ? f.t : paused ? "잠깐 쉬는 중" : "시작을 누르면 소리를 재요"}</p>
 
         {/* 막대 + 기준선 */}
         <div className={`relative w-full ${focus ? "max-w-5xl" : "max-w-2xl"}`}>
@@ -86,8 +86,8 @@ export default function NoisePage() {
           </span>
         </div>
 
-        {/* 조용한 시간이 주인공 — 🎯 목표가 있으면 '지금 / 목표'와 채워지는 막대 */}
-        {running && (
+        {/* 조용한 시간이 주인공 — 🎯 목표가 있으면 '지금 / 목표'와 채워지는 막대 (일시정지 중에도 그대로 보인다) */}
+        {active && (
           <div className="flex items-end gap-8">
             <div className="text-center">
               <p className={`text-[13px] font-bold ${sub}`}>
@@ -126,15 +126,32 @@ export default function NoisePage() {
         )}
       </div>
 
-      <div className="flex justify-center">
-        <button
-          onClick={running ? stop : () => void start()}
-          className={`press h-14 min-w-44 rounded-full px-8 text-lg font-bold ${
-            running ? (dark ? "bg-white/15 text-white" : "bg-ink-100 text-ink-800") : dark ? "bg-white text-ink-900" : "bg-ink-900 text-white"
-          }`}
-        >
-          {running ? "멈추기" : "시작"}
-        </button>
+      {/* ⏸ 일시정지(기록 유지) · ▶ 이어서 · 처음부터(기록 지우기) */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {running ? (
+          <button
+            onClick={pause}
+            className={`press h-14 min-w-44 rounded-full px-8 text-lg font-bold ${dark ? "bg-white/15 text-white" : "bg-ink-100 text-ink-800"}`}
+          >
+            ⏸ 일시정지
+          </button>
+        ) : (
+          <button
+            onClick={() => void (paused ? resume() : start())}
+            className={`press h-14 min-w-44 rounded-full px-8 text-lg font-bold ${dark ? "bg-white text-ink-900" : "bg-ink-900 text-white"}`}
+          >
+            {paused ? "▶ 이어서" : "시작"}
+          </button>
+        )}
+        {active && (
+          <button
+            onClick={stop}
+            title="경고 횟수·조용한 시간을 지우고 마이크를 꺼요"
+            className={`press h-14 rounded-full px-6 text-[15px] font-bold ${dark ? "text-white/70 hover:bg-white/10" : "text-ink-600 hover:bg-ink-100"}`}
+          >
+            ■ 끝내고 지우기
+          </button>
+        )}
       </div>
 
       {!focus && (

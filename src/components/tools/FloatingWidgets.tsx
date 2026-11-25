@@ -8,7 +8,7 @@ import { useWidgets, WIDGET_META, type WidgetBox, type WidgetKind } from "@/stor
 import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
 import TimeEntry from "@/components/tools/TimeEntry";
 import { chimePick, tick, unlockAudio } from "@/lib/tools/chime";
-import { useNoiseMeter, useNoiseLive, stopNoise, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
+import { useNoiseMeter, useNoiseLive, pauseNoise, noiseFace, mmss } from "@/lib/tools/useNoiseMeter";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { students } from "@/lib/roster";
@@ -77,11 +77,11 @@ function NoiseWatcher() {
         🔊 소음 듣는 중 · 경고 {warns}번
       </Link>
       <button
-        onClick={stopNoise}
-        aria-label="소음 측정 멈추기"
+        onClick={pauseNoise}
+        aria-label="소음 측정 일시정지 (기록은 그대로)"
         className="press grid h-8 w-8 place-items-center rounded-full bg-white/15 text-[13px] hover:bg-white/25"
       >
-        ■
+        ⏸
       </button>
     </div>
   );
@@ -540,12 +540,12 @@ function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
   const m = useNoiseMeter();
   // 따로 띄운 창은 열리자마자 듣기 시작 (이미 듣고 있으면 그대로 이어서 보여 줌)
   const started = useRef(false);
-  const { start, running } = m;
+  const { start, resume, running, paused } = m;
   useEffect(() => {
     if (!autoStart || started.current) return;
     started.current = true;
-    if (!running) void start();
-  }, [autoStart, start, running]);
+    if (!running) void (paused ? resume() : start()); // 일시정지였으면 기록을 이어서
+  }, [autoStart, start, resume, running, paused]);
   const th = m.prefs.threshold;
   const f = noiseFace(m.level, th, m.warning);
   const over = m.level >= th;
@@ -554,7 +554,7 @@ function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
   return (
     <div className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-4 transition-colors ${m.warning ? "bg-danger-weak" : ""}`}>
       <span aria-hidden className="leading-none" style={{ fontSize: "min(22cqw, 28cqh)" }}>
-        {m.running ? (m.cheering ? "🎉" : f.e) : "🤫"}
+        {m.running ? (m.cheering ? "🎉" : f.e) : m.paused ? "⏸" : "🤫"}
       </span>
       {m.err ? (
         <p className="text-center text-[12px] font-bold text-danger">{m.err}</p>
@@ -567,7 +567,7 @@ function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
           <div className="absolute inset-y-0 w-0.5 bg-danger" style={{ left: `${th}%` }} />
         </div>
       )}
-      {m.running && (
+      {m.active && (
         <div className="flex items-baseline gap-[5cqw] font-bold tabular-nums">
           <p className={m.quietHit ? "text-success" : "text-ink-900"} style={{ fontSize: stat }}>
             <span className="mr-1 text-[max(11px,3cqw)] text-ink-400">조용</span>
@@ -584,17 +584,29 @@ function NoiseW({ autoStart = false }: { autoStart?: boolean }) {
           </p>
         </div>
       )}
-      {m.quietProgress != null && m.running && (
+      {m.quietProgress != null && m.active && (
         <div className="h-[max(4px,1.6cqh)] w-[60%] overflow-hidden rounded-full bg-ink-100">
           <div className="h-full rounded-full bg-success transition-[width] duration-300" style={{ width: `${m.quietProgress * 100}%` }} />
         </div>
       )}
-      <button
-        onClick={m.running ? m.stop : () => void m.start()}
-        className={`${btn} h-[max(30px,12cqh)] px-[max(14px,5cqw)] text-[max(13px,4.2cqw)] ${m.running ? "bg-ink-100 text-ink-800" : "bg-ink-900 text-white"}`}
-      >
-        {m.running ? "멈추기" : "시작"}
-      </button>
+      <div className="flex items-center gap-[2cqw]">
+        <button
+          onClick={m.running ? m.pause : () => void (m.paused ? m.resume() : m.start())}
+          className={`${btn} h-[max(30px,12cqh)] px-[max(14px,5cqw)] text-[max(13px,4.2cqw)] ${m.running ? "bg-ink-100 text-ink-800" : "bg-ink-900 text-white"}`}
+        >
+          {m.running ? "⏸ 일시정지" : m.paused ? "▶ 이어서" : "시작"}
+        </button>
+        {m.active && (
+          <button
+            onClick={m.stop}
+            title="끝내고 기록 지우기"
+            aria-label="끝내고 기록 지우기"
+            className={`${btn} h-[max(30px,12cqh)] w-[max(30px,12cqh)] text-[max(12px,3.6cqw)] text-ink-500 hover:bg-ink-100`}
+          >
+            ■
+          </button>
+        )}
+      </div>
     </div>
   );
 }
