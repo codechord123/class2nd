@@ -4,7 +4,7 @@
 //   · 시간 더하기·빼기(흐르는 중에도) · 내 프리셋 저장 · 끝난 뒤 '지난 시간'
 //   · 종료 전 알림(1분·30초) · 마지막 10초 똑딱 · 끝 소리 고르기·크기 (소리는 셸의 TimerWatcher가 낸다)
 //   · '창으로 띄우기' — 칠판 위 등 어디서든 끌어 옮기고 크기 조절
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWheelTime, Digits } from "@/components/tools/wheelTime";
 import { closePopOut, openPopOut, usePopped } from "@/lib/tools/popout";
 import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
@@ -27,8 +27,7 @@ export default function TimerPage() {
   const sw = t.mode === "stopwatch";
   const running = sw ? !!t.swStart : !!t.endAt;
   const done = !sw && !!t.doneAt;
-  const digitsRef = useRef<HTMLButtonElement>(null);
-  useWheelTime(digitsRef, !sw && !done && !editing, t.add);
+  const wheelRef = useWheelTime(!sw && !done && !editing, t.add);
   const popped = !!usePopped("timer");
   useEffect(() => {
     if (!running) return; // 끝나면 시계를 멈춘다 (사용자 2026-11: "끝나면 계속 흐르는 게 아니라 멈추게")
@@ -201,7 +200,11 @@ export default function TimerPage() {
         )}
 
         {/* 링 + 숫자 */}
-        <div className={`relative ${focus ? "h-[min(52vh,72vw)] w-[min(52vh,72vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}>
+        <div
+          ref={wheelRef}
+          title={!sw && !done && !editing ? "휠로 시간 조절 — 1분씩 (초 숫자 위에선 10초씩)" : undefined}
+          className={`relative ${focus ? "h-[min(52vh,72vw)] w-[min(52vh,72vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}
+        >
           <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
             <circle cx="50" cy="50" r={R} fill="none" stroke={dark ? "rgba(255,255,255,0.12)" : "var(--color-ink-100)"} strokeWidth="5" />
             {!sw && (
@@ -233,12 +236,11 @@ export default function TimerPage() {
               />
             ) : (
               <button
-                ref={digitsRef}
                 onClick={() => {
                   if (sw || running || done) return;
                   setEditing(true);
                 }}
-                title={!sw && !done ? (running ? "휠로 시간 조절 (분·초 숫자 위에서)" : "눌러서 분·초 직접 입력 · 휠로 조절") : undefined}
+                title={!sw && !done ? (running ? "휠로 시간 조절 (초 숫자 위에선 10초씩)" : "눌러서 분·초 직접 입력 · 휠로 1분씩 조절") : undefined}
                 className={`text-center font-bold tabular-nums tracking-tight ${focus ? "text-[min(14vh,17vw)]" : sw ? "text-5xl sm:text-6xl" : "text-6xl sm:text-7xl"} ${
                   focus ? "" : done ? "text-danger" : "text-ink-900"
                 } ${!sw && !running && !done ? `cursor-text rounded-[12px] px-2 ${focus ? "hover:bg-white/5" : "hover:bg-ink-50"}` : "cursor-default"}`}
@@ -249,6 +251,9 @@ export default function TimerPage() {
           </div>
         </div>
 
+        {!sw && !done && !editing && !focus && (
+          <p className="-mt-2 text-[12px] font-bold text-ink-400">🖱️ 시계 위에서 휠 = 1분씩 · 초 숫자 위에선 10초씩</p>
+        )}
         {/* 주 조작 — 시작/멈춤 하나가 가장 크다 */}
         <div className="flex flex-col items-center gap-4">
           {done ? (

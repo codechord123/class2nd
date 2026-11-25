@@ -2,7 +2,7 @@
 // 🪟 떠 있는 도구 창 — 제목 줄을 끌어 옮기고, 오른쪽 아래 모서리를 끌어 크기를 바꾼다.
 // 창 안 글자는 창 크기에 맞춰 커진다 (CSS 컨테이너 단위 cqw·cqh) — 크게 늘리면 프로젝터에서도 보인다.
 // 선생님 화면 어디서든 셸에 한 번 그려진다 (칠판 '크게 보기' 위에도 뜬다: z-index 80+).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWidgets, WIDGET_META, type WidgetBox, type WidgetKind } from "@/stores/widgets";
 import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
@@ -221,7 +221,6 @@ function TimerW({ box }: { box: WidgetBox }) {
   const [editing, setEditing] = useState(false);
   const running = t.mode === "stopwatch" ? !!t.swStart : !!t.endAt;
   const rootRef = useRef<HTMLDivElement>(null);
-  const digitsRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!running) return;
     // 따로 띄운 창이면 '그 창'의 시계로 돈다 — PPT를 띄워 원래 탭이 가려지면 그 탭의 타이머는 1분에 한 번까지 느려진다
@@ -241,9 +240,19 @@ function TimerW({ box }: { box: WidgetBox }) {
   // 창 크기에 따라 보이는 줄 — 작게 줄이면 시간·시작만, 키우면 더하기/빼기·프리셋까지
   const showSteps = !sw && !done && box.h >= 250;
   const showPresets = !sw && !done && !running && box.h >= 330;
-  useWheelTime(digitsRef, !sw && !done && !editing, t.add);
+  const wheelRef = useWheelTime(!sw && !done && !editing, t.add);
+  // 창 어디서나 휠로 시간 조절 — 고정된 콜백이라 0.25초마다 다시 그려져도 다시 붙이지 않는다
+  const setRoot = useCallback(
+    (el: HTMLDivElement | null) => {
+      rootRef.current = el;
+      return wheelRef(el);
+    },
+    [wheelRef]
+  );
   return (
-    <div ref={rootRef} className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
+    <div
+      ref={setRoot}
+      className={`flex h-full flex-col items-center justify-center gap-[2.5cqh] px-3 py-2 ${done ? "timer-flash bg-danger-weak" : ""}`}>
       {/* 제목 — 바로 써서 고친다 */}
       <input
         value={t.label}
@@ -266,12 +275,11 @@ function TimerW({ box }: { box: WidgetBox }) {
         />
       ) : (
         <button
-          ref={digitsRef}
           onClick={() => {
             if (sw || running || done) return;
             setEditing(true);
           }}
-          title={!sw && !done ? (running ? "휠로 시간 조절 (분·초 숫자 위에서)" : "눌러서 분·초 직접 입력 · 휠로 조절") : undefined}
+          title={!sw && !done ? (running ? "휠로 시간 조절 (초 숫자 위에선 10초씩)" : "눌러서 분·초 직접 입력 · 휠로 1분씩 조절") : undefined}
           className={`rounded-[10px] px-2 font-bold leading-none tabular-nums tracking-tight ${done ? "text-danger" : "text-ink-900"} ${
             !sw && !running && !done ? "cursor-text hover:bg-ink-50" : "cursor-default"
           }`}
