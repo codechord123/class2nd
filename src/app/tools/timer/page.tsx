@@ -5,7 +5,7 @@
 //   · 종료 전 알림(1분·30초) · 마지막 10초 똑딱 · 끝 소리 고르기·크기 (소리는 셸의 TimerWatcher가 낸다)
 //   · '창으로 띄우기' — 칠판 위 등 어디서든 끌어 옮기고 크기 조절
 import { useEffect, useState } from "react";
-import { useWheelTime, Digits } from "@/components/tools/wheelTime";
+import { useWheelTime, useDialDrag, Digits } from "@/components/tools/wheelTime";
 import { closePopOut, openPopOut, usePopped } from "@/lib/tools/popout";
 import { useTimer, leftMs, swMs, fmt, fmtSw, TIME_STEPS } from "@/stores/timer";
 import TimeEntry from "@/components/tools/TimeEntry";
@@ -28,6 +28,8 @@ export default function TimerPage() {
   const running = sw ? !!t.swStart : !!t.endAt;
   const done = !sw && !!t.doneAt;
   const wheelRef = useWheelTime(!sw && !done && !editing, t.add);
+  const dialOn = !sw && !done && !editing;
+  const dialDrag = useDialDrag(dialOn, t.add);
   const popped = !!usePopped("timer");
   useEffect(() => {
     if (!running) return; // 끝나면 시계를 멈춘다 (사용자 2026-11: "끝나면 계속 흐르는 게 아니라 멈추게")
@@ -36,7 +38,9 @@ export default function TimerPage() {
   }, [running, sw]);
 
   const left = done ? 0 : leftMs(t, now);
-  const frac = sw ? 1 : t.total > 0 ? left / t.total : 0;
+  // 🎛️ 멈춰 있을 땐 '60분 다이얼'로 — 동그라미가 맞춘 시간만큼 채워지고 끝에 손잡이 (돌려서 맞춘다)
+  const dial = !sw && !running && !done;
+  const frac = sw ? 1 : dial ? Math.min(left, 3_600_000) / 3_600_000 : t.total > 0 ? left / t.total : 0;
   const urgent = !sw && running && left <= Math.max(10_000, t.total * 0.1);
   const R = 46;
   const C = 2 * Math.PI * R;
@@ -202,8 +206,9 @@ export default function TimerPage() {
         {/* 링 + 숫자 */}
         <div
           ref={wheelRef}
-          title={!sw && !done && !editing ? "휠로 시간 조절 — 1분씩 (초 숫자 위에선 10초씩)" : undefined}
-          className={`relative ${focus ? "h-[min(52vh,72vw)] w-[min(52vh,72vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}
+          {...dialDrag}
+          title={dialOn ? "동그라미를 돌리거나 휠로 시간 조절 — 1분씩 (초 숫자 위 휠은 10초씩)" : undefined}
+          className={`relative ${dialOn ? "cursor-grab touch-none active:cursor-grabbing" : ""} ${focus ? "h-[min(52vh,72vw)] w-[min(52vh,72vw)]" : "h-64 w-64 sm:h-80 sm:w-80"}`}
         >
           <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
             <circle cx="50" cy="50" r={R} fill="none" stroke={dark ? "rgba(255,255,255,0.12)" : "var(--color-ink-100)"} strokeWidth="5" />
@@ -218,8 +223,37 @@ export default function TimerPage() {
                 strokeLinecap="round"
                 strokeDasharray={C}
                 strokeDashoffset={C * (1 - frac)}
-                style={{ transition: running ? "stroke-dashoffset 0.1s linear" : "stroke-dashoffset 0.3s ease" }}
+                style={{ transition: running ? "stroke-dashoffset 0.1s linear" : "stroke-dashoffset 0.15s ease" }}
               />
+            )}
+            {dial && (
+              <>
+                {/* 5분 눈금 + 손잡이 — '돌리는 것'임을 보여 준다 */}
+                {Array.from({ length: 12 }, (_, i) => {
+                  const th = (i / 12) * 2 * Math.PI;
+                  return (
+                    <line
+                      key={i}
+                      x1={50 + (R - 4.2) * Math.cos(th)}
+                      y1={50 + (R - 4.2) * Math.sin(th)}
+                      x2={50 + (R - (i % 3 ? 5.6 : 7)) * Math.cos(th)}
+                      y2={50 + (R - (i % 3 ? 5.6 : 7)) * Math.sin(th)}
+                      stroke={dark ? "rgba(255,255,255,0.35)" : "var(--color-ink-300)"}
+                      strokeWidth={i % 3 ? 0.6 : 1}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+                <circle
+                  cx={50 + R * Math.cos(frac * 2 * Math.PI)}
+                  cy={50 + R * Math.sin(frac * 2 * Math.PI)}
+                  r="4.2"
+                  fill={dark ? "#fff" : "var(--color-white)"}
+                  stroke={dark ? "#fff" : "var(--color-ink-900)"}
+                  strokeWidth="1.6"
+                  style={{ transition: "cx 0.15s ease, cy 0.15s ease" }}
+                />
+              </>
             )}
           </svg>
           <div className="absolute inset-0 grid place-items-center">
@@ -252,7 +286,7 @@ export default function TimerPage() {
         </div>
 
         {!sw && !done && !editing && !focus && (
-          <p className="-mt-2 text-[12px] font-bold text-ink-400">🖱️ 시계 위에서 휠 = 1분씩 · 초 숫자 위에선 10초씩</p>
+          <p className="-mt-2 text-[12px] font-bold text-ink-400">동그라미를 돌리거나 휠 = 1분씩 · 초 숫자 위 휠 = 10초씩</p>
         )}
         {/* 주 조작 — 시작/멈춤 하나가 가장 크다 */}
         <div className="flex flex-col items-center gap-4">

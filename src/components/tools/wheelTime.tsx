@@ -45,3 +45,57 @@ export function Digits({ text }: { text: string }) {
     </>
   );
 }
+
+/**
+ * 🎛️ 시계 동그라미를 손으로 돌려 시간 조절 (사용자 2026-11: "시간 주변 동그라미 있잖아, 그걸 돌리면 시간이 바뀌게").
+ * 다이얼처럼 — 시계 방향으로 6°(= 한 칸) 돌릴 때마다 +1분, 반대로 −1분. 한 바퀴 = 60분, 여러 바퀴도 된다.
+ * 링 바깥 띠(반지름 62% 밖)를 잡아야 돈다 — 가운데 숫자는 눌러서 직접 입력하는 자리라 비워 둔다.
+ * 마우스·터치(태블릿) 모두. 흐르는 중에도 된다.
+ */
+export function useDialDrag(enabled: boolean, add: (ms: number) => void) {
+  const st = useRef<{ a: number; acc: number } | null>(null);
+  const live = useRef({ enabled, add });
+  useEffect(() => {
+    live.current = { enabled, add };
+  });
+  const geo = (el: HTMLElement, e: React.PointerEvent) => {
+    const r = el.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    return { a: (Math.atan2(dy, dx) * 180) / Math.PI, d: Math.hypot(dx, dy) / (r.width / 2) };
+  };
+  return {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      if (!live.current.enabled) return;
+      const { a, d } = geo(e.currentTarget, e);
+      if (d < 0.62 || d > 1.15) return;
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      st.current = { a, acc: 0 };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      const s = st.current;
+      if (!s) return;
+      const { a } = geo(e.currentTarget, e);
+      let da = a - s.a;
+      if (da > 180) da -= 360;
+      if (da < -180) da += 360;
+      s.a = a;
+      s.acc += da;
+      while (s.acc >= 6) {
+        live.current.add(60_000);
+        s.acc -= 6;
+      }
+      while (s.acc <= -6) {
+        live.current.add(-60_000);
+        s.acc += 6;
+      }
+    },
+    onPointerUp: () => {
+      st.current = null;
+    },
+    onPointerCancel: () => {
+      st.current = null;
+    },
+  };
+}
