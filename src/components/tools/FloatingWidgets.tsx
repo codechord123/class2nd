@@ -20,6 +20,15 @@ import { useWheelTime, Digits } from "@/components/tools/wheelTime";
 /** 따로 띄운 창(항상 위 PIP·팝업)에 도구를 그린다 — lib/tools/popout.ts */
 function PopOutHost() {
   const wins = usePopOut((s) => s.wins);
+  // 같은 창에 들어간 도구끼리 묶는다 (PIP 창 하나에 타이머·소음을 함께 둘 수 있다)
+  const groups: [Window, PopKind[]][] = [];
+  for (const k of ["timer", "noise", "pick"] as PopKind[]) {
+    const w = wins[k];
+    if (!w) continue;
+    const g = groups.find(([win]) => win === w.win);
+    if (g) g[1].push(k);
+    else groups.push([w.win, [k]]);
+  }
   useEffect(() => {
     // 이 탭을 닫거나 새로고침하면 따로 띄운 창도 닫는다 (빈 창이 남지 않게)
     const off = () => closePopOut();
@@ -28,15 +37,14 @@ function PopOutHost() {
   }, []);
   return (
     <>
-      {(Object.keys(wins) as PopKind[]).map((k) => {
-        const w = wins[k];
-        return w ? <PopBody key={k} kind={k} win={w.win} /> : null;
-      })}
+      {groups.map(([win, kinds]) => (
+        <PopGroup key={kinds.join("+")} win={win} kinds={kinds} />
+      ))}
     </>
   );
 }
-function PopBody({ kind, win }: { kind: PopKind; win: Window }) {
-  // 창 크기 — 타이머는 창이 크면 더하기/빼기·프리셋 줄까지 보여 준다 (떠 있는 창과 같은 규칙)
+/** 한 창(PIP·팝업)에 도구 하나 또는 여럿 — 넓으면 옆으로, 길면 아래로 나란히 */
+function PopGroup({ win, kinds }: { win: Window; kinds: PopKind[] }) {
   const [size, setSize] = useState(() => ({ w: win.innerWidth, h: win.innerHeight }));
   useEffect(() => {
     const on = () => setSize({ w: win.innerWidth, h: win.innerHeight });
@@ -45,15 +53,36 @@ function PopBody({ kind, win }: { kind: PopKind; win: Window }) {
   }, [win]);
   const root = win.document.getElementById("pop-root");
   if (!root) return null;
+  const many = kinds.length > 1;
+  const row = size.w >= size.h;
+  const cell = { w: row ? size.w / kinds.length : size.w, h: (row ? size.h : size.h / kinds.length) - (many ? 28 : 0) };
   return createPortal(
-    <div className="h-screen w-screen overflow-hidden bg-white text-ink-900" style={{ containerType: "size" }}>
-      {kind === "noise" ? (
-        <NoiseW autoStart />
-      ) : kind === "pick" ? (
-        <PickW />
-      ) : (
-        <TimerW box={{ kind: "timer", x: 0, y: 0, z: 0, w: size.w, h: size.h }} />
-      )}
+    <div className={`flex h-screen w-screen overflow-hidden bg-white text-ink-900 ${row ? "flex-row divide-x" : "flex-col divide-y"} divide-ink-200`}>
+      {kinds.map((kind) => (
+        <section key={kind} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {many && (
+            <header className="flex h-7 shrink-0 items-center justify-between bg-ink-50 pl-3 pr-1 text-[12px] font-bold text-ink-500">
+              {WIDGET_META[kind].label}
+              <button
+                onClick={() => closePopOut(kind)}
+                aria-label={`${WIDGET_META[kind].label} 빼기`}
+                className="grid h-6 w-6 place-items-center rounded-full hover:bg-ink-200 hover:text-ink-900"
+              >
+                ✕
+              </button>
+            </header>
+          )}
+          <div className="relative min-h-0 flex-1" style={{ containerType: "size" }}>
+            {kind === "noise" ? (
+              <NoiseW autoStart />
+            ) : kind === "pick" ? (
+              <PickW />
+            ) : (
+              <TimerW box={{ kind: "timer", x: 0, y: 0, z: 0, w: cell.w, h: cell.h }} />
+            )}
+          </div>
+        </section>
+      ))}
     </div>,
     root
   );
